@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# factory.config.yml.example — Vorlage für team-eigene Config-Overrides (ADR-009)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Kopiere diese Datei nach `factory.config.yml` und kommentiere genau die Knöpfe
+# ein, die dein Team anpassen will. `factory.defaults.yml` (Template-Update) +
+# `factory.config.yml` (dein Override) → effektive Config (Merge in run-pipeline.sh).
+#
+# Diese Vorlage enthält BEWUSST KEINEN aktiven Override (alles auskommentiert) —
+# ein Default unverändert zu lassen heißt: den Knopf weglassen.
+#
+# BEGRÜNDUNG/TRADE-OFF stehen NICHT hier. Sie leben an EINER Stelle, am Knopf in
+# `factory.defaults.yml` (Tags @reason / @tradeoff, Konvention ADR-011). Diese
+# Datei VERWEIST nur (Anti-Drift, Spec #35 Kriterium C) — bitte beim Anpassen die
+# Begründung dort nachlesen, nicht hierher kopieren.
+#
+# Es gibt nur Knöpfe für die in den Defaults bekannten Keys (correct-by-construction).
+# Für Non-Negotiables (Tests zuerst, Gates, Doktrin) gibt es bewusst KEINEN Knopf;
+# ein unbekannter Key würde vom Validierungs-Gate (#36) fail-closed abgelehnt.
+# Schneller, geführter Weg statt Handarbeit: `/configure-factory`.
+#
+# ── Knopf: schemaVersion ──────────────────────────────────────────────────────
+# Muss exakt dem Wert in factory.defaults.yml entsprechen, falls gesetzt (Gate-Regel).
+# Quelle/Begründung: factory.defaults.yml → schemaVersion
+# schemaVersion: 1
+#
+# ── Knopf: model_tiers (welches Modell hinter heavy/light steht) ──────────────
+# Begründung/Trade-off: siehe factory.defaults.yml → model_tiers (Tags @reason, @tradeoff)
+# Konkrete Modell-IDs sind zusätzlich per Env-Var überschreibbar (CLAUDE_MODEL_*).
+# model_tiers:
+#   heavy: claude-opus-4-8
+#   light: claude-sonnet-4-6
+#
+# ── Knopf: skills.<name> (tier → Modell, max_turns → Kosten-Deckel) ───────────
+# Begründung/Trade-off: siehe factory.defaults.yml → skills.<name> (Tags @reason, @tradeoff)
+# max_turns muss ein Integer in [1, 50] sein (Gate-Policy, ADR-009 §6); tier ∈ model_tiers.
+# Beispiel: implement enger deckeln (Default 20 → 10):
+# skills:
+#   implement: { max_turns: 10 }
+#
+# ── Knopf: default (Fallback für Skills ohne eigenen Eintrag) ─────────────────
+# Begründung: siehe factory.defaults.yml → default (Tag @reason)
+# default:
+#   tier: light
+#   max_turns: 10
