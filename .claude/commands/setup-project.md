@@ -10,7 +10,7 @@ Er analysiert das vorhandene Projekt und befüllt `docs/factory/PROJECT-CONTEXT.
      `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `*.csproj`
    - Tests: Suche nach Test-Verzeichnissen und Test-Framework-Abhängigkeiten
    - Linting/Formatierung: `.eslintrc`, `checkstyle.xml`, `.golangci.yml`, etc.
-   - CI/CD: `.github/workflows/`, `.gitlab-ci.yml`
+   - CI/CD: `.github/workflows/`
    - README, vorhandene ADRs
 
 2. **Erkenntnisse zusammenfassen** und dem Entwickler zur Bestätigung vorlegen:

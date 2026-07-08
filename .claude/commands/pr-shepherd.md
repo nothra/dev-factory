@@ -10,7 +10,7 @@ Lies zuerst:
 - `docs/factory/PROJECT-CONTEXT.md` – Projekt-Name, Git-Remote, CI-Konfiguration
 - `tasks/task-$ARGUMENTS.md` – Aufgaben-Details, Status
 - Aktuellen Branch-Status: `git status`, `git log main...HEAD --oneline`
-- Offene MR/PR via `glab mr view` oder GitLab MCP
+- Offenen PR via `gh pr view`
 
 ## Shepherd-Prozess
 
@@ -19,7 +19,7 @@ Lies zuerst:
 ```bash
 git status
 git log main...HEAD --oneline
-glab mr view --web=false   # oder: gh pr view
+gh pr view
 ```
 
 Prüfe:
@@ -44,12 +44,12 @@ Für jeden offenen Kommentar:
 
 ### Schritt 3: Rebase auf main
 
-Server-seitig rebasen – kein lokaler Force-Push nötig (die Regel
+Server-seitig aktualisieren – kein lokaler Force-Push nötig (die Regel
 „Nie force-pushen ohne Interrupt" bleibt gewahrt). Ein lokales `git rebase`
-würde nie im Remote-MR landen, ohne force-zu-pushen:
+würde nie im Remote-PR landen, ohne force-zu-pushen:
 
 ```bash
-glab mr rebase   # rebased den MR-Branch GitLab-seitig auf den aktuellen main
+gh pr update-branch   # führt den aktuellen main GitHub-seitig in den PR-Branch (kein Force-Push)
 ```
 
 Bei Merge-Konflikt (Rebase nicht automatisch möglich):
@@ -61,13 +61,13 @@ bash scripts/raise-interrupt.sh $ARGUMENTS MERGE_CONFLICT \
 ### Schritt 4: CI-Status prüfen
 
 ```bash
-glab ci status   # oder: gh run list
+gh pr checks   # Status der CI-Checks des PRs (oder: gh run list)
 ```
 
 - **Grün:** weiter zu Schritt 5
-- **Laufend:** `glab mr merge --auto` (Schritt 6) wartet ohnehin auf die Pipeline –
+- **Laufend:** `gh pr merge --auto` (Schritt 6) wartet ohnehin auf die Checks –
   kein aktives Warten in der Session nötig
-- **Rot (flaky Test):** CI-Re-Run anstoßen (`glab ci retry` / `gh run rerun`)
+- **Rot (flaky Test):** CI-Re-Run anstoßen (`gh run rerun --failed`)
   – max. 1 Re-Run, danach Interrupt
 - **Rot (echter Fehler):**
   ```bash
@@ -78,7 +78,7 @@ glab ci status   # oder: gh run list
 ### Schritt 5: Approval-Status prüfen
 
 ```bash
-glab mr approvals   # oder: gh pr view --json reviewDecision
+gh pr view --json reviewDecision
 ```
 
 - Wenn alle erforderlichen Approvals vorhanden → weiter
@@ -93,7 +93,7 @@ glab mr approvals   # oder: gh pr view --json reviewDecision
 Wenn Schritt 2–5 alle grün:
 
 ```bash
-glab mr merge --auto   # oder: gh pr merge --auto --squash
+gh pr merge --auto --squash
 ```
 
 Ergebnis in Task-Datei dokumentieren:

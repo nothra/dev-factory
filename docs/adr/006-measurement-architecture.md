@@ -3,6 +3,11 @@
 ## Status
 Accepted
 
+> **Update (2026-07-08, [ADR-012](012-github-platform-migration.md)):** Plattform von
+> GitLab auf GitHub migriert. Die Zwei-Ebenen-Entscheidung bleibt unverändert gültig; die
+> Prozess-Ebene liest die Kennzahlen jetzt über die GitHub-API (`gh`) statt `glab`.
+> Historischer Text unten nennt weiterhin GitLab.
+
 ## Datum
 2026-06-17
 

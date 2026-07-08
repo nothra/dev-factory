@@ -2,14 +2,14 @@
 # metrics.sh – Prozess-/Outcome-Kennzahlen der Factory.
 #
 # Verwendung: bash scripts/metrics.sh [--no-api] [--quiet]
-#   --no-api  überspringt die GitLab-API-Metriken (Lead-Time, CI-Quote)
+#   --no-api  überspringt die GitHub-API-Metriken (Lead-Time, CI-Quote)
 #   --quiet   schreibt nur die Report-Datei, nicht nach stdout
 #
-# Mess-Ebene laut ADR-006: PROZESS (Git/GitLab). Token/Kosten kommen NICHT von
+# Mess-Ebene laut ADR-006: PROZESS (Git/GitHub). Token/Kosten kommen NICHT von
 # hier, sondern aus der Telemetrie-Ebene (OTEL, config/otel.env.example).
 #
-# Local-first: Die lokalen Kennzahlen laufen immer. Die GitLab-API-Metriken
-# (Lead-Time, CI-Grün-Quote) degradieren sauber, wenn glab fehlt oder nicht
+# Local-first: Die lokalen Kennzahlen laufen immer. Die GitHub-API-Metriken
+# (Lead-Time, CI-Grün-Quote) degradieren sauber, wenn gh fehlt oder nicht
 # authentifiziert ist – der Report weist das dann aus.
 
 set -uo pipefail
@@ -62,43 +62,38 @@ if [ "$total_tasks" -gt 0 ]; then
   autonomy="$(( (total_tasks - tasks_with_interrupt) * 100 / total_tasks ))%"
 fi
 
-# ─── GitLab-API-Metriken (optional, degradieren sauber) ──────────────────────
+# ─── GitHub-API-Metriken (optional, degradieren sauber) ──────────────────────
 
 lead_time="übersprungen"
 ci_quote="übersprungen"
 api_note=""
 
-api_available() { command -v glab >/dev/null 2>&1 && glab auth status >/dev/null 2>&1; }
+api_available() { command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; }
 
 if [ "$USE_API" = true ]; then
   if api_available && command -v jq >/dev/null 2>&1; then
-    url=$(git -C "$FACTORY_DIR" remote get-url origin 2>/dev/null || echo "")
-    # Protokoll+Host abstreifen (ssh git@host: oder https://host/), .git entfernen
-    path=$(printf '%s' "$url" | sed -E 's#(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')
-    enc=$(printf '%s' "$path" | sed 's#/#%2F#g')
+    # Lead-Time: Ø (mergedAt − createdAt) über die letzten gemergten PRs.
+    prs=$(gh pr list --state merged --limit 20 --json createdAt,mergedAt 2>/dev/null || echo "")
+    if [ -n "$prs" ]; then
+      avg_h=$(printf '%s' "$prs" | jq -r '
+        [ .[] | select(.mergedAt != null)
+          | ((.mergedAt[0:19]+"Z")|fromdateiso8601) - ((.createdAt[0:19]+"Z")|fromdateiso8601) ]
+        | if length > 0 then ((add/length)/3600) else empty end' 2>/dev/null || echo "")
+      [ -n "$avg_h" ] && lead_time="$(printf '%.1f h' "$avg_h") (Ø über letzte $(printf '%s' "$prs" | jq 'length') PRs)"
+    fi
 
-    if [ -n "$enc" ]; then
-      mrs=$(glab api "projects/${enc}/merge_requests?state=merged&per_page=20" 2>/dev/null || echo "")
-      if [ -n "$mrs" ]; then
-        avg_h=$(printf '%s' "$mrs" | jq -r '
-          [ .[] | select(.merged_at != null)
-            | ((.merged_at[0:19]+"Z")|fromdateiso8601) - ((.created_at[0:19]+"Z")|fromdateiso8601) ]
-          | if length > 0 then ((add/length)/3600) else empty end' 2>/dev/null || echo "")
-        [ -n "$avg_h" ] && lead_time="$(printf '%.1f h' "$avg_h") (Ø über letzte $(printf '%s' "$mrs" | jq 'length') MRs)"
-      fi
-
-      pipes=$(glab api "projects/${enc}/pipelines?per_page=20" 2>/dev/null || echo "")
-      if [ -n "$pipes" ]; then
-        total_p=$(printf '%s' "$pipes" | jq 'length' 2>/dev/null || echo 0)
-        green_p=$(printf '%s' "$pipes" | jq '[.[]|select(.status=="success")]|length' 2>/dev/null || echo 0)
-        [ "$total_p" -gt 0 ] && ci_quote="$((green_p * 100 / total_p))% ($green_p/$total_p grün)"
-      fi
+    # CI-Grün-Quote: Anteil erfolgreicher Workflow-Läufe (GitHub Actions).
+    runs=$(gh run list --limit 20 --json conclusion 2>/dev/null || echo "")
+    if [ -n "$runs" ]; then
+      total_p=$(printf '%s' "$runs" | jq 'length' 2>/dev/null || echo 0)
+      green_p=$(printf '%s' "$runs" | jq '[.[]|select(.conclusion=="success")]|length' 2>/dev/null || echo 0)
+      [ "$total_p" -gt 0 ] && ci_quote="$((green_p * 100 / total_p))% ($green_p/$total_p grün)"
     fi
   else
-    api_note="_GitLab-API-Metriken übersprungen – glab nicht verfügbar/authentifiziert oder jq fehlt._"
+    api_note="_GitHub-API-Metriken übersprungen – gh nicht verfügbar/authentifiziert oder jq fehlt._"
   fi
 else
-  api_note="_GitLab-API-Metriken per --no-api übersprungen._"
+  api_note="_GitHub-API-Metriken per --no-api übersprungen._"
 fi
 
 # ─── Report ──────────────────────────────────────────────────────────────────

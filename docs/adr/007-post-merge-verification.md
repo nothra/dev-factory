@@ -3,6 +3,11 @@
 ## Status
 Accepted
 
+> **Update (2026-07-08, [ADR-012](012-github-platform-migration.md)):** Plattform von
+> GitLab auf GitHub migriert. Das CI-on-main-Pattern bleibt unverändert; der `verify`-Job
+> läuft jetzt als `post-merge-verify`-Job in `.github/workflows/factory-ci.yml`
+> (Trigger: push auf den Default-Branch). Historischer Text unten zeigt die GitLab-CI-Rule.
+
 ## Datum
 2026-06-17
 

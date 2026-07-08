@@ -49,7 +49,7 @@ fi
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo -e "  ${RED}✗${NC} Direkter Push auf $CURRENT_BRANCH nicht erlaubt"
-  echo -e "     Bitte einen Pull Request / Merge Request erstellen"
+  echo -e "     Bitte einen Pull Request erstellen (gh pr create)"
   FAILED=1
 else
   echo -e "  ${GREEN}✓${NC} Branch: $CURRENT_BRANCH (nicht main/master)"

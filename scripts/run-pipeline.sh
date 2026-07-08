@@ -420,7 +420,7 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo "Task ${TASK_ID} ist fertig."
 if [ "${PR_SHEPHERD:-false}" = "true" ]; then
-  echo "PR Shepherd wurde ausgeführt – MR sollte merge-ready oder bereits gemergt sein."
+  echo "PR Shepherd wurde ausgeführt – PR sollte merge-ready oder bereits gemergt sein."
 else
   echo "Nächster Schritt: Pull Request erstellen (oder PR_SHEPHERD=true neu starten)"
 fi

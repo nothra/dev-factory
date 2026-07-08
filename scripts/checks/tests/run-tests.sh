@@ -172,7 +172,7 @@ echo "Stufe-1 Quick Wins (bug-fix / pr-shepherd / CI):"
 
 FACTORY_ROOT="$(cd "$CHECKS_DIR/../.." && pwd)"
 PIPELINE="$FACTORY_ROOT/scripts/run-pipeline.sh"
-CI_FILE="$FACTORY_ROOT/.gitlab-ci.yml"
+CI_FILE="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 SHEPHERD="$FACTORY_ROOT/.claude/commands/pr-shepherd.md"
 
 assert_true "$([[ -f "$FACTORY_ROOT/.claude/commands/bug-fix.md" ]]; echo $?)" \
@@ -180,7 +180,7 @@ assert_true "$([[ -f "$FACTORY_ROOT/.claude/commands/bug-fix.md" ]]; echo $?)" \
 assert_true "$([[ -f "$SHEPHERD" ]]; echo $?)" \
   "/pr-shepherd Command-Datei vorhanden"
 assert_true "$([[ -f "$CI_FILE" ]]; echo $?)" \
-  ".gitlab-ci.yml vorhanden"
+  ".github/workflows/factory-ci.yml vorhanden"
 
 # Tier/Turns kommen seit Phase 1b (ADR-009) aus factory.defaults.yml statt aus
 # hartkodierten case-Blöcken → gegen die Config prüfen (yq, nur wo vorhanden).
@@ -204,9 +204,10 @@ assert_true "$?" "Phase 7 (pr-shepherd) ist hinter PR_SHEPHERD-Flag"
 grep -q 'raise-interrupt.sh' "$FACTORY_ROOT/.claude/commands/bug-fix.md"
 assert_true "$?" "bug-fix eskaliert nicht-reproduzierbare Bugs via raise-interrupt"
 
-# pr-shepherd rebaset server-seitig (kein lokaler Force-Push, Regel bleibt gewahrt)
-grep -q 'glab mr rebase' "$SHEPHERD"
-assert_true "$?" "pr-shepherd nutzt server-seitiges 'glab mr rebase'"
+# pr-shepherd aktualisiert den Branch server-seitig (kein lokaler Force-Push,
+# Regel bleibt gewahrt). GitHub-Äquivalent zu 'glab mr rebase': 'gh pr update-branch'.
+grep -q 'gh pr update-branch' "$SHEPHERD"
+assert_true "$?" "pr-shepherd nutzt server-seitiges 'gh pr update-branch'"
 
 # CI-Gates fail-closed: FACTORY_*_COMMAND-Variable, exit 1 wenn unkonfiguriert
 { grep -q 'FACTORY_LINT_COMMAND' "$CI_FILE" && grep -q 'FACTORY_TEST_COMMAND' "$CI_FILE" && grep -q 'exit 1' "$CI_FILE"; }
@@ -294,9 +295,9 @@ echo "Stufe-2 Post-Merge-Verify (#11):"
 
 assert_true "$([[ -f "$FACTORY_ROOT/scripts/post-merge-verify.sh" ]]; echo $?)" "scripts/post-merge-verify.sh vorhanden"
 assert_true "$([[ -f "$FACTORY_ROOT/.claude/commands/post-merge-verify.md" ]]; echo $?)" "/post-merge-verify Command-Datei vorhanden"
-# CI-Job läuft nur auf dem Default-Branch (nach Merge), nicht bei MR-Events
-grep -q 'post-merge-verify:' "$FACTORY_ROOT/.gitlab-ci.yml"
-assert_true "$?" "post-merge-verify-Job in .gitlab-ci.yml"
+# CI-Job läuft nur auf dem Default-Branch (nach Merge), nicht bei Pull Requests
+grep -q 'post-merge-verify:' "$CI_FILE"
+assert_true "$?" "post-merge-verify-Job in .github/workflows/factory-ci.yml"
 
 TMP_PMV="$(mktemp -d)"
 mkdir -p "$TMP_PMV/tasks" "$TMP_PMV/scripts" "$TMP_PMV/bin"
@@ -372,48 +373,50 @@ PATH="$TMP_PMV/bin:$PATH" FACTORY_DIR="$TMP_PMV" FACTORY_HEALTHCHECK_URL="http:/
 assert_true "$([[ "$(cat "$TMP_PMV/cnt")" -eq 1 ]]; echo $?)" "#24: Erfolg beim 1. Versuch → kein künstliches Warten (genau 1 Check)"
 rm -rf "$TMP_PMV"
 
-# CI-Rule: post-merge-verify nur bei push auf den Default-Branch (nicht Scheduled)
-grep -q 'CI_PIPELINE_SOURCE == "push"' "$FACTORY_ROOT/.gitlab-ci.yml"
+# CI-Rule: post-merge-verify nur bei push auf den Default-Branch (nicht Pull Request)
+grep -q "github.event_name == 'push'" "$CI_FILE"
 assert_true "$?" "post-merge-verify-Job ist auf push (nach Merge) eingegrenzt"
 
 # ─── Stufe-2: Async-Trigger / Scheduled-Poll (#10, ADR-008) ──────────────────
 echo ""
 echo "Stufe-2 Async-Trigger (#10):"
 
-CI_YML="$FACTORY_ROOT/.gitlab-ci.yml"
+POLL_YML="$FACTORY_ROOT/.github/workflows/factory-poll.yml"
 assert_true "$([[ -f "$FACTORY_ROOT/scripts/factory-poll.sh" ]]; echo $?)" "scripts/factory-poll.sh vorhanden"
-assert_true "$([[ -f "$FACTORY_ROOT/ci/factory-runtime.Dockerfile" ]]; echo $?)" "ci/factory-runtime.Dockerfile vorhanden"
-grep -q 'factory-poll:' "$CI_YML"; assert_true "$?" "factory-poll-Job in .gitlab-ci.yml"
-grep -q 'resource_group: factory-runtime' "$CI_YML"; assert_true "$?" "factory-poll hat resource_group (Concurrency=1, Idempotenz)"
-grep -q 'CI_PIPELINE_SOURCE == "schedule"' "$CI_YML"; assert_true "$?" "factory-poll nur in Scheduled Pipeline"
+assert_true "$([[ -f "$POLL_YML" ]]; echo $?)" ".github/workflows/factory-poll.yml vorhanden"
+grep -q 'factory-poll:' "$POLL_YML"; assert_true "$?" "factory-poll-Job in factory-poll.yml"
+grep -q 'group: factory-runtime' "$POLL_YML"; assert_true "$?" "factory-poll hat concurrency-group (Concurrency=1, Idempotenz)"
+grep -q 'schedule:' "$POLL_YML"; assert_true "$?" "factory-poll nur als Scheduled Workflow"
 
-# Verhalten: Guard-Pfade gegen gemocktes glab (kein echtes GitLab nötig).
+# Verhalten: Guard-Pfade gegen gemocktes gh (kein echtes GitHub nötig).
 # Output erst in Variable fangen (grep -q + pipefail → sonst SIGPIPE-Falschrot).
+# Mock-Disambiguierung: 'factory::run"' (mit schließendem Quote) trifft NUR die
+# run-queue-Suche, nicht 'factory::running"'. Die updated:<-Suche ist der Stale-Reaper.
 TMP_POLL="$(mktemp -d)"; mkdir -p "$TMP_POLL/scripts" "$TMP_POLL/bin"
 cp "$SCRIPTS_DIR/factory-poll.sh" "$TMP_POLL/scripts/"
-cat > "$TMP_POLL/bin/glab" <<'GLABEOF'
+cat > "$TMP_POLL/bin/gh" <<'GHEOF'
 #!/bin/sh
 case "$*" in
-  *updated_before*) echo "${FAKE_STALE:-[]}" ;;
-  *"labels=factory::running&state=opened&per_page"*) echo "${FAKE_RUNNING:-[]}" ;;
-  *"labels=factory::done"*) echo "${FAKE_DONE:-[]}" ;;
-  *"labels=factory::interrupted"*) echo "${FAKE_INTR:-[]}" ;;
-  *"labels=factory::run&state=opened&order_by"*) echo "${FAKE_RUNQ:-[]}" ;;
+  *"updated:<"*) echo "${FAKE_STALE:-[]}" ;;
+  *"factory::done"*) echo "${FAKE_DONE:-[]}" ;;
+  *"factory::interrupted"*) echo "${FAKE_INTR:-[]}" ;;
+  *"factory::running"*) echo "${FAKE_RUNNING:-[]}" ;;
+  *"factory::run"*) echo "${FAKE_RUNQ:-[]}" ;;
   *) echo "[]" ;;
 esac
-GLABEOF
-chmod +x "$TMP_POLL/bin/glab"
-poll() { PATH="$TMP_POLL/bin:$PATH" FACTORY_DIR="$TMP_POLL" FACTORY_PROJECT=1 \
+GHEOF
+chmod +x "$TMP_POLL/bin/gh"
+poll() { PATH="$TMP_POLL/bin:$PATH" FACTORY_DIR="$TMP_POLL" FACTORY_REPO=test/repo \
   FACTORY_MAX_RUNS_PER_DAY="${MAXR:-5}" bash "$TMP_POLL/scripts/factory-poll.sh" --dry-run 2>&1; }
 
-out=$(FAKE_RUNNING='[{"iid":7}]' poll); printf '%s' "$out" | grep -q 'Concurrency=1'
+out=$(FAKE_RUNNING='[{"number":7}]' poll); printf '%s' "$out" | grep -q 'Concurrency=1'
 assert_true "$?" "Guard: laufender Lauf blockiert (Concurrency=1)"
 # K-1: interrupted zählt gegen die Tageskappe (done=1 + interrupted=1 = Kappe 2)
 out=$(MAXR=2 FAKE_DONE='[1]' FAKE_INTR='[9]' poll); printf '%s' "$out" | grep -q 'Tageskappe erreicht (2/2'
 assert_true "$?" "K-1: interrupted zählt gegen die Tageskappe"
 out=$(poll); printf '%s' "$out" | grep -q 'nichts zu tun'
 assert_true "$?" "Guard: keine factory::run-Issues → nichts zu tun"
-out=$(FAKE_RUNQ='[{"iid":42}]' poll); printf '%s' "$out" | grep -q 'Issue #42'
+out=$(FAKE_RUNQ='[{"number":42}]' poll); printf '%s' "$out" | grep -q 'Issue #42'
 assert_true "$?" "wählt ältestes factory::run-Issue (#42)"
 # W-3: nicht ermittelbarer Zustand (API-Fehler) → LAUT (exit 3), nicht stiller Leerlauf
 out=$(FAKE_RUNNING='APIERROR' poll); rc=$?
@@ -421,37 +424,37 @@ assert_exit 3 "$rc" "W-3: API-Fehler → exit 3 (laut, roter Job)"
 printf '%s' "$out" | grep -q 'BLOCKED (fail-closed)'
 assert_true "$?" "W-3: API-Fehler meldet BLOCKED statt still durchzuwinken"
 # W-1: verwaister running-Lauf wird vom Stale-Reaper zurückgesetzt
-out=$(FAKE_STALE='[{"iid":5}]' poll); printf '%s' "$out" | grep -q 'verwaisten running-Lauf #5'
+out=$(FAKE_STALE='[{"number":5}]' poll); printf '%s' "$out" | grep -q 'verwaisten running-Lauf #5'
 assert_true "$?" "W-1: Stale-Reaper setzt verwaisten running-Lauf zurück"
 rm -rf "$TMP_POLL"
 
 # W-2: Fehlerpfad unterscheidet Interrupt (Sentinel da) von echtem Fehler (kein Sentinel).
-# Non-dry-run mit gefälschtem run-pipeline (exit 1) + glab, das Mutationen mitloggt.
+# Non-dry-run mit gefälschtem run-pipeline (exit 1) + gh, das Mutationen mitloggt.
 TMP_W2="$(mktemp -d)"; mkdir -p "$TMP_W2/scripts" "$TMP_W2/tasks" "$TMP_W2/bin"
 cp "$SCRIPTS_DIR/factory-poll.sh" "$TMP_W2/scripts/"
 printf '#!/bin/sh\nexit 1\n' > "$TMP_W2/scripts/run-pipeline.sh"; chmod +x "$TMP_W2/scripts/run-pipeline.sh"
-cat > "$TMP_W2/bin/glab" <<'GLABEOF'
+cat > "$TMP_W2/bin/gh" <<'GHEOF'
 #!/bin/sh
 case "$*" in
-  *"?add_labels"*) echo "$*" >> "$GLAB_LOG"; echo '{}' ;;          # Mutation → mitloggen
-  *"issues/50") echo '{"labels":["factory::running"]}' ;;          # Flip-Verify-GET
-  *"labels=factory::run&state=opened&order_by"*) echo '[{"iid":50}]' ;;
+  *"issue edit"*) echo "$*" >> "$GH_LOG"; echo '{}' ;;                 # Mutation → mitloggen
+  *"issue view"*) echo '{"labels":[{"name":"factory::running"}]}' ;;   # Flip-Verify-GET
+  *'factory::run"'*) echo '[{"number":50}]' ;;                          # run-queue (nur run", nicht running")
   *) echo "[]" ;;
 esac
-GLABEOF
-chmod +x "$TMP_W2/bin/glab"
-w2() { PATH="$TMP_W2/bin:$PATH" FACTORY_DIR="$TMP_W2" FACTORY_PROJECT=1 GLAB_LOG="$TMP_W2/mut.log" \
+GHEOF
+chmod +x "$TMP_W2/bin/gh"
+w2() { PATH="$TMP_W2/bin:$PATH" FACTORY_DIR="$TMP_W2" FACTORY_REPO=test/repo GH_LOG="$TMP_W2/mut.log" \
   bash "$TMP_W2/scripts/factory-poll.sh" >/dev/null 2>&1; }
 
 # Kein Sentinel → echter Fehler → factory::failed
 : > "$TMP_W2/mut.log"; w2
-grep -q 'add_labels=factory::failed' "$TMP_W2/mut.log"
+grep -q -- '--add-label factory::failed' "$TMP_W2/mut.log"
 assert_true "$?" "W-2: Pipeline-Fehler ohne Sentinel → factory::failed"
 # Sentinel da → Interrupt → factory::interrupted (nicht failed)
 : > "$TMP_W2/mut.log"; echo "# INTERRUPT" > "$TMP_W2/tasks/INTERRUPT-50.md"; w2
-grep -q 'add_labels=factory::interrupted' "$TMP_W2/mut.log"
+grep -q -- '--add-label factory::interrupted' "$TMP_W2/mut.log"
 assert_true "$?" "W-2: Pipeline-Stopp mit Sentinel → factory::interrupted"
-grep -q 'add_labels=factory::failed' "$TMP_W2/mut.log"
+grep -q -- '--add-label factory::failed' "$TMP_W2/mut.log"
 assert_true "$([ $? -ne 0 ]; echo $?)" "W-2: Interrupt wird NICHT als failed fehletikettiert"
 rm -rf "$TMP_W2"
 

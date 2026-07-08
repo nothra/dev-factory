@@ -1,7 +1,7 @@
 # /daily-metrics – Prozess-Kennzahlen der Factory
 
-Erzeugt einen Health-/Velocity-Report aus deterministischen Quellen (Git, GitLab,
-Task-Dateien) und gibt ihn optional als GitLab-Kommentar aus.
+Erzeugt einen Health-/Velocity-Report aus deterministischen Quellen (Git, GitHub,
+Task-Dateien) und gibt ihn optional als GitHub-Kommentar aus.
 
 > **Mess-Ebene (ADR-006):** Dieser Skill misst **Prozess** – Lead-Time,
 > Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. **Token und Kosten gehören
@@ -20,7 +20,7 @@ bash scripts/metrics.sh
 ```
 
 Das Skript schreibt `tasks/metrics-<datum>.md` und gibt den Report aus. Ohne
-`glab`/Token laufen die lokalen Metriken trotzdem (Lead-Time/CI-Quote werden
+`gh`/Token laufen die lokalen Metriken trotzdem (Lead-Time/CI-Quote werden
 dann als „übersprungen" markiert – local-first, ADR-006).
 
 ### Schritt 2: Auffälligkeiten benennen
@@ -33,10 +33,10 @@ Lies den Report und hebe hervor, was Aufmerksamkeit braucht:
 
 ### Schritt 3 (optional): Veröffentlichen
 
-Wenn eine Ziel-Issue-/MR-ID gegeben ist, den Report als Kommentar posten:
+Wenn eine Ziel-Issue-/PR-Nummer gegeben ist, den Report als Kommentar posten:
 
 ```bash
-glab issue note <issue-iid> -m "$(cat tasks/metrics-<datum>.md)"
+gh issue comment <issue-nummer> --body-file tasks/metrics-<datum>.md
 ```
 
 Sonst genügt der Datei-Report.
@@ -51,10 +51,10 @@ Sonst genügt der Datei-Report.
 
 - `tasks/metrics-<datum>.md` (gitignored – Snapshot, jederzeit regenerierbar)
 - Kurze Interpretation der Auffälligkeiten
-- Optional: GitLab-Kommentar
+- Optional: GitHub-Kommentar
 
 ## Hinweis für Stage 3 / Automatisierung
 
-Deterministisch, kein Gesprächsgedächtnis nötig. Kann via Scheduled Pipeline
-täglich laufen (`bash scripts/metrics.sh --quiet`) und den Report als Artefakt
-oder Issue-Kommentar ablegen.
+Deterministisch, kein Gesprächsgedächtnis nötig. Kann via GitHub Actions Scheduled
+Workflow täglich laufen (`bash scripts/metrics.sh --quiet`) und den Report als
+Artefakt oder Issue-Kommentar ablegen.

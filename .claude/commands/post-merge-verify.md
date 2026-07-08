@@ -4,7 +4,7 @@ Verifiziert, dass die gemergte Änderung in der **echten Umgebung** funktioniert
 nicht nur im CI-Sandbox. CI-grün ≠ Produktion-grün (ADR-007).
 
 > **Wann:** nach dem Merge auf `main` / nach einem Deployment. In der CI läuft das
-> automatisch als `verify`-Stage auf dem Default-Branch.
+> automatisch als `post-merge-verify`-Job (GitHub Actions) auf dem Default-Branch.
 
 ## Kontext laden
 
@@ -25,7 +25,7 @@ bash scripts/post-merge-verify.sh <task-id>
 ```
 
 - **URL nicht gesetzt:** wird übersprungen (exit 0). Das Template hat kein Deploy-Ziel –
-  adoptierte Projekte setzen `FACTORY_HEALTHCHECK_URL` als CI/CD-Variable.
+  adoptierte Projekte setzen `FACTORY_HEALTHCHECK_URL` als Repository-Variable.
 - **Healthcheck OK:** exit 0, fertig.
 - **Healthcheck fehlgeschlagen:** das Skript löst einen `POST_MERGE_FAIL`-Interrupt aus
   (`raise-interrupt.sh`) und beendet mit exit 1 → CI rot, Eintrag im `interrupt-log.jsonl`.
@@ -54,6 +54,6 @@ laufende Umgebung ergänzt jedes Projekt selbst (z. B. Login-Flow, zentrale API-
 
 ## Hinweis für Stage 3 / CI
 
-Läuft als `verify`-Stage in `.gitlab-ci.yml` automatisch auf dem Default-Branch
-(nach Merge). Kein interaktiver Fluss nötig – Eskalation deterministisch über den
-Interrupt-Mechanismus (ADR-004/ADR-007).
+Läuft als `post-merge-verify`-Job in `.github/workflows/factory-ci.yml` automatisch
+auf dem Default-Branch (nach Merge). Kein interaktiver Fluss nötig – Eskalation
+deterministisch über den Interrupt-Mechanismus (ADR-004/ADR-007).

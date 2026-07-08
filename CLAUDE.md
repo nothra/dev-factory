@@ -62,7 +62,7 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
 
 **Messen (zwei Ebenen, ADR-006):**
 - **Prozess:** `/daily-metrics` (bzw. `scripts/metrics.sh`) – Lead-Time, Autonomie-Rate,
-  CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitLab. Baut **kein** Token-Accounting nach.
+  CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitHub. Baut **kein** Token-Accounting nach.
 - **Telemetrie (optional):** `config/otel.env.example` sourcen aktiviert client-seitige
   OTEL-Metriken (Token/Kosten/Nutzung pro Skill & Agent). Default aus, backend-unabhängig
   (funktioniert auch hinter einem AI-Gateway).
@@ -133,7 +133,7 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 - **Jede neue Task in einer neuen Claude-Session starten.** `start-work.sh` erinnert daran.
   Grund: Kleiner Kontext = fokussierte Arbeit, weniger Token-Verbrauch, kein Übersprechen zwischen Tasks.
 - **Vor jeder neuen Task `bash scripts/start-work.sh` aufrufen** – nie manuell branchen.
-  Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-MR ist angelegt.
+  Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-PR ist angelegt.
 
 ---
 

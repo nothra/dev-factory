@@ -8,13 +8,13 @@ Sie sind nicht verhandelbar – der pre-push Hook erzwingt einen Teil davon tech
 ## Branches
 
 **Nie direkt auf `main` oder `master` committen oder pushen.**
-Jede Änderung – auch kleine Fixes – kommt über einen Feature-Branch und einen Merge Request:
+Jede Änderung – auch kleine Fixes – kommt über einen Feature-Branch und einen Pull Request:
 
 ```
 git checkout -b feature/<kurzbeschreibung>
 # ... Arbeit ...
 git push origin feature/<kurzbeschreibung>
-# → MR erstellen
+# → PR erstellen (gh pr create)
 ```
 
 Branch-Konvention (aligned mit Conventional Commits):
@@ -53,7 +53,7 @@ minimiert Konflikte beim späteren Rebase.
 
 ## Vor dem Push: Nochmals pullen und rebasen
 
-Bevor ein Branch gepusht (oder ein MR erstellt) wird:
+Bevor ein Branch gepusht (oder ein PR erstellt) wird:
 
 ```bash
 git fetch origin
@@ -61,7 +61,7 @@ git rebase origin/main
 ```
 
 Warum: Der eigene Branch soll auf dem aktuellen `main` aufsetzen,
-damit der MR ohne Konflikte gemerged werden kann.
+damit der PR ohne Konflikte gemerged werden kann.
 
 ---
 
@@ -82,8 +82,8 @@ Warum: Rebase erzeugt eine lineare, lesbare Git-History.
 Merge-Commits ("Merge branch 'main' into feature/xyz") haben keinen Informationswert
 und erschweren `git log`, `git bisect` und Code-Reviews.
 
-**Ausnahme:** Das Zusammenführen in `main` (der eigentliche MR-Merge) erfolgt
-durch die Plattform (GitLab/GitHub) – dort ist ein Merge-Commit oder Squash
+**Ausnahme:** Das Zusammenführen in `main` (der eigentliche PR-Merge) erfolgt
+durch GitHub – dort ist ein Merge-Commit oder Squash
 je nach Team-Konvention in Ordnung.
 
 ---

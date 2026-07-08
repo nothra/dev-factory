@@ -1,0 +1,59 @@
+# dm Development Factory – Async-Trigger (ADR-008, Option A: Scheduled-Poll).
+#
+# Läuft als GitHub Actions Scheduled Workflow. Sucht Issues mit Label
+# `factory::run` und startet fail-closed hinter dem Budget-Guard die
+# Factory-Pipeline (scripts/factory-poll.sh → scripts/run-pipeline.sh).
+#
+# concurrency = Concurrency=1 über Läufe hinweg: zwei geplante Läufe
+# überlappen nie (zweite Hälfte der Idempotenz; erste ist der In-Skript-Check).
+#
+# Einrichtung (einmalig, projektspezifisch):
+#   - Repository-Secret ANTHROPIC_API_KEY (oder ANTHROPIC_BASE_URL für ein Gateway, #17)
+#   - Labels anlegen: factory::run / ::running / ::done / ::interrupted / ::failed
+#   - optional Repository-Variable FACTORY_MAX_RUNS_PER_DAY (Default 5),
+#     FACTORY_RUN_TIMEOUT (Stale-Reaper, Default 3600s)
+#   - Der eingebaute GITHUB_TOKEN darf Issues/Labels schreiben und Commits pushen
+#     (permissions unten). Pushes mit GITHUB_TOKEN lösen KEINE weitere Pipeline aus
+#     (kein Trigger-Loop).
+
+name: Factory Poll
+
+on:
+  schedule:
+    # Alle 30 Minuten. Cron-Zeiten sind UTC. Anpassbar an das Team-Zeitfenster.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+# Nur Issues/Labels schreiben + Repo-Commits pushen – kein weiterer Scope.
+permissions:
+  contents: write
+  issues: write
+
+# Concurrency=1 über Workflow-Läufe hinweg (Idempotenz-Hälfte 2). Laufende
+# Läufe werden NICHT abgebrochen (kein cancel-in-progress) – ein aktiver
+# Factory-Lauf darf zu Ende laufen.
+concurrency:
+  group: factory-runtime
+  cancel-in-progress: false
+
+jobs:
+  factory-poll:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      FACTORY_REPO: ${{ github.repository }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      FACTORY_MAX_RUNS_PER_DAY: ${{ vars.FACTORY_MAX_RUNS_PER_DAY }}
+      FACTORY_RUN_TIMEOUT: ${{ vars.FACTORY_RUN_TIMEOUT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runtime bereitstellen (claude-CLI + yq)
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+      - name: factory::run-Issues pollen
+        run: bash scripts/factory-poll.sh

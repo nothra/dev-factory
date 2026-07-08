@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# start-work.sh – Neue Task starten: main pullen, Branch anlegen, pushen, Draft-MR erstellen
+# start-work.sh – Neue Task starten: main pullen, Branch anlegen, pushen, Draft-PR erstellen
 #
 # Verwendung: bash scripts/start-work.sh <task-id> <kurzbeschreibung> [branch-typ]
 # Beispiel:   bash scripts/start-work.sh 42 user-login-implementieren
 #             bash scripts/start-work.sh 43 npm-deps-aktualisieren chore
 #
 # branch-typ (optional, Standard: feature): bestimmt Branch-Präfix und
-# leitet den Conventional-Commits-Typ des MR-Titels ab.
+# leitet den Conventional-Commits-Typ des PR-Titels ab.
 #
 # Ablauf (deterministisch):
 #   1. Uncommitted Changes prüfen
@@ -14,7 +14,7 @@
 #   3. Feature-Branch anlegen
 #   4. Task-Datei erstellen
 #   5. Branch pushen
-#   6. Draft Merge Request erstellen (glab, Fallback: gh)
+#   6. Draft Pull Request erstellen (gh)
 
 set -euo pipefail
 
@@ -49,7 +49,7 @@ case "$BRANCH_TYPE" in
     ;;
 esac
 
-# Conventional-Commits-Typ für den MR-Titel aus dem Branch-Typ ableiten
+# Conventional-Commits-Typ für den PR-Titel aus dem Branch-Typ ableiten
 case "$BRANCH_TYPE" in
   feature)     COMMIT_TYPE="feat" ;;
   hotfix)      COMMIT_TYPE="fix" ;;
@@ -120,7 +120,7 @@ else
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
-- [ ] Fertig / MR erstellt
+- [ ] Fertig / PR erstellt
 
 ## Beschreibung
 <!-- Was soll implementiert werden? -->
@@ -149,7 +149,7 @@ EOF
 fi
 
 # Task-Datei committen – sonst ist der gepushte Branch identisch zu main
-# (leerer Draft-MR) und die Datei bliebe uncommitted im Working Tree.
+# (leerer Draft-PR) und die Datei bliebe uncommitted im Working Tree.
 git add "$TASK_FILE"
 if ! git diff --cached --quiet; then
   git commit -q -m "chore: Task ${TASK_ID} anlegen (${TASK_DESC//-/ })"
@@ -166,52 +166,34 @@ if git push -u origin "$BRANCH_NAME" 2>&1; then
   echo -e "  ${GREEN}✓${NC} Branch gepusht"
   PUSH_OK=1
 else
-  echo -e "  ${RED}✗ Push fehlgeschlagen – MR-Erstellung wird übersprungen${NC}"
+  echo -e "  ${RED}✗ Push fehlgeschlagen – PR-Erstellung wird übersprungen${NC}"
   echo -e "    Manuell pushen: git push -u origin ${BRANCH_NAME}"
 fi
 
-# ─── Draft Merge Request erstellen ───────────────────────────────────────────
+# ─── Draft Pull Request erstellen ─────────────────────────────────────────────
 
 echo ""
-echo -e "${YELLOW}5/5  Erstelle Draft Merge Request...${NC}"
+echo -e "${YELLOW}5/5  Erstelle Draft Pull Request...${NC}"
 
-MR_TITLE="${COMMIT_TYPE}: ${TASK_DESC//-/ } (#${TASK_ID})"
-MR_DESC="Task #${TASK_ID}: ${TASK_DESC//-/ }"
+PR_TITLE="${COMMIT_TYPE}: ${TASK_DESC//-/ } (#${TASK_ID})"
+PR_DESC="Task #${TASK_ID}: ${TASK_DESC//-/ }"
 
-MR_CREATED=0
+PR_CREATED=0
 
-if [[ $PUSH_OK -eq 1 ]]; then
-  # GitLab (primär bei dm)
-  if command -v glab &>/dev/null; then
-    if glab mr create \
-        --draft \
-        --title "$MR_TITLE" \
-        --description "$MR_DESC" \
-        --target-branch "$DEFAULT_BRANCH" \
-        --remove-source-branch \
-        < /dev/null 2>/dev/null; then
-      echo -e "  ${GREEN}✓${NC} Draft-MR erstellt (GitLab)"
-      MR_CREATED=1
-    fi
-  fi
-
-  # GitHub (Fallback)
-  if [[ $MR_CREATED -eq 0 ]] && command -v gh &>/dev/null; then
-    if gh pr create \
-        --draft \
-        --title "$MR_TITLE" \
-        --body "$MR_DESC" \
-        --base "$DEFAULT_BRANCH" 2>/dev/null; then
-      echo -e "  ${GREEN}✓${NC} Draft-PR erstellt (GitHub)"
-      MR_CREATED=1
-    fi
+if [[ $PUSH_OK -eq 1 ]] && command -v gh &>/dev/null; then
+  if gh pr create \
+      --draft \
+      --title "$PR_TITLE" \
+      --body "$PR_DESC" \
+      --base "$DEFAULT_BRANCH" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} Draft-PR erstellt (GitHub)"
+    PR_CREATED=1
   fi
 fi
 
-if [[ $MR_CREATED -eq 0 ]]; then
-  echo -e "  ${YELLOW}⚠  MR manuell anlegen:${NC}"
-  echo -e "     GitLab: glab mr create --draft --title \"${MR_TITLE}\" --target-branch ${DEFAULT_BRANCH} --remove-source-branch"
-  echo -e "     GitHub: gh pr create --draft --title \"${MR_TITLE}\" --base ${DEFAULT_BRANCH}"
+if [[ $PR_CREATED -eq 0 ]]; then
+  echo -e "  ${YELLOW}⚠  PR manuell anlegen:${NC}"
+  echo -e "     gh pr create --draft --title \"${PR_TITLE}\" --base ${DEFAULT_BRANCH}"
 fi
 
 # ─── Abschluss ───────────────────────────────────────────────────────────────

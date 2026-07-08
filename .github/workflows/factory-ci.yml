@@ -1,0 +1,100 @@
+# dm Development Factory – GitHub Actions CI
+#
+# Gates statt Vertrauen: dieselben Checks, die lokal über scripts/checks/ laufen,
+# laufen hier automatisch bei jedem Push und Pull Request.
+#
+# Konfiguration für adoptierte Projekte (nach /setup-project):
+#   - FACTORY_LINT_COMMAND / FACTORY_TEST_COMMAND als Repository-Variablen setzen
+#     (Settings → Secrets and variables → Actions → Variables) – dieselben Werte,
+#     die die pre-commit/pre-push-Hooks lesen. Kein Doppel-Pflegen.
+#   - FACTORY_HEALTHCHECK_URL bzw. FACTORY_HEALTHCHECK_CMD für post-merge-verify
+#     (optional, nur wenn ein Deploy-Ziel existiert).
+# Der "factory-self-test"-Job läuft immer und braucht keine Anpassung.
+
+name: Factory CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── Factory-eigene Checks ──────────────────────────────────────────────────
+  # Prüft die Integrität der Factory-Skripte selbst (Self-Test-Suite).
+  # Läuft immer – auch in adoptierten Projekten, die das Template als Basis nutzen.
+  # bash/git/jq sind auf ubuntu-latest vorinstalliert; yq (mikefarah) wird geholt,
+  # weil die gedogfoodete Self-Test-Suite run-pipeline.sh ausführt, das
+  # factory.defaults.yml via yq liest (ADR-009, Phase 1b).
+  factory-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yq bereitstellen
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+      - name: Self-Test-Suite
+        run: bash scripts/checks/tests/run-tests.sh
+
+  # ─── Projekt-Lint ───────────────────────────────────────────────────────────
+  # Konfiguration über die Repository-Variable FACTORY_LINT_COMMAND – dieselbe
+  # Variable, die scripts/checks/pre-commit.sh liest. Kein Doppel-Pflegen.
+  #
+  # Bewusste "fail vs. allow"-Entscheidung: Hooks lassen bei fehlender Konfig durch
+  # (lokaler Komfort), CI failt (zentrale Schleuse) – genau "Gates statt Vertrauen".
+  # Ein grünes No-Op-Gate wäre gefährlicher als kein Gate.
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      FACTORY_LINT_COMMAND: ${{ vars.FACTORY_LINT_COMMAND }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint-Gate (fail-closed)
+        run: |
+          if [ -z "${FACTORY_LINT_COMMAND:-}" ]; then
+            echo "FACTORY_LINT_COMMAND nicht gesetzt – als Repository-Variable konfigurieren."
+            echo "Gleicher Wert wie in scripts/checks/pre-commit.sh (kein Doppel-Pflegen)."
+            exit 1
+          fi
+          eval "$FACTORY_LINT_COMMAND"
+
+  # ─── Projekt-Tests ──────────────────────────────────────────────────────────
+  # Konfiguration über die Repository-Variable FACTORY_TEST_COMMAND – dieselbe
+  # Variable, die scripts/checks/pre-push.sh liest. Kein Doppel-Pflegen.
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FACTORY_TEST_COMMAND: ${{ vars.FACTORY_TEST_COMMAND }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test-Gate (fail-closed)
+        run: |
+          if [ -z "${FACTORY_TEST_COMMAND:-}" ]; then
+            echo "FACTORY_TEST_COMMAND nicht gesetzt – als Repository-Variable konfigurieren."
+            echo "Gleicher Wert wie in scripts/checks/pre-push.sh (kein Doppel-Pflegen)."
+            exit 1
+          fi
+          eval "$FACTORY_TEST_COMMAND"
+
+  # ─── Post-Merge-Verifikation ─────────────────────────────────────────────────
+  # Läuft NUR nach echtem Merge (push auf main) – CI-grün ≠ Produktion-grün
+  # (ADR-007). Prüft das tatsächliche Verhalten der deployten Umgebung per
+  # Healthcheck gegen FACTORY_HEALTHCHECK_URL / FACTORY_HEALTHCHECK_CMD. Ohne
+  # Konfiguration: übersprungen. Schlägt der Check fehl → POST_MERGE_FAIL + rot.
+  #
+  # Bewusst NICHT bei pull_request: vor dem Merge ist nichts deployt.
+  post-merge-verify:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      FACTORY_HEALTHCHECK_URL: ${{ vars.FACTORY_HEALTHCHECK_URL }}
+      FACTORY_HEALTHCHECK_CMD: ${{ vars.FACTORY_HEALTHCHECK_CMD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post-Merge-Healthcheck
+        run: bash scripts/post-merge-verify.sh
