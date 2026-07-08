@@ -36,7 +36,7 @@ if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "master" ]]; then
   if echo "$TOOL_INPUT" | grep -qE 'git (commit|push)'; then
     echo ""
     echo -e "  ${RED}✗ Direktes Commit/Push auf '${CURRENT_BRANCH}' ist nicht erlaubt.${NC}"
-    echo -e "    Feature-Branch anlegen: bash scripts/start-work.sh <id> <beschreibung>"
+    echo -e "    Feature-Branch anlegen (Issue-first): bash scripts/start-work.sh \"<beschreibung>\""
     exit 1
   fi
   echo -e "  ${YELLOW}⚠  Achtung: Aktiver Branch ist '${CURRENT_BRANCH}'${NC}"

@@ -76,6 +76,39 @@ set_labels() {
   gh issue edit "$1" --repo "$REPO" --add-label "$2" --remove-label "$3" >/dev/null 2>&1
 }
 
+# ensure_task_file <issue-nr> – stellt die lokale Task-Datei her (Issue → Task, ADR-013).
+# Der Async-Trigger startet aus einem Issue; run-pipeline.sh verlangt aber eine
+# tasks/task-<id>-*.md. Fehlt sie, materialisieren wir sie aus Titel/Body des Issues,
+# committen und pushen sie (best-effort), damit Sync in beide Richtungen hält.
+# (Der Feature-Branch/PR-Fluss des eigentlichen Codes bleibt V-1/ADR-008 – separat.)
+ensure_task_file() {
+  local id="$1"
+  local existing
+  existing=$(find "$FACTORY_DIR/tasks" -maxdepth 1 -name "task-${id}-*.md" 2>/dev/null | head -1)
+  [ -n "$existing" ] && return 0
+  local meta title body slug file
+  meta=$(gh issue view "$id" --repo "$REPO" --json title,body 2>/dev/null)
+  title=$(printf '%s' "$meta" | jq -r '.title // ""' 2>/dev/null)
+  body=$(printf '%s' "$meta" | jq -r '.body // ""' 2>/dev/null)
+  [ -n "$title" ] || title="Task ${id}"
+  slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-' | cut -c1-50)
+  [ -n "$slug" ] || slug="task-${id}"
+  file="$FACTORY_DIR/tasks/task-${id}-${slug}.md"
+  mkdir -p "$FACTORY_DIR/tasks"
+  {
+    printf '# Task %s: %s\n\n' "$id" "$title"
+    printf '## Status\n- [ ] In Bearbeitung\n- [ ] Fertig / PR erstellt\n\n'
+    printf '## Beschreibung\n%s\n\n' "$body"
+    printf -- '---\nAus GitHub-Issue #%s materialisiert (factory-poll, ADR-013).\n' "$id"
+  } > "$file"
+  log "Task-Datei aus Issue #${id} materialisiert: $(basename "$file")"
+  git -C "$FACTORY_DIR" add "$file" >/dev/null 2>&1
+  git -C "$FACTORY_DIR" -c user.email=factory@local -c user.name=factory-poll \
+    commit -q -m "chore: Task ${id} aus Issue materialisieren" >/dev/null 2>&1
+  git -C "$FACTORY_DIR" push origin HEAD >/dev/null 2>&1 \
+    || log "Hinweis: Push der Task-Datei #${id} fehlgeschlagen (kein Remote/Recht) – lokal committet."
+}
+
 [ "$DRY_RUN" = true ] && log "DRY-RUN – keine Mutationen, kein Pipeline-Start"
 
 # ── W-1: verwaiste `running`-Läufe zurücksetzen. CI-Kill/Timeout o. eine
@@ -116,6 +149,9 @@ issue=$(list_issues "factory::run" | jq -r 'sort_by(.createdAt) | .[0].number //
 log "Nächster Lauf: Issue #${issue} (${rt}/${MAX_RUNS} heute)"
 
 if [ "$DRY_RUN" = true ]; then
+  if [ -z "$(find "$FACTORY_DIR/tasks" -maxdepth 1 -name "task-${issue}-*.md" 2>/dev/null | head -1)" ]; then
+    log "[dry-run] würde Task-Datei für Issue #${issue} aus Titel/Body materialisieren"
+  fi
   log "[dry-run] würde: factory::run→factory::running, run-pipeline.sh ${issue}, dann →done/interrupted/failed"
   exit 0
 fi
@@ -127,6 +163,9 @@ set_labels "$issue" "factory::running" "factory::run"
 flip=$(gh issue view "$issue" --repo "$REPO" --json labels 2>/dev/null \
   | jq -r '([.labels[].name] | index("factory::running")) // "no"' 2>/dev/null)
 [ "$flip" = "no" ] && die_blocked "Label-Flip auf factory::running für #${issue} nicht bestätigt – kein Trigger."
+
+# Issue → Task-Datei sicherstellen (ADR-013), bevor run-pipeline sie verlangt.
+ensure_task_file "$issue"
 
 # Trigger – die eigentliche Factory-Pipeline für diese Task-ID
 if bash "$FACTORY_DIR/scripts/run-pipeline.sh" "$issue"; then

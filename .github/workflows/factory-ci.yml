@@ -20,8 +20,22 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
+  # ─── Issue-Sync-Gate ────────────────────────────────────────────────────────
+  # Invariante (ADR-013): jede tasks/task-<id>-*.md hat ein GitHub-Issue #<id>.
+  # Read-only Check – schlägt fehl (exit 1), wenn ein Task kein Issue-Pendant hat.
+  issue-sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      FACTORY_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Task ↔ Issue-Sync prüfen
+        run: bash scripts/sync-issues.sh --check
+
   # ─── Factory-eigene Checks ──────────────────────────────────────────────────
   # Prüft die Integrität der Factory-Skripte selbst (Self-Test-Suite).
   # Läuft immer – auch in adoptierten Projekten, die das Template als Basis nutzen.

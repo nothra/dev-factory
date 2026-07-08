@@ -36,6 +36,30 @@ Der pre-push Hook blockiert direkte Pushes auf `main`/`master` hart.
 
 ---
 
+## Jeder Task hat ein GitHub-Issue (ADR-013)
+
+**Die Task-ID ist die GitHub-Issue-Nummer.** Jede `tasks/task-<id>-*.md` hat ein
+Issue #`<id>` – so ist der Task auf GitHub sichtbar und für den Auto-Trigger
+(`factory::run`) erreichbar.
+
+Am einfachsten **Issue-first** über `start-work.sh` (legt das Issue an und leitet die
+Task-ID aus dessen Nummer ab):
+
+```bash
+bash scripts/start-work.sh "user-login implementieren"     # legt Issue an → Task-ID = Issue-Nr.
+bash scripts/start-work.sh 42 user-login-implementieren     # bestehendes Issue #42 (wird validiert)
+```
+
+Prüfen/Reparieren:
+```bash
+bash scripts/sync-issues.sh --check      # exit 1, wenn ein Task kein Issue hat
+bash scripts/sync-issues.sh --create     # fehlende Issues anlegen
+```
+
+Das CI-Gate `issue-sync` erzwingt die Invariante bei jedem Push/PR.
+
+---
+
 ## Vor dem Start: Immer pullen
 
 Bevor ein neuer Feature-Branch angelegt wird:
@@ -99,7 +123,7 @@ Jede neue Task in einer neuen Claude-Session starten.
 
 **Wie:**
 ```bash
-bash scripts/start-work.sh <task-id> <beschreibung>
+bash scripts/start-work.sh "<beschreibung>"   # Issue-first: legt Issue an, Nr. = Task-ID
 # → neues Terminal / neue Claude-Session öffnen
 # → /implement <task-id>
 ```

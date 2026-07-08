@@ -25,19 +25,38 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# ─── Argumente prüfen ────────────────────────────────────────────────────────
+# ─── Argumente & Modus ───────────────────────────────────────────────────────
+# Zwei Modi (ADR-013 – Task-ID = GitHub-Issue-Nummer):
+#   Beschreibungs-Modus: start-work.sh <kurzbeschreibung> [branch-typ]
+#                        legt ein Issue an; dessen Nummer wird die Task-ID (Issue-first).
+#   ID-Modus           : start-work.sh <issue-id> <kurzbeschreibung> [branch-typ]
+#                        erstes Argument numerisch → bestehendes Issue #<id> (wird validiert).
 
-if [[ $# -lt 2 ]]; then
-  echo -e "${RED}Fehler:${NC} Task-ID und Beschreibung erforderlich"
-  echo "Verwendung: bash scripts/start-work.sh <task-id> <kurzbeschreibung> [branch-typ]"
-  echo "Beispiel:   bash scripts/start-work.sh 42 user-login-implementieren"
+usage() {
+  echo -e "${RED}Fehler:${NC} $1"
+  echo "Verwendung:"
+  echo "  bash scripts/start-work.sh <kurzbeschreibung> [branch-typ]             # Issue-first (empfohlen)"
+  echo "  bash scripts/start-work.sh <issue-id> <kurzbeschreibung> [branch-typ]  # bestehendes Issue"
   echo "branch-typ: feature (Standard), fix, improvement, hotfix, chore, docs, test, refactor"
   exit 1
+}
+
+[[ $# -ge 1 ]] || usage "Beschreibung (oder Issue-ID + Beschreibung) erforderlich"
+
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+  ISSUE_MODE="existing"
+  [[ $# -ge 2 ]] || usage "Im ID-Modus ist eine Beschreibung erforderlich"
+  TASK_ID="$1"
+  RAW_DESC="$2"
+  BRANCH_TYPE="${3:-feature}"
+else
+  ISSUE_MODE="create"
+  RAW_DESC="$1"
+  BRANCH_TYPE="${2:-feature}"
+  TASK_ID=""   # wird aus der Issue-Nummer abgeleitet
 fi
 
-TASK_ID="$1"
-TASK_DESC=$(echo "$2" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')
-BRANCH_TYPE="${3:-feature}"
+TASK_DESC=$(echo "$RAW_DESC" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd '[:alnum:]-')
 
 # Branch-Typ gegen die erlaubten Präfixe prüfen (analog branch-name-check.sh)
 case "$BRANCH_TYPE" in
@@ -57,19 +76,49 @@ case "$BRANCH_TYPE" in
   *)           COMMIT_TYPE="$BRANCH_TYPE" ;;
 esac
 
-BRANCH_NAME="${BRANCH_TYPE}/${TASK_ID}-${TASK_DESC}"
-TASK_FILE="$FACTORY_DIR/tasks/task-${TASK_ID}-${TASK_DESC}.md"
-
-echo ""
-echo -e "${CYAN}── Task ${TASK_ID}: ${TASK_DESC} ──────────────────────────────────${NC}"
-
-# ─── Uncommitted Changes prüfen ──────────────────────────────────────────────
-
+# ─── Uncommitted Changes prüfen (vor jeder Mutation, inkl. Issue-Anlage) ──────
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo -e "  ${RED}✗ Uncommitted Changes vorhanden – bitte erst committen oder stashen${NC}"
   git status --short
   exit 1
 fi
+
+# ─── Issue-Pendant sicherstellen (Task-ID = Issue-Nummer, ADR-013) ────────────
+# Repo-Slug für gh (Env bevorzugt, sonst aus der Remote).
+REPO="${FACTORY_REPO:-${GITHUB_REPOSITORY:-}}"
+if [ -z "$REPO" ]; then
+  _url=$(git remote get-url origin 2>/dev/null || echo "")
+  REPO=$(printf '%s' "$_url" | sed -E 's#(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')
+fi
+
+if [ "$ISSUE_MODE" = "create" ]; then
+  command -v gh >/dev/null 2>&1 || { echo -e "${RED}Fehler:${NC} gh nötig, um im Beschreibungs-Modus ein Issue anzulegen."; echo "  Alternativ: Issue selbst anlegen und die Nummer als <issue-id> übergeben."; exit 1; }
+  echo -e "${YELLOW}0/5  Lege GitHub-Issue an (Issue-first)...${NC}"
+  _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" \
+    --body "Angelegt via start-work.sh. Task-ID = Issue-Nummer (ADR-013)." 2>/dev/null)
+  TASK_ID=$(printf '%s' "$_url" | grep -oE '[0-9]+$')
+  [ -n "$TASK_ID" ] || { echo -e "  ${RED}✗ Issue-Anlage fehlgeschlagen${NC}"; exit 1; }
+  echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} angelegt → Task-ID ${TASK_ID}"
+else
+  # ID-Modus: das Issue MUSS existieren, sonst bricht die Invariante.
+  if command -v gh >/dev/null 2>&1 && [ -n "$REPO" ]; then
+    if ! gh issue view "$TASK_ID" --repo "$REPO" --json number >/dev/null 2>&1; then
+      echo -e "${RED}Fehler:${NC} Issue #${TASK_ID} existiert nicht in ${REPO}."
+      echo "  Lege es zuerst an, oder nutze den Beschreibungs-Modus (legt das Issue automatisch an):"
+      echo "  bash scripts/start-work.sh \"<beschreibung>\""
+      exit 1
+    fi
+    echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} existiert"
+  else
+    echo -e "  ${YELLOW}⚠${NC}  gh nicht verfügbar – Issue-Existenz für #${TASK_ID} nicht geprüft"
+  fi
+fi
+
+BRANCH_NAME="${BRANCH_TYPE}/${TASK_ID}-${TASK_DESC}"
+TASK_FILE="$FACTORY_DIR/tasks/task-${TASK_ID}-${TASK_DESC}.md"
+
+echo ""
+echo -e "${CYAN}── Task ${TASK_ID}: ${TASK_DESC} ──────────────────────────────────${NC}"
 
 # ─── Default-Branch ermitteln ────────────────────────────────────────────────
 
