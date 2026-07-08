@@ -70,7 +70,9 @@ while IFS= read -r f; do
   if issue_exists "$id"; then
     [ "$MODE" = check ] && log "OK: Task #${id} ↔ Issue #${id}"
   else
-    missing="${missing} ${id}:${f}"
+    # Newline-getrennt akkumulieren (nicht space-getrennt): Pfade können Leerzeichen
+    # enthalten (Bug #8) – die spätere Iteration liest zeilenweise.
+    if [ -z "$missing" ]; then missing="${id}:${f}"; else missing="${missing}"$'\n'"${id}:${f}"; fi
   fi
 done < <(find "$TASKS_DIR" -maxdepth 1 -name 'task-*.md' 2>/dev/null | sort)
 
@@ -82,16 +84,18 @@ fi
 
 if [ "$MODE" = check ]; then
   log "DRIFT: folgende Tasks haben KEIN GitHub-Issue:"
-  for entry in $missing; do
+  while IFS= read -r entry; do
+    [ -z "$entry" ] && continue
     id="${entry%%:*}"; log "  - Task #${id} (Issue #${id} fehlt)"
-  done
+  done <<< "$missing"
   log "Beheben: bash scripts/sync-issues.sh --create   (oder Issue manuell anlegen)"
   exit 1
 fi
 
 # ── --create: fehlende Issues anlegen ─────────────────────────────────────────
 rc=0
-for entry in $missing; do
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
   id="${entry%%:*}"; f="${entry#*:}"
   # Titel aus der ersten H1-Zeile der Task-Datei; Fallback auf Dateinamen.
   title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed -E 's/^# +//')
@@ -114,5 +118,5 @@ for entry in $missing; do
     log "          oder Issue #${newnum} schließen und die Task-ID an eine freie Nummer angleichen."
     rc=1
   fi
-done
+done <<< "$missing"
 exit $rc

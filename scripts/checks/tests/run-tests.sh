@@ -538,6 +538,40 @@ assert_exit 1 "$rc" "--create: Nummern-Mismatch → exit 1"
 printf '%s' "$out" | grep -q 'MISMATCH'; assert_true "$?" "--create meldet MISMATCH bei nicht auflösbarer Nummer"
 rm -rf "$TMP_SYNC"
 
+# ─── Bug #8: Check-Skripte robust gegen Leerzeichen im Pfad ──────────────────
+echo ""
+echo "Bug #8 (Leerzeichen im Pfad):"
+
+# completion-check.sh berechnet FACTORY_DIR aus dem eigenen Ort → Skript in einen
+# Pfad MIT Leerzeichen kopieren und dort ausführen (reproduziert den Original-Bug).
+TMP_CC="$(mktemp -d)"; CC_SP="$TMP_CC/has space"
+mkdir -p "$CC_SP/scripts/checks" "$CC_SP/tasks"
+cp "$CHECKS_DIR/completion-check.sh" "$CC_SP/scripts/checks/"
+printf '# Task 1: demo\n- [ ] offen\n' > "$CC_SP/tasks/task-1-demo.md"
+cc_out=$(bash "$CC_SP/scripts/checks/completion-check.sh" 2>&1); cc_rc=$?
+assert_exit 0 "$cc_rc" "completion-check: exit 0 bei Leerzeichen im Pfad"
+printf '%s' "$cc_out" | grep -q 'No such file or directory'
+assert_true "$([ $? -ne 0 ]; echo $?)" "completion-check: kein grep-Fehler bei Leerzeichen (Bug #8)"
+printf '%s' "$cc_out" | grep -qF 'task-1-demo.md'
+assert_true "$?" "completion-check: nennt Task-Datei trotz Leerzeichen im Pfad"
+rm -rf "$TMP_CC"
+
+# sync-issues.sh liest FACTORY_DIR aus der Env → Leerzeichen-Pfad + fehlendes Issue.
+# gemocktes gh: `issue view` → exit 1 (Issue fehlt) → Task driftet → --create liest Titel aus Datei.
+TMP_SS2="$(mktemp -d)"; SS_SP="$TMP_SS2/has space"
+mkdir -p "$SS_SP/tasks" "$SS_SP/bin"
+printf '# Task 1: alpha\n' > "$SS_SP/tasks/task-1-alpha.md"
+printf '#!/bin/sh\n[ "$1 $2" = "issue view" ] && exit 1\nexit 0\n' > "$SS_SP/bin/gh"
+chmod +x "$SS_SP/bin/gh"
+ss_out=$(PATH="$SS_SP/bin:$PATH" FACTORY_DIR="$SS_SP" FACTORY_REPO=test/repo \
+  bash "$SCRIPTS_DIR/sync-issues.sh" --create --dry-run 2>&1); ss_rc=$?
+assert_exit 0 "$ss_rc" "sync-issues --create --dry-run: exit 0 bei Leerzeichen im Pfad"
+printf '%s' "$ss_out" | grep -q 'No such file or directory'
+assert_true "$([ $? -ne 0 ]; echo $?)" "sync-issues: kein Datei-Fehler bei Leerzeichen (Bug #8)"
+printf '%s' "$ss_out" | grep -qF 'Task #1'
+assert_true "$?" "sync-issues: liest Titel aus Datei trotz Leerzeichen im Pfad"
+rm -rf "$TMP_SS2"
+
 # ─── Codify: Bash-Gotchas-Guideline ──────────────────────────────────────────
 echo ""
 echo "Codify (Bash-Gotchas-Guideline):"
