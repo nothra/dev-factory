@@ -61,7 +61,7 @@ fi
 #   Go:             golangci-lint run
 #   Python:         ruff check .
 
-LINT_COMMAND="${FACTORY_LINT_COMMAND:-}"
+LINT_COMMAND="${FACTORY_LINT_COMMAND:-pnpm lint}"
 if [ -n "$LINT_COMMAND" ]; then
   echo -e "  ${YELLOW}→${NC} Lint: $LINT_COMMAND"
   if eval "$LINT_COMMAND" > /dev/null 2>&1; then

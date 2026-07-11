@@ -28,7 +28,7 @@ FAILED=0
 #   Go:             go test ./...
 #   Python:         pytest -q
 
-TEST_COMMAND="${FACTORY_TEST_COMMAND:-}"
+TEST_COMMAND="${FACTORY_TEST_COMMAND:-pnpm test}"
 if [ -n "$TEST_COMMAND" ]; then
   echo -e "  ${YELLOW}→${NC} Tests: $TEST_COMMAND"
   if eval "$TEST_COMMAND"; then
