@@ -1,8 +1,14 @@
 # OPERATING – Factory optimal nutzen: Issue → Production, maximal automatisiert
 
 > **Zweck:** Ein Runbook für den Alltag. Es zeigt den kürzesten verlässlichen Weg von einer
-> Idee/einem Issue bis in die Produktion – so viel wie möglich automatisiert, mit klar
-> markierten Stellen, an denen ein Mensch entscheiden **muss**.
+> Idee/einem Issue bis in die Produktion.
+>
+> **Leitbild:** *Der Mensch schärft die Anforderung, die Automatik führt sie aus.* Der
+> **Standardweg ist automatisiert** (Abschnitt 1): ein Kommando fährt die ganze Pipeline bis zum
+> merge-reifen PR, das Deploy-Gate trägt sie nach Production. Von Hand macht der Mensch bewusst nur
+> zwei Dinge: die **Anforderung interaktiv schärfen** (Requirements, ggf. ADR) und die klar
+> markierten **Entscheidungs-Gates** halten (Abschnitt 4). Wer volle Kontrolle über jeden Schritt
+> will, nutzt den manuellen Fallback (Abschnitt 2).
 >
 > **Verhältnis zu anderen Dokumenten:**
 > - **Was** die Factory ist und **warum** (Prinzipien, Pipeline-Übersicht): [`CLAUDE.md`](../../CLAUDE.md)
@@ -15,8 +21,8 @@
 ## Inhalt
 
 - [0. Einmal-Setup](#0-einmal-setup-pro-repo--pro-maschine)
-- [1. Ein Feature von Issue bis Production (Checkliste)](#1-ein-feature-von-issue-bis-production-checkliste)
-- [2. Stage-3-Modus: `run-pipeline.sh`](#2-stage-3-modus-run-pipelinesh)
+- [1. Der automatisierte Weg (Default)](#1-der-automatisierte-weg-default)
+- [2. Manuell / mit voller Kontrolle (Fallback)](#2-manuell--mit-voller-kontrolle-fallback)
 - [3. Interrupts – wenn die Pipeline hält](#3-interrupts--wenn-die-pipeline-hält)
 - [4. Menschen-Gates (nicht automatisierbar)](#4-menschen-gates-nicht-automatisierbar)
 - [5. Wartung: Codify, Metriken, Post-Merge](#5-wartung-codify-metriken-post-merge)
@@ -76,9 +82,10 @@ promoteten `production`-Branch (nur bei grünem INT-E2E **und** grüner PRD-Migr
 Vercel-Env je Scope: `NEXT_PUBLIC_STAGE`, `DATABASE_URL`, `AUTH_SECRET` für *Preview/int* und
 *Production* getrennt setzen (siehe [README → Stages](../../README.md#umgebungen-stages)).
 
-### 0.4 Optional: Async-Trigger (Stage 3 unbeaufsichtigt in CI)
+### 0.4 Async-Trigger scharfschalten (unbeaufsichtigte Pipeline in CI)
 
-Nur wenn die Factory Issues **eigenständig** abarbeiten soll (`factory-poll.yml`, ADR-008):
+Voraussetzung für den **vollständig unbeaufsichtigten** Pfad ([1.3](#13-vollautomatisch-unbeaufsichtigt-in-ci)) –
+Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 
 - Repo-Secret `ANTHROPIC_API_KEY` (oder `ANTHROPIC_BASE_URL`).
 - Labels existieren bereits (`factory::run/running/done/failed/interrupted`).
@@ -94,73 +101,90 @@ backend-unabhängig. Die **Prozess**-Kennzahlen (Abschnitt 5) brauchen das **nic
 
 ---
 
-## 1. Ein Feature von Issue bis Production (Checkliste)
+## 1. Der automatisierte Weg (Default)
 
-Der Standardweg (**Stage 2**, interaktiv – ein Mensch fährt die Skills nacheinander).
-**Eine Task = eine neue Claude-Session** (kleiner Kontext, weniger Token, kein Übersprechen).
+So läuft ein Feature standardmäßig – **maximal automatisiert**. Der Mensch macht bewusst nur den
+ersten Schritt (Anforderung schärfen) interaktiv; danach orchestriert **ein Kommando** die
+komplette Pipeline bis zum merge-reifen PR, und das Deploy-Gate trägt den Merge nach Production.
 
-### 1.0 Starten (Issue-first, nie manuell branchen)
-
-```bash
-bash scripts/start-work.sh "<kurzbeschreibung>" [branch-typ]   # legt Issue+Branch+Task-Datei+Draft-PR an
-# branch-typ: feature (Default) | fix | improvement | hotfix | chore | docs | test | refactor
+```
+[Mensch]  1.1  Anforderung interaktiv schärfen  (/requirements, ggf. /architecture)
+   │
+[Automatik] 1.2  run-pipeline.sh  → implement → review↺ → test → refactor → security → codify → PR
+   │              (hält deterministisch an den Menschen-Gates aus Abschnitt 4)
+   ▼
+[Automatik] 1.4  Merge → Deploy-Gate → Production
 ```
 
-Das Skript stellt deterministisch sicher: `main` aktuell (rebase), Branch existiert, Task-Datei
-committet, Branch gepusht, Draft-PR offen. **Task-ID = Issue-Nummer** (ADR-013). Danach eine
-**neue** Claude-Session öffnen und dort weiterarbeiten.
+### 1.1 Anforderung schärfen (Mensch, interaktiv) — bleibt Handarbeit
 
-Ein passendes **beschreibendes Label** ans Issue hängen (genau eins): `bug` · `enhancement` ·
-`documentation` · `security` · `tech-debt` · `test`. **Kein** `factory::run` an normale
-Backlog-Issues (das ist der Auto-Trigger, siehe 0.4).
-
-### 1.1 Die Pipeline-Schritte
-
-Reihenfolge wie in `CLAUDE.md`. Jeder Skill schreibt seinen Output in Dateien (kein
-Gesprächsgedächtnis nötig).
-
-| # | Skill | Wann nötig | Ergebnis / Gate |
-|---|-------|-----------|-----------------|
-| 1 | `/requirements <id>` | fast immer | Spec + Akzeptanzkriterien in `docs/specs/spec-<id>-*.md`, Task-Datei befüllt |
-| 2 | `/architecture <id>` | **nur bei ADR-Trigger** (siehe [Abschnitt 4](#4-menschen-gates-nicht-automatisierbar)) | ADR in `docs/adr/` |
-| 3 | `/implement <id>` | immer | TDD Red→Green→Refactor; Lint + Tests grün |
-| 4 | `/review <id>` | immer | `tasks/review-<id>.md`, Verdict `APPROVED` / `NEEDS_REWORK` |
-| ↺ | (bei `NEEDS_REWORK`) | zurück zu `/implement` | max. **3** Iterationen (Circuit Breaker), dann eskalieren |
-| 5 | `/test <id>` | immer | Test-Suite vollständig, Coverage ≥ 80 % (neuer Code: 100 % erwartet) |
-| 6 | `/refactor <id>` | immer | Clean-Code-Pass, **kein** neues Verhalten, Tests bleiben grün |
-| 7 | `/security-review <id>` | immer (letztes Gate vor Merge) | `tasks/security-<id>.md`, `PASSED` / `NEEDS_FIXES` |
-| 8 | `/codify <id>` | immer | `tasks/codify-<id>.md`; Learnings → Regeln in `CLAUDE.md`/`PROJECT-CONTEXT.md`/Guidelines |
-
-Alternativer Einstieg statt 1: **`/bug-fix <id>`** – von Bug/Stacktrace statt Spec
-(Reproduzieren → Isolieren → Beheben → Verifizieren).
-
-### 1.2 Vor dem Merge: Task-Datei **auf dem Branch** abschließen ⚠️
-
-**Guardrail (aus #63):** Die letzte Checkbox `Fertig / PR erstellt` und alle Abschluss-Notizen
-müssen **im Feature-Branch** gesetzt sein, **bevor** der Merge läuft. Nach dem Merge liegt die
-Datei auf `main` und ist nur noch über einen **neuen** PR änderbar (Direkt-Commit auf `main` ist
-verboten) – für ein Häkchen unverhältnismäßig.
-
-Konkret vor `/pr-shepherd`:
-
-- [ ] Alle Status-Checkboxen in `tasks/task-<id>-*.md` abgehakt (inkl. `Fertig / PR erstellt`).
-- [ ] Review `APPROVED`, Security `PASSED`, Codify ausgeführt.
-- [ ] Bewusst offen gelassene Nitpicks als Backlog notiert (nicht stillschweigend).
-- [ ] Änderungen committet und gepusht.
-- [ ] `docs/CHANGELOG.md` `[Unreleased]` ergänzt (Konvention des Repos).
-
-### 1.3 Rebasen, PR grün, mergen
+**Dieser Schritt wird bewusst *nicht* automatisiert.** Hier entsteht der größte Hebel für Qualität:
+Je schärfer Spec und Akzeptanzkriterien, desto verlässlicher läuft die nachfolgende Automatik. Die
+Empfehlung lautet daher unverändert – **interaktiv mit einem Menschen**:
 
 ```bash
-git fetch origin && git rebase origin/main       # linear halten, Rebase statt Merge
-git push --force-with-lease                       # nach Rebase
+bash scripts/start-work.sh "<kurzbeschreibung>" [branch-typ]   # Issue + eigener Worktree + Draft-PR
 ```
 
-Dann **`/pr-shepherd <id>`** – fährt den PR-Lifecycle bis Auto-Merge: Rebase, CI abwarten,
-Approval, Merge. Läuft ein Schritt gegen eine menschliche Entscheidung, **hält** der Shepherd via
-Interrupt (siehe [Abschnitt 3](#3-interrupts--wenn-die-pipeline-hält)).
+`start-work.sh` legt Issue, **eigenen git-Worktree** (Isolation, siehe git-workflow.md) und Draft-PR
+an; **Task-ID = Issue-Nummer** (ADR-013). In den ausgegebenen Worktree wechseln, dann:
 
-**Was danach automatisch passiert** (kein Handgriff mehr):
+1. **`/requirements <id>`** – Spec + Akzeptanzkriterien **interaktiv schärfen** (`docs/specs/spec-<id>-*.md`,
+   Task-Datei befüllt). Rückfragen jetzt klären, nicht später.
+2. **Bei ADR-Trigger** (Technologie-/Architektur-/Schnittstellen-/Irreversibel-Entscheidung, siehe
+   [4.1](#41-architektur-entscheidung-adr-trigger)): **`/architecture <id>`** – die Entscheidung
+   interaktiv treffen und als ADR festhalten, **bevor** die Automatik implementiert.
+3. **Beschreibendes Label** ans Issue hängen (genau eins): `bug` · `enhancement` · `documentation`
+   · `security` · `tech-debt` · `test`.
+
+> Faustregel: Alles, was menschliches Urteil braucht (was gebaut wird, welche Architektur), gehört
+> vor die Automatik. Alles, was Fleißarbeit ist (wie es gebaut/getestet/reviewt wird), übernimmt sie.
+
+### 1.2 Automatik laufen lassen — ein Kommando bis zum Merge
+
+Wenn die Anforderung steht, orchestriert **ein** deterministisches Skript die restlichen Schritte
+(Agenten werden aufgerufen – nicht umgekehrt):
+
+```bash
+PR_SHEPHERD=true bash scripts/run-pipeline.sh <task-id>   # implement→review↺→test→refactor→security→codify→PR-Lifecycle
+bash scripts/run-pipeline.sh <task-id> --dry-run          # zeigt nur, was liefe (keine Claude-Aufrufe)
+```
+
+Ohne `PR_SHEPHERD=true` endet der Lauf am merge-reifen Stand; mit ihm fährt er zusätzlich den
+PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
+
+- **Preflight:** PROJECT-CONTEXT ohne Platzhalter, sauberer Working Tree, Spec empfohlen (fehlt sie,
+  Warnung → erst 1.1), stale Interrupt-Sentinel wird entfernt.
+- **Review-Loop** mit **Circuit Breaker**: `MAX_REVIEW_ITERATIONS` (Default 2) – danach `exit 2`,
+  Mensch übernimmt.
+- **Security-Gate:** `NEEDS_FIXES` → Abbruch vor Merge.
+- **Hält an den Menschen-Gates** (`FACTORY_STAGE=3`): Erkennt ein Agent eine nicht automatisierbare
+  Entscheidung, ruft er `raise-interrupt.sh` und die Pipeline **stoppt hart** (ADR-004, Abschnitt 3).
+  Kein stiller Durchlauf.
+- **Kosten-Hebel** (Env-Vars): `CLAUDE_MODEL_HEAVY`, `CLAUDE_MODEL_LIGHT`, `CLAUDE_MODEL` (globaler
+  Override), `MAX_TURNS`. Tier/Turns pro Skill aus `factory.defaults.yml` (optional
+  `factory.config.yml`, ADR-009).
+
+> **Kosten:** Der Lauf fährt 6+ Claude-Sessions pro Feature hintereinander – deutlich mehr Token als
+> interaktive Nutzung. Die **Task-Datei** wird von der Automatik abgeschlossen; die letzte Checkbox
+> `Fertig / PR erstellt` muss **vor** dem Merge im Branch stehen (Guardrail aus #63) – bei
+> `PR_SHEPHERD=true` erledigt der Lauf das, sonst manuell vor `/pr-shepherd` prüfen ([2.2](#22-vor-dem-merge-task-datei-auf-dem-branch-abschließen-)).
+
+### 1.3 Vollautomatisch, unbeaufsichtigt in CI
+
+Für Issues, die ganz ohne lokale Session laufen sollen: das Issue mit **`factory::run`** labeln.
+`factory-poll` (Scheduled Workflow, ADR-008) nimmt das älteste solche Issue und fährt
+`run-pipeline.sh` selbst – **fail-closed hinter dem Budget-Guard** (Label-Eintrittstür +
+Concurrency=1 + Tageskappe). Voraussetzung: Async-Trigger scharfgeschaltet ([0.4](#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci)).
+
+> Auch hier gilt 1.1: Ohne lokale `/requirements`-Sitzung ist der **Issue-Text die Spec**. Der
+> unbeaufsichtigte Pfad ist nur so gut wie die Anforderung im Issue – gut spezifizieren oder vorher
+> interaktiv schärfen. `factory::run` bewusst nur an dafür vorbereitete Issues, nie an rohe
+> Backlog-/Doku-Issues ([4.4](#44-auslöser-des-auto-triggers)).
+
+### 1.4 Was nach dem Merge automatisch passiert
+
+Kein Handgriff mehr – der Merge auf `main` löst die Kette nach Production aus:
 
 ```
 Merge auf main
@@ -175,33 +199,59 @@ E2E **oder** Prod-Migration rot → **kein** Promote → Production bleibt auf d
 
 ---
 
-## 2. Stage-3-Modus: `run-pipeline.sh`
+## 2. Manuell / mit voller Kontrolle (Fallback)
 
-Wenn ein Feature spec-reif ist und man die Schritte **nicht** einzeln fahren will:
+Wenn du **jeden Schritt selbst fahren** willst (enger Blick auf ein heikles Feature, Lernen, oder
+ein Schritt braucht durchgehend dein Urteil), fährst du die Skills einzeln – **Stage 2, interaktiv**.
+Der Einstieg (1.1: `start-work.sh` + `/requirements` + ggf. `/architecture`) ist identisch; danach
+statt `run-pipeline.sh` die Schritte von Hand. **Eine Task = eine Claude-Session.**
+
+### 2.1 Die Pipeline-Schritte einzeln
+
+Reihenfolge wie in `CLAUDE.md`. Jeder Skill schreibt seinen Output in Dateien (kein
+Gesprächsgedächtnis nötig).
+
+| # | Skill | Wann nötig | Ergebnis / Gate |
+|---|-------|-----------|-----------------|
+| 1 | `/requirements <id>` | fast immer (siehe [1.1](#11-anforderung-schärfen-mensch-interaktiv--bleibt-handarbeit)) | Spec + Akzeptanzkriterien in `docs/specs/spec-<id>-*.md` |
+| 2 | `/architecture <id>` | **nur bei ADR-Trigger** ([Abschnitt 4](#4-menschen-gates-nicht-automatisierbar)) | ADR in `docs/adr/` |
+| 3 | `/implement <id>` | immer | TDD Red→Green→Refactor; Lint + Tests grün |
+| 4 | `/review <id>` | immer | `tasks/review-<id>.md`, Verdict `APPROVED` / `NEEDS_REWORK` |
+| ↺ | (bei `NEEDS_REWORK`) | zurück zu `/implement` | max. **3** Iterationen (Circuit Breaker), dann eskalieren |
+| 5 | `/test <id>` | immer | Test-Suite vollständig, Coverage ≥ 80 % (neuer Code: 100 % erwartet) |
+| 6 | `/refactor <id>` | immer | Clean-Code-Pass, **kein** neues Verhalten, Tests bleiben grün |
+| 7 | `/security-review <id>` | immer (letztes Gate vor Merge) | `tasks/security-<id>.md`, `PASSED` / `NEEDS_FIXES` |
+| 8 | `/codify <id>` | immer | `tasks/codify-<id>.md`; Learnings → Regeln in `CLAUDE.md`/`PROJECT-CONTEXT.md`/Guidelines |
+
+Alternativer Einstieg statt 1: **`/bug-fix <id>`** – von Bug/Stacktrace statt Spec
+(Reproduzieren → Isolieren → Beheben → Verifizieren).
+
+### 2.2 Vor dem Merge: Task-Datei **auf dem Branch** abschließen ⚠️
+
+**Guardrail (aus #63):** Die letzte Checkbox `Fertig / PR erstellt` und alle Abschluss-Notizen
+müssen **im Feature-Branch** gesetzt sein, **bevor** der Merge läuft. Nach dem Merge liegt die
+Datei auf `main` und ist nur noch über einen **neuen** PR änderbar (Direkt-Commit auf `main` ist
+verboten) – für ein Häkchen unverhältnismäßig.
+
+Konkret vor `/pr-shepherd`:
+
+- [ ] Alle Status-Checkboxen in `tasks/task-<id>-*.md` abgehakt (inkl. `Fertig / PR erstellt`).
+- [ ] Review `APPROVED`, Security `PASSED`, Codify ausgeführt.
+- [ ] Bewusst offen gelassene Nitpicks als Backlog notiert (nicht stillschweigend).
+- [ ] Änderungen committet und gepusht.
+- [ ] `docs/CHANGELOG.md` `[Unreleased]` ergänzt (Konvention des Repos).
+
+### 2.3 Rebasen, PR grün, mergen
 
 ```bash
-bash scripts/run-pipeline.sh <task-id>            # orchestriert implement→review↺→test→refactor→security→codify
-bash scripts/run-pipeline.sh <task-id> --dry-run  # zeigt nur, was liefe (keine Claude-Aufrufe)
-PR_SHEPHERD=true bash scripts/run-pipeline.sh <id> # zusätzlich PR-Lifecycle bis Auto-Merge
+git fetch origin && git rebase origin/main       # linear halten, Rebase statt Merge
+git push --force-with-lease                       # nach Rebase
 ```
 
-**Eigenschaften (deterministisch orchestriert, Agenten werden aufgerufen):**
-
-- **Preflight:** PROJECT-CONTEXT ohne Platzhalter, sauberer Working Tree, Spec empfohlen,
-  stale Interrupt-Sentinel wird entfernt.
-- **Review-Loop** mit **Circuit Breaker**: `MAX_REVIEW_ITERATIONS` (Default 2) – danach `exit 2`,
-  Mensch übernimmt.
-- **Security-Gate:** `NEEDS_FIXES` → Abbruch vor Merge.
-- **Interrupt nach jedem Schritt** (`FACTORY_STAGE=3`): Erkennt ein Agent eine nicht
-  automatisierbare Entscheidung, ruft er `raise-interrupt.sh` und die Pipeline **stoppt hart**
-  (ADR-004). Kein stiller Durchlauf.
-- **Kosten-Hebel** (Env-Vars): `CLAUDE_MODEL_HEAVY`, `CLAUDE_MODEL_LIGHT`, `CLAUDE_MODEL`
-  (globaler Override), `MAX_TURNS`. Tier/Turns pro Skill kommen aus `factory.defaults.yml`
-  (optional `factory.config.yml`, ADR-009).
-
-> **Kosten:** Stage 3 fährt 6+ Claude-Sessions pro Feature hintereinander – deutlich mehr Token
-> als interaktive Nutzung. Für unbeaufsichtigte Läufe **in CI** siehe Async-Trigger (0.4): dort
-> greift zusätzlich der Budget-Guard (Label-Eintrittstür + Concurrency=1 + Tageskappe).
+Dann **`/pr-shepherd <id>`** – fährt den PR-Lifecycle bis Auto-Merge: Rebase, CI abwarten,
+Approval, Merge. Läuft ein Schritt gegen eine menschliche Entscheidung, **hält** der Shepherd via
+Interrupt ([Abschnitt 3](#3-interrupts--wenn-die-pipeline-hält)). Danach greift automatisch das
+Deploy-Gate ([1.4](#14-was-nach-dem-merge-automatisch-passiert)).
 
 ---
 
@@ -235,7 +285,8 @@ Label `factory::interrupted` (menschliche Entscheidung); sonst `factory::failed`
 
 ## 4. Menschen-Gates (nicht automatisierbar)
 
-Diese Entscheidungen darf die Automatik **nicht** allein treffen. Sie sind bewusste Halte-Punkte.
+Diese Entscheidungen darf die Automatik **nicht** allein treffen. Sie sind bewusste Halte-Punkte –
+auch (und gerade) im automatisierten Weg aus Abschnitt 1.
 
 ### 4.1 Architektur-Entscheidung (ADR-Trigger)
 
@@ -247,8 +298,9 @@ Diese Entscheidungen darf die Automatik **nicht** allein treffen. Sie sind bewus
 3. **Schnittstellen-Vertrag** – öffentliche API/DB-Schema-Vertrag mit Außenwirkung.
 4. **Langfristige/irreversible Konsequenz** – teuer rückgängig zu machen.
 
-→ **Aktion:** `/architecture <id>` → ADR in `docs/adr/` (mit Alternativen), dann `/implement`
-weiter. In Stage 2 fragt der Agent interaktiv; in Stage 3 löst er den `ADR`-Interrupt aus.
+→ **Aktion:** `/architecture <id>` → ADR in `docs/adr/` (mit Alternativen), dann weiter. Am besten
+schon **vorab** interaktiv in [1.1](#11-anforderung-schärfen-mensch-interaktiv--bleibt-handarbeit)
+klären. In Stage 2 fragt der Agent interaktiv; in Stage 3 löst er den `ADR`-Interrupt aus.
 
 ### 4.2 Security-Freigabe
 
@@ -272,7 +324,8 @@ Prod-Datenbestand betroffen ist** (PROJECT-CONTEXT).
 ### 4.4 Auslöser des Auto-Triggers
 
 Das Label `factory::run` an ein Issue zu hängen ist eine **bewusste menschliche Handlung** – es
-gibt das Issue zur unbeaufsichtigten Bearbeitung frei (0.4). Nie an reine Backlog-/Doku-Issues.
+gibt das Issue zur unbeaufsichtigten Bearbeitung frei ([1.3](#13-vollautomatisch-unbeaufsichtigt-in-ci)).
+Nie an reine Backlog-/Doku-Issues.
 
 ---
 
@@ -320,6 +373,8 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
 - **Task = Issue** (ADR-013): `bash scripts/sync-issues.sh --check` (CI-Gate `issue-sync`
   erzwingt es); `--create` legt fehlende Issues an.
 - **Nie direkt auf `main`** – pre-push-Hook blockiert hart; immer über Feature-Branch + PR.
+- **Parallele Sessions in eigenen Worktrees** – `start-work.sh` legt jede Task in einem eigenen
+  git-Worktree an; nach dem Merge `git worktree remove <pfad>` (siehe git-workflow.md).
 - **Gates lokal vor dem Push:** `scripts/checks/pre-commit.sh` und `pre-push.sh` laufen sowieso,
   aber Lint/Tests/Format vorab spart CI-Runden.
 
