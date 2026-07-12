@@ -158,6 +158,30 @@ je nach Team-Konvention in Ordnung.
 
 ---
 
+## Branch-Aufräumen
+
+Gemergte Branches werden weitgehend automatisch entfernt – dreistufig:
+
+- **Remote:** Das Repo hat *Automatically delete head branches* aktiv → GitHub löscht den
+  Feature-Branch nach jedem PR-Merge.
+- **Lokale Tracking-Refs:** `git config --global fetch.prune true` → jeder `fetch`/`pull`
+  entfernt die Refs gelöschter Remote-Branches und markiert die zugehörigen lokalen Branches als `[gone]`.
+- **Lokale Branches:** der globale Alias **`git gone`** löscht die als `[gone]` markierten lokalen Branches
+  (prunt zuerst, verschont den aktuell ausgecheckten Branch):
+
+  ```bash
+  git config --global alias.gone '!git fetch -p -q && git for-each-ref --format "%(refname:short) %(upstream:track)" refs/heads | while read -r b t; do if [ "$t" = "[gone]" ] && [ "$b" != "$(git symbolic-ref --short HEAD 2>/dev/null)" ]; then git branch -D "$b"; fi; done'
+  ```
+
+  Aufruf: `git gone`.
+
+> **`-D` (force) ist Absicht:** Bei **Squash-Merge** (unsere PR-Strategie) erkennt `git branch -d`
+> die Branches nicht als merged (die lineare Ancestry fehlt) und würde die Löschung verweigern.
+> `[gone]` bedeutet hier verlässlich „PR gemergt, Remote gelöscht". Nur wer einen Remote-Branch
+> **ohne** Merge löscht, verlöre lokalen Stand – im PR-Workflow praktisch kein Thema.
+
+---
+
 ## Eine Task = Eine Session
 
 Jede neue Task in einer neuen Claude-Session starten.
