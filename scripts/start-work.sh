@@ -25,6 +25,8 @@
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 #   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
 #                             (Default aus dem Branch-Typ abgeleitet)
+#   FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels (CSV: security,tech-debt,test)
+#                             für ein neu angelegtes Issue; via --labels a,b übersteuerbar
 
 set -euo pipefail
 
@@ -50,6 +52,20 @@ usage() {
   echo "branch-typ: feature (Standard), fix, improvement, hotfix, chore, docs, test, refactor"
   exit 1
 }
+
+# Optionale Aspekt-Labels (CSV) vor der Positions-Auswertung herauslösen. --labels a,b
+# oder --labels=a,b; Default aus FACTORY_ASPECT_LABELS. Der Rest bleibt positional.
+ASPECT_LABELS="${FACTORY_ASPECT_LABELS:-}"
+_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --labels)   [[ $# -ge 2 ]] || usage "--labels erwartet einen Wert (CSV, z. B. security,test)"
+                ASPECT_LABELS="$2"; shift 2 ;;
+    --labels=*) ASPECT_LABELS="${1#--labels=}"; shift ;;
+    *)          _args+=("$1"); shift ;;
+  esac
+done
+set -- ${_args[@]+"${_args[@]}"}
 
 [[ $# -ge 1 ]] || usage "Beschreibung (oder Issue-ID + Beschreibung) erforderlich"
 
@@ -122,17 +138,16 @@ if [ "$ISSUE_MODE" = "create" ]; then
   command -v gh >/dev/null 2>&1 || { echo -e "${RED}Fehler:${NC} gh nötig, um im Beschreibungs-Modus ein Issue anzulegen."; echo "  Alternativ: Issue selbst anlegen und die Nummer als <issue-id> übergeben."; exit 1; }
   echo -e "${YELLOW}0/5  Lege GitHub-Issue an (Issue-first)...${NC}"
   ISSUE_BODY="Angelegt via start-work.sh. Task-ID = Issue-Nummer (ADR-013)."
-  # Mit Art-Label anlegen. Fällt das fehl (Label existiert im Repo nicht),
-  # ohne Label erneut versuchen – die Issue-Anlage selbst darf nicht scheitern.
-  _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" --label "$ISSUE_LABEL" --body "$ISSUE_BODY" 2>/dev/null) || true
-  if [ -z "$_url" ]; then
-    _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" --body "$ISSUE_BODY" 2>/dev/null) || true
-    [ -n "$_url" ] && echo -e "  ${YELLOW}⚠${NC}  Label '${ISSUE_LABEL}' nicht gesetzt (im Repo nicht vorhanden?) – Issue bitte manuell klassifizieren"
-    ISSUE_LABEL=""
-  fi
-  TASK_ID=$(printf '%s' "$_url" | grep -oE '[0-9]+$')
+  # Zentraler Seam (ADR-018): setzt Art- + optionale Aspekt-Labels, degradiert fail-open
+  # aufs Label und gibt die Issue-Nummer auf stdout zurück. Warnungen kommen auf stderr.
+  # Relativ zum Skript-Ort sourcen (FACTORY_DIR kann per Env auf einen anderen Baum zeigen).
+  # shellcheck source=scripts/lib/create-issue.sh
+  . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/create-issue.sh"
+  TASK_ID=$(REPO="$REPO" create_issue "$RAW_DESC" "$ISSUE_BODY" "$ISSUE_LABEL" "$ASPECT_LABELS") || TASK_ID=""
   [ -n "$TASK_ID" ] || { echo -e "  ${RED}✗ Issue-Anlage fehlgeschlagen${NC}"; exit 1; }
-  echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} angelegt → Task-ID ${TASK_ID}${ISSUE_LABEL:+ (Label: ${ISSUE_LABEL})}"
+  # Angefragte Labels ausweisen (nicht die effektiv gesetzten): bei fehlendem Label degradiert
+  # der Seam fail-open und meldet das auf stderr – daher „angefragt", nicht „gesetzt".
+  echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} angelegt → Task-ID ${TASK_ID} (Labels angefragt – Art: ${ISSUE_LABEL}${ASPECT_LABELS:+, Aspekte: ${ASPECT_LABELS}})"
 else
   # ID-Modus: das Issue MUSS existieren, sonst bricht die Invariante.
   if command -v gh >/dev/null 2>&1 && [ -n "$REPO" ]; then

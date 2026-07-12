@@ -40,6 +40,11 @@ log() { echo "[sync-issues] $*"; }
 
 command -v gh >/dev/null 2>&1 || { log "gh nicht gefunden – Sync nicht möglich."; exit 2; }
 
+# Zentraler Issue-Seam (ADR-018) – kein eigener gh-Direktaufruf zur Issue-Anlage mehr.
+# Relativ zum Skript-Ort sourcen (FACTORY_DIR kann per Env auf einen anderen Baum zeigen).
+# shellcheck source=scripts/lib/create-issue.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/create-issue.sh"
+
 # ── Repo-Slug (Env bevorzugt, sonst aus der Git-Remote) ───────────────────────
 repo_slug() {
   if [ -n "${FACTORY_REPO:-}" ]; then printf '%s' "$FACTORY_REPO"; return; fi
@@ -105,8 +110,10 @@ while IFS= read -r entry; do
     log "[dry-run] würde Issue für Task #${id} anlegen: \"${title}\""
     continue
   fi
-  url=$(gh issue create --repo "$REPO" --title "$title" --body "$body" 2>/dev/null)
-  newnum=$(printf '%s' "$url" | grep -oE '[0-9]+$')
+  # Über den Seam anlegen (ADR-018): mindestens das Art-Label 'enhancement' (Default,
+  # Override via FACTORY_ISSUE_LABEL) – behebt die frühere label-lose Anlage.
+  art_label="${FACTORY_ISSUE_LABEL:-enhancement}"
+  newnum=$(create_issue "$title" "$body" "$art_label") || newnum=""
   if [ -z "$newnum" ]; then
     log "FEHLER: Issue für Task #${id} konnte nicht angelegt werden."; rc=1; continue
   fi

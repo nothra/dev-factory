@@ -499,8 +499,9 @@ grep -q 'sync-issues.sh --check' "$CI_FILE"; assert_true "$?" "CI ruft sync-issu
 # Verhalten gegen gemocktes gh (kein echtes GitHub nötig).
 # gh issue view <id> → exit 1 für IDs in FAKE_MISSING (Issue fehlt), sonst 0.
 # gh issue create     → gibt eine Issue-URL mit FAKE_NEWNUM aus.
-TMP_SYNC="$(mktemp -d)"; mkdir -p "$TMP_SYNC/scripts" "$TMP_SYNC/tasks" "$TMP_SYNC/bin"
+TMP_SYNC="$(mktemp -d)"; mkdir -p "$TMP_SYNC/scripts/lib" "$TMP_SYNC/tasks" "$TMP_SYNC/bin"
 cp "$SCRIPTS_DIR/sync-issues.sh" "$TMP_SYNC/scripts/"
+cp "$SCRIPTS_DIR/lib/create-issue.sh" "$TMP_SYNC/scripts/lib/"   # Seam (ADR-018) neben dem Skript
 printf '# Task 1: alpha\n' > "$TMP_SYNC/tasks/task-1-alpha.md"
 printf '# Task 2: beta\n'  > "$TMP_SYNC/tasks/task-2-beta.md"
 cat > "$TMP_SYNC/bin/gh" <<'GHEOF'
@@ -537,6 +538,229 @@ out=$(FAKE_MISSING="1" FAKE_NEWNUM="7" sync --create); rc=$?
 assert_exit 1 "$rc" "--create: Nummern-Mismatch → exit 1"
 printf '%s' "$out" | grep -q 'MISMATCH'; assert_true "$?" "--create meldet MISMATCH bei nicht auflösbarer Nummer"
 rm -rf "$TMP_SYNC"
+
+# ─── Zentraler Issue-Seam scripts/lib/create-issue.sh (#82, ADR-018) ─────────
+echo ""
+echo "Zentraler Issue-Seam (#82, ADR-018):"
+
+SEAM_LIB="$SCRIPTS_DIR/lib/create-issue.sh"
+assert_true "$([[ -f "$SEAM_LIB" ]]; echo $?)" "scripts/lib/create-issue.sh vorhanden"
+
+TMP_SEAM="$(mktemp -d)"; mkdir -p "$TMP_SEAM/bin"
+# gh-Stub: 'issue create' protokolliert Args nach GH_LOG und schlägt fehl, wenn ein
+# --label-Wert FAKE_BAD_LABEL entspricht (simuliert „Label existiert im Repo nicht").
+# FAKE_FAIL_ALL=1 lässt jede Anlage scheitern (fail-closed-Test).
+cat > "$TMP_SEAM/bin/gh" <<'GHEOF'
+#!/bin/sh
+if [ "$1 $2" = "issue create" ]; then
+  [ -n "${GH_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_LOG"
+  [ -n "${FAKE_FAIL_ALL:-}" ] && exit 1
+  if [ -n "${FAKE_BAD_LABEL:-}" ]; then
+    for w in "$@"; do [ "$w" = "$FAKE_BAD_LABEL" ] && exit 1; done
+  fi
+  echo "https://github.com/test/repo/issues/${FAKE_NUM:-123}"
+  exit 0
+fi
+exit 0
+GHEOF
+chmod +x "$TMP_SEAM/bin/gh"
+
+# seam <args…> – ruft create_issue im Subshell mit Stub-gh auf ($0=Lib, $@=create_issue-Args).
+# FAKE_*/GH_LOG kommen als Prefix-Env vom Aufrufer und werden an den Subshell durchgereicht.
+seam() {
+  PATH="$TMP_SEAM/bin:$PATH" FACTORY_REPO="test/repo" \
+    bash -c 'source "$0"; create_issue "$@"' "$SEAM_LIB" "$@"
+}
+
+# 1. Art-Label → reine Issue-Nummer auf stdout (Exit 0)
+LOG="$TMP_SEAM/c1.log"; : > "$LOG"
+out=$(GH_LOG="$LOG" seam "Titel" "Body" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "Seam: create_issue mit Art-Label → exit 0"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: stdout ist die reine Issue-Nummer (123)"
+grep -q -- '--label enhancement' "$LOG"; assert_true "$?" "Seam: Art-Label wird an gh übergeben"
+
+# 2. Aspekt-CSV → Art + beide Aspekt-Labels, stdout bleibt reine Nummer
+LOG="$TMP_SEAM/c2.log"; : > "$LOG"
+out=$(GH_LOG="$LOG" seam "T" "B" "enhancement" "security,tech-debt" 2>/dev/null)
+{ grep -q -- '--label enhancement' "$LOG" && grep -q -- '--label security' "$LOG" \
+  && grep -q -- '--label tech-debt' "$LOG"; }
+assert_true "$?" "Seam: Aspekt-CSV wird zu Art + beiden Aspekt-Labels"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: stdout bleibt reine Nummer trotz Aspekt-Labels"
+
+# 3. fehlendes Aspekt-Label → Degradation auf Art-Label, Warnung auf stderr, Issue trotzdem
+LOG="$TMP_SEAM/c3.log"; : > "$LOG"; ERR="$TMP_SEAM/c3.err"
+out=$(FAKE_BAD_LABEL="tech-debt" GH_LOG="$LOG" seam "T" "B" "enhancement" "tech-debt" 2>"$ERR"); rc=$?
+assert_exit 0 "$rc" "Seam: fehlendes Aspekt-Label → Issue trotzdem angelegt (exit 0)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: fehlendes Aspekt-Label verunreinigt stdout nicht"
+grep -q 'tech-debt' "$ERR"; assert_true "$?" "Seam: stderr-Warnung nennt das weggefallene Aspekt-Label"
+tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: Fallback-Anlage trägt das Art-Label"
+assert_true "$(! tail -n1 "$LOG" | grep -q -- 'tech-debt'; echo $?)" "Seam: Fallback-Anlage trägt das fehlende Aspekt-Label NICHT mehr"
+
+# 4. fehlendes Art-Label → Degradation ganz ohne Label, Issue trotzdem
+LOG="$TMP_SEAM/c4.log"; : > "$LOG"
+out=$(FAKE_BAD_LABEL="enhancement" GH_LOG="$LOG" seam "T" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "Seam: fehlendes Art-Label → Issue ohne Label angelegt (exit 0)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: fehlendes Art-Label → stdout bleibt reine Nummer"
+assert_true "$(! tail -n1 "$LOG" | grep -q -- '--label'; echo $?)" "Seam: finale Anlage ganz ohne --label"
+
+# 5. gar keine Issue-Nummer → fail-closed (Exit ≠ 0, kein stdout)
+out=$(FAKE_FAIL_ALL=1 seam "T" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 1 "$rc" "Seam: gh liefert keine Nummer → fail-closed (exit 1)"
+assert_true "$([[ -z "$out" ]]; echo $?)" "Seam: fail-closed → keine Nummer auf stdout"
+
+# 6. Repo-Bezug: FACTORY_REPO → --repo; ohne Slug kein --repo (gh-Auto-Erkennung).
+# Regression F1 (Review #82): der no-repo-Pfad MUSS auch unter `set -euo pipefail` laufen –
+# `repo_args` ist dort leer, und nounset gilt auch innerhalb von $(create_issue …).
+LOG="$TMP_SEAM/c6.log"; : > "$LOG"
+GH_LOG="$LOG" seam "T" "B" "enhancement" >/dev/null 2>&1
+grep -q -- '--repo test/repo' "$LOG"; assert_true "$?" "Seam: FACTORY_REPO wird als --repo übergeben"
+LOG="$TMP_SEAM/c6b.log"; : > "$LOG"
+out=$(PATH="$TMP_SEAM/bin:$PATH" GH_LOG="$LOG" \
+  bash -c 'set -euo pipefail; unset FACTORY_REPO REPO GITHUB_REPOSITORY; source "$0"; create_issue "T" "B" "enhancement"' \
+  "$SEAM_LIB" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "Seam: no-repo unter set -euo pipefail → exit 0 (F1-Regression, kein unbound var)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: no-repo liefert die Nummer (nicht am leeren repo_args gestorben)"
+assert_true "$(! grep -q -- '--repo' "$LOG"; echo $?)" "Seam: ohne FACTORY_REPO/REPO kein --repo (gh-Auto)"
+
+# 7. Regression R3#1: bloßer (nicht via $()' gefangener) Aufruf unter set -euo pipefail –
+# die Degradation muss trotz fehlendem Aspekt-Label durchlaufen (errexit darf sie nicht killen).
+LOG="$TMP_SEAM/c7.log"; : > "$LOG"
+rc=$(PATH="$TMP_SEAM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_BAD_LABEL="tech-debt" GH_LOG="$LOG" \
+  bash -c 'set -euo pipefail; source "$0"; create_issue "T" "B" "enhancement" "tech-debt" >/dev/null; echo "$?"' \
+  "$SEAM_LIB" 2>/dev/null)
+assert_true "$([[ "$rc" = "0" ]]; echo $?)" "Seam: bare-Aufruf unter set -e → Degradation läuft durch (rc=0)"
+tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: bare-Aufruf legt via Fallback mit Art-Label an"
+
+# 8. Aspekt-CSV mit Leerfeldern → exakt Art + 2 Aspekt-Labels (Leerfeld übersprungen, kein Leer-Label)
+LOG="$TMP_SEAM/c8.log"; : > "$LOG"
+out=$(GH_LOG="$LOG" seam "T" "B" "enhancement" "security,,tech-debt" 2>/dev/null)
+n_labels=$(tail -n1 "$LOG" | grep -oE -- '--label' | wc -l | tr -d ' ')
+assert_true "$([[ "$n_labels" = "3" ]]; echo $?)" "Seam: Leerfeld-CSV → genau 3 --label (Art + 2 Aspekte, kein Leer-Label)"
+{ grep -q -- '--label security' "$LOG" && grep -q -- '--label tech-debt' "$LOG"; }
+assert_true "$?" "Seam: Leerfeld-CSV behält beide echten Aspekt-Labels"
+
+# 9. Mehr-Aspekt-Degradation: eines von zwei Aspekt-Labels fehlt → Fallback auf nur Art-Label
+LOG="$TMP_SEAM/c9.log"; : > "$LOG"
+out=$(FAKE_BAD_LABEL="tech-debt" GH_LOG="$LOG" seam "T" "B" "enhancement" "security,tech-debt" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "Seam: ein fehlendes von zwei Aspekt-Labels → Issue trotzdem (exit 0)"
+tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: Mehr-Aspekt-Fallback trägt das Art-Label"
+assert_true "$(! tail -n1 "$LOG" | grep -qE -- '--label (security|tech-debt)'; echo $?)" \
+  "Seam: Mehr-Aspekt-Fallback lässt BEIDE Aspekt-Labels weg (Stufe 2 = nur Art)"
+
+# 10. leeres Art-Label (FS2 „leeres Art-Label") → fail-open: Issue OHNE Label, Warnung auf
+# stderr, stdout bleibt reine Nummer. Eigener Code-Pfad (Warn-Branch + übersprungene Stufe 1/2),
+# NICHT identisch zu Test 4 (dort ist das Art-Label nicht-leer, aber von gh abgelehnt).
+LOG="$TMP_SEAM/c10.log"; : > "$LOG"; ERR="$TMP_SEAM/c10.err"
+out=$(GH_LOG="$LOG" seam "T" "B" "" 2>"$ERR"); rc=$?
+assert_exit 0 "$rc" "Seam: leeres Art-Label → Issue trotzdem angelegt (exit 0, FS2)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: leeres Art-Label → stdout bleibt reine Nummer"
+assert_true "$(! grep -q -- '--label' "$LOG"; echo $?)" "Seam: leeres Art-Label → Anlage ganz ohne --label"
+grep -q 'kein Art-Label' "$ERR"; assert_true "$?" "Seam: leeres Art-Label → Warnung auf stderr (kein Art-Label)"
+
+# 11. 'gh' nicht installiert (FS1) → fail-closed: exit ≠ 0, keine Nummer auf stdout, klare
+# stderr-Meldung. Isolation: leerer PATH (nur der gh-Check läuft, vor jedem externen Kommando –
+# create_issue nutzt bis dorthin ausschließlich Shell-Builtins).
+mkdir -p "$TMP_SEAM/empty"
+ERR="$TMP_SEAM/c11.err"
+# bash absolut aufrufen (via env), damit der leere PATH nur den gh-Lookup trifft, nicht bash selbst.
+out=$(env PATH="$TMP_SEAM/empty" "$(command -v bash)" -c 'source "$0"; create_issue "T" "B" "enhancement"' "$SEAM_LIB" 2>"$ERR"); rc=$?
+assert_exit 1 "$rc" "Seam: fehlendes gh → fail-closed (exit 1, FS1)"
+assert_true "$([[ -z "$out" ]]; echo $?)" "Seam: fehlendes gh → keine Nummer auf stdout"
+grep -qi 'gh' "$ERR"; assert_true "$?" "Seam: fehlendes gh → klare stderr-Meldung nennt gh"
+
+# 12. Titel/Body mit Sonderzeichen (Leerzeichen, Anführungszeichen) → landen unversehrt als
+# GENAU EIN --title/--body-Argument (kein Word-Splitting). Der Standard-Stub loggt '$*'
+# (fusioniert Wörter) → hier ein Stub, der jedes Argument einzeln bracket-loggt, damit
+# Argument-Grenzen sichtbar werden.
+BR="$TMP_SEAM/brk"; mkdir -p "$BR"
+cat > "$BR/gh" <<'GHEOF'
+#!/bin/sh
+if [ "$1 $2" = "issue create" ]; then
+  shift 2
+  for a in "$@"; do printf '[%s]\n' "$a" >> "$GH_LOG"; done
+  echo "https://github.com/test/repo/issues/123"; exit 0
+fi
+exit 0
+GHEOF
+chmod +x "$BR/gh"
+BRLOG="$BR/args.log"; : > "$BRLOG"
+PATH="$BR:$PATH" FACTORY_REPO="test/repo" GH_LOG="$BRLOG" \
+  bash -c 'source "$0"; create_issue "$@"' "$SEAM_LIB" \
+  'Titel mit Leerzeichen und "Quotes"' 'Body mit Leer und "Quote"' 'enhancement' >/dev/null 2>&1
+grep -qxF -- '[Titel mit Leerzeichen und "Quotes"]' "$BRLOG"
+assert_true "$?" "Seam: Titel mit Leerzeichen/Quotes bleibt EIN --title-Argument (kein Word-Splitting)"
+grep -qxF -- '[Body mit Leer und "Quote"]' "$BRLOG"
+assert_true "$?" "Seam: Body mit Leerzeichen/Quotes bleibt EIN --body-Argument"
+# Negativ-Kontrolle (Schärfe): ein wortgesplittetes Titel-Fragment darf NICHT als eigene Zeile stehen.
+assert_true "$(! grep -qxF -- '[Titel]' "$BRLOG"; echo $?)" \
+  "Seam: kein wortgesplittetes Titel-Fragment ([Titel] allein) im Arg-Log"
+
+# 13. Security-Guard (Review #82 H-1): reservierter 'factory::'-Präfix wird als Art- UND
+# Aspekt-Label verworfen (nur die Pipeline setzt diese; verhindert Selbst-Trigger).
+LOG="$TMP_SEAM/c13.log"; : > "$LOG"; ERR="$TMP_SEAM/c13.err"
+out=$(FACTORY_REPO="test/repo" GH_LOG="$LOG" seam "T" "B" "factory::run" "security,factory::running" 2>"$ERR"); rc=$?
+assert_exit 0 "$rc" "Seam: factory::-Labels → Issue trotzdem angelegt (exit 0)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: factory::-Guard → stdout bleibt reine Nummer"
+assert_true "$(! grep -q -- 'factory::' "$LOG"; echo $?)" "Seam: KEIN factory::-Label wird an gh übergeben (Art + Aspekt verworfen)"
+grep -q -- '--label security' "$LOG"; assert_true "$?" "Seam: legitimes Aspekt-Label (security) bleibt trotz factory::-Nachbar erhalten"
+grep -q 'reserviert' "$ERR"; assert_true "$?" "Seam: factory::-Guard warnt auf stderr (reserviert)"
+
+rm -rf "$TMP_SEAM"
+
+# ── Aufrufer nutzen den Seam (kein eigenes 'gh issue create' mehr) ───────────
+assert_true "$(! grep -qE 'gh issue create' "$SCRIPTS_DIR/start-work.sh"; echo $?)" \
+  "#82: start-work.sh enthält kein eigenes 'gh issue create' mehr (nutzt Seam)"
+assert_true "$(! grep -qE 'gh issue create' "$SCRIPTS_DIR/sync-issues.sh"; echo $?)" \
+  "#82: sync-issues.sh enthält kein eigenes 'gh issue create' mehr (nutzt Seam)"
+
+# ── sync-issues legt über den Seam mit Art-Label 'enhancement' an ────────────
+TMP_SYNC2="$(mktemp -d)"; mkdir -p "$TMP_SYNC2/scripts/lib" "$TMP_SYNC2/tasks" "$TMP_SYNC2/bin"
+cp "$SCRIPTS_DIR/sync-issues.sh" "$TMP_SYNC2/scripts/"
+cp "$SCRIPTS_DIR/lib/create-issue.sh" "$TMP_SYNC2/scripts/lib/"
+printf '# Task 1: alpha\n' > "$TMP_SYNC2/tasks/task-1-alpha.md"
+cat > "$TMP_SYNC2/bin/gh" <<'GHEOF'
+#!/bin/sh
+[ "$1 $2" = "issue view" ] && exit 1                      # Issue fehlt → Drift
+if [ "$1 $2" = "issue create" ]; then
+  [ -n "${GH_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_LOG"
+  echo "https://github.com/test/repo/issues/1"; exit 0
+fi
+exit 0
+GHEOF
+chmod +x "$TMP_SYNC2/bin/gh"
+: > "$TMP_SYNC2/create.log"
+PATH="$TMP_SYNC2/bin:$PATH" FACTORY_DIR="$TMP_SYNC2" FACTORY_REPO=test/repo GH_LOG="$TMP_SYNC2/create.log" \
+  bash "$TMP_SYNC2/scripts/sync-issues.sh" --create >/dev/null 2>&1
+grep -q -- '--label enhancement' "$TMP_SYNC2/create.log"
+assert_true "$?" "#82: sync-issues --create legt Issue mit Art-Label enhancement an (kein label-loses Issue)"
+# FACTORY_ISSUE_LABEL übersteuert den enhancement-Default auch in sync-issues.
+: > "$TMP_SYNC2/create.log"
+PATH="$TMP_SYNC2/bin:$PATH" FACTORY_DIR="$TMP_SYNC2" FACTORY_REPO=test/repo \
+  FACTORY_ISSUE_LABEL=bug GH_LOG="$TMP_SYNC2/create.log" \
+  bash "$TMP_SYNC2/scripts/sync-issues.sh" --create >/dev/null 2>&1
+grep -q -- '--label bug' "$TMP_SYNC2/create.log"
+assert_true "$?" "#82: sync-issues respektiert FACTORY_ISSUE_LABEL-Override (bug statt enhancement)"
+rm -rf "$TMP_SYNC2"
+
+# ── FS1 (Aufrufer): ohne 'gh' verhält sich sync-issues wie heute → Exit 2 (Umgebungsfehler) ──
+# Der gh-Check greift vor dem Sourcen des Seams; leerer PATH isoliert den Fall (FACTORY_DIR
+# gesetzt → keine dirname/pwd-Auflösung nötig, kein externes Kommando vor dem Check).
+TMP_NOGH="$(mktemp -d)"; mkdir -p "$TMP_NOGH/empty" "$TMP_NOGH/tasks"
+# bash absolut (via env): der leere PATH soll nur den gh-Lookup treffen, nicht bash selbst.
+env PATH="$TMP_NOGH/empty" FACTORY_DIR="$TMP_NOGH" FACTORY_REPO="test/repo" \
+  "$(command -v bash)" "$SCRIPTS_DIR/sync-issues.sh" --check >/dev/null 2>&1
+assert_exit 2 "$?" "#82/FS1: sync-issues ohne gh → exit 2 (Umgebungsfehler, wie heute)"
+rm -rf "$TMP_NOGH"
+
+# ── Skill-Doku weist den autonomen create_issue-Aufruf an (ADR-018 §5) ───────
+for sk in codify review security-review; do
+  grep -q 'create_issue' "$FACTORY_ROOT/.claude/commands/$sk.md"
+  assert_true "$?" "#82: /$sk-Skill-Doku weist den create_issue-Aufruf an"
+done
+
+# ── git-workflow.md nennt den Seam als kanonischen Anlage-Weg ────────────────
+grep -q 'create-issue.sh' "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
+assert_true "$?" "#82: git-workflow.md verweist auf den zentralen Seam (create-issue.sh)"
 
 # ─── Bug #8: Check-Skripte robust gegen Leerzeichen im Pfad ──────────────────
 echo ""
@@ -922,6 +1146,33 @@ assert_true "$?" "Issue-Anlage: Branch-Typ docs → --label documentation"
 
 run_create_label feature ddd "FACTORY_ISSUE_LABEL=security" | grep -q -- "--label security"
 assert_true "$?" "Issue-Anlage: FACTORY_ISSUE_LABEL übersteuert die Ableitung"
+
+# #82: --labels reicht Aspekt-Labels (zusätzlich zum Art-Label) an den Seam durch.
+LOG_ASP="$TMP_SW/gh-asp.log"; : > "$LOG_ASP"
+( cd "$REPO_SW" && env GH_LOG="$LOG_ASP" PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
+    FACTORY_WORKTREE_BASE="$TMP_SW/wt-asp" FACTORY_WT_SKIP_INSTALL=1 \
+    bash "$SW" eee feature --labels security,test ) >/dev/null 2>&1
+{ grep -q -- '--label enhancement' "$LOG_ASP" && grep -q -- '--label security' "$LOG_ASP" \
+  && grep -q -- '--label test' "$LOG_ASP"; }
+assert_true "$?" "#82: start-work --labels reicht Aspekt-Labels an den Seam durch (Art + Aspekte)"
+
+# #82: FACTORY_ASPECT_LABELS wirkt wie --labels (Env-Variante).
+LOG_ENV="$TMP_SW/gh-env.log"; : > "$LOG_ENV"
+( cd "$REPO_SW" && env GH_LOG="$LOG_ENV" PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" FACTORY_ASPECT_LABELS="security" \
+    FACTORY_WORKTREE_BASE="$TMP_SW/wt-env" FACTORY_WT_SKIP_INSTALL=1 \
+    bash "$SW" fff feature ) >/dev/null 2>&1
+grep -q -- '--label security' "$LOG_ENV"
+assert_true "$?" "#82: FACTORY_ASPECT_LABELS reicht Aspekt-Labels an den Seam durch"
+
+# #82 (F2-Regression): --labels als letztes Argument ohne Wert → klare usage()-Meldung + exit 1,
+# kein wortloser Abbruch durch 'shift 2' unter set -e.
+asp_err=$( cd "$REPO_SW" && PATH="$TMP_SW/bin:$PATH" FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
+  bash "$SW" "meine beschreibung" --labels 2>&1 ); asp_rc=$?
+assert_exit 1 "$asp_rc" "#82: start-work --labels ohne Wert → exit 1 (kein wortloser set-e-Abbruch)"
+printf '%s' "$asp_err" | grep -q -- '--labels erwartet einen Wert'
+assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
 
 rm -rf "$TMP_SW"
 

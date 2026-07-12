@@ -97,8 +97,17 @@ Faustregel: **immer genau ein Art-Label**, dazu die zutreffenden Aspekt-Labels
 
 `start-work.sh` setzt das **Art-Label** bei der Issue-Anlage automatisch aus dem Branch-Typ
 (`fix`/`hotfix` → `bug`, `docs` → `documentation`, sonst `enhancement`; Override via
-`FACTORY_ISSUE_LABEL`). **Aspekt-Labels** (`security`/`tech-debt`/`test`) bleiben manuell –
-sie hängen vom Inhalt ab, nicht vom Branch-Typ.
+`FACTORY_ISSUE_LABEL`). **Aspekt-Labels** (`security`/`tech-debt`/`test`) gibt man ihm optional
+mit (`--labels security,test` oder `FACTORY_ASPECT_LABELS`) – sie hängen vom Inhalt ab, nicht
+vom Branch-Typ.
+
+**Zentraler Anlage-Weg (ADR-018): `scripts/lib/create-issue.sh`.** Jede automatisierte
+Issue-Anlage läuft durch den Seam `create_issue <title> <body> <art-label> [aspekt-csv]` –
+`start-work.sh` und `sync-issues.sh --create` nutzen ihn, ebenso legen die Skills
+`codify`/`review`/`security-review` Out-of-Scope-Funde autonom darüber an. Der Seam vergibt
+Art- + Aspekt-Labels einheitlich (fail-open aufs Label, gestufte Degradation) und gibt die
+Issue-Nummer auf stdout zurück. Kein eigenes `gh issue create` an neuen Stellen – immer den
+Seam sourcen. Die kanonische Label-Liste bleibt allein in diesem Abschnitt.
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 

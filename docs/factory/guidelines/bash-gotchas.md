@@ -73,6 +73,46 @@ printf '%s' "$out" | grep -q muster
 
 ---
 
+## 4. `"${arr[@]}"` bei leerem Array unter `set -u` → „unbound variable" (bash < 4.4 / macOS 3.2)
+
+Auf **bash < 4.4** – und der macOS-Default ist **3.2.57** (`/usr/bin/env bash`) – wirft ein
+**leeres** Array, das mit `"${arr[@]}"` expandiert wird, unter `set -u` **„unbound variable"**.
+(Ab bash 4.4 ist das behoben.) Der Guard ist die `+`-Alternativ-Expansion:
+
+```bash
+# FALSCH – crasht unter set -u auf bash 3.2, wenn opts leer ist:
+local -a opts=()
+[ -n "$repo" ] && opts=(--repo "$repo")
+gh issue create "${opts[@]}" --title "$t"        # opts leer → unbound variable
+
+# RICHTIG – `+`-Guard: expandiert zu nichts, wenn das Array leer/ungesetzt ist:
+gh issue create ${opts[@]+"${opts[@]}"} --title "$t"
+```
+
+**Zwei Ebenen, die das tückisch machen:**
+
+1. **Command-Substitution unterdrückt `set -e`, aber NICHT `set -u`.** Auf bash 3.2 (kein
+   `inherit_errexit`) läuft der Code in `num=$(create_issue …)` **ohne** errexit – ein
+   `-e`-abhängiger Bug bleibt dort also stumm. **nounset gilt trotzdem.** Darum schlägt genau
+   der Array-Guard-Bug auch im gefangenen Aufruf zu, während ein errexit-Bug sich versteckt.
+2. **Eine gesourcte Lib immer unter den Shell-Optionen der echten Aufrufer testen**
+   (`set -euo pipefail`). Ein Test-Harness, das ohne `set -u` sourct (`bash -c 'source …'`
+   ohne `set -u`), ist **nachsichtiger als die Produktion** und übersieht genau diese Klasse.
+   Faustregel: Wenn die Aufrufer `set -euo pipefail` setzen, muss mindestens ein Test die
+   Funktion unter `set -euo pipefail` fahren – inkl. der Grenzfälle mit leeren Arrays.
+
+**Bit uns:** #82 (`create-issue.sh`) – der no-repo-Pfad (`repo_args` leer, der dokumentierte
+gh-Auto-Erkennungs-Pfad, den die Skills nutzen) crashte unter `set -u` auf bash 3.2. Der
+„deckende" Test lief ohne `set -u` und übersah es; erst der **unabhängige Review** fand den
+Bug. `${#arr[@]}` und `${arr[@]+"${arr[@]}"}` sind unter `set -u` sicher – die eine leere
+Expansion war vergessen worden.
+
+> Kein zuverlässiges Gate: unguarded `"${arr[@]}"` maschinell zu finden erzeugt zu viele
+> False-Positives (Nutzung innerhalb `[ ${#arr[@]} -gt 0 ]`-Guards ist sicher). Bleibt eine
+> Review-/Checklisten-Regel – ein Gate, das nicht verlässlich greift, ist schlechter als keins.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

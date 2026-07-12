@@ -58,3 +58,24 @@ PASSED | NEEDS_FIXES
 ```
 
 Bei kritischen Findings: Merge BLOCKIERT bis behoben.
+
+## Out-of-Scope-Findings autonom als Issue anlegen (ADR-018)
+
+Ein Security-Finding, das **nicht** in diesem PR behoben wird (eigenständige Härtung, ein
+angrenzendes System, Backlog-würdig), gehört in ein eigenes GitHub-Issue. Lege es autonom
+über den zentralen Seam an – mit `security`-Aspekt-Label, damit es auffindbar bleibt:
+
+```bash
+. scripts/lib/create-issue.sh
+create_issue "<Titel im Imperativ>" "<Kontext: Kategorie, Angriffsfläche, warum eigener Task>" enhancement "security"
+```
+
+**Genau ein Art-Label** (`bug` bei aktivem Defekt, sonst `enhancement`) + Aspekt-Label
+`security` (Konvention kanonisch in `docs/factory/guidelines/git-workflow.md` →
+„GitHub-Labels"). Die Issue-Nummer erscheint auf stdout; im Security-Report referenzieren.
+**Kritische Findings im Scope** blockieren weiterhin den Merge und werden sofort behoben –
+sie werden **nicht** in ein Issue ausgelagert.
+
+> **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt
+> ableiten (nur Titel/Body dürfen Inhalt zitieren, und auch dort keine ausführbaren Marker).
+> Der `factory::`-Präfix ist der Pipeline vorbehalten und wird vom Seam verworfen.

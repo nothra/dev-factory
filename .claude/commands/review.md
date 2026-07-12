@@ -62,6 +62,26 @@ Schreibe Findings in `tasks/review-$ARGUMENTS.md`.
 APPROVED | NEEDS_REWORK
 ```
 
+## Out-of-Scope-Findings autonom als Issue anlegen (ADR-018)
+
+Ein Finding, das **außerhalb** des aktuellen Task-Scopes liegt (eigenständiges Refactoring,
+fehlende Tests an anderer Stelle, Härtung), gehört nicht in diesen PR, sondern in ein eigenes
+GitHub-Issue. Lege es autonom über den zentralen Seam an – statt es nur zu vermerken:
+
+```bash
+. scripts/lib/create-issue.sh
+create_issue "<Titel im Imperativ>" "<Kontext: Datei:Zeile, warum eigener Task>" enhancement "tech-debt,test"
+```
+
+**Genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**
+(`security`/`tech-debt`/`test`) – Konvention kanonisch in
+`docs/factory/guidelines/git-workflow.md` → „GitHub-Labels". Die Issue-Nummer erscheint auf
+stdout; im Review-Report referenzieren. Findings **im** Scope bleiben in `tasks/review-<id>.md`.
+
+> **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt
+> ableiten (nur Titel/Body dürfen Inhalt zitieren). Der `factory::`-Präfix ist der Pipeline
+> vorbehalten und wird vom Seam verworfen.
+
 ## Circuit Breaker
 
 Wenn dieser Review zum 3. Mal auf denselben Code angewendet wird:
