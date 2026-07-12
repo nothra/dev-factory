@@ -127,7 +127,11 @@ bash scripts/start-work.sh "<kurzbeschreibung>" [branch-typ]   # Issue + eigener
 ```
 
 `start-work.sh` legt Issue, **eigenen git-Worktree** (Isolation, siehe git-workflow.md) und Draft-PR
-an; **Task-ID = Issue-Nummer** (ADR-013). In den ausgegebenen Worktree wechseln, dann:
+an; **Task-ID = Issue-Nummer** (ADR-013). Der Worktree gehört der **Task, nicht der Session**:
+`/requirements` und das spätere `/implement` laufen im **selben** Worktree (die geschärfte Spec liegt
+als Commit auf genau diesem Branch) – eine *frische Claude-Session* für den Implement-Schritt ist gut
+für die Kontext-Hygiene, ein *frischer Working Tree* wäre falsch. In den ausgegebenen Worktree
+wechseln, dann:
 
 1. **`/requirements <id>`** – Spec + Akzeptanzkriterien **interaktiv schärfen** (`docs/specs/spec-<id>-*.md`,
    Task-Datei befüllt). Rückfragen jetzt klären, nicht später.
