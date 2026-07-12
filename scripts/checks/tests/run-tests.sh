@@ -1176,6 +1176,71 @@ assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
 
 rm -rf "$TMP_SW"
 
+# ─── #66: Deploy-Gate liest Secrets über env:, nicht inline im run: ──────────
+echo ""
+echo "#66 Härtung – Secret-Prüfung im Deploy-Gate (env: statt inline \${{ secrets.* }}):"
+
+DEPLOY_GATE="$FACTORY_ROOT/.github/workflows/deploy-gate.yml"
+
+# secrets_in_run <yaml-datei>
+# exit 1 (+ stdout-Fund), wenn irgendeine `${{ secrets.* }}`-Referenz INNERHALB eines
+# `run:`-Shell-Ausdrucks steht (Script-Injection-Muster). `${{ secrets.* }}` in `env:`-
+# Blöcken ist erlaubt (das Zielmuster). Verfolgt den Block-Scalar per Einrückung:
+# ein `run:`-Key öffnet den Block; Zeilen tiefer eingerückt als der Key gehören dazu,
+# ein Dedent auf/unter die Key-Einrückung schließt ihn (POSIX-awk, portabel).
+secrets_in_run() {
+  awk '
+    function firstnonspace(s) { if (match(s, /[^ ]/)) return RSTART - 1; return -1 }
+    /^[ ]*$/ { next }
+    {
+      ind = firstnonspace($0)
+      if (in_run && ind <= run_ind) in_run = 0
+      if (!in_run && $0 ~ /^[ ]*run:/) {
+        run_ind = ind
+        rest = $0; sub(/^[ ]*run:/, "", rest)
+        if (rest ~ /\$\{\{[ ]*secrets\./) { print FILENAME ":" NR ": " $0; found = 1 }
+        in_run = 1
+        next
+      }
+      if (in_run && $0 ~ /\$\{\{[ ]*secrets\./) { print FILENAME ":" NR ": " $0; found = 1 }
+    }
+    END { exit(found ? 1 : 0) }
+  ' "$1"
+}
+
+# Positiv-Kontrolle: der Detektor findet eine inline-Referenz in einem run:-Block,
+# damit der Guard nicht versehentlich vacuously grün ist (clean-code.md, Gate-Regex-Test).
+TMP_YAML_INLINE="$(mktemp)"
+printf 'jobs:\n  x:\n    steps:\n      - name: bad\n        run: |\n          [ -n "${{ secrets.FOO }}" ] || exit 1\n' > "$TMP_YAML_INLINE"
+secrets_in_run "$TMP_YAML_INLINE" >/dev/null 2>&1
+assert_exit 1 "$?" "#66: Detektor erkennt inline \${{ secrets.* }} in einem run:-Block (Positiv-Kontrolle)"
+rm -f "$TMP_YAML_INLINE"
+
+# Negativ-Kontrolle: dieselbe Referenz in einem env:-Block ist erlaubt → kein Fund.
+TMP_YAML_ENV="$(mktemp)"
+printf 'jobs:\n  x:\n    steps:\n      - name: ok\n        env:\n          FOO: ${{ secrets.FOO }}\n        run: |\n          [ -n "$FOO" ] || exit 1\n' > "$TMP_YAML_ENV"
+secrets_in_run "$TMP_YAML_ENV" >/dev/null 2>&1
+assert_exit 0 "$?" "#66: Detektor akzeptiert \${{ secrets.* }} im env:-Block (Negativ-Kontrolle)"
+rm -f "$TMP_YAML_ENV"
+
+# Akzeptanzkriterium: das echte Deploy-Gate hat keine inline-Secret-Referenz in run:.
+secrets_in_run "$DEPLOY_GATE" >/dev/null 2>&1
+assert_exit 0 "$?" "#66: deploy-gate.yml testet in run:-Blöcken nur \$VAR, kein inline \${{ secrets.* }}"
+
+# Verhalten unverändert: die fail-closed-/Skip-Meldungen bleiben wortgleich erhalten.
+grep -q '::error::E2E_ADMIN_EMAIL fehlt' "$DEPLOY_GATE"
+assert_true "$?" "#66: fail-closed \`::error::\`-Meldungen unverändert vorhanden"
+grep -q '::warning::INT-Refresh übersprungen' "$DEPLOY_GATE"
+assert_true "$?" "#66: INT-Refresh Skip-\`::warning::\` unverändert vorhanden"
+
+# deploy-gate.yml bleibt valides YAML (nur wo yq vorhanden, ADR-009).
+if [ "$HAS_YQ" = 1 ]; then
+  yq '.' "$DEPLOY_GATE" >/dev/null 2>&1
+  assert_true "$?" "#66: deploy-gate.yml bleibt valides YAML (yq-Parse)"
+else
+  skip_yq "#66: deploy-gate.yml bleibt valides YAML"
+fi
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"
