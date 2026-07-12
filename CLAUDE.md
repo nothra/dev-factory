@@ -129,6 +129,11 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 - Nie committen ohne `scripts/checks/pre-commit.sh` erfolgreich durchgelaufen
 - Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen
 - Keine offenen Checkboxen in der Task-Datei → kein Done
+- **Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge.** Die letzte Checkbox
+  (`Fertig / PR erstellt`) und alle Abschluss-Notizen müssen **im Branch** gesetzt sein, bevor
+  `/pr-shepherd` (bzw. der Merge) läuft. Nach dem Merge liegt die Datei auf `main` und lässt sich
+  nur noch über einen **neuen PR** ändern (Direkt-Commit auf `main` ist verboten) – für ein Häkchen
+  unverhältnismäßig. (aus #63)
 - Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren
 - **Jede neue Task in einer neuen Claude-Session starten.** `start-work.sh` erinnert daran.
   Grund: Kleiner Kontext = fokussierte Arbeit, weniger Token-Verbrauch, kein Übersprechen zwischen Tasks.
