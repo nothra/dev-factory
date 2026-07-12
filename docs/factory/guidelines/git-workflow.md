@@ -60,6 +60,42 @@ Das CI-Gate `issue-sync` erzwingt die Invariante bei jedem Push/PR.
 
 ---
 
+## GitHub-Labels
+
+Issues und PRs werden mit den im Repo angebotenen Labels klassifiziert. Zwei Gruppen:
+
+**Beschreibende Standard-Labels** (manuell, zur Einordnung):
+
+| Label | Verwendung im Projekt |
+|-------|-----------------------|
+| `bug` | Fehlverhalten / Defekt |
+| `enhancement` | Neue Funktion **oder Härtung/Verbesserung/Tech-Debt** (mangels eigenem `security`/`tech-debt`-Label) |
+| `documentation` | Doku-/Kommentar-Änderungen |
+| `question` | Rückfrage / Klärung nötig |
+| `help wanted`, `good first issue` | Mitarbeit erwünscht / Einstieg |
+| `duplicate`, `invalid`, `wontfix` | Triage-Abschluss |
+
+Faustregel: **jedes Backlog-Issue bekommt genau ein beschreibendes Label** (Defekt → `bug`,
+Härtung/Verbesserung → `enhancement`, reine Doku → `documentation`). Fehlt eine passende
+Kategorie, die Einordnung im Issue-Text begründen (kein Wildwuchs neuer Labels ohne Bedarf).
+
+**`factory::`-Labels – maschinennah, nicht frei vergeben:**
+
+| Label | Bedeutung | Wer setzt es |
+|-------|-----------|--------------|
+| `factory::run` | **Auto-Trigger:** gibt das Issue zur autonomen Pipeline-Bearbeitung frei (`factory-poll.sh`, ADR-008). | **Bewusst durch den Menschen** – nur wenn die Factory das Issue eigenständig abarbeiten soll. **Nicht** an normale Backlog-Issues hängen. |
+| `factory::running` | Lauf aktiv (Concurrency-Lock) | Pipeline (automatisch) |
+| `factory::done` | Lauf erfolgreich | Pipeline (automatisch) |
+| `factory::failed` | Pipeline-Fehler | Pipeline (automatisch) |
+| `factory::interrupted` | Gestoppt – menschliche Entscheidung nötig | Pipeline (automatisch) |
+
+> **Achtung:** `factory::run` ist kein Klassifizierungs-Label, sondern ein **Eintritts-Trigger**.
+> Reine Backlog-/Doku-Issues (wie #66–#68) erhalten es **nicht**, sonst startet der Auto-Trigger
+> ungewollt einen Pipeline-Lauf. Die Status-Labels (`running`/`done`/`failed`/`interrupted`) werden
+> von der Pipeline verwaltet und nicht von Hand gesetzt.
+
+---
+
 ## Vor dem Start: Immer pullen
 
 Bevor ein neuer Feature-Branch angelegt wird:
