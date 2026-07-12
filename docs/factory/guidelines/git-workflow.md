@@ -194,11 +194,40 @@ Jede neue Task in einer neuen Claude-Session starten.
 **Wie:**
 ```bash
 bash scripts/start-work.sh "<beschreibung>"   # Issue-first: legt Issue an, Nr. = Task-ID
-# → neues Terminal / neue Claude-Session öffnen
+# → gibt den Pfad des angelegten Worktrees aus
+# → dorthin wechseln, neue Claude-Session öffnen
 # → /implement <task-id>
 ```
 
 Das Skript gibt am Ende immer einen Hinweis dazu.
+
+---
+
+## Parallele Sessions: eigener Worktree (nicht verhandelbar)
+
+**Das Repository hat genau einen geteilten Arbeitsbaum – aber `HEAD`, Index und Working
+Tree sind darin geteilter Zustand.** Laufen zwei Sessions im selben Verzeichnis, verschiebt
+ein `git checkout`/`commit` der einen den `HEAD` unter der anderen. Beobachteter Vorfall (#71):
+ein Commit landete auf dem falschen Branch, und der pre-push-Hook las fälschlich „auf `main`".
+
+**Regel:** Jede Task arbeitet in einem **eigenen git-Worktree**. `start-work.sh` erzwingt das
+per Default – es legt den Feature-Branch **nicht** im geteilten Baum an, sondern in einem
+isolierten Worktree (Geschwister-Ordner `…​.worktrees/<branch>`), und lässt den Haupt-Baum
+unberührt:
+
+```bash
+bash scripts/start-work.sh "<beschreibung>"        # → legt Worktree an, Pfad wird ausgegeben
+cd <ausgegebener-worktree-pfad>                    # dort arbeiten (eigene Session)
+```
+
+- **Env-Schalter:** `FACTORY_NO_WORKTREE=1` = altes In-Place-Verhalten (nur bewusst nutzen);
+  `FACTORY_WORKTREE_BASE=<dir>` = Basisordner der Worktrees; `FACTORY_WT_SKIP_INSTALL=1` = kein
+  `pnpm install` im neuen Worktree.
+- **Aufräumen nach dem Merge:** `git worktree remove <pfad>` (dann `git worktree prune`), und den
+  lokalen Branch via `git gone` (siehe [Branch-Aufräumen](#branch-aufräumen)).
+- **Warum kein Hook das erzwingt:** Ein In-Repo-Hook kann einen zweiten Prozess nicht daran
+  hindern, `git` im selben Verzeichnis auszuführen. Nur **physische Isolation** (eigener Worktree
+  oder Clone) verhindert die Kollision strukturell – deshalb ist sie Default im Startskript.
 
 ---
 

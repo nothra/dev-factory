@@ -826,6 +826,75 @@ else
   skip_yq "D: factory.config.yml.example hat keinen aktiven Override (yq-Tag → !!null)"
 fi
 
+# ─── start-work.sh: Worktree-Isolation (Kern-Vorkehrung gegen Session-Kollisionen, #74) ──
+echo "start-work.sh (Worktree-Isolation, #74):"
+
+SW="$CHECKS_DIR/../start-work.sh"   # scripts/start-work.sh
+TMP_SW="$(mktemp -d)"
+
+# gh-Stub auf PATH: ID-Modus-Issue-Check bestätigen, ohne Netzwerk/echtes Repo
+# (etabliertes Muster aus den factory-poll-Tests). Determinismus in jeder Umgebung.
+mkdir -p "$TMP_SW/bin"
+cat > "$TMP_SW/bin/gh" << 'GHSTUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "issue view") exit 0 ;;
+  "pr create")  exit 0 ;;
+  *)            exit 0 ;;
+esac
+GHSTUB
+chmod +x "$TMP_SW/bin/gh"
+
+# Wegwerf-Repo als "geteilter Haupt-Arbeitsbaum".
+REPO_SW="$TMP_SW/repo"
+mkdir -p "$REPO_SW"
+git -C "$REPO_SW" init -q -b main >/dev/null 2>&1
+git -C "$REPO_SW" config user.email t@t
+git -C "$REPO_SW" config user.name t
+git -C "$REPO_SW" commit -q --allow-empty -m init
+MAIN_HEAD_BEFORE=$(git -C "$REPO_SW" rev-parse HEAD)
+
+# start-work im Worktree-Default (offline: kein Remote → fetch best-effort, Basis lokaler main).
+( cd "$REPO_SW" && PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
+    FACTORY_WORKTREE_BASE="$TMP_SW/wt" FACTORY_WT_SKIP_INSTALL=1 \
+    bash "$SW" 777 demo-x ) >/dev/null 2>&1
+assert_exit 0 "$?" "start-work (Worktree-Default) → exit 0"
+
+WORKDIR_SW="$TMP_SW/wt/feature-777-demo-x"
+
+# Kern-Invariante: der geteilte Haupt-Baum-HEAD bleibt unverändert (kein checkout/Hijack).
+{ [ "$(git -C "$REPO_SW" rev-parse --abbrev-ref HEAD)" = "main" ] \
+  && [ "$(git -C "$REPO_SW" rev-parse HEAD)" = "$MAIN_HEAD_BEFORE" ]; }
+assert_true "$?" "Worktree-Modus lässt den Haupt-Baum-HEAD unverändert (main)"
+
+[ -f "$WORKDIR_SW/tasks/task-777-demo-x.md" ]
+assert_true "$?" "Task-Datei liegt im isolierten Worktree"
+
+[ ! -f "$REPO_SW/tasks/task-777-demo-x.md" ]
+assert_true "$?" "Task-Datei NICHT im Haupt-Baum (echte Isolation)"
+
+[ "$(git -C "$WORKDIR_SW" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/777-demo-x" ]
+assert_true "$?" "Worktree ist auf dem Feature-Branch ausgecheckt"
+
+# In-Place-Fallback (FACTORY_NO_WORKTREE=1) branchet im Haupt-Baum selbst. Braucht einen
+# Remote (pull --rebase) → Bare-Remote spendieren.
+BARE_IP="$TMP_SW/bare.git"
+git init -q --bare -b main "$BARE_IP" >/dev/null 2>&1
+REPO_IP="$TMP_SW/repo-ip"
+git clone -q "$BARE_IP" "$REPO_IP" >/dev/null 2>&1
+git -C "$REPO_IP" config user.email t@t
+git -C "$REPO_IP" config user.name t
+git -C "$REPO_IP" commit -q --allow-empty -m init
+git -C "$REPO_IP" push -q -u origin main >/dev/null 2>&1
+( cd "$REPO_IP" && PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_IP" FACTORY_REPO="acme/demo" FACTORY_NO_WORKTREE=1 \
+    bash "$SW" 778 demo-y ) >/dev/null 2>&1
+[ "$(git -C "$REPO_IP" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/778-demo-y" ]
+assert_true "$?" "In-Place-Modus (FACTORY_NO_WORKTREE=1) branchet im Haupt-Baum"
+
+rm -rf "$TMP_SW"
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"

@@ -9,16 +9,24 @@
 # leitet den Conventional-Commits-Typ des PR-Titels ab.
 #
 # Ablauf (deterministisch):
-#   1. Uncommitted Changes prüfen
-#   2. main/master pullen (--rebase)
-#   3. Feature-Branch anlegen
-#   4. Task-Datei erstellen
-#   5. Branch pushen
-#   6. Draft Pull Request erstellen (gh)
+#   1. Issue sicherstellen (Issue-first) + Default-Branch aktualisieren (fetch)
+#   2. Eigenen git-Worktree für den Feature-Branch anlegen (Isolation, Default)
+#   3. Task-Datei erstellen
+#   4. Branch pushen
+#   5. Draft Pull Request erstellen (gh)
+#
+# WORKTREE-DEFAULT (Kern-Vorkehrung gegen Session-Kollisionen): Jede neue Task
+# bekommt einen EIGENEN Arbeitsbaum (git worktree) statt eines checkout im
+# geteilten Haupt-Baum. So verschieben parallele Sessions nie gegenseitig HEAD
+# (Ursache des Kollisionsvorfalls aus #71). Env-Schalter:
+#   FACTORY_NO_WORKTREE=1     altes In-Place-Verhalten (Branch im aktuellen Baum)
+#   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
+#   FACTORY_WT_SKIP_INSTALL=1 kein 'pnpm install' im neuen Worktree
+#   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 
 set -euo pipefail
 
-FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FACTORY_DIR="${FACTORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -76,10 +84,17 @@ case "$BRANCH_TYPE" in
   *)           COMMIT_TYPE="$BRANCH_TYPE" ;;
 esac
 
-# ─── Uncommitted Changes prüfen (vor jeder Mutation, inkl. Issue-Anlage) ──────
-if ! git diff --quiet || ! git diff --cached --quiet; then
+# Worktree-Default (Kern-Vorkehrung, #74). Ausschalten via FACTORY_NO_WORKTREE=1.
+if [ "${FACTORY_NO_WORKTREE:-0}" = "1" ]; then WORKTREE_MODE=false; else WORKTREE_MODE=true; fi
+
+# ─── Uncommitted Changes prüfen (nur In-Place-Modus) ──────────────────────────
+# Der Worktree-Modus fasst den aktuellen Baum nicht an (kein checkout/rebase dort)
+# und darf daher gerade dann starten, wenn der Haupt-Baum belegt/schmutzig ist –
+# das ist der eigentliche Sinn der Isolation.
+if [ "$WORKTREE_MODE" = false ] \
+   && { ! git -C "$FACTORY_DIR" diff --quiet || ! git -C "$FACTORY_DIR" diff --cached --quiet; }; then
   echo -e "  ${RED}✗ Uncommitted Changes vorhanden – bitte erst committen oder stashen${NC}"
-  git status --short
+  git -C "$FACTORY_DIR" status --short
   exit 1
 fi
 
@@ -115,40 +130,86 @@ else
 fi
 
 BRANCH_NAME="${BRANCH_TYPE}/${TASK_ID}-${TASK_DESC}"
-TASK_FILE="$FACTORY_DIR/tasks/task-${TASK_ID}-${TASK_DESC}.md"
 
 echo ""
 echo -e "${CYAN}── Task ${TASK_ID}: ${TASK_DESC} ──────────────────────────────────${NC}"
 
 # ─── Default-Branch ermitteln ────────────────────────────────────────────────
 
-DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep "HEAD branch" | awk '{print $NF}' || echo "main")
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+DEFAULT_BRANCH=$(git -C "$FACTORY_DIR" remote show origin 2>/dev/null | grep "HEAD branch" | awk '{print $NF}' || echo "main")
+[ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="main"
 
-# ─── main/master pullen ──────────────────────────────────────────────────────
+# WORKDIR = das Verzeichnis, in dem gebaut wird. Worktree-Modus: ein isolierter
+# neuer Baum. In-Place-Modus: der Haupt-Baum selbst.
+if [ "$WORKTREE_MODE" = true ]; then
+  # ── Worktree-Modus (Default): KEIN checkout im geteilten Haupt-Baum ─────────
+  echo ""
+  echo -e "${YELLOW}1/5  Aktualisiere ${DEFAULT_BRANCH} (fetch, best-effort)...${NC}"
+  git -C "$FACTORY_DIR" fetch --quiet origin 2>/dev/null || true
 
-echo ""
-echo -e "${YELLOW}1/5  Aktualisiere ${DEFAULT_BRANCH}...${NC}"
+  # Basis-Ref: origin/<default> (aktuellster Stand), sonst lokaler <default>, sonst HEAD.
+  if git -C "$FACTORY_DIR" rev-parse --verify --quiet "origin/${DEFAULT_BRANCH}" >/dev/null; then
+    BASE_REF="origin/${DEFAULT_BRANCH}"
+  elif git -C "$FACTORY_DIR" rev-parse --verify --quiet "${DEFAULT_BRANCH}" >/dev/null; then
+    BASE_REF="${DEFAULT_BRANCH}"
+  else
+    BASE_REF="HEAD"
+  fi
+  echo -e "  ${GREEN}✓${NC} Basis: ${BASE_REF}"
 
-if [[ "$CURRENT_BRANCH" != "$DEFAULT_BRANCH" ]]; then
-  git checkout "$DEFAULT_BRANCH"
-fi
+  # Worktree-Pfad: Geschwister-Ordner (konfigurierbar); Branch-Slashes → '-'.
+  WT_BASE="${FACTORY_WORKTREE_BASE:-$(dirname "$FACTORY_DIR")/$(basename "$FACTORY_DIR").worktrees}"
+  WORKDIR="$WT_BASE/${BRANCH_NAME//\//-}"
+  mkdir -p "$WT_BASE"
 
-git pull --rebase origin "$DEFAULT_BRANCH"
-echo -e "  ${GREEN}✓${NC} ${DEFAULT_BRANCH} ist aktuell"
+  echo ""
+  echo -e "${YELLOW}2/5  Lege Worktree an: ${WORKDIR}${NC}"
+  if git -C "$FACTORY_DIR" worktree list --porcelain | grep -qxF "worktree $WORKDIR"; then
+    echo -e "  ${YELLOW}⚠  Worktree existiert bereits – wird wiederverwendet${NC}"
+  elif [ -e "$WORKDIR" ]; then
+    echo -e "  ${YELLOW}⚠  Pfad existiert bereits (kein Worktree) – wird wiederverwendet${NC}"
+  elif git -C "$FACTORY_DIR" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+    git -C "$FACTORY_DIR" worktree add "$WORKDIR" "$BRANCH_NAME"
+    echo -e "  ${GREEN}✓${NC} Worktree für bestehenden Branch angelegt"
+  else
+    git -C "$FACTORY_DIR" worktree add -b "$BRANCH_NAME" "$WORKDIR" "$BASE_REF"
+    echo -e "  ${GREEN}✓${NC} Worktree + Branch angelegt"
+  fi
 
-# ─── Feature-Branch anlegen ──────────────────────────────────────────────────
-
-echo ""
-echo -e "${YELLOW}2/5  Lege Branch an: ${BRANCH_NAME}${NC}"
-
-if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
-  echo -e "  ${YELLOW}⚠  Branch existiert bereits – wechsle zu ihm${NC}"
-  git checkout "$BRANCH_NAME"
+  # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.
+  if [ "${FACTORY_WT_SKIP_INSTALL:-0}" != "1" ] && [ -f "$WORKDIR/package.json" ] && command -v pnpm >/dev/null 2>&1; then
+    echo -e "  ${YELLOW}→${NC} pnpm install im Worktree (FACTORY_WT_SKIP_INSTALL=1 überspringt)..."
+    if (cd "$WORKDIR" && pnpm install --frozen-lockfile >/dev/null 2>&1); then
+      echo -e "  ${GREEN}✓${NC} Abhängigkeiten installiert"
+    else
+      echo -e "  ${YELLOW}⚠  pnpm install fehlgeschlagen – im Worktree manuell nachziehen${NC}"
+    fi
+  fi
 else
-  git checkout -b "$BRANCH_NAME"
-  echo -e "  ${GREEN}✓${NC} Branch erstellt"
+  # ── In-Place-Modus (FACTORY_NO_WORKTREE=1): bisheriges Verhalten ────────────
+  WORKDIR="$FACTORY_DIR"
+  CURRENT_BRANCH=$(git -C "$WORKDIR" rev-parse --abbrev-ref HEAD)
+
+  echo ""
+  echo -e "${YELLOW}1/5  Aktualisiere ${DEFAULT_BRANCH}...${NC}"
+  if [[ "$CURRENT_BRANCH" != "$DEFAULT_BRANCH" ]]; then
+    git -C "$WORKDIR" checkout "$DEFAULT_BRANCH"
+  fi
+  git -C "$WORKDIR" pull --rebase origin "$DEFAULT_BRANCH"
+  echo -e "  ${GREEN}✓${NC} ${DEFAULT_BRANCH} ist aktuell"
+
+  echo ""
+  echo -e "${YELLOW}2/5  Lege Branch an: ${BRANCH_NAME}${NC}"
+  if git -C "$WORKDIR" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+    echo -e "  ${YELLOW}⚠  Branch existiert bereits – wechsle zu ihm${NC}"
+    git -C "$WORKDIR" checkout "$BRANCH_NAME"
+  else
+    git -C "$WORKDIR" checkout -b "$BRANCH_NAME"
+    echo -e "  ${GREEN}✓${NC} Branch erstellt"
+  fi
 fi
+
+TASK_FILE="$WORKDIR/tasks/task-${TASK_ID}-${TASK_DESC}.md"
 
 # ─── Task-Datei erstellen ────────────────────────────────────────────────────
 
@@ -158,7 +219,7 @@ echo -e "${YELLOW}3/5  Task-Datei anlegen...${NC}"
 if [[ -f "$TASK_FILE" ]]; then
   echo -e "  ${YELLOW}⚠  Task-Datei existiert bereits${NC}"
 else
-  mkdir -p "$FACTORY_DIR/tasks"
+  mkdir -p "$WORKDIR/tasks"
   cat > "$TASK_FILE" << EOF
 # Task ${TASK_ID}: ${TASK_DESC}
 
@@ -199,9 +260,9 @@ fi
 
 # Task-Datei committen – sonst ist der gepushte Branch identisch zu main
 # (leerer Draft-PR) und die Datei bliebe uncommitted im Working Tree.
-git add "$TASK_FILE"
-if ! git diff --cached --quiet; then
-  git commit -q -m "chore: Task ${TASK_ID} anlegen (${TASK_DESC//-/ })"
+git -C "$WORKDIR" add "$TASK_FILE"
+if ! git -C "$WORKDIR" diff --cached --quiet; then
+  git -C "$WORKDIR" commit -q -m "chore: Task ${TASK_ID} anlegen (${TASK_DESC//-/ })"
   echo -e "  ${GREEN}✓${NC} Task-Datei committet"
 fi
 
@@ -211,7 +272,7 @@ echo ""
 echo -e "${YELLOW}4/5  Pushe Branch nach origin...${NC}"
 
 PUSH_OK=0
-if git push -u origin "$BRANCH_NAME" 2>&1; then
+if git -C "$WORKDIR" push -u origin "$BRANCH_NAME" 2>&1; then
   echo -e "  ${GREEN}✓${NC} Branch gepusht"
   PUSH_OK=1
 else
@@ -229,12 +290,13 @@ PR_DESC="Task #${TASK_ID}: ${TASK_DESC//-/ }"
 
 PR_CREATED=0
 
+# gh erkennt das Repo über das cwd → im WORKDIR ausführen (Worktree-sicher).
 if [[ $PUSH_OK -eq 1 ]] && command -v gh &>/dev/null; then
-  if gh pr create \
+  if (cd "$WORKDIR" && gh pr create \
       --draft \
       --title "$PR_TITLE" \
       --body "$PR_DESC" \
-      --base "$DEFAULT_BRANCH" 2>/dev/null; then
+      --base "$DEFAULT_BRANCH" 2>/dev/null); then
     echo -e "  ${GREEN}✓${NC} Draft-PR erstellt (GitHub)"
     PR_CREATED=1
   fi
@@ -250,13 +312,19 @@ fi
 echo ""
 echo -e "${GREEN}Bereit!${NC}"
 echo "  Branch:     ${BRANCH_NAME}"
+echo "  Arbeitsbaum: ${WORKDIR}"
 echo "  Task-Datei: tasks/task-${TASK_ID}-${TASK_DESC}.md"
 echo ""
 echo -e "${CYAN}Nächste Schritte:${NC}"
+if [ "$WORKTREE_MODE" = true ]; then
+  echo "  0. In den isolierten Worktree wechseln:"
+  echo "       cd \"${WORKDIR}\""
+  echo "     (Aufräumen nach dem Merge: git worktree remove \"${WORKDIR}\")"
+fi
 echo "  1. Task-Datei mit Beschreibung und Akzeptanzkriterien befüllen"
 echo "     (oder: /requirements ${TASK_ID} in Claude Code)"
 echo "  2. Implementieren starten: /implement ${TASK_ID} in Claude Code"
 echo ""
-echo -e "${YELLOW}⚡ Tipp: Starte für Task ${TASK_ID} eine neue Claude-Session.${NC}"
-echo "   Kleiner Kontext = fokussierte Arbeit + weniger Token-Verbrauch."
+echo -e "${YELLOW}⚡ Tipp: Starte für Task ${TASK_ID} eine neue Claude-Session in diesem Worktree.${NC}"
+echo "   Eigener Arbeitsbaum = parallele Sessions kollidieren nicht (kein geteilter HEAD)."
 echo ""

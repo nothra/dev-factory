@@ -139,6 +139,11 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   Grund: Kleiner Kontext = fokussierte Arbeit, weniger Token-Verbrauch, kein Übersprechen zwischen Tasks.
 - **Vor jeder neuen Task `bash scripts/start-work.sh` aufrufen** – nie manuell branchen.
   Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-PR ist angelegt.
+- **Parallele Sessions arbeiten in getrennten git-Worktrees.** `start-work.sh` legt jede neue Task
+  per Default in einem **eigenen Worktree** an (kein `checkout` im geteilten Baum) – so verschieben
+  zwei gleichzeitige Sessions nie gegenseitig `HEAD` (Ursache des Kollisionsvorfalls #71). In den
+  ausgegebenen Worktree-Pfad wechseln und dort arbeiten; nach dem Merge `git worktree remove`.
+  Details: `docs/factory/guidelines/git-workflow.md` → „Parallele Sessions: eigener Worktree".
 
 ---
 
