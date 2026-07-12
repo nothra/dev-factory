@@ -36,7 +36,41 @@
   "permissions": {
     "allow": [
       "Bash(bash scripts/*)",
-      "Bash(bash scripts/checks/*)"
+      "Bash(bash scripts/checks/*)",
+      "Edit(app/**)",
+      "Edit(lib/**)",
+      "Edit(db/**)",
+      "Edit(e2e/**)",
+      "Edit(types/**)",
+      "Edit(scripts/**)",
+      "Edit(docs/**)",
+      "Edit(tasks/**)",
+      "Edit(config/**)",
+      "Edit(public/**)",
+      "Edit(.github/workflows/**)",
+      "Edit(*.ts)",
+      "Edit(*.tsx)",
+      "Edit(*.mjs)",
+      "Edit(*.json)",
+      "Edit(*.md)",
+      "Write(app/**)",
+      "Write(lib/**)",
+      "Write(db/**)",
+      "Write(e2e/**)",
+      "Write(types/**)",
+      "Write(scripts/**)",
+      "Write(docs/**)",
+      "Write(tasks/**)",
+      "Write(config/**)",
+      "Write(public/**)",
+      "Write(.github/workflows/**)"
+    ],
+    "deny": [
+      "Edit(.claude/**)",
+      "Write(.claude/**)",
+      "Edit(.env*)",
+      "Write(.env*)",
+      "Read(.env*)"
     ]
   }
 }
