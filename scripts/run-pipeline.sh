@@ -8,7 +8,12 @@
 # Orchestriert die vollständige Factory-Pipeline deterministisch.
 # Agenten werden aufgerufen – nicht umgekehrt.
 #
-# Voraussetzung: claude CLI muss installiert und authentifiziert sein.
+# Voraussetzung: claude CLI muss installiert UND authentifiziert sein.
+#   Stage 3 ruft die CLI nicht-interaktiv auf (--print) – dort läuft KEIN
+#   OAuth-Login-Flow. Die Authentifizierung muss also vorab bestehen: entweder
+#   ANTHROPIC_API_KEY gesetzt oder ein gültiger Keychain-Login (claude /login in
+#   einem interaktiven Terminal). Fehlt beides, meldet jeder Sub-Aufruf
+#   "Not logged in" und die Pipeline bricht ab.
 #
 # KOSTEN-HINWEIS: Stage 3 führt pro Feature 6+ Claude-Sessions hintereinander aus.
 # Das verbraucht deutlich mehr Token als interaktive Nutzung.
@@ -196,12 +201,24 @@ run_skill() {
     exit 1
   fi
 
+  # Prompt aus der Slash-Command-Datei aufbereiten. Zwei Dinge, die die interaktive
+  # Slash-Command-Mechanik erledigt, müssen wir im --print-Modus selbst tun:
+  #   1. $ARGUMENTS (die Task-ID) einsetzen – sonst sieht der Agent den literalen
+  #      Platzhalter und lädt keine Task-Datei.
+  #   2. Die konkrete Task-Datei als Kontext beilegen. Ersetzt das frühere
+  #      `--input-file`, das die claude-CLI nicht kennt (der Aufruf schlug bisher
+  #      bei jedem Skill fehl → Stage 3 lief nie durch).
+  local skill_body prompt
+  skill_body="$(sed "s/\$ARGUMENTS/${task_id}/g" "$skill_file")"
+  printf -v prompt '%s\n\n---\n\n# Task-Datei: %s\n\n%s\n' \
+    "$skill_body" "$(basename "$TASK_FILE")" "$(cat "$TASK_FILE")"
+
   # Retry mit exponentiellem Backoff (z.B. bei Rate-Limit-Fehlern)
   # FACTORY_STAGE=3 signalisiert dem Agenten den nicht-interaktiven Modus:
   # statt eine Entscheidung zu erfragen, löst er einen Interrupt aus (ADR-004).
   local attempt
   for attempt in 1 2 3; do
-    if FACTORY_STAGE=3 claude --print "$(cat "$skill_file")" --input-file "$TASK_FILE" \
+    if FACTORY_STAGE=3 claude --print "$prompt" \
         --model "$model" \
         --max-turns "$turns" 2>&1; then
       echo -e "${GREEN}✓${NC} /${skill} abgeschlossen"
