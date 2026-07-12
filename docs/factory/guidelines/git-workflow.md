@@ -14,8 +14,14 @@ Jede Änderung – auch kleine Fixes – kommt über einen Feature-Branch und ei
 git checkout -b feature/<kurzbeschreibung>
 # ... Arbeit ...
 git push origin feature/<kurzbeschreibung>
-# → PR erstellen (gh pr create)
+# → PR erstellen (gh pr create), Body enthält "Closes #<id>"
 ```
+
+**Der PR-Body muss das Issue mit einem Closing-Keyword schließen: `Closes #<id>`**
+(alternativ `Fixes`/`Resolves`). Nur dann schließt GitHub das Issue beim Merge automatisch.
+Eine bloße Referenz wie `(#<id>)` im Titel oder ein deutsches „Behebt #<id>" ist nur eine
+Erwähnung – das Issue bleibt offen (beobachtet an #74/#71/#76, deren gemergte PRs die Issues
+nicht schlossen). `start-work.sh` setzt die `Closes`-Zeile im Draft-PR bereits automatisch.
 
 Branch-Konvention (aligned mit Conventional Commits):
 
@@ -88,6 +94,11 @@ viele *Aspekt*-Labels"**.
 Faustregel: **immer genau ein Art-Label**, dazu die zutreffenden Aspekt-Labels
 (z. B. `enhancement` + `security` + `tech-debt` für eine Secret-Härtung, oder
 `enhancement` + `test` für einen E2E-Task). Neue Labels nur bei echtem Bedarf – kein Wildwuchs.
+
+`start-work.sh` setzt das **Art-Label** bei der Issue-Anlage automatisch aus dem Branch-Typ
+(`fix`/`hotfix` → `bug`, `docs` → `documentation`, sonst `enhancement`; Override via
+`FACTORY_ISSUE_LABEL`). **Aspekt-Labels** (`security`/`tech-debt`/`test`) bleiben manuell –
+sie hängen vom Inhalt ab, nicht vom Branch-Typ.
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 

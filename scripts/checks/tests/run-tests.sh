@@ -837,7 +837,13 @@ TMP_SW="$(mktemp -d)"
 mkdir -p "$TMP_SW/bin"
 cat > "$TMP_SW/bin/gh" << 'GHSTUB'
 #!/usr/bin/env bash
+# issue create: Argumente (v. a. --label) protokollieren + Fake-URL liefern, damit
+# die Task-ID extrahierbar ist. ID-Modus ruft "issue create" nie auf → bestehende
+# Worktree-Isolationstests bleiben unberührt.
 case "$1 $2" in
+  "issue create")
+    [ -n "${GH_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_LOG"
+    echo "https://github.com/acme/demo/issues/901" ;;
   "issue view") exit 0 ;;
   "pr create")  exit 0 ;;
   *)            exit 0 ;;
@@ -892,6 +898,30 @@ git -C "$REPO_IP" push -q -u origin main >/dev/null 2>&1
     bash "$SW" 778 demo-y ) >/dev/null 2>&1
 [ "$(git -C "$REPO_IP" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/778-demo-y" ]
 assert_true "$?" "In-Place-Modus (FACTORY_NO_WORKTREE=1) branchet im Haupt-Baum"
+
+# ─── Art-Label bei der Issue-Anlage aus dem Branch-Typ ableiten (#80) ─────────
+# Beschreibungs-Modus (Issue-first): der gh-Stub protokolliert die 'issue create'-Args;
+# geprüft wird, dass genau das erwartete Art-Label übergeben wird.
+run_create_label() {  # $1 = branch-typ, $2 = desc, $3 = extra-env ("VAR=val" oder "")
+  local log="$TMP_SW/gh-$2.log"; : > "$log"
+  ( cd "$REPO_SW" && env $3 GH_LOG="$log" PATH="$TMP_SW/bin:$PATH" \
+      FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
+      FACTORY_WORKTREE_BASE="$TMP_SW/wt-lbl" FACTORY_WT_SKIP_INSTALL=1 \
+      bash "$SW" "$2" "$1" ) >/dev/null 2>&1
+  cat "$log"
+}
+
+run_create_label fix aaa "" | grep -q -- "--label bug"
+assert_true "$?" "Issue-Anlage: Branch-Typ fix → --label bug"
+
+run_create_label feature bbb "" | grep -q -- "--label enhancement"
+assert_true "$?" "Issue-Anlage: Branch-Typ feature → --label enhancement"
+
+run_create_label docs ccc "" | grep -q -- "--label documentation"
+assert_true "$?" "Issue-Anlage: Branch-Typ docs → --label documentation"
+
+run_create_label feature ddd "FACTORY_ISSUE_LABEL=security" | grep -q -- "--label security"
+assert_true "$?" "Issue-Anlage: FACTORY_ISSUE_LABEL übersteuert die Ableitung"
 
 rm -rf "$TMP_SW"
 

@@ -23,6 +23,8 @@
 #   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
 #   FACTORY_WT_SKIP_INSTALL=1 kein 'pnpm install' im neuen Worktree
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
+#   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
+#                             (Default aus dem Branch-Typ abgeleitet)
 
 set -euo pipefail
 
@@ -84,6 +86,16 @@ case "$BRANCH_TYPE" in
   *)           COMMIT_TYPE="$BRANCH_TYPE" ;;
 esac
 
+# GitHub-Art-Label aus dem Branch-Typ ableiten (Schema „genau ein Art-Label",
+# git-workflow.md): fix/hotfix → bug, docs → documentation, sonst enhancement.
+# Override via FACTORY_ISSUE_LABEL, falls die Ableitung nicht passt.
+case "$BRANCH_TYPE" in
+  fix|hotfix) ISSUE_LABEL="bug" ;;
+  docs)       ISSUE_LABEL="documentation" ;;
+  *)          ISSUE_LABEL="enhancement" ;;
+esac
+ISSUE_LABEL="${FACTORY_ISSUE_LABEL:-$ISSUE_LABEL}"
+
 # Worktree-Default (Kern-Vorkehrung, #74). Ausschalten via FACTORY_NO_WORKTREE=1.
 if [ "${FACTORY_NO_WORKTREE:-0}" = "1" ]; then WORKTREE_MODE=false; else WORKTREE_MODE=true; fi
 
@@ -109,11 +121,18 @@ fi
 if [ "$ISSUE_MODE" = "create" ]; then
   command -v gh >/dev/null 2>&1 || { echo -e "${RED}Fehler:${NC} gh nötig, um im Beschreibungs-Modus ein Issue anzulegen."; echo "  Alternativ: Issue selbst anlegen und die Nummer als <issue-id> übergeben."; exit 1; }
   echo -e "${YELLOW}0/5  Lege GitHub-Issue an (Issue-first)...${NC}"
-  _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" \
-    --body "Angelegt via start-work.sh. Task-ID = Issue-Nummer (ADR-013)." 2>/dev/null)
+  ISSUE_BODY="Angelegt via start-work.sh. Task-ID = Issue-Nummer (ADR-013)."
+  # Mit Art-Label anlegen. Fällt das fehl (Label existiert im Repo nicht),
+  # ohne Label erneut versuchen – die Issue-Anlage selbst darf nicht scheitern.
+  _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" --label "$ISSUE_LABEL" --body "$ISSUE_BODY" 2>/dev/null) || true
+  if [ -z "$_url" ]; then
+    _url=$(gh issue create --repo "$REPO" --title "$RAW_DESC" --body "$ISSUE_BODY" 2>/dev/null) || true
+    [ -n "$_url" ] && echo -e "  ${YELLOW}⚠${NC}  Label '${ISSUE_LABEL}' nicht gesetzt (im Repo nicht vorhanden?) – Issue bitte manuell klassifizieren"
+    ISSUE_LABEL=""
+  fi
   TASK_ID=$(printf '%s' "$_url" | grep -oE '[0-9]+$')
   [ -n "$TASK_ID" ] || { echo -e "  ${RED}✗ Issue-Anlage fehlgeschlagen${NC}"; exit 1; }
-  echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} angelegt → Task-ID ${TASK_ID}"
+  echo -e "  ${GREEN}✓${NC} Issue #${TASK_ID} angelegt → Task-ID ${TASK_ID}${ISSUE_LABEL:+ (Label: ${ISSUE_LABEL})}"
 else
   # ID-Modus: das Issue MUSS existieren, sonst bricht die Invariante.
   if command -v gh >/dev/null 2>&1 && [ -n "$REPO" ]; then
@@ -286,7 +305,11 @@ echo ""
 echo -e "${YELLOW}5/5  Erstelle Draft Pull Request...${NC}"
 
 PR_TITLE="${COMMIT_TYPE}: ${TASK_DESC//-/ } (#${TASK_ID})"
-PR_DESC="Task #${TASK_ID}: ${TASK_DESC//-/ }"
+# "Closes #<id>" schließt das Issue beim Merge automatisch. Eine bloße Referenz
+# wie "(#<id>)" ist nur eine Erwähnung und lässt das Issue offen (siehe #74/#71/#76).
+PR_DESC="Closes #${TASK_ID}
+
+Task #${TASK_ID}: ${TASK_DESC//-/ }"
 
 PR_CREATED=0
 
@@ -304,7 +327,7 @@ fi
 
 if [[ $PR_CREATED -eq 0 ]]; then
   echo -e "  ${YELLOW}⚠  PR manuell anlegen:${NC}"
-  echo -e "     gh pr create --draft --title \"${PR_TITLE}\" --base ${DEFAULT_BRANCH}"
+  echo -e "     gh pr create --draft --title \"${PR_TITLE}\" --body \"${PR_DESC}\" --base ${DEFAULT_BRANCH}"
 fi
 
 # ─── Abschluss ───────────────────────────────────────────────────────────────
