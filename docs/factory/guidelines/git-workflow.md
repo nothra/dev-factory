@@ -62,22 +62,32 @@ Das CI-Gate `issue-sync` erzwingt die Invariante bei jedem Push/PR.
 
 ## GitHub-Labels
 
-Issues und PRs werden mit den im Repo angebotenen Labels klassifiziert. Zwei Gruppen:
+Issues und PRs werden mit den im Repo angebotenen Labels klassifiziert. Ein Issue kann
+**mehrere** Labels tragen – das Projekt nutzt das Schema **„genau ein *Art*-Label + beliebig
+viele *Aspekt*-Labels"**.
 
-**Beschreibende Standard-Labels** (manuell, zur Einordnung):
+**1 · Art-Label – genau eines (welche Grundart?):**
 
-| Label | Verwendung im Projekt |
-|-------|-----------------------|
+| Label | Grundart |
+|-------|----------|
 | `bug` | Fehlverhalten / Defekt |
-| `enhancement` | Neue Funktion **oder Härtung/Verbesserung/Tech-Debt** (mangels eigenem `security`/`tech-debt`-Label) |
-| `documentation` | Doku-/Kommentar-Änderungen |
-| `question` | Rückfrage / Klärung nötig |
-| `help wanted`, `good first issue` | Mitarbeit erwünscht / Einstieg |
-| `duplicate`, `invalid`, `wontfix` | Triage-Abschluss |
+| `enhancement` | Neue Funktion, Verbesserung, Infra/Tooling |
+| `documentation` | Doku-/Kommentar-/Beispiel-Änderungen |
 
-Faustregel: **jedes Backlog-Issue bekommt genau ein beschreibendes Label** (Defekt → `bug`,
-Härtung/Verbesserung → `enhancement`, reine Doku → `documentation`). Fehlt eine passende
-Kategorie, die Einordnung im Issue-Text begründen (kein Wildwuchs neuer Labels ohne Bedarf).
+**2 · Aspekt-Labels – null bis mehrere (welche Dimension betrifft es zusätzlich?):**
+
+| Label | Aspekt |
+|-------|--------|
+| `security` | Auth/RBAC, Secret-/Payment-Handling, PII-Anonymisierung, Härtung von Angriffsflächen |
+| `tech-debt` | Aufräumen/Härtung **ohne neues Verhalten** |
+| `test` | Tests / Test-Infrastruktur (Unit, E2E) |
+
+**3 · Triage-/Prozess-Labels** (nach Bedarf): `question`, `help wanted`, `good first issue`,
+`duplicate`, `invalid`, `wontfix`.
+
+Faustregel: **immer genau ein Art-Label**, dazu die zutreffenden Aspekt-Labels
+(z. B. `enhancement` + `security` + `tech-debt` für eine Secret-Härtung, oder
+`enhancement` + `test` für einen E2E-Task). Neue Labels nur bei echtem Bedarf – kein Wildwuchs.
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 
