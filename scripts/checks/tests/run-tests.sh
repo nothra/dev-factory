@@ -272,6 +272,55 @@ grep -q '| Autonomie-Rate | 50% |' "$report" 2>/dev/null
 assert_true "$?" "metrics.sh berechnet Autonomie-Rate aus geschnittener Menge (50%)"
 rm -rf "$TMP_LOG"
 
+# ─── #96: metrics.sh Lead-Time ist locale-unabhängig (printf-%f-Regression) ──
+# bash `printf '%.1f'` parst sein Argument lokale-abhängig (strtod). Unter einer
+# Locale mit Komma-Dezimaltrenner (z. B. de_DE) schlägt das Parsen eines
+# Punkt-Dezimalwerts wie "1.75" fehl ("invalid number") und printf fällt still
+# auf "0,0" zurück – beobachtet bei Task 67. Fix: Rundung/Formatierung läuft
+# jetzt komplett in jq (immer Punkt-Dezimaltrenner, locale-unabhängig).
+echo ""
+echo "#96 metrics.sh Lead-Time locale-sicher:"
+
+command -v jq >/dev/null 2>&1 && HAS_JQ=1 || HAS_JQ=0
+# Output erst einfangen, dann greppen (bash-gotchas.md #3: sonst SIGPIPE-Falschrot
+# unter set -o pipefail, weil grep -q beim ersten Treffer die Pipe schließt).
+avail_locales="$(locale -a 2>/dev/null)"
+printf '%s' "$avail_locales" | grep -qxF "de_DE.UTF-8" && HAS_DE_LOCALE=1 || HAS_DE_LOCALE=0
+
+if [ "$HAS_JQ" -eq 1 ] && [ "$HAS_DE_LOCALE" -eq 1 ]; then
+  TMP_METRICS="$(mktemp -d)"
+  mkdir -p "$TMP_METRICS/tasks" "$TMP_METRICS/fakebin"
+
+  # Fake `gh`: zwei gemergte PRs mit einer nicht-ganzzahligen Ø-Lead-Time
+  # ((1h + 2.5h) / 2 = 1.75h) – erzwingt einen echten Dezimalwert im jq/printf-Pfad.
+  cat > "$TMP_METRICS/fakebin/gh" <<'FAKEGH'
+#!/usr/bin/env bash
+case "$*" in
+  "auth status") exit 0 ;;
+  *"pr list --state merged --limit 20 --json createdAt,mergedAt"*)
+    echo '[{"createdAt":"2026-01-01T00:00:00Z","mergedAt":"2026-01-01T01:00:00Z"},{"createdAt":"2026-01-01T00:00:00Z","mergedAt":"2026-01-01T02:30:00Z"}]'
+    ;;
+  *"run list --limit 20 --json conclusion"*)
+    echo '[{"conclusion":"success"},{"conclusion":"success"}]'
+    ;;
+  *) exit 1 ;;
+esac
+FAKEGH
+  chmod +x "$TMP_METRICS/fakebin/gh"
+
+  metrics_err=$(PATH="$TMP_METRICS/fakebin:$PATH" LC_ALL=de_DE.UTF-8 LC_NUMERIC=de_DE.UTF-8 \
+    FACTORY_DIR="$TMP_METRICS" bash "$SCRIPTS_DIR/metrics.sh" --quiet 2>&1 >/dev/null)
+  assert_true "$([[ -z "$metrics_err" ]]; echo $?)" "#96: keine stderr-Ausgabe (kein printf 'invalid number') unter de_DE-Locale"
+
+  report="$TMP_METRICS/tasks/metrics-$(date +%Y-%m-%d).md"
+  grep -qE '\| Lead-Time \(Issue→Merge\) \| 1\.[0-9]+ h' "$report" 2>/dev/null
+  assert_true "$?" "#96: Lead-Time wird mit Punkt-Dezimaltrenner korrekt berechnet (nicht '0,0')"
+
+  rm -rf "$TMP_METRICS"
+else
+  echo "  • #96: metrics.sh Lead-Time locale-sicher – übersprungen (jq oder de_DE.UTF-8-Locale fehlt)"
+fi
+
 # ─── Pre-Commit: portable Regex (Regression) ─────────────────────────────────
 echo ""
 echo "Pre-Commit portable Regex (#bug-precommit):"

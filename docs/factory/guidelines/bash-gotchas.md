@@ -142,6 +142,39 @@ alle gefundenen relativen Pfade müssen ebenfalls in `$tmp` landen.
 
 ---
 
+## 6. `printf '%f'` ist locale-abhängig – Zahlenformatierung in `jq`/`awk` statt bash
+
+`bash printf '%.1f'` parst sein `%f`-Argument über `strtod()`, das **locale-abhängig** ist.
+Unter einer Locale mit Komma-Dezimaltrenner (z. B. `de_DE.UTF-8`) schlägt das Parsen eines
+Punkt-Dezimalwerts wie `"1.6436..."` fehl (`printf: ... invalid number`). `printf` fällt dann
+**still auf `0,0` zurück** – kein non-zero Exit (erst recht nicht wenn `metrics.sh` mit
+`set -uo pipefail` ohne `-e` läuft), kein sichtbarer Fehler im Report.
+
+```bash
+# FALSCH – schlägt unter de_DE-Locale fehl:
+avg_h=$(jq -r '((add/length)/3600)' <<< "$prs")   # liefert "1.6436..."
+printf '%.1f h' "$avg_h"   # → "printf: invalid number: 1.6436..." stderr, Output "0,0 h"
+
+# RICHTIG – Formatierung komplett in jq (Punkt-Dezimaltrenner, immer locale-unabhängig):
+avg_h=$(jq -r '((add/length)/3600 * 10 | round) / 10 | tostring' <<< "$prs")
+echo "${avg_h} h"   # → "1.6 h", unabhängig von LC_NUMERIC/LC_ALL
+```
+
+**Alternativen:**
+- `LC_NUMERIC=C printf '%.1f h' "$value"` – Quick-Fix; funktioniert nicht, wenn der Aufrufer
+  `LC_NUMERIC` global per `export` setzt. Strukturell schwächer als Umzug in `jq`.
+- `awk 'BEGIN{printf "%.1f h\n", v}' v="$value"` – `awk` nutzt i. d. R. den C-Locale für
+  `printf`, aber das ist nicht portabel garantiert.
+
+**`jq tostring` bei ganzzahligem Ergebnis:** `2.0` → `"2"` (kein `.0`), `"2.0"` → `"2.0"`.
+Falls ein festes `x.x`-Format nötig ist, mit `if . == floor then tostring + ".0" else tostring end`
+erzwingen. In rein indikativen KPI-Reports (wie Lead-Time) ist das YAGNI.
+
+**Bit uns:** `metrics.sh` (#96) – Lead-Time zeigte unter `de_DE.UTF-8` `0,0 h` statt dem
+korrekten Wert; beobachtet bei Task 67.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit
