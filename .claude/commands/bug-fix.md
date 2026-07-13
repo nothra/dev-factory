@@ -17,7 +17,7 @@ Ziel: einen fehlschlagenden Test schreiben, der den Bug beweist.
 
 - Bug-Beschreibung und Stacktrace aus der Task-Datei verstehen
 - Minimalen Testfall schreiben, der reproduzierbar fehlschlägt (RED)
-- Testfall committen: `fix: reproducing test for task-$ARGUMENTS`
+- Testfall committen: `bash scripts/factory-commit.sh "fix: reproducing test for task-$ARGUMENTS"`
 - Wenn kein Stacktrace vorhanden: Reproduktionsschritte in der Task-Datei dokumentieren
   und manuell nachvollziehen
 
@@ -40,7 +40,7 @@ Ziel: einen fehlschlagenden Test schreiben, der den Bug beweist.
 
 - Nur das Minimum ändern, das den Reproduktionstest grün macht (GREEN)
 - Kein Scope Creep: keine Refactorings, keine verwandten Verbesserungen
-- Fix committen: `fix: [kurze Beschreibung] (task-$ARGUMENTS)`
+- Fix committen: `bash scripts/factory-commit.sh "fix: [kurze Beschreibung] (task-$ARGUMENTS)"`
 
 ### Schritt 4: Verifizieren
 

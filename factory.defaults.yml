@@ -48,8 +48,8 @@ model_tiers:
 #   abbrechen.
 skills:
   implement:       { tier: heavy, max_turns: 20 }  # @reason: TDD-Zyklen, schreibt Code → schweres Reasoning lohnt heavy.
-  review:          { tier: heavy, max_turns: 8 }   # @reason: Lese-Analyse über mehrere Personas.
-  security-review: { tier: heavy, max_turns: 8 }   # @reason: OWASP-Prüfung vor Merge.
+  review:          { tier: heavy, max_turns: 14 }  # @reason: Lese-Analyse über mehrere Personas; 8 riss bei mehrstufigen Reviews vor dem Verdict (Task 91).
+  security-review: { tier: heavy, max_turns: 14 }  # @reason: OWASP-Prüfung vor Merge; 8 riss vor dem Verdict-Report (Task 91).
   bug-fix:         { tier: heavy, max_turns: 20 }  # @reason: wie implement: reproduzieren → fixen.
   test:            { tier: light, max_turns: 20 }  # @reason: Test-Suite vervollständigen, wenig schweres Reasoning.
   refactor:        { tier: light, max_turns: 20 }  # @reason: Clean-Code-Pass, kein neues Verhalten.

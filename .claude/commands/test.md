@@ -53,3 +53,5 @@ Alle Tests müssen grün sein. Coverage-Schwelle muss erreicht sein.
 - Kein Produktionscode ändern in diesem Schritt – nur Tests
 - Schlägt ein Test fehl, der vorher grün war: sofort eskalieren
 - Keine Test-Helfer, die Produktions-Logik duplizieren
+- Fertige Tests committen und pushen über `bash scripts/factory-commit.sh "<message>"`
+  (nicht rohes `git commit`/`git push`; fail-closed gegen main/master & `--force`, ADR-019).

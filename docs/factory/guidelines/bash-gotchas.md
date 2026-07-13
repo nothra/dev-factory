@@ -113,6 +113,35 @@ Expansion war vergessen worden.
 
 ---
 
+## 5. Shell-Test-Isolation: alle `source`-Abhängigkeiten mitkopieren
+
+Tests, die ein Skript in ein isoliertes Temp-Verzeichnis kopieren, müssen **alle** Dateien
+mitkopieren, die das Skript direkt oder transitiv per `source`/`. ` einbindet.
+
+Fehlt eine Source-Abhängigkeit, bricht das Skript unter `set -euo pipefail` **sofort beim
+`source`-Aufruf** ab – noch vor dem eigentlich getesteten Code. Der Test schlägt fehl, aber
+aus dem **falschen Grund** (fehlende Datei statt echtem Bug) – was den echten Befund verdeckt.
+
+```bash
+# FALSCH – report-verdict.sh fehlt im Temp-Verzeichnis:
+cp scripts/run-pipeline.sh "$tmp/"
+bash "$tmp/run-pipeline.sh" …      # → sofortiger Abbruch: source scripts/lib/report-verdict.sh
+
+# RICHTIG – alle Source-Abhängigkeiten mitkopieren:
+cp scripts/run-pipeline.sh "$tmp/"
+mkdir -p "$tmp/scripts/lib"
+cp scripts/lib/report-verdict.sh "$tmp/scripts/lib/"
+bash "$tmp/run-pipeline.sh" …
+```
+
+**Faustregel:** Nach jedem `cp <skript> $tmp`: `grep -E '^\. |source ' "$skript"` prüfen –
+alle gefundenen relativen Pfade müssen ebenfalls in `$tmp` landen.
+
+**Bit uns:** #91 – 3 Self-Tests liefen nach dem Patch rot, weil `run-pipeline.sh` neu
+`scripts/lib/report-verdict.sh` sourct und die Testaufbauten die Kopie fehlten.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

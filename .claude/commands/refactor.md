@@ -45,3 +45,5 @@ Wenn Tests rot werden: Refactoring rückgängig machen, kleiner aufteilen.
 - Refactored Code (kein neues Verhalten)
 - Alle Tests weiterhin grün
 - Kurze Zusammenfassung der Änderungen in der Task-Datei
+- Committen/pushen über `bash scripts/factory-commit.sh "<message>"`
+  (nicht rohes `git commit`/`git push`; fail-closed gegen main/master & `--force`, ADR-019).

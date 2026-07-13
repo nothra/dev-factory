@@ -155,9 +155,10 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_PF" init -q
   git -C "$TMP_PF" add .
   git -C "$TMP_PF" -c user.email="test@test.com" -c user.name="test" commit -q -m "init"
-  mkdir -p "$TMP_PF/scripts/checks"
+  mkdir -p "$TMP_PF/scripts/checks" "$TMP_PF/scripts/lib"
   cp "$SCRIPTS_DIR/run-pipeline.sh" "$TMP_PF/scripts/"
   cp "$SCRIPTS_DIR/checks/config-validation-check.sh" "$TMP_PF/scripts/checks/"  # Gate-Abhängigkeit (ADR-010)
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
   cp "$SCRIPTS_DIR/../factory.defaults.yml" "$TMP_PF/"   # run-pipeline liest sie (Phase 1b, ADR-009)
   bash "$TMP_PF/scripts/run-pipeline.sh" 55 --dry-run >/dev/null 2>&1 || true
   assert_true "$([[ ! -f "$TMP_PF/tasks/INTERRUPT-55.md" ]]; echo $?)" "Preflight entfernt Stale-Sentinel vor Pipeline-Start"
@@ -857,8 +858,9 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$?" "Config: default max_turns = 10 (unbekannte Skills)"
 
   # Behavioral end-to-end: run-pipeline --dry-run löst implement aus der Config zu opus/20 auf
-  TMP_CFG="$(mktemp -d)"; mkdir -p "$TMP_CFG/scripts/checks" "$TMP_CFG/tasks" "$TMP_CFG/docs/factory"
+  TMP_CFG="$(mktemp -d)"; mkdir -p "$TMP_CFG/scripts/checks" "$TMP_CFG/scripts/lib" "$TMP_CFG/tasks" "$TMP_CFG/docs/factory"
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -872,6 +874,24 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-4-8, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
   rm -rf "$TMP_CFG"
+
+  # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 14 turns im Output (AC Lücke 2).
+  # Bestehender mock review-2.md (APPROVED) sorgt dafür, dass Review-Loop sofort endet und
+  # die Pipeline bis Phase 5 (security-review) läuft – beide "Starte:"-Zeilen erscheinen.
+  TMP_DRY91="$(mktemp -d)"; mkdir -p "$TMP_DRY91/scripts/checks" "$TMP_DRY91/scripts/lib" "$TMP_DRY91/tasks" "$TMP_DRY91/docs/factory"
+  cp "$PIPELINE" "$TMP_DRY91/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_DRY91/scripts/checks/"; cp "$DEFAULTS" "$TMP_DRY91/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_DRY91/scripts/lib/"
+  echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
+  echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
+  printf 'VERDICT: APPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
+  git -C "$TMP_DRY91" init -q; git -C "$TMP_DRY91" add .
+  git -C "$TMP_DRY91" -c user.email="t@t.com" -c user.name="t" commit -q -m init
+  dry91_out=$(bash "$TMP_DRY91/scripts/run-pipeline.sh" 2 --dry-run 2>&1 || true)
+  printf '%s' "$dry91_out" | grep -q '/review 2 (model: claude-opus-4-8, max 14 turns)'
+  assert_true "$?" "#91: dry-run zeigt /review mit max 14 turns (Turn-Budget, Lücke 2)"
+  printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-4-8, max 14 turns)'
+  assert_true "$?" "#91: dry-run zeigt /security-review mit max 14 turns (Turn-Budget, Lücke 2)"
+  rm -rf "$TMP_DRY91"
 else
   skip_yq "YAML-Parse, Config-Werte (implement/codify/default) und End-to-End-Resolution"
 fi
@@ -1240,6 +1260,181 @@ if [ "$HAS_YQ" = 1 ]; then
 else
   skip_yq "#66: deploy-gate.yml bleibt valides YAML"
 fi
+
+# ─── #91: factory-commit.sh (Commit/Push-Seam, ADR-019) ──────────────────────
+echo ""
+echo "#91 factory-commit.sh (Commit/Push-Seam, ADR-019):"
+
+FCOMMIT="$SCRIPTS_DIR/factory-commit.sh"
+assert_true "$([[ -f "$FCOMMIT" ]]; echo $?)" "scripts/factory-commit.sh vorhanden"
+
+# Wegwerf-Repo mit Bare-Remote als Push-Ziel (reales git, Muster start-work-Test #74).
+# fc_repo <name> → legt Bare-Remote + Klon an, gibt den Arbeitsbaum-Pfad auf stdout.
+TMP_FC="$(mktemp -d)"
+fc_repo() {
+  local name="$1" bare="$TMP_FC/$1.git" wt="$TMP_FC/$1"
+  git init -q --bare -b main "$bare" >/dev/null 2>&1
+  git clone -q "$bare" "$wt" >/dev/null 2>&1
+  git -C "$wt" config user.email t@t
+  git -C "$wt" config user.name t
+  git -C "$wt" commit -q --allow-empty -m init >/dev/null 2>&1
+  git -C "$wt" push -q -u origin main >/dev/null 2>&1
+  printf '%s\n' "$wt"
+}
+
+# 1. Happy-Path: Feature-Branch + uncommittete Änderung → commit + push (exit 0),
+#    das Remote-Tracking-Ref zeigt danach auf den frisch committeten Stand.
+WT=$(fc_repo happy)
+git -C "$WT" checkout -q -b feature/91-demo
+echo "neu" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" "feat: demo change" ) >/dev/null 2>&1
+assert_exit 0 "$?" "factory-commit: Feature-Branch + Änderung → exit 0"
+git -C "$WT" rev-parse origin/feature/91-demo >/dev/null 2>&1
+assert_true "$?" "factory-commit: pusht den Feature-Branch auf sein Remote"
+git -C "$WT" diff --quiet HEAD origin/feature/91-demo
+assert_true "$?" "factory-commit: Remote-Ref zeigt auf den frisch committeten Stand"
+
+# 2. main → fail-closed (exit ≠ 0), nichts committet.
+WT=$(fc_repo mainguard)
+HEAD_BEFORE=$(git -C "$WT" rev-parse HEAD)
+echo "x" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" "feat: darf nicht" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: auf main → exit ≠ 0 (fail-closed)"
+[ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
+assert_true "$?" "factory-commit: auf main wird nichts committet"
+
+# 3. master → fail-closed.
+WT=$(fc_repo masterguard)
+git -C "$WT" branch -m master
+echo "x" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" "feat: nope" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: auf master → exit ≠ 0 (fail-closed)"
+
+# 4. Nichts zu committen → exit 0 + klare Meldung (kein Pipeline-Abbruch).
+WT=$(fc_repo empty)
+git -C "$WT" checkout -q -b feature/91-empty
+fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: leer" 2>&1 ); fc_rc=$?
+assert_exit 0 "$fc_rc" "factory-commit: nichts zu committen → exit 0 (kein Pipeline-Abbruch)"
+printf '%s' "$fc_out" | grep -qi 'nichts zu committen'
+assert_true "$?" "factory-commit: nichts zu committen nennt den Grund"
+
+# 5. Fehlende Message → Aufruf-Fehler exit ≠ 0 (kein --force-Einfallstor via Zusatz-Args).
+WT=$(fc_repo nomsg)
+git -C "$WT" checkout -q -b feature/91-nomsg
+echo "y" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: ohne Commit-Message → exit ≠ 0"
+( cd "$WT" && bash "$FCOMMIT" "feat: x" "--force" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: Zusatz-Argument (z. B. --force) → exit ≠ 0"
+
+# 6. Kein git-Repo → fail-closed.
+NOGIT="$TMP_FC/plain"; mkdir -p "$NOGIT"
+( cd "$NOGIT" && bash "$FCOMMIT" "feat: x" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: kein git-Repo → exit ≠ 0 (fail-closed)"
+
+# 7. Detached HEAD → fail-closed.
+WT=$(fc_repo detached)
+git -C "$WT" checkout -q --detach HEAD
+echo "z" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" "feat: detached" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: detached HEAD → exit ≠ 0 (fail-closed)"
+
+# 8. Push scheitert (kaputtes Remote) → exit ≠ 0 (kein stiller 'committed, nicht gepusht').
+WT=$(fc_repo pushfail)
+git -C "$WT" checkout -q -b feature/91-pushfail
+git -C "$WT" remote set-url origin "$TMP_FC/does-not-exist.git"
+echo "w" > "$WT/change.txt"
+( cd "$WT" && bash "$FCOMMIT" "feat: push fail" ) >/dev/null 2>&1
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: push scheitert → exit ≠ 0 (Ursache weitergereicht)"
+
+rm -rf "$TMP_FC"
+
+# ─── #91: Report-Verdict-Helper / run_skill-Report-Guard (ADR-019 §4) ────────
+echo ""
+echo "#91 Report-Verdict-Helper (run_skill-Guard, ADR-019 §4):"
+
+RV_LIB="$SCRIPTS_DIR/lib/report-verdict.sh"
+assert_true "$([[ -f "$RV_LIB" ]]; echo $?)" "scripts/lib/report-verdict.sh vorhanden"
+
+TMP_RV="$(mktemp -d)"; mkdir -p "$TMP_RV/tasks"
+# rv <skill> <task_id> → ruft report_verdict aus der gesourcten Lib (tasks_dir = 3. Arg).
+rv() { bash -c 'source "$1"; report_verdict "$2" "$3" "$4"' _ "$RV_LIB" "$1" "$2" "$TMP_RV/tasks"; }
+
+# Report mit gültigem Verdict → erkannt → Guard wertet als ERFOLG (trotz non-zero Exit).
+printf '## Ergebnis\nAPPROVED\n' > "$TMP_RV/tasks/review-1.md"
+assert_true "$([ "$(rv review 1)" = "APPROVED" ]; echo $?)" "Report-Guard: review APPROVED → Verdict erkannt (Erfolg)"
+printf 'NEEDS_REWORK\n' > "$TMP_RV/tasks/review-2.md"
+assert_true "$([ "$(rv review 2)" = "NEEDS_REWORK" ]; echo $?)" "Report-Guard: review NEEDS_REWORK → Verdict erkannt (Erfolg)"
+printf 'PASSED\n' > "$TMP_RV/tasks/security-3.md"
+assert_true "$([ "$(rv security-review 3)" = "PASSED" ]; echo $?)" "Report-Guard: security-review PASSED → Verdict erkannt (Erfolg)"
+printf 'NEEDS_FIXES\n' > "$TMP_RV/tasks/security-4.md"
+assert_true "$([ "$(rv security-review 4)" = "NEEDS_FIXES" ]; echo $?)" "Report-Guard: security-review NEEDS_FIXES → Verdict erkannt (Erfolg)"
+
+# Report ohne gültigen Verdict → leer → Guard greift NICHT (Fehlschlag, fail-closed).
+printf '## Ergebnis\n(noch offen)\n' > "$TMP_RV/tasks/review-5.md"
+assert_true "$([ -z "$(rv review 5)" ]; echo $?)" "Report-Guard: review ohne Verdict → nichts erkannt (Fehlschlag, fail-closed)"
+
+# Fehlende Report-Datei → leer (Fehlschlag).
+assert_true "$([ -z "$(rv security-review 6)" ]; echo $?)" "Report-Guard: fehlender Report → nichts erkannt (Fehlschlag)"
+
+# Nicht-Report-Skill → immer leer (Verhalten unverändert, auch bei vorhandener Datei).
+printf 'APPROVED\n' > "$TMP_RV/tasks/review-7.md"
+assert_true "$([ -z "$(rv implement 7)" ]; echo $?)" "Report-Guard: Nicht-Report-Skill → kein Verdict (Verhalten unverändert)"
+
+# Mehrere Vorkommen → letzter gewinnt (wie pipeline_summary() schon las).
+printf 'NEEDS_REWORK\n... später ...\nAPPROVED\n' > "$TMP_RV/tasks/review-8.md"
+assert_true "$([ "$(rv review 8)" = "APPROVED" ]; echo $?)" "Report-Guard: mehrere Verdicts → letzter gewinnt"
+
+rm -rf "$TMP_RV"
+
+# Wiring: run-pipeline.sh nutzt den geteilten Helper (kein Drift Guard ↔ Summary).
+grep -q 'report-verdict.sh' "$PIPELINE"
+assert_true "$?" "#91: run-pipeline.sh sourct den geteilten Verdict-Helper"
+grep -q 'report_verdict' "$PIPELINE"
+assert_true "$?" "#91: run_skill/pipeline_summary nutzen report_verdict (ein Ort)"
+
+# Budget-Puffer: review + security-review auf max_turns 14 (ADR-019 §5).
+if [ "$HAS_YQ" = 1 ]; then
+  [ "$(yq '.skills.review.max_turns' "$DEFAULTS_YML")" = "14" ] \
+    && [ "$(yq '.skills.security-review.max_turns' "$DEFAULTS_YML")" = "14" ]
+  assert_true "$?" "#91: review + security-review max_turns=14 (Budget-Puffer)"
+else
+  skip_yq "#91: review + security-review max_turns=14"
+fi
+
+# ─── #91: Permissions-Konsistenz (.claude/settings.json, ADR-019 §2/§3) ──────
+echo ""
+echo "#91 Permissions-Konsistenz (.claude/settings.json):"
+
+SETTINGS="$FACTORY_ROOT/.claude/settings.json"
+assert_true "$([[ -f "$SETTINGS" ]]; echo $?)" ".claude/settings.json vorhanden"
+
+# Read-only-git freigegeben (Diagnose ohne Prompt/Interrupt).
+{ grep -qF 'Bash(git status:*)' "$SETTINGS" && grep -qF 'Bash(git diff:*)' "$SETTINGS" \
+  && grep -qF 'Bash(git log:*)' "$SETTINGS" && grep -qF 'Bash(git branch:*)' "$SETTINGS" \
+  && grep -qF 'Bash(git rev-parse:*)' "$SETTINGS"; }
+assert_true "$?" "#91: read-only-git (status/diff/log/branch/rev-parse) in allow"
+
+# Granulare gh-Verben (pr-shepherd), kein Wildcard.
+{ grep -qF 'Bash(gh pr view:*)' "$SETTINGS" && grep -qF 'Bash(gh pr checks:*)' "$SETTINGS" \
+  && grep -qF 'Bash(gh pr update-branch:*)' "$SETTINGS" && grep -qF 'Bash(gh pr merge:*)' "$SETTINGS" \
+  && grep -qF 'Bash(gh run list:*)' "$SETTINGS" && grep -qF 'Bash(gh run rerun:*)' "$SETTINGS"; }
+assert_true "$?" "#91: granulare gh-Verben (pr-shepherd) in allow"
+
+# Fail-closed: kein pauschales Bash(git *) / Bash(gh *).
+assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \
+  "#91: kein pauschales Bash(git *)/Bash(gh *)"
+
+# deny unverändert: .claude/** und .env* bleiben gesperrt.
+{ grep -qF 'Write(.claude/**)' "$SETTINGS" && grep -qF 'Edit(.claude/**)' "$SETTINGS" \
+  && grep -qF 'Write(.env*)' "$SETTINGS" && grep -qF 'Read(.env*)' "$SETTINGS"; }
+assert_true "$?" "#91: deny behält .claude/** und .env* (fail-closed)"
+
+# Skill-Doku: Code-erzeugende Skills committen/pushen über den Seam, nicht rohes git.
+for sk in implement test refactor bug-fix; do
+  grep -q 'factory-commit.sh' "$FACTORY_ROOT/.claude/commands/$sk.md"
+  assert_true "$?" "#91: /$sk committet/pusht über scripts/factory-commit.sh"
+done
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

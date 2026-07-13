@@ -68,7 +68,8 @@ REFACTOR: Bereinige Code ohne neues Verhalten einzuführen
 Führe nach jedem Zyklus die Tests aus.
 
 ### Schritt 3: Implementieren
-- Kleine, fokussierte Commits
+- Kleine, fokussierte Commits – committen und pushen über `bash scripts/factory-commit.sh "<message>"`,
+  nicht über rohes `git commit`/`git push` (fail-closed gegen main/master & `--force`, ADR-019).
 - Jede Akzeptanz-Checkbox aus der Spec wird durch einen Test abgedeckt
 - Clean-Code-Guidelines einhalten (siehe CLAUDE.md)
 

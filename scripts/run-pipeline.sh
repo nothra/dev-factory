@@ -32,6 +32,11 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Geteilter Verdict-Helper (ADR-019 §4): EINE Verdict-Erkennung für den Report-Guard
+# in run_skill() UND für pipeline_summary() – damit beide nicht auseinanderdriften.
+# shellcheck source=scripts/lib/report-verdict.sh
+source "$FACTORY_DIR/scripts/lib/report-verdict.sh"
+
 # ─── Argumente prüfen ────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -226,6 +231,20 @@ run_skill() {
       bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$task_id" || exit $?
       return 0
     fi
+
+    # Report-Guard (ADR-019 §4): review/security-review schreiben ihren Report und
+    # reißen bisweilen DANACH das Turn-Limit (non-zero Exit, „Reached max turns").
+    # Ein bereits geschriebener, gültiger Verdict zählt als Erfolg – NUR für diese
+    # zwei report-erzeugenden Skills; für alle anderen bleibt non-zero ein Fehlversuch.
+    local verdict
+    verdict="$(report_verdict "$skill" "$task_id")"
+    if [ -n "$verdict" ]; then
+      echo -e "${GREEN}✓${NC} /${skill} abgeschlossen (Verdict '${verdict}' – Turn-Limit nach fertigem Report toleriert)"
+      # Auch hier: ein signalisierter Interrupt stoppt hart (kein stiller Übergang).
+      bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$task_id" || exit $?
+      return 0
+    fi
+
     if [ "$attempt" -lt 3 ]; then
       local wait_seconds=$((attempt * 10))
       echo -e "${YELLOW}⚠ Attempt ${attempt}/3 failed – retrying in ${wait_seconds}s...${NC}"
@@ -305,7 +324,9 @@ pipeline_summary() {
   echo -e "  ${GREEN}Code Review${NC}"
   if [ -f "$review_file" ]; then
     local verdict critical important
-    verdict=$(grep -oE "APPROVED|NEEDS_REWORK" "$review_file" | tail -1 || echo "unbekannt")
+    # Verdict über den geteilten Helper (ADR-019 §4) – dieselbe Erkennung wie der
+    # Report-Guard in run_skill(), damit Summary und Guard nicht auseinanderdriften.
+    verdict="$(report_verdict review "$task_id")"; verdict="${verdict:-unbekannt}"
     critical=$(count_section_items "$review_file" "## Kritische Findings" "## Wichtige Findings")
     important=$(count_section_items "$review_file" "## Wichtige Findings" "## Nitpicks")
     echo "  → Ergebnis: ${verdict} (nach ${review_iter} Iteration(en))"
@@ -319,7 +340,7 @@ pipeline_summary() {
   echo -e "  ${GREEN}Security${NC}"
   if [ -f "$security_file" ]; then
     local sec_status
-    sec_status=$(grep -oE "PASSED|NEEDS_FIXES" "$security_file" | tail -1 || echo "unbekannt")
+    sec_status="$(report_verdict "security-review" "$task_id")"; sec_status="${sec_status:-unbekannt}"
     echo "  → Status: ${sec_status}"
   else
     echo "  → Kein Security-Report gefunden"
