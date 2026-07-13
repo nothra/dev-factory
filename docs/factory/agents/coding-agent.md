@@ -35,7 +35,11 @@ Architektur-Vorgaben des Projekts.
 4. Minimal implementieren bis Test grün
 5. Refactoren (kein neues Verhalten)
 6. Nächsten Test, weiter bis alle Kriterien erfüllt
-7. Lokale Quality Gates ausführen
+7. Lokale Quality Gates ausführen (Lint + Tests). **Bei UI-berührenden Tasks zusätzlich
+   Oberflächentests gegen einen lokal gestarteten Dev-Server** – kanonisch beschrieben in
+   `/implement` (`.claude/commands/implement.md`, Schritt 4): Playwright-E2E (`pnpm test:e2e`,
+   startet den Dev-Server selbst) + interaktive Browser-Verifikation. Voraussetzung `pnpm db:up`
+   + `.env.local`. In Stage 3 (`FACTORY_STAGE=3`) siehe die dortige Stage-3-Regel.
 8. Task-Checkboxen abhaken
 
 ## Tools

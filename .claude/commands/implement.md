@@ -83,6 +83,26 @@ Führe nach jedem Zyklus die Tests aus.
 ```
 Nur wenn beide grün: Schritt als abgeschlossen markieren.
 
+**Oberflächentests bei UI-berührenden Tasks (zusätzlich, nicht als Ersatz):**
+Sobald eine Task die Oberfläche berührt, wird das Verhalten gegen einen **lokal
+gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-/Proxy-grün (vgl. #63, wo ein
+Handler-Direktaufruf die `proxy.ts`-Ebene umging):
+1. Voraussetzung: lokale DB hochfahren (`pnpm db:up`) + `.env.local`.
+2. Automatisiert: je Akzeptanzkriterium eine Playwright-Spec unter `e2e/*.spec.ts`;
+   `pnpm test:e2e` startet den Dev-Server via `webServer`-Config selbst
+   (`reuseExistingServer` außerhalb CI).
+3. Interaktiv: `pnpm dev` (bzw. Preview-Config `dev`) starten und die betroffene
+   Oberfläche im Browser durchklicken/screenshotten (deckt sich mit `/verify`).
+
+Oberflächentests sind **nicht** in den pre-push-Gates verankert (Gates = Lint + `pnpm test`);
+sie laufen zusätzlich und werden in der Task-Datei als erledigt vermerkt.
+
+**Stage 3 (`FACTORY_STAGE=3`, nicht-interaktiv):** Kein Mensch, meist keine DB und kein
+Browser vorhanden. Die interaktive Browser-Verifikation entfällt; automatisierte E2E
+(`pnpm test:e2e`) nur ausführen, wenn DB (`pnpm db:up`) und Dev-Server verfügbar sind. Ist
+das nicht gegeben, die offene UI-Verifikation als Blocker/Nachtest in der Task-Datei
+protokollieren (Nachweis später über `/post-merge-verify`) – nicht still überspringen.
+
 ### Schritt 5: Task-Datei aktualisieren
 - Abgearbeitete Checkboxen abhaken
 - Notizen zu nicht-offensichtlichen Entscheidungen eintragen
