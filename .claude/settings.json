@@ -46,6 +46,7 @@
       "Bash(gh pr checks:*)",
       "Bash(gh pr update-branch:*)",
       "Bash(gh pr merge:*)",
+      "Bash(gh pr ready:*)",
       "Bash(gh run list:*)",
       "Bash(gh run rerun:*)",
       "Edit(app/**)",

@@ -1418,8 +1418,19 @@ assert_true "$?" "#91: read-only-git (status/diff/log/branch/rev-parse) in allow
 # Granulare gh-Verben (pr-shepherd), kein Wildcard.
 { grep -qF 'Bash(gh pr view:*)' "$SETTINGS" && grep -qF 'Bash(gh pr checks:*)' "$SETTINGS" \
   && grep -qF 'Bash(gh pr update-branch:*)' "$SETTINGS" && grep -qF 'Bash(gh pr merge:*)' "$SETTINGS" \
+  && grep -qF 'Bash(gh pr ready:*)' "$SETTINGS" \
   && grep -qF 'Bash(gh run list:*)' "$SETTINGS" && grep -qF 'Bash(gh run rerun:*)' "$SETTINGS"; }
 assert_true "$?" "#91: granulare gh-Verben (pr-shepherd) in allow"
+
+# #94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Status auflösen, Schritt 5b) –
+# konsistent zur allow-Liste, damit der freigegebene Verb auch im Skill sichtbar genutzt wird.
+grep -qF 'gh pr ready' "$SHEPHERD"
+assert_true "$?" "#94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Auflösung)"
+
+# #94 (AC2): 'gh pr ready' ist hinter einem isDraft-Guard dokumentiert – nicht unbedingt
+# aufgerufen. Schützt die "nur bei Draft"-Semantik gegen ein späteres Entfernen des Guards.
+grep -qF 'isDraft' "$SHEPHERD"
+assert_true "$?" "#94: pr-shepherd.md guardet 'gh pr ready' hinter isDraft-Check (AC2)"
 
 # Fail-closed: kein pauschales Bash(git *) / Bash(gh *).
 assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \

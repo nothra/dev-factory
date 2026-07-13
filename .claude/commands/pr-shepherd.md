@@ -88,6 +88,19 @@ gh pr view --json reviewDecision
     "Approval von [Reviewer] steht noch aus"
   ```
 
+### Schritt 5b: Draft-Status auflösen
+
+`gh pr merge --auto` kann auf einem **Draft-PR** nicht aktiviert werden (GitHub lehnt
+Auto-Merge/Merge für Drafts ab). Der von `start-work.sh --draft` angelegte PR muss daher
+– erst jetzt, wenn Schritt 2–5 grün sind (fail-closed: bleibt Draft, wenn ein Gate rot
+ist) – aus dem Draft geholt werden. Idempotent, nur wenn nötig:
+
+```bash
+if [ "$(gh pr view --json isDraft -q .isDraft)" = "true" ]; then
+  gh pr ready            # Draft → ready for review, bevor Auto-Merge aktiviert wird
+fi
+```
+
 ### Schritt 6: Auto-Merge freigeben
 
 Wenn Schritt 2–5 alle grün:
