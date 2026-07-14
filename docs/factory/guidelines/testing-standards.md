@@ -21,6 +21,21 @@ assertThat(result.get().getRole()).isEqualTo(Role.ADMIN);
 
 Keine Logik zwischen Arrange und Act. Kein Assert vor dem Act.
 
+**Gegen einen erwarteten Wert prüfen, nicht gegen das Objekt-under-Test selbst.**
+Eine Assertion, die den Soll-Wert aus derselben Quelle liest, die die Funktion verarbeitet,
+ist (fast) tautologisch – sie kann nur fehlschlagen, wenn die Testdaten selbst inkonsistent
+sind, und belegt das Verhalten nicht:
+```ts
+// Schlecht: liest den Soll-Wert aus dem Objekt, das getestet wird
+expect(firstIssueMessage(result.error)).toBe(result.error.issues[0].message);
+
+// Gut: fixe, unabhängig erwartete Meldung (hier via deterministische Custom-Message)
+const result = z.object({ name: z.string({ error: "Name fehlt" }) }).safeParse({ name: 123 });
+expect(firstIssueMessage(result.error)).toBe("Name fehlt");
+```
+Faustregel: Der erwartete Wert im `toBe(...)` ist ein **Literal** (oder unabhängig
+konstruiert), nie ein erneuter Zugriff auf das Ergebnis/Argument der Act-Zeile.
+
 ---
 
 ## Test-Namen
