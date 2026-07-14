@@ -383,11 +383,17 @@ preflight_checks
 echo -e "${BLUE}Phase 1: Implementierung${NC}"
 run_skill "implement" "$TASK_ID"
 
+# Quality-Gate-Befehle – echte Befehle, konsistent mit scripts/checks/pre-commit.sh
+# und pre-push.sh (dieselbe Env-Override-Konvention). Default = pnpm-Skripte aus
+# PROJECT-CONTEXT.md; CI-/Kosten-Hebel per FACTORY_*_COMMAND. Frühere echo-Platzhalter
+# waren fail-open (echo → immer Exit 0 → Gate meldete grün, ohne je zu prüfen; #101).
+LINT_CMD="${FACTORY_LINT_COMMAND:-pnpm lint}"
+TEST_CMD="${FACTORY_TEST_COMMAND:-pnpm test}"
+COVERAGE_CMD="${FACTORY_COVERAGE_COMMAND:-pnpm test:coverage}"
+
 # Quality Gate: Lint + Tests
-# Befehle kommen aus PROJECT-CONTEXT.md – hier als Platzhalter
-# TODO: Diese Befehle nach /setup-project durch echte Befehle ersetzen
-quality_gate "Lint" "echo 'LINT_COMMAND_PLACEHOLDER – nach /setup-project ersetzen'"
-quality_gate "Tests" "echo 'TEST_COMMAND_PLACEHOLDER – nach /setup-project ersetzen'"
+quality_gate "Lint" "$LINT_CMD"
+quality_gate "Tests" "$TEST_CMD"
 
 # Phase 2: Review-Loop (mit Circuit Breaker)
 REVIEW_APPROVED=false
@@ -407,7 +413,7 @@ while [ "$REVIEW_APPROVED" = false ]; do
     echo ""
     echo -e "${BLUE}Phase 2b: Rework${NC}"
     run_skill "implement" "$TASK_ID"
-    quality_gate "Tests nach Rework" "echo 'TEST_COMMAND_PLACEHOLDER'"
+    quality_gate "Tests nach Rework" "$TEST_CMD"
   fi
 done
 
@@ -415,13 +421,13 @@ done
 echo ""
 echo -e "${BLUE}Phase 3: Test-Vervollständigung${NC}"
 run_skill "test" "$TASK_ID"
-quality_gate "Coverage" "echo 'TEST_COVERAGE_PLACEHOLDER'"
+quality_gate "Coverage" "$COVERAGE_CMD"
 
 # Phase 4: Refactoring
 echo ""
 echo -e "${BLUE}Phase 4: Refactoring${NC}"
 run_skill "refactor" "$TASK_ID"
-quality_gate "Tests nach Refactoring" "echo 'TEST_COMMAND_PLACEHOLDER'"
+quality_gate "Tests nach Refactoring" "$TEST_CMD"
 
 # Phase 5: Security Review – letztes Gate vor Merge, prüft den finalen
 # (refaktorierten) Code (ADR-005)

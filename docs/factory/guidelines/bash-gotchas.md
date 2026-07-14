@@ -175,6 +175,31 @@ korrekten Wert; beobachtet bei Task 67.
 
 ---
 
+## 7. Substring-Match in strukturellen Guards: spezifischen String verwenden
+
+`grep -q 'pnpm test'` trifft auch die Zeile `COVERAGE_CMD="…:-pnpm test:coverage"` als
+Substring. Wird der Coverage-Befehl auf z. B. `pnpm coverage` geändert, bleibt der Guard
+fälschlich grün (false positive). Das Gate prüft dann nicht mehr, was es zu prüfen vorgibt.
+
+```bash
+# FALSCH – 'pnpm test' trifft als Substring auch 'pnpm test:coverage':
+grep -q 'pnpm test' run-pipeline.sh      # schlägt nicht an, obwohl coverage-Zeile fehlt
+
+# RICHTIG – immer den spezifischsten (längsten) String verwenden:
+grep -q 'pnpm test:coverage' run-pipeline.sh   # trifft nur die Coverage-Zeile
+grep -qF -- 'pnpm test:coverage' run-pipeline.sh  # -F: kein Regex, kein Fehlinterpretieren
+```
+
+**Faustregel:** Prüft ein Guard auf einen Befehlsstring, immer **den vollständigen,
+spezifischsten String** nehmen – nie eine Abkürzung, die als Substring einer längeren
+Variante aufgehen könnte. Zur Absicherung: einen Test mit Negativ-Beispiel schreiben
+(geänderter Befehl → Guard schlägt an).
+
+**Bit uns:** #101 – `grep -q 'pnpm test'` im Default-Guard deckte `pnpm test:coverage`
+implizit ab; eine Änderung des Coverage-Befehls wäre unentdeckt geblieben.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

@@ -1496,6 +1496,56 @@ for sk in implement test refactor bug-fix; do
   assert_true "$?" "#91: /$sk committet/pusht über scripts/factory-commit.sh"
 done
 
+# ─── Task 101: Pipeline-Quality-Gates rufen echte Befehle (kein Platzhalter) ──
+echo ""
+echo "Task 101: Pipeline-Quality-Gates (echte Befehle statt Platzhalter):"
+
+# (Struktur, yq-frei) Kein *_PLACEHOLDER-Gate-Befehl mehr in run-pipeline.sh.
+# Der alte echo-Platzhalter lief immer auf Exit 0 → Gate fail-open. Regressions-Guard.
+assert_true "$(! grep -q '_PLACEHOLDER' "$PIPELINE"; echo $?)" \
+  "#101: run-pipeline.sh enthält keinen *_PLACEHOLDER-Gate-Befehl mehr (Regressions-Guard)"
+
+# (Struktur) Echte Befehle mit Env-Override – konsistent mit pre-commit/pre-push.
+{ grep -q 'FACTORY_LINT_COMMAND' "$PIPELINE" && grep -q 'FACTORY_TEST_COMMAND' "$PIPELINE" \
+  && grep -q 'FACTORY_COVERAGE_COMMAND' "$PIPELINE"; }
+assert_true "$?" "#101: run-pipeline.sh nutzt FACTORY_{LINT,TEST,COVERAGE}_COMMAND (Env-Override wie Hook-Gates)"
+
+# (Struktur) pnpm-Defaults aus PROJECT-CONTEXT.md, wenn kein Override gesetzt ist.
+{ grep -q 'pnpm lint' "$PIPELINE" && grep -q 'pnpm test' "$PIPELINE" \
+  && grep -q 'pnpm test:coverage' "$PIPELINE"; }
+assert_true "$?" "#101: run-pipeline.sh hat pnpm-Defaults (pnpm lint / pnpm test / pnpm test:coverage)"
+
+# (Verhalten, yq-gated) Non-dry-run: ein rotes Lint-Gate stoppt die Pipeline fail-closed.
+# Mock `claude` (exit 0) lässt Phase 1 (implement) durchlaufen; FACTORY_LINT_COMMAND schreibt
+# einen Marker und exit 1 → beweist, dass das Gate den ECHTEN Befehl ausführt (der alte
+# echo-Platzhalter wäre exit 0 → Gate fälschlich grün, Pipeline liefe weiter).
+if [ "$HAS_YQ" = 1 ]; then
+  TMP_G101="$(mktemp -d)"
+  mkdir -p "$TMP_G101/scripts/checks" "$TMP_G101/scripts/lib" "$TMP_G101/tasks" \
+           "$TMP_G101/docs/factory" "$TMP_G101/.claude/commands" "$TMP_G101/bin"
+  cp "$PIPELINE" "$TMP_G101/scripts/"
+  cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_G101/scripts/checks/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_G101/scripts/lib/"
+  cp "$DEFAULTS_YML" "$TMP_G101/"
+  echo "# ctx" > "$TMP_G101/docs/factory/PROJECT-CONTEXT.md"
+  echo "# implement mock" > "$TMP_G101/.claude/commands/implement.md"
+  echo "# Task 101: gate" > "$TMP_G101/tasks/task-101-gate.md"
+  printf '#!/bin/sh\nexit 0\n' > "$TMP_G101/bin/claude"; chmod +x "$TMP_G101/bin/claude"
+  git -C "$TMP_G101" init -q; git -C "$TMP_G101" add .
+  git -C "$TMP_G101" -c user.email="t@t.com" -c user.name="t" commit -q -m init
+  MARKER_G101="$TMP_G101/lint-ran.marker"
+  g101_out=$(cd "$TMP_G101" && PATH="$TMP_G101/bin:$PATH" \
+    FACTORY_LINT_COMMAND="touch '$MARKER_G101'; false" \
+    bash "$TMP_G101/scripts/run-pipeline.sh" 101 2>&1 || true)
+  printf '%s' "$g101_out" | grep -q 'Gate fehlgeschlagen: Lint'
+  assert_true "$?" "#101: non-dry-run stoppt fail-closed am Lint-Gate (rotes Lint → Pipeline-Abbruch)"
+  assert_true "$([ -f "$MARKER_G101" ]; echo $?)" \
+    "#101: Lint-Gate führt den ECHTEN Befehl aus (Marker geschrieben, kein echo-Platzhalter)"
+  rm -rf "$TMP_G101"
+else
+  skip_yq "#101: Verhaltens-Test rotes Lint-Gate (non-dry-run)"
+fi
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"
