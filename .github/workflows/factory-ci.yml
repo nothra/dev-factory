@@ -25,6 +25,21 @@ permissions:
   issues: read
 
 jobs:
+  # ─── PR-Closing-Keyword-Gate ────────────────────────────────────────────────
+  # Ein gemergter PR schließt sein Issue nur, wenn der PR-Body ein GitHub-Closing-
+  # Keyword mit Issue-Referenz enthält (z. B. "Closes #<id>"). Fehlt es, bleibt das
+  # Issue offen (beobachtet #71/#74/#76/#78) und start-work.sh legt später einen
+  # redundanten Worktree an. Läuft nur bei pull_request (bei push gibt es keinen Body).
+  pr-closes-issue:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PR-Body auf Closing-Keyword prüfen
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash scripts/checks/pr-closes-keyword-check.sh
+
   # ─── Issue-Sync-Gate ────────────────────────────────────────────────────────
   # Invariante (ADR-013): jede tasks/task-<id>-*.md hat ein GitHub-Issue #<id>.
   # Read-only Check – schlägt fehl (exit 1), wenn ein Task kein Issue-Pendant hat.

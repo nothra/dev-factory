@@ -1546,6 +1546,44 @@ else
   skip_yq "#101: Verhaltens-Test rotes Lint-Gate (non-dry-run)"
 fi
 
+# ─── #112: pr-closes-keyword-check.sh (CI-Gate für Closing-Keyword) ──────────
+# Verhalten: PR-Body mit Closing-Keyword+#<nr> → exit 0, sonst fail-closed exit 1.
+# Positiv- UND Negativfälle, damit ein stilles Nicht-Greifen des Musters auffällt
+# (clean-code.md: Gate-Regex gehört durch beide Richtungen abgesichert).
+echo ""
+echo "#112 pr-closes-keyword-check.sh (Closing-Keyword im PR-Body):"
+
+# Format: "<body>|<erwarteter-exit>|<beschreibung>"  (\n via printf %b für Mehrzeiligkeit)
+closes_cases=(
+  "Closes #78|0|Closes #<nr>"
+  "closes #78|0|klein geschrieben"
+  "Fixes #12|0|Fixes"
+  "Fixed #12|0|Fixed"
+  "Resolves #12|0|Resolves"
+  "Resolved #12|0|Resolved"
+  "Closes: #78|0|Doppelpunkt-Variante"
+  "Zeile eins\nCloses #99\nZeile drei|0|Keyword in mehrzeiligem Body"
+  "(#78)|1|nur Erwähnung in Klammern (der #79-Bug)"
+  "Task #78: foo|1|Task-Referenz ohne Keyword"
+  "Behebt #78|1|deutsches Behebt ist kein GitHub-Keyword"
+  "forecloses #5|1|Teilwort foreclose ist kein Keyword"
+  "Closes #|1|Keyword ohne Nummer"
+  "Closes#78|1|kein Whitespace vor #"
+  "|1|leerer Body (fail-closed)"
+)
+
+for case in "${closes_cases[@]}"; do
+  IFS='|' read -r body expected desc <<< "$case"
+  PR_BODY="$(printf '%b' "$body")" \
+    bash "$CHECKS_DIR/pr-closes-keyword-check.sh" >/dev/null 2>&1
+  assert_exit "$expected" "$?" "$desc"
+done
+
+# Struktur: das Gate ist als eigener pull_request-Job in der CI verdrahtet.
+{ grep -q 'pr-closes-keyword-check.sh' "$CI_FILE" \
+  && grep -q 'github.event.pull_request.body' "$CI_FILE"; }
+assert_true "$?" "#112: CI verdrahtet das Closing-Keyword-Gate (Script + PR-Body-Env)"
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"
