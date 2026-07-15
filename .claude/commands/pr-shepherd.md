@@ -33,8 +33,12 @@ Prüfe:
 Für jeden offenen Kommentar:
 
 1. Kommentar lesen und Intention verstehen
-2. Wenn eindeutig umsetzbar: Code ändern, Test anpassen, committen
-   - Commit-Message: `fix: address review comment – [Kurzbeschreibung] (task-$ARGUMENTS)`
+2. Wenn eindeutig umsetzbar: Code ändern, Test anpassen, dann committen **und** pushen
+   über den Commit/Push-Seam – nicht über rohes `git commit`/`git push` (fail-closed gegen
+   main/master & `--force`, ADR-019):
+   ```bash
+   bash scripts/factory-commit.sh "fix: address review comment – [Kurzbeschreibung] (task-$ARGUMENTS)"
+   ```
 3. Wenn widersprüchlich oder unklar:
    ```bash
    bash scripts/raise-interrupt.sh $ARGUMENTS REVIEW_CONFLICT \

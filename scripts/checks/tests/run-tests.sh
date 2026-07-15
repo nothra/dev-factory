@@ -1500,10 +1500,36 @@ first_match_line() {
   case "$n" in ''|*[!0-9]*) n=0 ;; esac
   printf '%s' "$n"
 }
+
+# 0 (wahr), wenn der Fixed-String $needle im Abschnitt zwischen den Header-Zeilen
+# $start_hdr und $end_hdr (beide Fixed Strings) von $file vorkommt; sonst 1.
+# Fail-closed: fehlt ein Header oder steht das Ende nicht hinter dem Anfang ⇒ 1.
+section_contains() {
+  local start_hdr="$1" end_hdr="$2" file="$3" needle="$4" s e
+  s="$(first_match_line "$start_hdr" "$file")"
+  e="$(first_match_line "$end_hdr" "$file")"
+  [ "$s" -gt 0 ] && [ "$e" -gt "$s" ] || return 1
+  sed -n "${s},${e}p" "$file" | grep -qF -- "$needle"
+}
 _shep_commit_line="$(first_match_line 'factory-commit.sh' "$SHEPHERD")"
 _shep_merge_line="$(first_match_line 'gh pr merge --auto --squash' "$SHEPHERD")"
 assert_true "$([ "$_shep_commit_line" -gt 0 ] && [ "$_shep_merge_line" -gt 0 ] && [ "$_shep_commit_line" -lt "$_shep_merge_line" ]; echo $?)" \
   "#114: Abschlussnotiz wird vor 'gh pr merge --auto --squash' committet (Reihenfolge)"
+
+# #117: pr-shepherd Schritt 2 (Review-Kommentare auflösen) committet Review-Fixes über den
+# Commit/Push-Seam factory-commit.sh (ADR-019) – analog Schritt 6 (#114) und implement/test/
+# refactor. Bewusst gegen den Schritt-2-ABSCHNITT geprüft (Zeilenbereich zwischen den Headern
+# '### Schritt 2' und '### Schritt 3'), NICHT global: der bereits vorhandene Schritt-6-Treffer
+# darf den Guard nicht fälschlich grün färben (Lehre #114: ein Treffer im falschen Abschnitt ist
+# so wenig ein Nachweis wie ein Prosa-Treffer).
+assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'factory-commit.sh'; echo $?)" \
+  "#117: pr-shepherd.md Schritt 2 committet Review-Fixes via factory-commit.sh (Seam)"
+
+# #117 (AC2): das Seam-Kommando trägt im selben Abschnitt die fail-closed-Begründung mit
+# ADR-019-Verweis – separat vom Kommando prüfbar, damit ein späteres Entfernen der Begründung
+# (bei erhaltenem Kommando) auffällt. Wieder auf den Schritt-2-Abschnitt eingegrenzt.
+assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'ADR-019'; echo $?)" \
+  "#117: pr-shepherd.md Schritt 2 nennt die fail-closed-Begründung (ADR-019)"
 
 # Fail-closed: kein pauschales Bash(git *) / Bash(gh *).
 assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \
