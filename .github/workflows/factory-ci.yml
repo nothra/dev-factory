@@ -8,7 +8,9 @@
 #     (Settings → Secrets and variables → Actions → Variables) – dieselben Werte,
 #     die die pre-commit/pre-push-Hooks lesen. Kein Doppel-Pflegen.
 #   - FACTORY_HEALTHCHECK_URL bzw. FACTORY_HEALTHCHECK_CMD für post-merge-verify
-#     (optional, nur wenn ein Deploy-Ziel existiert).
+#     (optional, nur wenn ein Deploy-Ziel existiert). Achtung Timing: post-merge-verify
+#     läuft parallel zum Deploy-Gate (vor dem Promote) – FACTORY_HEALTHCHECK_URL daher
+#     NICHT auf /api/health zeigen (Fehlalarme). Details am Job-Kommentar unten / ADR-017.
 # Der "factory-self-test"-Job läuft immer und braucht keine Anpassung.
 
 name: Factory CI
@@ -114,6 +116,13 @@ jobs:
   # (ADR-007). Prüft das tatsächliche Verhalten der deployten Umgebung per
   # Healthcheck gegen FACTORY_HEALTHCHECK_URL / FACTORY_HEALTHCHECK_CMD. Ohne
   # Konfiguration: übersprungen. Schlägt der Check fehl → POST_MERGE_FAIL + rot.
+  #
+  # ⚠ FACTORY_HEALTHCHECK_URL NICHT auf .../api/health zeigen: Dieser Job läuft beim
+  #   main-Push PARALLEL zum Deploy-Gate – also BEVOR das Gate main→production promotet.
+  #   Ein /api/health-Check träfe hier den Vor-Promote-Stand von Production → Fehlalarme.
+  #   Der autoritative Post-Deploy-Healthcheck liegt bewusst IM Deploy-Gate (nach dem
+  #   Promote), nicht hier (ADR-017 §Alternatives). Für diesen Job höchstens einen
+  #   deploy-unabhängigen Smoke-Test (FACTORY_HEALTHCHECK_CMD) verwenden.
   #
   # Bewusst NICHT bei pull_request: vor dem Merge ist nichts deployt.
   post-merge-verify:

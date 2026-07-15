@@ -9,6 +9,12 @@
 #                                 Für nicht-HTTP-Projekte (CLI, Worker) oder mehrstufige
 #                                 Szenarien. Hat Vorrang, wenn gesetzt.
 #   FACTORY_HEALTHCHECK_URL       HTTP-Healthcheck-URL (der bequeme Default).
+#                                 ⚠ NICHT auf .../api/health zeigen: Dieser Job läuft beim
+#                                 main-Push parallel zum Deploy-Gate, also VOR dem Promote
+#                                 main→production. Ein /api/health-Check träfe den
+#                                 Vor-Promote-Stand → Fehlalarme. Der autoritative
+#                                 Post-Deploy-Healthcheck liegt im Deploy-Gate (nach dem
+#                                 Promote), nicht hier (ADR-017 §Alternatives).
 #   FACTORY_HEALTHCHECK_STATUS    Erwarteter HTTP-Status für die URL (Default: 200).
 #   FACTORY_HEALTHCHECK_RETRIES   Zusätzliche Versuche nach dem ersten (Default 3) –
 #                                 fängt Deploy-Lag ab (#24): direkt nach dem Merge ist
