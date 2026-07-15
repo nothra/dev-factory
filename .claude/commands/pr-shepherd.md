@@ -101,18 +101,27 @@ if [ "$(gh pr view --json isDraft -q .isDraft)" = "true" ]; then
 fi
 ```
 
-### Schritt 6: Auto-Merge freigeben
+### Schritt 6: Abschlussnotiz committen + pushen, dann Auto-Merge freigeben
 
-Wenn Schritt 2–5 alle grün:
+Wenn Schritt 2–5 alle grün. **Reihenfolge ist kritisch (Squash-Merge):** Die
+Abschlussnotiz muss auf dem Feature-Branch **committet und gepusht** sein, *bevor*
+Auto-Merge aktiviert wird. Sonst landet eine nur lokal geschriebene Notiz **nie auf
+`main`** – nach dem Merge liegt die Task-Datei auf `main` und ist nur noch über einen
+neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 
-```bash
-gh pr merge --auto --squash
-```
-
-Ergebnis in Task-Datei dokumentieren:
-```
-PR-Shepherd [Datum]: Auto-Merge freigegeben – alle Gates grün.
-```
+1. Ergebnis in die Task-Datei schreiben:
+   ```
+   PR-Shepherd [Datum]: Auto-Merge freigegeben – alle Gates grün.
+   ```
+2. Abschlussnotiz committen **und** pushen (Feature-Branch, *vor* dem Merge) – über den
+   Commit/Push-Seam, nicht über rohes `git commit`/`git push` (ADR-019):
+   ```bash
+   bash scripts/factory-commit.sh "docs: pr-shepherd-Abschlussnotiz (task-$ARGUMENTS)"
+   ```
+3. **Erst dann** Auto-Merge freigeben:
+   ```bash
+   gh pr merge --auto --squash
+   ```
 
 ## Regeln
 

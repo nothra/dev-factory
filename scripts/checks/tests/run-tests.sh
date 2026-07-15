@@ -1481,6 +1481,30 @@ assert_true "$?" "#94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Auflösu
 grep -qF 'isDraft' "$SHEPHERD"
 assert_true "$?" "#94: pr-shepherd.md guardet 'gh pr ready' hinter isDraft-Check (AC2)"
 
+# #114: pr-shepherd Schritt 6 committet+pusht die Abschlussnotiz VOR dem Auto-Merge.
+# Bei Squash-Merge landet eine nur lokal geschriebene Notiz sonst nie auf main (#112).
+# factory-commit.sh ist der mandatierte Commit/Push-Seam (ADR-019) → deckt commit UND push ab.
+grep -qF 'factory-commit.sh' "$SHEPHERD"
+assert_true "$?" "#114: pr-shepherd.md committet Abschlussnotiz via factory-commit.sh"
+
+# #114 (Reihenfolge): der commit+push-Schritt steht VOR dem Freigabe-Kommando
+# 'gh pr merge --auto --squash' – sonst greift die Härtung nicht (Notiz muss auf dem
+# Feature-Branch liegen, bevor Auto-Merge feuert). Bewusst gegen die volle '--squash'-
+# Form geprüft: die kürzere 'gh pr merge --auto'-Erwähnung in Schritt 4 ist nur ein
+# Prosa-Verweis, kein Kommando.
+# Zeilennummer des ersten Fixed-String-Treffers; 0 bei kein/ungültigem Treffer
+# (integer-sicher für den arithmetischen Vergleich).
+first_match_line() {
+  local n
+  n="$(grep -nF "$1" "$2" | head -1 | cut -d: -f1)"
+  case "$n" in ''|*[!0-9]*) n=0 ;; esac
+  printf '%s' "$n"
+}
+_shep_commit_line="$(first_match_line 'factory-commit.sh' "$SHEPHERD")"
+_shep_merge_line="$(first_match_line 'gh pr merge --auto --squash' "$SHEPHERD")"
+assert_true "$([ "$_shep_commit_line" -gt 0 ] && [ "$_shep_merge_line" -gt 0 ] && [ "$_shep_commit_line" -lt "$_shep_merge_line" ]; echo $?)" \
+  "#114: Abschlussnotiz wird vor 'gh pr merge --auto --squash' committet (Reihenfolge)"
+
 # Fail-closed: kein pauschales Bash(git *) / Bash(gh *).
 assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \
   "#91: kein pauschales Bash(git *)/Bash(gh *)"
