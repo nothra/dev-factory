@@ -45,7 +45,28 @@ else
   echo -e "  ${YELLOW}⚠${NC}  Push wird zugelassen (Konfiguration fehlt)"
 fi
 
-# ─── Check 2: Nicht auf main/master pushen ohne PR ───────────────────────────
+# ─── Check 2: Typecheck ───────────────────────────────────────────────────────
+# Fängt Typfehler (z.B. fehlende `import type`), die Lint und Vitest nicht
+# erkennen: Vitest transpiliert über esbuild (Typen werden vor der Ausführung
+# gestrippt, kein Type-Check) und das ESLint-Setup hier ist nicht typed-aware.
+# Nur `tsc`/`next build` sieht diese Fehler – aus #137 (Build-Break unbemerkt
+# bis zum manuellen `pnpm build` vor dem Merge).
+TYPECHECK_COMMAND="${FACTORY_TYPECHECK_COMMAND:-pnpm typecheck}"
+if [ -n "$TYPECHECK_COMMAND" ]; then
+  echo -e "  ${YELLOW}→${NC} Typecheck: $TYPECHECK_COMMAND"
+  if eval "$TYPECHECK_COMMAND" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Typecheck bestanden"
+  else
+    echo -e "  ${RED}✗${NC} Typecheck fehlgeschlagen – push blockiert"
+    echo -e "     Ausführen für Details: $TYPECHECK_COMMAND"
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  Typecheck: Noch nicht konfiguriert (nach /setup-project eintragen)"
+  echo -e "     Setze FACTORY_TYPECHECK_COMMAND in scripts/checks/pre-push.sh"
+fi
+
+# ─── Check 3: Nicht auf main/master pushen ohne PR ───────────────────────────
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo -e "  ${RED}✗${NC} Direkter Push auf $CURRENT_BRANCH nicht erlaubt"
