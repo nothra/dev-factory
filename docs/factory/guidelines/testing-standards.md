@@ -82,6 +82,30 @@ Alternativ (Behavior-Style): `given_[Zustand]_when_[Aktion]_then_[Ergebnis]`
 
 ---
 
+## Exhaustiveness-Guards (`never`-Check) brauchen einen eigenen Test
+
+Ein `else`/`default`-Zweig, der eine Union über `const _exhaustive: never = wert; throw new
+Error(...)` abschließt, ist zur **Compile-Zeit** unerreichbar – zur **Laufzeit** zählt er aber
+weiter als Code-Zeile für Coverage. Der Reflex ist, ihn als „durch das Typsystem abgesichert"
+zu betrachten und ungetestet zu lassen, weil kein regulärer Input ihn je auslöst.
+
+**Smell:** „Ich kann diesen Zweig nicht über einen normalen Input erreichen" – das ist kein
+Freibrief, ihn ungetestet zu lassen, sondern der Hinweis, den Wert per Type-Cast zu erzwingen.
+
+**Regel:** Jeder Exhaustiveness-Guard bekommt einen eigenen Testfall, der die Guard-Bedingung
+über einen Type-Cast (`as unknown as T`) erzwingt und den Fehlertext prüft:
+```ts
+it("should_throw_when_categoryIsUnknown", () => {
+  const invalid = { category: "unknown" as unknown as CatalogCategory, /* … */ };
+  expect(() => zeileSummen([invalid])).toThrow("Unbekannte Kategorie");
+});
+```
+Ohne diesen Test bleibt der Guard-Zweig als einzige ungetestete Zeile zurück – Coverage-Ziele
+(100 % bei neuem Code, siehe unten) werden verfehlt, ohne dass es beim Schreiben auffällt,
+weil der Zweig „offensichtlich sicher" wirkt.
+
+---
+
 ## Test-Isolation
 
 - Jeder Test ist unabhängig – keine Abhängigkeit von Test-Reihenfolge
