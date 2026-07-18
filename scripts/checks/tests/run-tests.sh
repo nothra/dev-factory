@@ -1634,6 +1634,76 @@ done
   && grep -q 'github.event.pull_request.body' "$CI_FILE"; }
 assert_true "$?" "#112: CI verdrahtet das Closing-Keyword-Gate (Script + PR-Body-Env)"
 
+# ─── #145: routes-doc-check.sh (Drift zwischen app/-Baum und docs/routes.md) ──
+# Positiv- UND Negativfälle (beide Drift-Richtungen), damit ein stilles Nicht-Greifen
+# des Musters auffällt (clean-code.md: Gate-Regex in beide Richtungen abgesichert).
+echo ""
+echo "#145 routes-doc-check.sh (Routen-Doku-Drift, fail-closed):"
+
+ROUTES_CHECK="$CHECKS_DIR/routes-doc-check.sh"
+assert_true "$([[ -f "$ROUTES_CHECK" ]]; echo $?)" "routes-doc-check.sh vorhanden"
+
+# Fixture: app/-Baum + docs/routes.md; FACTORY_DIR steuert die Projektwurzel des Checks.
+TMP_RT="$(mktemp -d)"
+mkdir -p "$TMP_RT/app/login" "$TMP_RT/app/veranstaltung/[id]" \
+         "$TMP_RT/app/api/health" "$TMP_RT/app/_private" \
+         "$TMP_RT/app/(werbung)/info" "$TMP_RT/app/foo_bar" "$TMP_RT/docs"
+: > "$TMP_RT/app/page.tsx"
+: > "$TMP_RT/app/login/page.tsx"
+: > "$TMP_RT/app/veranstaltung/[id]/page.tsx"   # dynamisches Segment
+: > "$TMP_RT/app/api/health/route.ts"
+: > "$TMP_RT/app/_private/page.tsx"              # privater Ordner → KEINE Route (ignorieren)
+: > "$TMP_RT/app/(werbung)/info/page.tsx"        # Route Group (name) → /info (kein Segment)
+: > "$TMP_RT/app/foo_bar/page.tsx"               # Unterstrich MITTEN im Segment → KEIN privater Ordner
+
+write_routes_doc() {
+  cat > "$TMP_RT/docs/routes.md" <<'DOCEOF'
+# Routen-Übersicht
+| Pfad | Typ | Funktion | Zugriff |
+|------|-----|----------|---------|
+| `/` | Seite | Home | angemeldet |
+| `/login` | Seite | Login | öffentlich |
+| `/foo_bar` | Seite | Foo | angemeldet |
+| `/veranstaltung/[id]` | Seite | Detail | veranstalter |
+| `/info` | Seite | Info | öffentlich |
+| `/api/health` | API | Health | öffentlich |
+DOCEOF
+}
+rc_routes() { FACTORY_DIR="$TMP_RT" bash "$ROUTES_CHECK" 2>&1; }
+
+# 1. Doku deckt alle Routen exakt ab: dynamisches [id] + Route Group (werbung)→/info gemappt,
+#    _private ignoriert → grün. (Fällt der Route-Group-Strip weg, mappt /info falsch → rot.)
+write_routes_doc
+rc_routes >/dev/null 2>&1; rc=$?
+assert_exit 0 "$rc" "in sync ([id] + (werbung)-Group + foo_bar gemappt, _private ignoriert) → exit 0"
+
+# 2. Neue Route-Datei ohne Doku-Eintrag → fail-closed exit 1 + benennt die Route
+mkdir -p "$TMP_RT/app/neu"; : > "$TMP_RT/app/neu/page.tsx"
+out=$(rc_routes); rc=$?
+assert_exit 1 "$rc" "Route ohne Doku-Eintrag → exit 1 (fail-closed)"
+printf '%s' "$out" | grep -qF '/neu'
+assert_true "$?" "benennt die undokumentierte Route (/neu)"
+rm -rf "$TMP_RT/app/neu"
+
+# 3. Doku-Eintrag ohne zugehörige Route-Datei → fail-closed exit 1 + benennt den Eintrag
+write_routes_doc
+printf '| `/geist` | Seite | tot | angemeldet |\n' >> "$TMP_RT/docs/routes.md"
+out=$(rc_routes); rc=$?
+assert_exit 1 "$rc" "Doku-Eintrag ohne Route-Datei → exit 1 (fail-closed)"
+printf '%s' "$out" | grep -qF '/geist'
+assert_true "$?" "benennt den verwaisten Doku-Eintrag (/geist)"
+
+# 4. Fehlende docs/routes.md → fail-closed exit 1
+rm -f "$TMP_RT/docs/routes.md"
+rc_routes >/dev/null 2>&1
+assert_exit 1 "$?" "fehlende docs/routes.md → exit 1 (fail-closed)"
+
+rm -rf "$TMP_RT"
+
+# Struktur: der Drift-Check ist im Push-Gate (pre-push.sh) verdrahtet.
+grep -q 'routes-doc-check.sh' "$CHECKS_DIR/pre-push.sh"
+assert_true "$?" "#145: pre-push.sh verdrahtet den Routen-Doku-Drift-Check"
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"

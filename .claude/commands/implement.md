@@ -113,6 +113,7 @@ protokollieren (Nachweis später über `/post-merge-verify`) – nicht still üb
 - Keine Features über den Task-Scope hinaus
 - Kein `TODO` ohne Ticket-Referenz
 - Keine auskommentierten Code-Blöcke
+- Bei Routen-Änderungen (`app/**/page.tsx`, `app/api/**/route.ts`): `docs/routes.md` im selben PR aktualisieren (Pfad, Funktion, Zugriff) – der Drift-Check blockiert sonst den Push (#145).
 - ADR-Trigger-Check: siehe Schritt 0 – vier Kategorien, bei Treffer stoppen und fragen.
 
 ## Output

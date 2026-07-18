@@ -129,6 +129,11 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 - Nie committen ohne `scripts/checks/pre-commit.sh` erfolgreich durchgelaufen
 - Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen
 - Keine offenen Checkboxen in der Task-Datei → kein Done
+- **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
+  oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff
+  geändert, ist [`docs/routes.md`](docs/routes.md) im selben PR mitzupflegen (Pfad, Funktion,
+  Zugriff). Der Drift-Check `scripts/checks/routes-doc-check.sh` blockiert einen Push fail-closed,
+  wenn Doku und `app/`-Baum auseinanderlaufen. Analog zu „Entscheidungen dokumentieren". (aus #145)
 - **Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge.** Die letzte Checkbox
   (`Fertig / PR erstellt`) und alle Abschluss-Notizen müssen **im Branch** gesetzt sein, bevor
   `/pr-shepherd` (bzw. der Merge) läuft. Nach dem Merge liegt die Datei auf `main` und lässt sich

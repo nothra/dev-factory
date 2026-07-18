@@ -66,7 +66,25 @@ else
   echo -e "     Setze FACTORY_TYPECHECK_COMMAND in scripts/checks/pre-push.sh"
 fi
 
-# ─── Check 3: Nicht auf main/master pushen ohne PR ───────────────────────────
+# ─── Check 3: Routen-Doku-Drift ──────────────────────────────────────────────
+# Erzwingt, dass docs/routes.md mit den tatsächlichen Route-Dateien (app/**/page.tsx
+# + app/api/**/route.ts) übereinstimmt. Fail-closed: driftende Route(n) blockieren den
+# Push (aus #145 – neue/geänderte Routen blieben sonst unbemerkt undokumentiert).
+ROUTES_DOC_CHECK="$FACTORY_DIR/scripts/checks/routes-doc-check.sh"
+if [ -f "$ROUTES_DOC_CHECK" ]; then
+  echo -e "  ${YELLOW}→${NC} Routen-Doku-Drift: docs/routes.md ↔ app/-Baum"
+  if FACTORY_DIR="$FACTORY_DIR" bash "$ROUTES_DOC_CHECK" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Routen-Doku ist synchron"
+  else
+    echo -e "  ${RED}✗${NC} Routen-Doku driftet – push blockiert"
+    echo -e "     Ausführen für Details: bash scripts/checks/routes-doc-check.sh"
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  Routen-Doku-Drift-Check fehlt ($ROUTES_DOC_CHECK) – übersprungen"
+fi
+
+# ─── Check 4: Nicht auf main/master pushen ohne PR ───────────────────────────
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo -e "  ${RED}✗${NC} Direkter Push auf $CURRENT_BRANCH nicht erlaubt"

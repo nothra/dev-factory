@@ -34,6 +34,7 @@ Personas aus: `docs/factory/agents/review-agent.md`
 - Architektur-Entscheidungen aus ADRs eingehalten?
 - Keine Schicht-Verletzungen?
 - Konsistent mit bestehendem Code-Stil?
+- Bei Routen-Änderungen: `docs/routes.md` mitgepflegt (neue/geänderte/entfernte `page.tsx`/`route.ts`; Pfad, Funktion, Zugriff)? (#145)
 
 ## Output-Format
 
