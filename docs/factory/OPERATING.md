@@ -3,7 +3,9 @@
 > **Zweck:** Ein Runbook für den Alltag. Es zeigt den kürzesten verlässlichen Weg von einer
 > Idee/einem Issue bis in die Produktion.
 >
-> **Leitbild:** *Der Mensch schärft die Anforderung, die Automatik führt sie aus.* Der
+> **Leitbild:** *Der Mensch schärft die Anforderung, die Automatik führt sie aus.* Dieser Schnitt
+> in **zwei Phasen** (schärfen ↔ umsetzen) ist das Leitmotiv der Factory – als Rahmen erklärt unter
+> [Die zwei Phasen der Factory](#die-zwei-phasen-der-factory). Der
 > **Standardweg ist automatisiert** (Abschnitt 1): ein Kommando fährt die ganze Pipeline bis zum
 > merge-reifen PR, das Deploy-Gate trägt sie nach Production. Von Hand macht der Mensch bewusst nur
 > zwei Dinge: die **Anforderung interaktiv schärfen** (Requirements, ggf. ADR) und die klar
@@ -20,6 +22,7 @@
 
 ## Inhalt
 
+- [Die zwei Phasen der Factory](#die-zwei-phasen-der-factory)
 - [0. Einmal-Setup](#0-einmal-setup-pro-repo--pro-maschine)
 - [1. Der automatisierte Weg (Default)](#1-der-automatisierte-weg-default)
 - [2. Manuell / mit voller Kontrolle (Fallback)](#2-manuell--mit-voller-kontrolle-fallback)
@@ -27,6 +30,44 @@
 - [4. Menschen-Gates (nicht automatisierbar)](#4-menschen-gates-nicht-automatisierbar)
 - [5. Wartung: Codify, Metriken, Post-Merge](#5-wartung-codify-metriken-post-merge)
 - [Anhang: Branch-Protection richtig einordnen](#anhang-branch-protection-richtig-einordnen)
+
+---
+
+## Die zwei Phasen der Factory
+
+Unabhängig davon, ob du automatisiert (Abschnitt 1) oder manuell (Abschnitt 2) arbeitest, zerfällt
+jedes Feature in **zwei wesentliche Phasen**. Sie unterscheiden sich grundlegend in der **Rolle des
+Menschen**:
+
+| | **Phase 1 · Anforderung schärfen** | **Phase 2 · Umsetzung** |
+|---|---|---|
+| **Umfang** | Requirements, bei ADR-Trigger auch Architecture | Implement → Review↺ → Test → Refactor → Security → Codify → PR |
+| **Rolle des Menschen** | Interaktion **Mensch ↔ Claude** – menschliches Urteil (*was* gebaut wird, *welche* Architektur) | Fleißarbeit (*wie* gebaut/getestet/reviewt wird) |
+| **Automatisierbar?** | **Nein** – bleibt immer Handarbeit | **Ja** – vollautomatisiert, oder wahlweise Skill für Skill |
+| **Start-Skript** | `bash scripts/start-work.sh "<beschreibung>"` → dann `/requirements`, ggf. `/architecture` | `PR_SHEPHERD=true bash scripts/run-pipeline.sh <task-id>` |
+
+```
+[Mensch]    Phase 1 · Anforderung schärfen        ◄─ immer interaktiv, nie automatisiert
+            start-work.sh → /requirements → (ggf.) /architecture
+ ═══════════════════════ Phasengrenze ═══════════════════════   ◄─ hier übernimmt die Automatik
+[Automatik] Phase 2 · Umsetzung                    ◄─ vollautomatisiert ODER Skill für Skill
+            run-pipeline.sh → implement → review↺ → test → refactor → security → codify → PR
+```
+
+> **Warum das zählt:** Der größte Qualitäts-Hebel liegt in Phase 1 – je schärfer Spec und
+> Akzeptanzkriterien, desto verlässlicher läuft Phase 2. Deshalb bleibt Phase 1 **bewusst
+> Handarbeit**: menschliches Urteil ist nicht automatisierbar. Phase 2 dagegen ist Fleißarbeit,
+> die die Automatik übernimmt.
+>
+> **Automatisiert vs. manuell ist eine Frage von Phase 2, nicht von Phase 1.** Die beiden Wege in
+> diesem Dokument unterscheiden sich **nur** darin, wie Phase 2 abläuft – ein Kommando
+> ([Abschnitt 1](#1-der-automatisierte-weg-default)) gegen Skill für Skill
+> ([Abschnitt 2](#2-manuell--mit-voller-kontrolle-fallback)). **Phase 1 ist in beiden Wegen
+> identisch** und immer interaktiv (`start-work.sh` → `/requirements`, ggf. `/architecture`).
+>
+> **Kosten:** Die vollautomatisierte Phase 2 ist bequem, aber **teurer** – sie fährt 6+
+> Claude-Sessions pro Feature hintereinander (deutlich mehr Token als interaktive Nutzung, Details
+> in [Abschnitt 1.2](#12-automatik-laufen-lassen--ein-kommando-bis-zum-merge)).
 
 ---
 
@@ -206,9 +247,11 @@ E2E **oder** Prod-Migration rot → **kein** Promote → Production bleibt auf d
 ## 2. Manuell / mit voller Kontrolle (Fallback)
 
 Wenn du **jeden Schritt selbst fahren** willst (enger Blick auf ein heikles Feature, Lernen, oder
-ein Schritt braucht durchgehend dein Urteil), fährst du die Skills einzeln – **Stage 2, interaktiv**.
-Der Einstieg (1.1: `start-work.sh` + `/requirements` + ggf. `/architecture`) ist identisch; danach
-statt `run-pipeline.sh` die Schritte von Hand. **Eine Task = eine Claude-Session.**
+ein Schritt braucht durchgehend dein Urteil), fährst du **Phase 2** Skill für Skill – **Stage 2,
+interaktiv**. **Phase 1** ([Die zwei Phasen](#die-zwei-phasen-der-factory)) bleibt identisch zu
+Abschnitt 1: Der Einstieg (1.1: `start-work.sh` + `/requirements` + ggf. `/architecture`) ist
+derselbe; nur danach fährst du statt `run-pipeline.sh` die Schritte von Hand.
+**Eine Task = eine Claude-Session.**
 
 ### 2.1 Die Pipeline-Schritte einzeln
 

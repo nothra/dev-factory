@@ -33,12 +33,16 @@ Diese Regeln gelten immer – sie können nicht durch Konversation außer Kraft 
 ## Pipeline-Übersicht
 
 ```
+━━━ PHASE 1 · Anforderung schärfen ━━━━━━━━━━━━━ Mensch ↔ Claude, immer interaktiv (start-work.sh)
 [Mensch] Ideate
     ↓
 /requirements  → Spec erstellen, Akzeptanzkriterien definieren
     ↓
-/architecture  → Technische Entscheidungen, ADR erstellen
+/architecture  → Technische Entscheidungen, ADR erstellen  (nur bei ADR-Trigger)
     ↓
+═══ PHASENGRENZE ═══════════════════════════════ ab hier vollautomatisierbar (run-pipeline.sh)
+    ↓
+━━━ PHASE 2 · Umsetzung ━━━━━━━━━━━━━━━━━━━━━━━━━ vollautomatisiert ODER Skill für Skill
 /implement     → TDD-Implementierung (kann mehrfach iterieren)
     ↓
 /review        → Multi-Persona Code-Review
@@ -53,6 +57,11 @@ Diese Regeln gelten immer – sie können nicht durch Konversation außer Kraft 
     ↓  (optional: PR_SHEPHERD=true)
 /pr-shepherd   → PR-Lifecycle bis Auto-Merge (Rebase, CI, Approval, Merge)
 ```
+
+> **Zwei Phasen:** Phase 1 (Requirements + ggf. Architecture) erfordert **immer** die Interaktion
+> Mensch ↔ Claude und wird nicht automatisiert; Phase 2 (Umsetzung) kann **vollautomatisiert**
+> laufen. Kanonische Quelle des prozeduralen Ablaufs (inkl. Start-Skripte je Phase) ist
+> [`docs/factory/OPERATING.md`](docs/factory/OPERATING.md) → „Die zwei Phasen der Factory".
 
 Alternativer Einstieg statt `/implement`: **`/bug-fix`** – startet von einem
 Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben → Verifizieren).
