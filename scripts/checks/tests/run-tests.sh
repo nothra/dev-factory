@@ -1528,9 +1528,17 @@ section_contains() {
   [ "$s" -gt 0 ] && [ "$e" -gt "$s" ] || return 1
   sed -n "${s},${e}p" "$file" | grep -qF -- "$needle"
 }
-_shep_commit_line="$(first_match_line 'factory-commit.sh' "$SHEPHERD")"
-_shep_merge_line="$(first_match_line 'gh pr merge --auto --squash' "$SHEPHERD")"
-assert_true "$([ "$_shep_commit_line" -gt 0 ] && [ "$_shep_merge_line" -gt 0 ] && [ "$_shep_commit_line" -lt "$_shep_merge_line" ]; echo $?)" \
+
+# 0 (wahr), wenn der erste Fixed-String-Treffer von $a in $file VOR dem ersten Treffer von
+# $b liegt (beide müssen > 0 sein); sonst 1. Fail-closed: fehlt einer der Treffer ⇒ 1
+# (integer-sicher über first_match_line). Für Reihenfolge-Guards „Kommando A steht vor B".
+line_before() {
+  local a b file="$3"
+  a="$(first_match_line "$1" "$file")"
+  b="$(first_match_line "$2" "$file")"
+  [ "$a" -gt 0 ] && [ "$b" -gt 0 ] && [ "$a" -lt "$b" ]
+}
+assert_true "$(line_before 'factory-commit.sh' 'gh pr merge --auto --squash' "$SHEPHERD"; echo $?)" \
   "#114: Abschlussnotiz wird vor 'gh pr merge --auto --squash' committet (Reihenfolge)"
 
 # #117: pr-shepherd Schritt 2 (Review-Kommentare auflösen) committet Review-Fixes über den
@@ -1547,6 +1555,40 @@ assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'fac
 # (bei erhaltenem Kommando) auffällt. Wieder auf den Schritt-2-Abschnitt eingegrenzt.
 assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'ADR-019'; echo $?)" \
   "#117: pr-shepherd.md Schritt 2 nennt die fail-closed-Begründung (ADR-019)"
+
+# #158 (ADR-030): pr-shepherd Schritt 6 wählt den Merge-Modus nach PR-Zustand.
+# GitHub lehnt 'gh pr merge --auto' bei bereits mergebarem PR (mergeStateStatus: CLEAN)
+# ab – Schritt 6 muss den Zustand lesen und bei CLEAN direkt squash-mergen (fail-closed:
+# alles außer CLEAN → --auto). Schritt 6 ist der letzte '### Schritt' → Abschnittsende ist
+# '## Regeln'. AC1, AC2 und AC4 sind separat prüfbare Kriterien (je eine Assertion, #117-Regel):
+# entfällt die Zustandsprüfung, bleibt AC2 grün und umgekehrt, und die AC4-Reihenfolge ist von
+# beiden unabhängig (Unabhängigkeit belegt in der #94-Temp-Verifikation: unpatched → alle rot,
+# patched → alle grün).
+
+# AC1: Zustandsprüfung 'mergeStateStatus' im Schritt-6-Abschnitt.
+assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'mergeStateStatus'; echo $?)" \
+  "#158: pr-shepherd.md Schritt 6 liest den PR-Merge-Zustand (mergeStateStatus)"
+
+# AC2: Direct-Merge-Fallback 'gh pr merge --squash' (ohne --auto) im Schritt-6-Abschnitt.
+# Bewusst gegen die volle 'gh pr merge --squash'-Zeile geprüft: sie ist KEIN Teilstring von
+# 'gh pr merge --auto --squash' (Lehre #114: Kommando ≠ Teil-Match), der Grep matcht also
+# nicht fälschlich die --auto-Zeile.
+assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'gh pr merge --squash'; echo $?)" \
+  "#158: pr-shepherd.md Schritt 6 hat Direct-Merge-Fallback (gh pr merge --squash)"
+
+# AC3: der --auto-Fallback bleibt im Schritt-6-Abschnitt für laufende Checks (≠ CLEAN) erhalten.
+# Separierbar von AC2 (#117): würde der else-Zweig ebenfalls auf direkten Merge umgestellt,
+# bliebe AC2 grün, aber dieser Guard rot. Section-begrenzt (nicht global wie der #114-Order-
+# Guard), damit AC3 als eigenes Kriterium diagnostizierbar ist – nicht nur transitiv über #114.
+assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'gh pr merge --auto --squash'; echo $?)" \
+  "#158: pr-shepherd.md Schritt 6 behält --auto-Fallback für laufende Checks (gh pr merge --auto --squash)"
+
+# AC4: die Abschlussnotiz (factory-commit.sh) steht AUCH VOR dem Direct-Merge-Zweig – nicht
+# nur vor der --auto-Zeile (bereits durch #114 oben geprüft). Sonst könnte der direkte Merge
+# vor dem Notiz-Push feuern (Notiz landet nie auf main, #112/#114). Zweiter Marker
+# 'gh pr merge --squash' ist die Direct-Zeile, nicht die --auto-Zeile (kein Teilstring, s. o.).
+assert_true "$(line_before 'factory-commit.sh' 'gh pr merge --squash' "$SHEPHERD"; echo $?)" \
+  "#158: Abschlussnotiz wird vor 'gh pr merge --squash' (Direct-Merge) committet (Reihenfolge)"
 
 # Fail-closed: kein pauschales Bash(git *) / Bash(gh *).
 assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \

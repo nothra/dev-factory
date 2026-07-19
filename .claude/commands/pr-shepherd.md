@@ -105,7 +105,7 @@ if [ "$(gh pr view --json isDraft -q .isDraft)" = "true" ]; then
 fi
 ```
 
-### Schritt 6: Abschlussnotiz committen + pushen, dann Auto-Merge freigeben
+### Schritt 6: Abschlussnotiz committen + pushen, dann Merge freigeben
 
 Wenn Schritt 2–5 alle grün. **Reihenfolge ist kritisch (Squash-Merge):** Die
 Abschlussnotiz muss auf dem Feature-Branch **committet und gepusht** sein, *bevor*
@@ -115,23 +115,31 @@ neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 
 1. Ergebnis in die Task-Datei schreiben:
    ```
-   PR-Shepherd [Datum]: Auto-Merge freigegeben – alle Gates grün.
+   PR-Shepherd [Datum]: Merge freigegeben – alle Gates grün.
    ```
 2. Abschlussnotiz committen **und** pushen (Feature-Branch, *vor* dem Merge) – über den
    Commit/Push-Seam, nicht über rohes `git commit`/`git push` (ADR-019):
    ```bash
    bash scripts/factory-commit.sh "docs: pr-shepherd-Abschlussnotiz (task-$ARGUMENTS)"
    ```
-3. **Erst dann** Auto-Merge freigeben:
+3. **Erst dann** den Merge freigeben. Merge-Modus nach PR-Zustand wählen (ADR-030):
+   `--auto` lehnt GitHub bei einem **bereits mergebaren** PR (`mergeStateStatus: CLEAN`)
+   ab (_„Pull request is in clean status“_) – typisch bei schnellem CI. Zustand vorher
+   lesen und **fail-closed** verzweigen (alles außer `CLEAN` → `--auto`):
    ```bash
-   gh pr merge --auto --squash
+   MERGE_STATE="$(gh pr view --json mergeStateStatus -q .mergeStateStatus)"
+   if [ "$MERGE_STATE" = "CLEAN" ]; then
+     gh pr merge --squash          # bereits mergebar → direkt (--auto würde GitHub ablehnen)
+   else
+     gh pr merge --auto --squash   # Checks laufen noch → GitHub wartet server-seitig
+   fi
    ```
 
 ## Regeln
 
 - Kein Schritt überspringen
 - Nie force-pushen ohne vorherigen Interrupt
-- Kein Auto-Merge, wenn CI rot oder Approval fehlt
+- Kein Merge, wenn CI rot oder Approval fehlt
 - Widersprüchliche Review-Kommentare immer zu einem Interrupt eskalieren
 
 ## Output
@@ -139,11 +147,11 @@ neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 - Offene Review-Kommentare adressiert (committed)
 - Branch rebased auf aktuellem main
 - CI grün oder Interrupt ausgelöst
-- Auto-Merge freigegeben oder Interrupt mit Grund
+- Merge freigegeben oder Interrupt mit Grund
 
 ## Hinweis für Stage 3
 
 Input: Task-ID
-Output: Branch merge-ready, Auto-Merge freigegeben
+Output: Branch merge-ready, Merge freigegeben
 Nicht-automatisierbare Zustände (Konflikte, CI-Fehler, fehlende Approvals):
 → `scripts/raise-interrupt.sh` aufrufen – Pipeline stoppt deterministisch (ADR-004).
