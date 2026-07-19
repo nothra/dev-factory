@@ -1796,6 +1796,284 @@ rm -rf "$TMP_RT"
 grep -q 'routes-doc-check.sh' "$CHECKS_DIR/pre-push.sh"
 assert_true "$?" "#145: pre-push.sh verdrahtet den Routen-Doku-Drift-Check"
 
+# ─── #173: Deploy-Freeze bei rotem Gate (ADR-032) ────────────────────────────
+echo ""
+echo "#173 Deploy-Freeze (ADR-032):"
+
+DEPLOY_FREEZE="$SCRIPTS_DIR/deploy-freeze.sh"
+NOTIFY="$SCRIPTS_DIR/deploy-freeze-notify.sh"
+GATE_YML="$FACTORY_ROOT/.github/workflows/deploy-gate.yml"
+RELEASE_YML="$FACTORY_ROOT/.github/workflows/deploy-freeze-release.yml"
+
+assert_true "$([[ -f "$DEPLOY_FREEZE" ]]; echo $?)" "scripts/deploy-freeze.sh vorhanden"
+
+# Bare-Repo-Simulation der Vorfall-Sequenz (AC6) – ohne echten Deploy, ohne GitHub-API.
+TMP_DF="$(mktemp -d)"
+git init -q --bare "$TMP_DF/origin.git"
+git init -q "$TMP_DF/work"
+git -C "$TMP_DF/work" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "commit A (#134)"
+SHA_A="$(git -C "$TMP_DF/work" rev-parse HEAD)"
+git -C "$TMP_DF/work" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "commit B (#167)"
+SHA_B="$(git -C "$TMP_DF/work" rev-parse HEAD)"
+
+# df <args…> – ruft deploy-freeze.sh aus dem Work-Repo gegen das Bare-Repo als Remote auf.
+df() {
+  ( cd "$TMP_DF/work" && FREEZE_REMOTE="$TMP_DF/origin.git" FREEZE_REF="refs/factory/deploy-freeze" \
+      bash "$DEPLOY_FREEZE" "$@" )
+}
+
+# 1. Frischer Zustand: nicht eingefroren → check exit 10
+df check >/dev/null 2>&1
+assert_exit 10 "$?" "AC: frischer Zustand → check exit 10 (nicht eingefroren)"
+
+# 2. #134 wird rot → Freeze auf SHA_A setzen (exit 0)
+df set "$SHA_A" "E2E gegen INT rot (#134)" >/dev/null 2>&1
+assert_exit 0 "$?" "AC1: rotes Gate setzt Freeze (set exit 0)"
+
+# 3. check → eingefroren (exit 0)
+df check >/dev/null 2>&1
+assert_exit 0 "$?" "AC1: nach set → check exit 0 (eingefroren)"
+
+# 4. status nennt den blockierenden SHA
+out=$(df status 2>/dev/null)
+assert_true "$([[ "$out" = "$SHA_A" ]]; echo $?)" "AC1: status gibt den blockierenden SHA (SHA_A) aus"
+
+# 5. Simulierter grüner Folgelauf (#167): der Freeze bleibt stehen → check weiterhin 0.
+#    Das ist die maschinelle Fassung von #134-rot → #167-grün: der grüne Lauf promotet NICHT.
+df check >/dev/null 2>&1
+assert_exit 0 "$?" "AC6: grüner Folgelauf sieht weiterhin Freeze (check exit 0 → kein Promote)"
+
+# 6. Doppel-Freeze: zweiter roter Lauf überschreibt den ursprünglichen SHA NICHT
+df set "$SHA_B" "andere Ursache" >/dev/null 2>&1
+df_dbl_exit=$?
+out=$(df status 2>/dev/null)
+assert_exit 0 "$df_dbl_exit" "Doppel-Freeze: zweites set → exit 0"
+assert_true "$([[ "$out" = "$SHA_A" ]]; echo $?)" "Doppel-Freeze: ursprünglicher SHA_A bleibt (nicht überschrieben)"
+
+# 7. Freigabe (release) → Ref weg, check wieder 10
+df release >/dev/null 2>&1
+assert_exit 0 "$?" "AC7: release → exit 0"
+df check >/dev/null 2>&1
+assert_exit 10 "$?" "AC7: nach release → check exit 10 (nicht eingefroren)"
+
+# 8. release ist idempotent (kein aktiver Freeze → trotzdem exit 0)
+df release >/dev/null 2>&1
+assert_exit 0 "$?" "AC7: release ohne aktiven Freeze → idempotent exit 0"
+
+# 9. Fail-closed: Remote nicht lesbar → check WEDER 0 NOCH 10 (unklar), NIE 10
+( cd "$TMP_DF/work" && FREEZE_REMOTE="$TMP_DF/does-not-exist.git" bash "$DEPLOY_FREEZE" check ) >/dev/null 2>&1
+df_unreadable=$?
+assert_true "$([[ "$df_unreadable" -ne 10 && "$df_unreadable" -ne 0 ]]; echo $?)" \
+  "AC3: unlesbarer Marker → check weder 0 noch 10 (fail-closed, kein Promote)"
+
+# 10. Aufruf-Fehler: unbekanntes Subkommando → exit 2
+df bogus >/dev/null 2>&1
+assert_exit 2 "$?" "unbekanntes Subkommando → exit 2 (Aufruf-Fehler)"
+
+# 11. set ohne Argumente → exit 1
+df set >/dev/null 2>&1
+assert_exit 1 "$?" "set ohne <sha>/<grund> → exit 1"
+
+# 12. Fail-closed set (K1): Remote unlesbar → set endet non-zero (kein stilles fail-open).
+#     Deckt den freeze_set-*)-Zweig ab: bei unklarer Lage wird der Push VERSUCHT (nicht
+#     still ohne Marker abgebrochen); scheitert er am unerreichbaren Remote, ist der
+#     Fehlschlag sichtbar (non-zero) statt fälschlich exit 0.
+( cd "$TMP_DF/work" && FREEZE_REMOTE="$TMP_DF/does-not-exist.git" bash "$DEPLOY_FREEZE" set "$SHA_A" "E2E rot" ) >/dev/null 2>&1
+assert_true "$([[ "$?" -ne 0 ]]; echo $?)" "AC1/K1: set gegen unlesbaren Remote → non-zero (fail-closed, kein stilles fail-open)"
+
+# 13. freeze_status-*)-Zweig: Remote unlesbar → status exit 2 (unklar, nicht 0).
+( cd "$TMP_DF/work" && FREEZE_REMOTE="$TMP_DF/does-not-exist.git" bash "$DEPLOY_FREEZE" status ) >/dev/null 2>&1
+assert_exit 2 "$?" "status gegen unlesbaren Remote → exit 2 (Marker-Status unklar)"
+
+# 14. freeze_release-*)-Zweig: Remote unlesbar → release bleibt permissiv (exit 0, idempotent).
+#     Freigabe ist die Entblock-Richtung; ein nicht durchführbarer Delete darf keinen roten
+#     Lauf erzeugen (der Freeze bliebe ohnehin bestehen und der Promote-Guard verweigert).
+( cd "$TMP_DF/work" && FREEZE_REMOTE="$TMP_DF/does-not-exist.git" bash "$DEPLOY_FREEZE" release ) >/dev/null 2>&1
+assert_exit 0 "$?" "release gegen unlesbaren Remote → exit 0 (permissiv/idempotent, unklar-Zweig)"
+
+rm -rf "$TMP_DF"
+
+# ─── Benachrichtigung (fail-open, ADR-032 §5) ────────────────────────────────
+assert_true "$([[ -f "$NOTIFY" ]]; echo $?)" "scripts/deploy-freeze-notify.sh vorhanden"
+
+# Fail-open: kein gh im PATH → Skript endet trotzdem grün (Marker bleibt maßgeblich).
+# PATH auf ein leeres Verzeichnis setzen (gh nicht auffindbar); bash über absoluten Pfad
+# aufrufen, damit die Shell selbst trotz leerem PATH startet.
+TMP_NOTIFY="$(mktemp -d)"; mkdir -p "$TMP_NOTIFY/emptybin"
+BASH_BIN="$(command -v bash)"
+PATH="$TMP_NOTIFY/emptybin" "$BASH_BIN" "$NOTIFY" frozen abc123 "E2E rot" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify ohne gh → fail-open exit 0 (Schutz bleibt unberührt)"
+
+# Happy Path: gh-Mock ohne bestehendes Issue → 'frozen' legt Tracking-Issue an.
+mkdir -p "$TMP_NOTIFY/bin"
+cat > "$TMP_NOTIFY/bin/gh" <<'GHEOF'
+#!/bin/sh
+case "$1 $2" in
+  "issue list") echo "" ;;                       # kein bestehendes Tracking-Issue
+  "issue create") echo "$*" >> "$GH_LOG"; echo "https://github.com/x/y/issues/1" ;;
+  "issue comment") echo "$*" >> "$GH_LOG" ;;
+  "issue reopen"|"issue close") echo "$*" >> "$GH_LOG" ;;
+  *) : ;;
+esac
+GHEOF
+chmod +x "$TMP_NOTIFY/bin/gh"
+: > "$TMP_NOTIFY/gh.log"
+PATH="$TMP_NOTIFY/bin:$PATH" GH_LOG="$TMP_NOTIFY/gh.log" \
+  bash "$NOTIFY" frozen abc123 "E2E rot" "http://run" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify 'frozen' (gh-Mock) → exit 0"
+grep -q 'issue create' "$TMP_NOTIFY/gh.log"
+assert_true "$?" "AC8: ohne bestehendes Issue legt 'frozen' ein Tracking-Issue an"
+
+# 'released' ohne bestehendes Issue → keine Neuanlage, trotzdem exit 0
+: > "$TMP_NOTIFY/gh.log"
+PATH="$TMP_NOTIFY/bin:$PATH" GH_LOG="$TMP_NOTIFY/gh.log" \
+  bash "$NOTIFY" released abc123 "" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify 'released' ohne Issue → exit 0 (keine Neuanlage)"
+assert_true "$(! grep -q 'issue create' "$TMP_NOTIFY/gh.log"; echo $?)" "AC8: 'released' legt kein neues Issue an"
+
+# Existing-Issue-Pfad: gh-Mock mit einem bestehenden Tracking-Issue (issue list → Nummer).
+# Deckt den Kommentar-+reopen/close-Zweig ab (die eigentliche Signalisierung), der beim
+# Neuanlage-Mock (issue list → "") nie durchlaufen wird.
+cat > "$TMP_NOTIFY/bin/gh" <<'GHEOF'
+#!/bin/sh
+case "$1 $2" in
+  "issue list") echo "42" ;;                     # bestehendes Tracking-Issue #42
+  "issue create") echo "$*" >> "$GH_LOG"; echo "https://github.com/x/y/issues/42" ;;
+  "issue comment") echo "$*" >> "$GH_LOG" ;;
+  "issue reopen"|"issue close") echo "$*" >> "$GH_LOG" ;;
+  *) : ;;
+esac
+GHEOF
+chmod +x "$TMP_NOTIFY/bin/gh"
+
+# 'frozen' mit bestehendem Issue → kommentieren + wieder öffnen, KEINE Neuanlage.
+: > "$TMP_NOTIFY/gh.log"
+PATH="$TMP_NOTIFY/bin:$PATH" GH_LOG="$TMP_NOTIFY/gh.log" \
+  bash "$NOTIFY" frozen abc123 "E2E rot" "http://run" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify 'frozen' mit bestehendem Issue → exit 0"
+assert_true "$(! grep -q 'issue create' "$TMP_NOTIFY/gh.log"; echo $?)" "AC8: 'frozen' legt bei bestehendem Issue KEIN neues an"
+grep -q 'issue comment' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'frozen' kommentiert das bestehende Tracking-Issue"
+grep -q 'issue reopen' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'frozen' öffnet das Tracking-Issue wieder"
+
+# 'blocked' mit bestehendem Issue → kommentieren + wieder öffnen.
+: > "$TMP_NOTIFY/gh.log"
+PATH="$TMP_NOTIFY/bin:$PATH" GH_LOG="$TMP_NOTIFY/gh.log" \
+  bash "$NOTIFY" blocked abc123 "Freeze aktiv" "http://run" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify 'blocked' mit bestehendem Issue → exit 0"
+grep -q 'issue comment' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'blocked' kommentiert das Tracking-Issue"
+grep -q 'issue reopen' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'blocked' öffnet das Tracking-Issue wieder"
+
+# 'released' mit bestehendem Issue → kommentieren + schließen.
+: > "$TMP_NOTIFY/gh.log"
+PATH="$TMP_NOTIFY/bin:$PATH" GH_LOG="$TMP_NOTIFY/gh.log" \
+  bash "$NOTIFY" released abc123 "" "http://run" >/dev/null 2>&1
+assert_exit 0 "$?" "AC8: notify 'released' mit bestehendem Issue → exit 0"
+grep -q 'issue comment' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'released' kommentiert das Tracking-Issue"
+grep -q 'issue close' "$TMP_NOTIFY/gh.log"; assert_true "$?" "AC8: 'released' schließt das Tracking-Issue"
+
+rm -rf "$TMP_NOTIFY"
+
+# ─── Deploy-Gate-Verdrahtung (deploy-gate.yml) ───────────────────────────────
+assert_true "$([[ -f "$GATE_YML" ]]; echo $?)" "deploy-gate.yml vorhanden"
+
+# Step-IDs für die scharfe Trigger-Abgrenzung (nur E2E/Migration frieren, ADR-032 §4)
+grep -q 'id: e2e' "$GATE_YML";         assert_true "$?" "deploy-gate: E2E-Step hat id: e2e"
+grep -q 'id: migrate_int' "$GATE_YML"; assert_true "$?" "deploy-gate: db:migrate:int hat eigene id: migrate_int"
+grep -q 'id: migrate_prd' "$GATE_YML"; assert_true "$?" "deploy-gate: PRD-Migration hat id: migrate_prd"
+grep -q 'id: check_freeze' "$GATE_YML"; assert_true "$?" "deploy-gate: Freeze-Check-Step (id: check_freeze) vorhanden"
+
+# AC4: check_freeze steht VOR der PRD-Migration (kein Prod-DB-Seiteneffekt).
+line_check=$(grep -n 'id: check_freeze' "$GATE_YML" | head -1 | cut -d: -f1)
+line_migprd=$(grep -n 'id: migrate_prd' "$GATE_YML" | head -1 | cut -d: -f1)
+assert_true "$([[ -n "$line_check" && -n "$line_migprd" && "$line_check" -lt "$line_migprd" ]]; echo $?)" \
+  "AC4: check_freeze steht VOR der PRD-Migration (id: migrate_prd)"
+
+# AC3/AC5: Promote-Pfad nur wenn NICHT frozen; Freeze-Check selbst ohne exit 1 (Lauf grün).
+grep -q "steps.check_freeze.outputs.frozen != 'true'" "$GATE_YML"
+assert_true "$?" "AC3: Prod-Schritte hinter if: check_freeze.frozen != 'true'"
+
+# AC1/AC2: set_freeze nur bei Fehlschlag der verifikationsrelevanten Steps (nicht bei Infra).
+grep -q 'id: set_freeze' "$GATE_YML"; assert_true "$?" "AC1: set_freeze-Step vorhanden"
+grep -q 'steps.e2e.outcome' "$GATE_YML"
+assert_true "$?" "AC1: set_freeze-Bedingung referenziert steps.e2e.outcome"
+grep -q 'steps.migrate_int.outcome' "$GATE_YML"
+assert_true "$?" "AC1: set_freeze-Bedingung referenziert steps.migrate_int.outcome"
+grep -q 'steps.migrate_prd.outcome' "$GATE_YML"
+assert_true "$?" "AC1: set_freeze-Bedingung referenziert steps.migrate_prd.outcome"
+
+# AC8: Gate braucht issues: write für die Benachrichtigung
+grep -q 'issues: write' "$GATE_YML"
+assert_true "$?" "AC8: deploy-gate hat permissions issues: write"
+
+# AC7: dokumentierter Freigabe-Weg = workflow_dispatch-Workflow
+assert_true "$([[ -f "$RELEASE_YML" ]]; echo $?)" "AC7: deploy-freeze-release.yml vorhanden"
+grep -q 'workflow_dispatch' "$RELEASE_YML"
+assert_true "$?" "AC7: Freigabe läuft über workflow_dispatch"
+grep -q 'deploy-freeze.sh release' "$RELEASE_YML"
+assert_true "$?" "AC7: Freigabe-Workflow ruft deploy-freeze.sh release"
+
+# ─── #173/#66: Freigabe-Workflow liest workflow_dispatch-Input/actor über env: ───
+# Der Freigabe-Workflow ist der Notfall-Entblock-Pfad. `${{ inputs.grund }}` ist frei
+# getippter Text und `${{ github.actor }}` nutzerbeeinflusst – beide dürfen NICHT inline
+# in eine `run:`-Shell interpoliert werden (Actions-Script-Injection + funktionaler Bruch
+# an Sonderzeichen), sondern nur über `env:` gequotet. Gleicher Maßstab wie #66 im
+# Schwester-Workflow deploy-gate.yml. Detektor spiegelt secrets_in_run (Block-Scalar per
+# Einrückung), Zielmuster = nutzerkontrollierte inputs.*/github.actor.
+echo ""
+echo "#173 Härtung – Freigabe-Workflow: inputs.*/github.actor über env: statt inline im run::"
+
+userinput_in_run() {
+  awk '
+    function firstnonspace(s) { if (match(s, /[^ ]/)) return RSTART - 1; return -1 }
+    /^[ ]*$/ { next }
+    {
+      ind = firstnonspace($0)
+      if (in_run && ind <= run_ind) in_run = 0
+      if (!in_run && $0 ~ /^[ ]*run:/) {
+        run_ind = ind
+        rest = $0; sub(/^[ ]*run:/, "", rest)
+        if (rest ~ /\$\{\{[ ]*(inputs\.|github\.actor)/) { print FILENAME ":" NR ": " $0; found = 1 }
+        in_run = 1
+        next
+      }
+      if (in_run && $0 ~ /\$\{\{[ ]*(inputs\.|github\.actor)/) { print FILENAME ":" NR ": " $0; found = 1 }
+    }
+    END { exit(found ? 1 : 0) }
+  ' "$1"
+}
+
+# Positiv-Kontrolle: inline inputs.* im run:-Block wird erkannt (Guard nicht vacuously grün).
+TMP_YAML_INJ="$(mktemp)"
+printf 'jobs:\n  x:\n    steps:\n      - name: bad\n        run: |\n          echo "Grund: ${{ inputs.grund }}"\n' > "$TMP_YAML_INJ"
+userinput_in_run "$TMP_YAML_INJ" >/dev/null 2>&1
+assert_exit 1 "$?" "#173: Detektor erkennt inline \${{ inputs.* }} in einem run:-Block (Positiv-Kontrolle)"
+rm -f "$TMP_YAML_INJ"
+
+# Negativ-Kontrolle: dieselbe Referenz im env:-Block ist erlaubt → kein Fund.
+TMP_YAML_INJ_OK="$(mktemp)"
+printf 'jobs:\n  x:\n    steps:\n      - name: ok\n        env:\n          GRUND: ${{ inputs.grund }}\n        run: |\n          echo "Grund: $GRUND"\n' > "$TMP_YAML_INJ_OK"
+userinput_in_run "$TMP_YAML_INJ_OK" >/dev/null 2>&1
+assert_exit 0 "$?" "#173: Detektor akzeptiert \${{ inputs.* }} im env:-Block (Negativ-Kontrolle)"
+rm -f "$TMP_YAML_INJ_OK"
+
+# Akzeptanzkriterium: der echte Freigabe-Workflow interpoliert inputs/actor nicht inline im run:.
+userinput_in_run "$RELEASE_YML" >/dev/null 2>&1
+assert_exit 0 "$?" "#173: deploy-freeze-release.yml nutzt \$GRUND/\$ACTOR (env:), kein inline \${{ inputs.* }}/\${{ github.actor }}"
+
+# Beleg, dass die Werte tatsächlich über env: bereitgestellt werden (Fix-Muster, wie deploy-gate.yml).
+grep -q 'GRUND: ${{ inputs.grund }}' "$RELEASE_YML"
+assert_true "$?" "#173: inputs.grund wird über env: GRUND bereitgestellt"
+grep -q 'ACTOR: ${{ github.actor }}' "$RELEASE_YML"
+assert_true "$?" "#173: github.actor wird über env: ACTOR bereitgestellt"
+
+# deploy-freeze-release.yml bleibt valides YAML (nur wo yq vorhanden, ADR-009).
+if [ "$HAS_YQ" = 1 ]; then
+  yq '.' "$RELEASE_YML" >/dev/null 2>&1
+  assert_true "$?" "#173: deploy-freeze-release.yml bleibt valides YAML (yq-Parse)"
+else
+  skip_yq "#173: deploy-freeze-release.yml bleibt valides YAML"
+fi
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"
