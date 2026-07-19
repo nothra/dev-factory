@@ -200,6 +200,44 @@ implizit ab; eine Änderung des Coverage-Befehls wäre unentdeckt geblieben.
 
 ---
 
+## 8. `${VAR-default}` vs `${VAR:-default}`: leerer Wert als bewusster Opt-out
+
+`${VAR:-default}` (Doppelpunkt-Bindestrich) nimmt den Default, wenn `VAR` **unset ODER leer**
+ist. `${VAR-default}` (nur Bindestrich) nimmt den Default **nur bei unset** – ein bewusst
+`VAR=""` gesetzter Wert bleibt leer. Wer will, dass ein *leer gesetzter* Env-Wert ein Gate
+**deaktiviert** (echter Opt-out), muss `-` nehmen. Mit `:-` fällt der leere Wert still auf den
+enforcing Default zurück – der vermeintliche Opt-out verpufft, das Gate bleibt scharf.
+
+```bash
+# Ziel: unset → Default-Gate scharf; FACTORY_X="" → Gate bewusst aus.
+
+# FALSCH – :- behandelt "" wie unset, fällt auf den Default zurück (kein Opt-out):
+CMD="${FACTORY_X:-pnpm gate}"     # FACTORY_X="" → CMD="pnpm gate" (Gate läuft doch)
+
+# RICHTIG – einfaches - : unset → Default (fail-closed), "" → leer → else-Zweig (aus):
+CMD="${FACTORY_X-pnpm gate}"      # FACTORY_X="" → CMD="" → Gate deaktiviert
+if [ -n "$CMD" ]; then eval "$CMD"; else echo "Gate deaktiviert (FACTORY_X leer)"; fi
+```
+
+**Faustregel:** Soll ein leerer Env-Wert ein bewusster Opt-out sein → `${VAR-default}`
+(einfacher Bindestrich). Soll leer wie unset behandelt werden (immer Default) → `${VAR:-default}`.
+Die Wahl explizit im WHY-Kommentar begründen; sie ist auf den ersten Blick unsichtbar.
+
+**Struktur-Guard darauf abstimmen (Querbezug §7 + PROJECT-CONTEXT #114):** Ein Struktur-Test,
+der so ein Gate absichert, muss den **vollständigen `${VAR-default}`-Ausdruck** pinnen
+(`grep -qF '${FACTORY_X-pnpm gate}'`), nicht nur den Bezeichner `FACTORY_X` – der steht meist
+auch in der Kommentar-Prosa und matcht dann fälschlich. Das pinnt zugleich den **Default-Literal**,
+den ein Verhaltens-Test **nicht** abdeckt: wer im Test den Override immer explizit setzt
+(`FACTORY_X=false/true/""`), prüft nie den unset-Default. Ein versehentlich auf `true` geänderter
+Default (Gate per Default aus) bliebe sonst grün.
+
+**Bit uns:** #149 – Format-Gate in `pre-push.sh`. Erst `:-` gewählt (leerer Override sollte
+deaktivieren, tat es aber nicht → Test rot); auf `-` korrigiert. Der Struktur-Grep matchte
+anfangs die Kommentar-Prosa (`format:check`); erst der Grep auf `${FACTORY_FORMAT_COMMAND-pnpm format:check}`
+pinnte Default + Semantik code-eindeutig.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

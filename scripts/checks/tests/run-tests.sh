@@ -1634,6 +1634,39 @@ done
   && grep -q 'github.event.pull_request.body' "$CI_FILE"; }
 assert_true "$?" "#112: CI verdrahtet das Closing-Keyword-Gate (Script + PR-Body-Env)"
 
+# ─── #149: Format-Gate in pre-push.sh (Prettier-Konformität) ─────────────────
+# Ursache des Drifts (Task 149): format:check war an keinem Gate verdrahtet.
+# Struktur UND Verhalten absichern – analog zum #101-Lint-Gate-Test.
+echo ""
+echo "#149 pre-push.sh Format-Gate (prettier --check):"
+
+# (Struktur) Distinktive CODE-Zeile prüfen, nicht die Bezeichner allein: `FACTORY_FORMAT_COMMAND`
+# und `format:check` kommen im Gate auch in Kommentar-Prosa vor – ein Grep darauf bliebe grün,
+# wenn nur ein Kommentar stehen bliebe (#114 „Kommando ≠ Prosa-Erwähnung"). Der `${…-…}`-Ausdruck
+# taucht ausschließlich in der Zuweisung auf und belegt zugleich den fail-closed-Default
+# (`pnpm format:check` bei unset) und die Single-Dash-Semantik (leerer Wert = echter Opt-out).
+grep -qF '${FACTORY_FORMAT_COMMAND-pnpm format:check}' "$CHECKS_DIR/pre-push.sh"
+assert_true "$?" "#149: pre-push.sh verdrahtet das Format-Gate mit fail-closed-Default (\${FACTORY_FORMAT_COMMAND-pnpm format:check})"
+
+# (Verhalten) In einem Temp-Repo auf einem Feature-Branch die teuren Gates via Override
+# neutralisieren (true), sodass allein das Format-Gate das Ergebnis bestimmt. Beweist,
+# dass das Gate den ECHTEN Befehl ausführt (rot → blockiert) und der Env-Override greift.
+TMP_G149="$(mktemp -d)"
+git -C "$TMP_G149" init -q
+git -C "$TMP_G149" checkout -q -b feature/149-format-gate-test
+git -C "$TMP_G149" -c user.email="t@t.com" -c user.name="t" commit -q --allow-empty -m init
+run_prepush_149() { # $1 = FACTORY_FORMAT_COMMAND-Wert
+  ( cd "$TMP_G149" && FACTORY_TEST_COMMAND=true FACTORY_TYPECHECK_COMMAND=true \
+      FACTORY_FORMAT_COMMAND="$1" bash "$CHECKS_DIR/pre-push.sh" >/dev/null 2>&1 )
+}
+run_prepush_149 "false"
+assert_exit 1 "$?" "#149: Drift (Format-Befehl exit 1) blockiert den Push fail-closed"
+run_prepush_149 "true"
+assert_exit 0 "$?" "#149: konform (Format-Befehl exit 0) lässt den Push zu"
+run_prepush_149 ""
+assert_exit 0 "$?" "#149: leerer FACTORY_FORMAT_COMMAND deaktiviert das Gate (nicht blockierend)"
+rm -rf "$TMP_G149"
+
 # ─── #145: routes-doc-check.sh (Drift zwischen app/-Baum und docs/routes.md) ──
 # Positiv- UND Negativfälle (beide Drift-Richtungen), damit ein stilles Nicht-Greifen
 # des Musters auffällt (clean-code.md: Gate-Regex in beide Richtungen abgesichert).
