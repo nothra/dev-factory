@@ -812,6 +812,23 @@ done
 grep -q 'create-issue.sh' "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
 assert_true "$?" "#82: git-workflow.md verweist auf den zentralen Seam (create-issue.sh)"
 
+# ── #155: git-workflow.md verweist auf ADR-029 (server-seitiger main-Schutz) ──
+# AC3 bündelt Direktive + Rationale auf getrennt editierbaren Zeilen → je eigene
+# Assertion (codifizierte #117-Regel), sonst bleibt das Framing ungetestet.
+GITWF="$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
+# (0) Verweis-Ziel existiert: sonst zeigen die ADR-029-Verweise ins Leere, ohne dass
+# die grep-Guards (die nur git-workflow.md prüfen) das bemerken (dangling reference).
+assert_true "$([[ -f "$FACTORY_ROOT/docs/adr/029-branch-protection-main-ruleset.md" ]]; echo $?)" \
+  "#155: ADR-029-Datei vorhanden (Verweis-Ziel nicht dangling)"
+# (a) Direktive: der Verweis auf ADR-029 ist vorhanden.
+grep -q 'ADR-029' "$GITWF"
+assert_true "$?" "#155: git-workflow.md verweist auf ADR-029 (main-Ruleset)"
+# (b) Rationale (separierbar): der pre-push-Hook ist als lokales, *umgehbares* Feedback
+# eingeordnet – die Begründung, warum server-seitige Durchsetzung nötig ist. Token
+# 'umgehbar' steht nur im Framing-Satz, unabhängig vom Verweis-Satz (ADR-029).
+grep -q 'umgehbar' "$GITWF"
+assert_true "$?" "#155: git-workflow.md ordnet den pre-push-Hook als umgehbares lokales Feedback ein (AC3-Rationale)"
+
 # ─── Bug #8: Check-Skripte robust gegen Leerzeichen im Pfad ──────────────────
 echo ""
 echo "Bug #8 (Leerzeichen im Pfad):"

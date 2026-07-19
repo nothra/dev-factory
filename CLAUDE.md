@@ -127,7 +127,10 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 ## Guardrails
 
 - Nie committen ohne `scripts/checks/pre-commit.sh` erfolgreich durchgelaufen
-- Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen
+- Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen. Der Hook ist
+  lokales Feedback; server-seitig ist `main` zusätzlich durch das GitHub-Ruleset
+  `protect-main` fail-closed geschützt (kein Direkt-/Force-Push, PR-Pflicht, squash,
+  required Checks – [ADR-029](docs/adr/029-branch-protection-main-ruleset.md)).
 - Keine offenen Checkboxen in der Task-Datei → kein Done
 - **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
   oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff
