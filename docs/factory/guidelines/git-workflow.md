@@ -90,7 +90,7 @@ viele *Aspekt*-Labels"**.
 
 > **`security` ist für tatsächliche Findings, nicht für RBAC als Feature-Eigenschaft**
 > (aus #50): Dass ein Feature von mehreren Rollen mit unterschiedlichen Rechten genutzt
-> wird (z. B. Verwalter vs. Abrechner), ist für sich genommen **kein** Grund für das
+> wird (z. B. Verwalter vs. Veranstalter), ist für sich genommen **kein** Grund für das
 > `security`-Label – RBAC-Rollentrennung ist normales Produktverhalten, keine Härtung.
 > Das Label gehört auf ein Issue, wenn eine echte Schwachstelle, ein Auth-/Secret-/
 > Payment-Handling-Risiko oder eine konkrete Härtungsmaßnahme vorliegt – nicht schon
