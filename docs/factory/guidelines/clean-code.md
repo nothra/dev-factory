@@ -82,6 +82,26 @@ User user = userRepository.findById(id);
 
 ---
 
+## Keine Fallbacks für vom Typsystem bereits ausgeschlossene Fälle
+
+TypeScript garantiert bei `strict: true` **ohne** `noUncheckedIndexedAccess`, dass ein
+`Record<K, V>`-Lookup mit einem Schlüssel aus `K` immer `V` liefert, nie `V | undefined`.
+Ein defensiver `?? fallback` oder eine `!== undefined`-Guard-Prüfung danach ist dann **totes**
+Verhalten: Coverage-Tools erreichen den Zweig nie (verfehlt die 100%-Branch-Coverage-Vorgabe
+aus `testing-standards.md`), und der Code täuscht eine Fehlerbehandlung vor, die real nie greift.
+
+**Smell:** „Kann ich diesen Fallback/Guard über einen normalen Aufruf jemals erreichen?" Ist
+die Antwort nein, weil der Typ es bereits ausschließt (kein `noUncheckedIndexedAccess`, keine
+externe/`any`-Quelle) – Fallback entfernen, nicht „zur Sicherheit" behalten.
+
+**Regel:** Vor einem `?? fallback` oder einem `!== undefined`-Guard nach einem Record-/Map-
+Lookup oder einer durch den Aufrufkontext bereits garantierten Existenz prüfen, ob der Typ
+tatsächlich `| undefined` enthält. Ist er es nicht, den Fallback/Guard weglassen. Kommt der
+Wert aus einer echten Unsicherheitsquelle (externe API, `noUncheckedIndexedAccess`,
+`Array.find`), bleibt der Fallback nötig und richtig.
+
+---
+
 ## Was Clean Code nicht bedeutet
 
 - Kein Over-Engineering: Nicht jede 3-Zeilen-Funktion braucht ein Interface

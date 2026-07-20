@@ -106,6 +106,36 @@ weil der Zweig „offensichtlich sicher" wirkt.
 
 ---
 
+## Mock-Default mit leerem Array verdeckt Mapping-Code
+
+Setzt ein `beforeEach` eine Mock-Funktion, die eine Liste liefert (z. B. ein Data-Layer-Call wie
+`listZeilen`/`listPositionen`), pauschal auf `mockResolvedValue([])` und überschreibt kein
+Einzeltest sie mit echten Daten, läuft jeder nachgelagerte `.map(...)`/`.filter(...)`-Aufruf im
+Produktionscode nur über das leere Array. Der Lambda-Rumpf – meist die Feldübersetzung von
+DB-Row auf Domain-/Modell-Objekt – wird dadurch **nie mit echten Werten** ausgeführt: ein
+vertauschtes oder falsch benanntes Feld bliebe unentdeckt, obwohl Coverage-Tools die Zeile als
+„covered" zählen (die Lambda-*Definition* läuft, ihr Aufruf mit befüllten Daten nicht).
+
+**Smell:** „Wird dieser Mock in irgendeinem Testfall mit **befüllten** Daten aufgerufen?" Bleibt
+er in jedem Test bei `[]`, ist das Mapping darüber ungetestet – unabhängig davon, ob der Test
+selbst grün ist.
+
+**Regel:** Verarbeitet ein Produktionscode-Pfad das Ergebnis eines gemockten Data-Layer-Calls
+per `.map(...)`/`.filter(...)`, muss mindestens **ein** Testfall den Mock mit einem befüllten
+Array (mind. ein Element mit allen relevanten Feldern) versorgen und das Ergebnis gegen die
+erwarteten gemappten Werte prüfen – nicht nur den Response-Status:
+```ts
+listZeilenMock.mockResolvedValue([
+  { id: "z-1", teilnehmerId: "t-1", anzeigename: "Anna", erhaltenCents: 1500, /* … */ },
+]);
+// … Act …
+expect(berichtXlsxMock).toHaveBeenCalledWith(
+  expect.objectContaining({ teilnehmer: [expect.objectContaining({ anzeigename: "Anna" })] }),
+);
+```
+
+---
+
 ## Test-Isolation
 
 - Jeder Test ist unabhängig – keine Abhängigkeit von Test-Reihenfolge
