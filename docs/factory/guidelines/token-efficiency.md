@@ -75,6 +75,7 @@ Verbrauch niedrig, ohne die Qualität zu senken.
 
 ## Was hier (noch) nicht steht
 
-Weitere projektspezifische Kniffe zur Vermeidung teurer Full-Scans gehören in
-`PROJECT-CONTEXT.md` unter „Bekannte Stolpersteine", sobald sie konkret benannt
-sind – nicht als vage Allgemeinplätze hier.
+Weitere projektspezifische Kniffe zur Vermeidung teurer Full-Scans gehören als
+`/codify`-Learning in die thematisch passende Datei unter `docs/factory/lessons/`
+(Volltext, **nicht** @import) plus eine Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037),
+sobald sie konkret benannt sind – nicht als vage Allgemeinplätze hier.

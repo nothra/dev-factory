@@ -10,7 +10,8 @@ Er ist der Meta-Loop: Was hat die Factory dieses Mal falsch gemacht?
 - `tasks/security-$ARGUMENTS.md` – Security-Findings (falls vorhanden)
 - `CLAUDE.md` – Aktuelle Regeln
 - `docs/factory/guidelines/` – Aktuelle Guidelines
-- `docs/factory/PROJECT-CONTEXT.md` – Bekannte Stolpersteine
+- `docs/factory/PROJECT-CONTEXT.md` – Index der Stolpersteine + Kern-Kurzregeln
+- `docs/factory/lessons/` – Volltext der ausgelagerten Stolperstein-Learnings (ADR-037)
 
 ## Aufgabe
 
@@ -24,12 +25,21 @@ Analysiere alle Findings aus Review und Security-Review:
 Für jeden Fehler-Typ:
 - Ist er durch eine neue Regel in CLAUDE.md verhinderbar?
 - Ist er durch eine Ergänzung der Guidelines verhinderbar?
-- Ist er projektspezifisch → in PROJECT-CONTEXT.md "Bekannte Stolpersteine"?
+- Ist er projektspezifisch → als Lesson unter `docs/factory/lessons/<thema>.md`
+  (Volltext) + eine Index-Zeile mit „Laden bei"-Trigger in `PROJECT-CONTEXT.md`?
 
 ### 3. Änderungen vornehmen
 
 **Neue projektspezifische Regel (häufig):**
-→ Ergänze `docs/factory/PROJECT-CONTEXT.md` unter "Bekannte Stolpersteine"
+→ Schreibe den **Volltext** in die thematisch passende `docs/factory/lessons/<thema>.md`
+(`frontend-react`, `next-auth`, `db-drizzle`, `testing`, `build-tooling`, `code-style`,
+`factory-workflow`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“
+in `docs/factory/PROJECT-CONTEXT.md` – **nicht** mehr in den @import-Volltext (ADR-037).
+Die Index-Zeile bekommt einen **„Laden bei"-Trigger** (welcher Skill + welche Situation die
+Lesson braucht), damit ein Skill sie bedarfsgesteuert lädt: bei homogener Domänen-Datei am
+Gruppen-Header, bei gemischten Auslösern (`factory-workflow.md`) als `→ <Trigger>` je Zeile.
+Nur eine wirklich taskübergreifende Data-Layer-/Validierungsregel darf zusätzlich als
+Kern-Kurzregel inline stehen. Passt kein Thema, eine neue `lessons/<thema>.md` anlegen.
 
 **Neue universelle Regel (seltener, nur wenn wirklich generisch):**
 → Ergänze die passende Guideline-Datei in `docs/factory/guidelines/`

@@ -382,11 +382,13 @@ Nie an reine Backlog-/Doku-Issues.
 
 > „Jeder Bug, den die KI einführt, wird zur Regel, die den nächsten verhindert."
 
-`/codify <id>` extrahiert Learnings → neue Regeln in `CLAUDE.md`, `docs/factory/PROJECT-CONTEXT.md`
-(Bekannte Stolpersteine) oder den Guidelines. Faustregeln aus der Praxis:
+`/codify <id>` extrahiert Learnings → neue Regeln in `CLAUDE.md`, den Guidelines oder als
+ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` + Index-Zeile in
+`docs/factory/PROJECT-CONTEXT.md` (ADR-037). Faustregeln aus der Praxis:
 
-- **Stack-spezifisch** (Next/NextAuth/Drizzle/Vitest …) → `PROJECT-CONTEXT.md`, **nicht** die
-  stack-agnostischen Guidelines.
+- **Stack-spezifisch** (Next/NextAuth/Drizzle/Vitest …) → Volltext nach
+  `docs/factory/lessons/<thema>.md` + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
+  die stack-agnostischen Guidelines.
 - **Kanonische Quelle referenzieren:** taucht eine Regel mehrfach auf (Skill + Persona + Spec),
   jede Kopie auf die Quelle verweisen und beim Update **alle** synchronisieren.
 - **Kein Check-Skript aus Reflex:** ein Gate nur, wenn der Fehler verlässlich grep-bar **und**

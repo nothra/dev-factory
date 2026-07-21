@@ -104,6 +104,10 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 >
 > Bash-Gotchas (beim Schreiben/Reviewen von Shell-Skripten): siehe
 > `docs/factory/guidelines/bash-gotchas.md` – ebenfalls nicht @importiert.
+>
+> Ausgelagerte `/codify`-Learnings (Stolpersteine, Volltext) liegen thematisch getrennt unter
+> `docs/factory/lessons/` – **nicht** @importiert (ADR-037). Der schlanke Index + die
+> Kern-Kurzregeln stehen in `docs/factory/PROJECT-CONTEXT.md`; die passende Lesson bei Bedarf lesen.
 
 ---
 
