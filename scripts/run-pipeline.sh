@@ -423,9 +423,10 @@ while [ "$REVIEW_APPROVED" = false ]; do
   echo -e "${BLUE}Phase 2: Code-Review (Iteration $((REVIEW_ITERATION + 1)))${NC}"
   run_skill "review" "$TASK_ID"
 
-  # Review-Ergebnis prüfen
-  REVIEW_FILE="$FACTORY_DIR/tasks/review-${TASK_ID}.md"
-  if [ -f "$REVIEW_FILE" ] && grep -q "APPROVED" "$REVIEW_FILE"; then
+  # Review-Ergebnis prüfen – Verdict ausschließlich aus der Anker-Zeile (report_verdict),
+  # nie per Volltext-Grep über den ganzen Report (#211). Fehlender/uneindeutiger Anker →
+  # nicht bestanden → Rework-Loop (fail-closed).
+  if [ "$(report_verdict review "$TASK_ID")" = "APPROVED" ]; then
     echo -e "${GREEN}✓${NC} Review bestanden"
     REVIEW_APPROVED=true
   else
@@ -456,8 +457,10 @@ echo ""
 echo -e "${BLUE}Phase 5: Security Review${NC}"
 run_skill "security-review" "$TASK_ID"
 
-SECURITY_FILE="$FACTORY_DIR/tasks/security-${TASK_ID}.md"
-if [ -f "$SECURITY_FILE" ] && grep -q "NEEDS_FIXES" "$SECURITY_FILE"; then
+# Security-Gate – Verdict ausschließlich aus der Anker-Zeile '## Ergebnis' (report_verdict),
+# nie per Volltext-Grep über den ganzen Report (#211). Nur ein eindeutiges NEEDS_FIXES
+# blockiert; eine Fließtext-Erwähnung anderswo tut es nicht.
+if [ "$(report_verdict security-review "$TASK_ID")" = "NEEDS_FIXES" ]; then
   echo -e "${RED}Security Review: NEEDS_FIXES${NC}"
   echo "Kritische Security-Findings müssen manuell behoben werden."
   exit 1

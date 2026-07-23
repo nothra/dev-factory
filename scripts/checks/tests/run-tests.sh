@@ -952,7 +952,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_DRY91/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
   echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
-  printf 'VERDICT: APPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
+  printf '## Empfehlung\nAPPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
   git -C "$TMP_DRY91" init -q; git -C "$TMP_DRY91" add .
   git -C "$TMP_DRY91" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   dry91_out=$(bash "$TMP_DRY91/scripts/run-pipeline.sh" 2 --dry-run 2>&1 || true)
@@ -1429,30 +1429,57 @@ TMP_RV="$(mktemp -d)"; mkdir -p "$TMP_RV/tasks"
 # rv <skill> <task_id> → ruft report_verdict aus der gesourcten Lib (tasks_dir = 3. Arg).
 rv() { bash -c 'source "$1"; report_verdict "$2" "$3" "$4"' _ "$RV_LIB" "$1" "$2" "$TMP_RV/tasks"; }
 
-# Report mit gültigem Verdict → erkannt → Guard wertet als ERFOLG (trotz non-zero Exit).
-printf '## Ergebnis\nAPPROVED\n' > "$TMP_RV/tasks/review-1.md"
-assert_true "$([ "$(rv review 1)" = "APPROVED" ]; echo $?)" "Report-Guard: review APPROVED → Verdict erkannt (Erfolg)"
-printf 'NEEDS_REWORK\n' > "$TMP_RV/tasks/review-2.md"
-assert_true "$([ "$(rv review 2)" = "NEEDS_REWORK" ]; echo $?)" "Report-Guard: review NEEDS_REWORK → Verdict erkannt (Erfolg)"
-printf 'PASSED\n' > "$TMP_RV/tasks/security-3.md"
-assert_true "$([ "$(rv security-review 3)" = "PASSED" ]; echo $?)" "Report-Guard: security-review PASSED → Verdict erkannt (Erfolg)"
-printf 'NEEDS_FIXES\n' > "$TMP_RV/tasks/security-4.md"
-assert_true "$([ "$(rv security-review 4)" = "NEEDS_FIXES" ]; echo $?)" "Report-Guard: security-review NEEDS_FIXES → Verdict erkannt (Erfolg)"
+# AK1 – Verdict aus der ersten nicht-leeren Zeile unter dem Anker (review → '## Empfehlung').
+printf '## Empfehlung\nAPPROVED\n' > "$TMP_RV/tasks/review-1.md"
+assert_true "$([ "$(rv review 1)" = "APPROVED" ]; echo $?)" "AK1: review APPROVED aus Anker-Zeile"
+printf '## Empfehlung\nNEEDS_REWORK\n' > "$TMP_RV/tasks/review-2.md"
+assert_true "$([ "$(rv review 2)" = "NEEDS_REWORK" ]; echo $?)" "AK1: review NEEDS_REWORK aus Anker-Zeile"
 
-# Report ohne gültigen Verdict → leer → Guard greift NICHT (Fehlschlag, fail-closed).
-printf '## Ergebnis\n(noch offen)\n' > "$TMP_RV/tasks/review-5.md"
-assert_true "$([ -z "$(rv review 5)" ]; echo $?)" "Report-Guard: review ohne Verdict → nichts erkannt (Fehlschlag, fail-closed)"
+# AK4 – Security-Review-Anker '## Ergebnis' analog (PASSED | NEEDS_FIXES).
+printf '## Ergebnis\nPASSED\n' > "$TMP_RV/tasks/security-3.md"
+assert_true "$([ "$(rv security-review 3)" = "PASSED" ]; echo $?)" "AK4: security PASSED aus Anker-Zeile"
+printf '## Ergebnis\nNEEDS_FIXES\n' > "$TMP_RV/tasks/security-4.md"
+assert_true "$([ "$(rv security-review 4)" = "NEEDS_FIXES" ]; echo $?)" "AK4: security NEEDS_FIXES aus Anker-Zeile"
 
-# Fehlende Report-Datei → leer (Fehlschlag).
-assert_true "$([ -z "$(rv security-review 6)" ]; echo $?)" "Report-Guard: fehlender Report → nichts erkannt (Fehlschlag)"
+# AK2 – Fließtext-Erwähnung NACH der Verdict-Zeile wird ignoriert (Reihenfolge irrelevant).
+printf '## Empfehlung\nNEEDS_REWORK\n\nAlle Personas empfahlen für sich APPROVED.\n' > "$TMP_RV/tasks/review-9.md"
+assert_true "$([ "$(rv review 9)" = "NEEDS_REWORK" ]; echo $?)" "AK2: Fließtext-APPROVED nach Verdict-Zeile ignoriert"
+printf '## Ergebnis\nNEEDS_FIXES\nBasis PASSED, aber ein kritisches Finding offen.\n' > "$TMP_RV/tasks/security-10.md"
+assert_true "$([ "$(rv security-review 10)" = "NEEDS_FIXES" ]; echo $?)" "AK4: Fließtext-PASSED nach Verdict-Zeile ignoriert"
+# AK6 – Spiegel-Richtung: PASSED-Verdict + Fließtext-NEEDS_FIXES → PASSED (Gate blockiert NICHT).
+printf '## Ergebnis\nPASSED\nHinweis: ohne den Anker hätte grep hier NEEDS_FIXES gematcht.\n' > "$TMP_RV/tasks/security-14.md"
+assert_true "$([ "$(rv security-review 14)" = "PASSED" ]; echo $?)" "AK6: Fließtext-NEEDS_FIXES nach PASSED-Zeile ignoriert (Gate blockiert nicht)"
 
-# Nicht-Report-Skill → immer leer (Verhalten unverändert, auch bei vorhandener Datei).
-printf 'APPROVED\n' > "$TMP_RV/tasks/review-7.md"
-assert_true "$([ -z "$(rv implement 7)" ]; echo $?)" "Report-Guard: Nicht-Report-Skill → kein Verdict (Verhalten unverändert)"
+# AK3 – Leerzeilen zwischen Überschrift und Verdict-Zeile werden übersprungen.
+printf '## Empfehlung\n\n\nNEEDS_REWORK\n' > "$TMP_RV/tasks/review-11.md"
+assert_true "$([ "$(rv review 11)" = "NEEDS_REWORK" ]; echo $?)" "AK3: Leerzeilen nach Überschrift übersprungen"
 
-# Mehrere Vorkommen → letzter gewinnt (wie pipeline_summary() schon las).
-printf 'NEEDS_REWORK\n... später ...\nAPPROVED\n' > "$TMP_RV/tasks/review-8.md"
-assert_true "$([ "$(rv review 8)" = "APPROVED" ]; echo $?)" "Report-Guard: mehrere Verdicts → letzter gewinnt"
+# F1 – Fehlender Anker → leeres Verdict (kein Volltext-Fallback), auch wenn Token im Fließtext steht.
+printf 'VERDICT: APPROVED\nirgendein Fließtext\n' > "$TMP_RV/tasks/review-5.md"
+assert_true "$([ -z "$(rv review 5)" ]; echo $?)" "F1: fehlender Anker → leeres Verdict (fail-closed)"
+
+# F2 – Anker-Zeile ohne gültiges Token → leeres Verdict.
+printf '## Empfehlung\n(noch offen)\n' > "$TMP_RV/tasks/review-12.md"
+assert_true "$([ -z "$(rv review 12)" ]; echo $?)" "F2: Anker-Zeile ohne Token → leeres Verdict"
+
+# F3 – Fehlende Report-Datei → leer, Exit 0 (unverändertes Verhalten).
+assert_true "$([ -z "$(rv security-review 6)" ]; echo $?)" "F3: fehlender Report → leeres Verdict"
+
+# F4 – Anker-Zeile mit BEIDEN Tokens (Template kopiert) → leeres Verdict (fail-closed, kein Raten).
+printf '## Empfehlung\nAPPROVED | NEEDS_REWORK\n' > "$TMP_RV/tasks/review-13.md"
+assert_true "$([ -z "$(rv review 13)" ]; echo $?)" "F4: mehrdeutige Anker-Zeile → leeres Verdict (fail-closed)"
+
+# Robustheit – EXAKTER Anker (Kernannahme des Fixes): weder eine Präfix-/Superset-Überschrift
+# ('## Empfehlungen') noch ein Verdict auf der Überschriftszeile selbst ('## Empfehlung: APPROVED')
+# dürfen matchen. Nur die erste Nicht-Leerzeile UNTER der exakten Anker-Zeile zählt → sonst leer.
+printf '## Empfehlungen\nAPPROVED\n' > "$TMP_RV/tasks/review-15.md"
+assert_true "$([ -z "$(rv review 15)" ]; echo $?)" "Robust: Superset-Überschrift '## Empfehlungen' ist kein Anker → leer"
+printf '## Empfehlung: APPROVED\n' > "$TMP_RV/tasks/review-16.md"
+assert_true "$([ -z "$(rv review 16)" ]; echo $?)" "Robust: Verdict auf der Überschriftszeile → leer (nur Folgezeile zählt)"
+
+# Nicht-Report-Skill → immer leer (Verhalten unverändert, auch bei vorhandener Datei mit Anker).
+printf '## Empfehlung\nAPPROVED\n' > "$TMP_RV/tasks/review-7.md"
+assert_true "$([ -z "$(rv implement 7)" ]; echo $?)" "Nicht-Report-Skill → kein Verdict (Verhalten unverändert)"
 
 rm -rf "$TMP_RV"
 
@@ -1461,6 +1488,13 @@ grep -q 'report-verdict.sh' "$PIPELINE"
 assert_true "$?" "#91: run-pipeline.sh sourct den geteilten Verdict-Helper"
 grep -q 'report_verdict' "$PIPELINE"
 assert_true "$?" "#91: run_skill/pipeline_summary nutzen report_verdict (ein Ort)"
+
+# AK5/AK6/AK7 (#211): Phase-2-Loop + Security-Gate lesen den Verdict ausschließlich über den
+# Anker-Helper – die alten Volltext-Greps über den ganzen Report sind entfernt (ein Ort).
+grep -qF 'grep -q "APPROVED"' "$PIPELINE"; approved_grep=$?
+assert_true "$([ "$approved_grep" -ne 0 ]; echo $?)" "AK5 (#211): Phase-2-Loop ohne Volltext-grep \"APPROVED\""
+grep -qF 'grep -q "NEEDS_FIXES"' "$PIPELINE"; needsfixes_grep=$?
+assert_true "$([ "$needsfixes_grep" -ne 0 ]; echo $?)" "AK6 (#211): Security-Gate ohne Volltext-grep \"NEEDS_FIXES\""
 
 # Budget-Puffer: review + security-review auf max_turns 14 (ADR-019 §5).
 if [ "$HAS_YQ" = 1 ]; then
@@ -2158,7 +2192,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git init -q --bare "$RVO/origin.git"
   _mk_pipe_repo "$RVW"
   echo "# Task 3: review-tier" > "$RVW/tasks/task-3-review-tier.md"
-  printf 'VERDICT: APPROVED\n' > "$RVW/tasks/review-3.md"   # Review-Loop endet sofort
+  printf '## Empfehlung\nAPPROVED\n' > "$RVW/tasks/review-3.md"   # Review-Loop endet sofort
   git -C "$RVW" init -q
   git -C "$RVW" remote add origin "$RVO/origin.git"
   git -C "$RVW" add .

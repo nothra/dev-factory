@@ -62,9 +62,13 @@ für die zwei report-erzeugenden Skills:
 - `review` → `tasks/review-<id>.md` enthält `APPROVED` oder `NEEDS_REWORK`.
 - `security-review` → `tasks/security-<id>.md` enthält `PASSED` oder `NEEDS_FIXES`.
 
-Die Verdict-Erkennung koppelt an dieselben verbindlichen Report-Werte, die `pipeline_summary()`
-schon liest (`grep -oE "APPROVED|NEEDS_REWORK"` / `"PASSED|NEEDS_FIXES"`); sie wird in **einen**
-Helper gezogen, damit Guard und Summary nicht auseinanderdriften (kanonische Quelle, ein Ort).
+Die Verdict-Erkennung liest den Verdict ausschließlich aus der ersten nicht-leeren Zeile unter
+der verbindlichen Anker-Überschrift des Reports (`## Empfehlung` → `APPROVED|NEEDS_REWORK`,
+`## Ergebnis` → `PASSED|NEEDS_FIXES`); eine Fließtext-Erwähnung anderswo kippt den Verdict nicht
+mehr (fail-closed bei fehlendem/mehrdeutigem Anker – #211, ersetzt das frühere „letztes
+Vorkommen gewinnt" per Volltext-Grep). Sie ist in **einen** Helper gezogen
+(`scripts/lib/report-verdict.sh`), damit Guard und Summary nicht auseinanderdriften (kanonische
+Quelle, ein Ort).
 Für alle anderen Skills bleibt non-zero = Fehlversuch. Nach dem als-Erfolg-gewerteten Abbruch
 läuft weiterhin `interrupt-check.sh` (kein stiller Übergang bei signalisiertem Interrupt).
 

@@ -402,3 +402,26 @@ merge-reif umgesetzt, trug aber weiter `Proposed`, während alle anderen umgeset
 ihr Status **im selben PR** auf `Accepted (<Datum>)`. `Proposed` bleibt nur, wenn die Entscheidung
 bewusst offen/ungebaut ist. Beim `/implement` mitprüfen, spätestens im `/review` (Runde Architektur)
 als Punkt „ADR-Status ↔ Umsetzungsstand konsistent?" – analog zum ADR-Drift-Check nach Review-Rework.
+
+### PR ändert die von einer ADR namentlich beschriebene Mechanik → ADR-Beschreibung im selben PR mitpflegen, schon beim /implement (aus #211, Review-Finding)
+
+#211 stellte die Verdict-Erkennung von Volltext-`grep` auf anker-basiert um. ADR-019 §4 beschrieb
+die alte Mechanik **wörtlich** (`grep -oE "APPROVED|NEEDS_REWORK" / "PASSED|NEEDS_FIXES"`, „letztes
+Vorkommen gewinnt"). Die **Entscheidung** der ADR („eine Verdict-Erkennung, ein Ort") blieb intakt
+und wurde sogar besser erfüllt – nur die beschriebene **Implementierungs-Mechanik** war danach
+falsch. `/implement` pflegte Task + Spec, aber nicht die ADR; erst `/review` fand den Drift. Der
+bestehende #55-Trigger („ADR nach Review-Rework auf Drift prüfen – bei ADR-Änderung") feuerte
+nicht, weil hier keine ADR-**Datei** editiert wurde – es wurde **Code** geändert, den eine ADR
+beschreibt.
+
+**Smell:** „Beschreibt eine ADR die Implementierungs-Mechanik, die dieser PR gerade ändert (nicht
+nur die Entscheidung)? Dann ist ihre Mechanik-Beschreibung jetzt veraltet – auch wenn ich keine
+ADR-Datei ‚anfasse'."
+
+**Regel:** Ändert ein PR die Mechanik, die eine ADR namentlich/wörtlich beschreibt, wird die
+ADR-Mechanik-Beschreibung **im selben PR** aktualisiert – auch wenn die Entscheidung unverändert
+gilt (dann als „Aktualisierung (#id)"-Notiz; kein neuer Entscheidungsvorgang, kein Status-Flip).
+Schon beim `/implement` mitpflegen: nach dem Umbau `grep -rn` in `docs/adr/` nach den geänderten
+Symbol-/Mechanik-Namen (hier `grep -oE`, `tail -1`, Funktionsname), nicht erst im Review auffangen.
+Ergänzt #55 (das nur bei ADR-**Datei**-Änderungen triggert) um den Fall „Code-Änderung, die eine
+ADR beschreibt".

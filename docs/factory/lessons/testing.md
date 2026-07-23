@@ -157,3 +157,24 @@ der den auslösenden User-Event tatsächlich feuert und die **Wirkung** des Call
 Abschluss von `/test` den Coverage-Report (`pnpm vitest run --coverage`) gezielt auf die Zeilen der
 neu verkabelten Callbacks prüfen, nicht nur auf die Gesamt-Prozentzahl – ein Review-„Positiv", das
 nur den Code liest, ersetzt diesen Beleg nicht.
+
+### Spiegel-/Symmetrie-Akzeptanzkriterien: beide Richtungen explizit assertieren (aus #211, Review-Runde-1-Finding)
+
+#211 hatte für den Security-Anker eine Assertion in der einen Richtung (AK4: Verdict-Zeile
+`NEEDS_FIXES` + Fließtext-`PASSED` → `NEEDS_FIXES`), aber das **Spiegel-AK6** (Verdict-Zeile
+`PASSED` + Fließtext-`NEEDS_FIXES` → `PASSED`, Gate blockiert **nicht**) war nur transitiv über
+einen Wiring-Guard (Abwesenheits-Grep „kein Volltext-`grep` mehr") belegt – keine eigene
+Laufzeit-Assertion. Das Verhalten war korrekt, aber ausgerechnet die für das Gate **gefährlichere**
+Richtung (der alte Volltext-`grep` hätte hier fälschlich blockiert) hatte keinen direkten Test.
+Der Reflex „das andere AK ist ja nur die gespiegelte Richtung, ein Test reicht" ist keine
+Abdeckung.
+
+**Smell:** „Gibt es ein AC-Paar der Form ‚X blockiert / Y blockiert nicht' (bzw. akzeptiert/
+abgelehnt, positiv/negativ) – teste ich **beide** Richtungen mit je eigener Assertion, oder nur
+eine und nehme die andere per Symmetrie an?"
+
+**Regel:** Jedes AK bekommt eine eigene direkte Assertion – auch das, das ‚nur' die Gegenrichtung
+eines bereits getesteten AK ist. Ein Wiring-/Abwesenheits-Guard (z. B. „das alte Muster ist
+verschwunden") belegt die Verkabelung, nicht das Laufzeitverhalten der Gegenrichtung; er ersetzt
+die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permissive Richtung
+(„blockiert **nicht**") mindestens so wichtig zu testen wie die restriktive.
