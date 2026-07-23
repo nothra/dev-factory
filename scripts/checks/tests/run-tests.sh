@@ -758,6 +758,196 @@ grep -q 'reserviert' "$ERR"; assert_true "$?" "Seam: factory::-Guard warnt auf s
 
 rm -rf "$TMP_SEAM"
 
+# ─── Idempotenz-Wrapper create_issue_idempotent (#207, ADR-040) ──────────────
+echo ""
+echo "Idempotenter Issue-Seam (#207, ADR-040):"
+
+TMP_IDEM="$(mktemp -d)"; mkdir -p "$TMP_IDEM/bin"
+# gh-Stub: 'issue list' liefert die in FAKE_OPEN vorkonfigurierten OFFENEN Kandidaten
+# (Format exakt wie `-q '.[] | .number, .title'`: je Issue eine Nummer-Zeile, dann eine
+# Titel-Zeile) und protokolliert seine Argumente nach LIST_LOG. FAKE_LIST_FAIL=1 simuliert
+# einen Lookup-Fehler (gh-Exit ≠ 0). 'issue create' verhält sich wie im Seam-Stub: loggt nach
+# GH_LOG, liefert FAKE_NUM; FAKE_BAD_LABEL lässt eine Anlage mit diesem --label-Wert scheitern
+# (simuliert „Label existiert im Repo nicht" → prüft die Label-Degradation hinter dem Wrapper).
+cat > "$TMP_IDEM/bin/gh" <<'GHEOF'
+#!/bin/sh
+if [ "$1 $2" = "issue list" ]; then
+  [ -n "${LIST_LOG:-}" ] && printf '%s\n' "$*" >> "$LIST_LOG"
+  [ -n "${FAKE_LIST_FAIL:-}" ] && exit 1
+  printf '%s' "${FAKE_OPEN:-}"
+  exit 0
+fi
+if [ "$1 $2" = "issue create" ]; then
+  [ -n "${GH_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_LOG"
+  if [ -n "${FAKE_BAD_LABEL:-}" ]; then
+    for w in "$@"; do [ "$w" = "$FAKE_BAD_LABEL" ] && exit 1; done
+  fi
+  echo "https://github.com/test/repo/issues/${FAKE_NUM:-123}"
+  exit 0
+fi
+exit 0
+GHEOF
+chmod +x "$TMP_IDEM/bin/gh"
+
+# idem <args…> – ruft create_issue_idempotent im Subshell mit Stub-gh auf (analog seam()).
+idem() {
+  PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" \
+    bash -c 'source "$0"; create_issue_idempotent "$@"' "$SEAM_LIB" "$@"
+}
+
+open_204=$(printf '204\nRefactor foo bar\n')
+
+# AC1 – offener Treffer mit exakt gleichem Titel → bestehende Nummer, KEINE Anlage
+CLOG="$TMP_IDEM/ac1.create"; : > "$CLOG"
+out=$(FAKE_OPEN="$open_204" GH_LOG="$CLOG" idem "Refactor foo bar" "Body" "enhancement" "tech-debt" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "AC1: offener Titel-Treffer → exit 0"
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "AC1: gibt bestehende Issue-Nummer (204) zurück"
+assert_true "$([[ ! -s "$CLOG" ]]; echo $?)" "AC1: kein 'gh issue create' aufgerufen (kein Duplikat)"
+
+# AC2 – kein offener Treffer → regulär anlegen (inkl. Art- + Aspekt-Label), neue Nummer
+CLOG="$TMP_IDEM/ac2.create"; : > "$CLOG"
+out=$(FAKE_OPEN="" GH_LOG="$CLOG" idem "Ganz neuer Titel" "Body" "enhancement" "tech-debt" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "AC2: kein Treffer → exit 0"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "AC2: neue Issue-Nummer (123) zurückgegeben"
+grep -q -- '--label enhancement' "$CLOG"; assert_true "$?" "AC2: delegiert an create_issue MIT Art-Label"
+grep -q -- '--label tech-debt' "$CLOG"; assert_true "$?" "AC2: delegiert MIT Aspekt-Label (Labels wie bisher)"
+
+# AC3 – geschlossenes Issue blockiert nicht: der Lookup fragt --state open ab; ein
+# geschlossenes Issue erscheint dort nicht (FAKE_OPEN leer) → neues Issue.
+LLOG="$TMP_IDEM/ac3.list"; : > "$LLOG"; CLOG="$TMP_IDEM/ac3.create"; : > "$CLOG"
+out=$(FAKE_OPEN="" LIST_LOG="$LLOG" GH_LOG="$CLOG" idem "Erledigter Titel" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "AC3: geschlossenes (nicht offenes) Issue → exit 0"
+grep -q -- '--state open' "$LLOG"; assert_true "$?" "AC3: Lookup fragt ausschließlich offene Issues ab (--state open)"
+grep -q -- 'issue create' "$CLOG"; assert_true "$?" "AC3: geschlossenes Issue blockiert nicht → neues Issue angelegt"
+
+# AC5 – exakter Titelvergleich: Teilstring ist KEIN Treffer (clientseitig, nicht über die Suche)
+CLOG="$TMP_IDEM/ac5.create"; : > "$CLOG"
+open_sub=$(printf '50\nFix the whole thing\n')
+out=$(FAKE_OPEN="$open_sub" GH_LOG="$CLOG" idem "Fix the" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "AC5: Teilstring-Kandidat → exit 0"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "AC5: Teilstring wird NICHT als Duplikat gewertet → neue Nummer"
+grep -q -- 'issue create' "$CLOG"; assert_true "$?" "AC5: Teilstring → reguläre Anlage (kein False-Positive der Suche)"
+# Umkehrung: Zieltitel enthält den Kandidaten als Teilstring – ebenfalls kein Treffer
+CLOG="$TMP_IDEM/ac5b.create"; : > "$CLOG"
+open_short=$(printf '51\nFix the\n')
+out=$(FAKE_OPEN="$open_short" GH_LOG="$CLOG" idem "Fix the whole thing" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "AC5: Umkehr-Teilstring → exit 0"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "AC5: Umkehr-Teilstring (Kandidat ⊂ Ziel) → neue Nummer (kein Treffer)"
+grep -q -- 'issue create' "$CLOG"; assert_true "$?" "AC5: Umkehr-Teilstring (Kandidat ⊂ Ziel) → ebenfalls Neuanlage"
+
+# AC5 (Schärfe) – mehrere exakte Treffer: niedrigste (älteste) Nummer gewinnt
+CLOG="$TMP_IDEM/ac5c.create"; : > "$CLOG"
+open_multi=$(printf '308\nDoppelter Titel\n204\nDoppelter Titel\n')
+out=$(FAKE_OPEN="$open_multi" GH_LOG="$CLOG" idem "Doppelter Titel" "B" "enhancement" 2>/dev/null)
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "AC5: mehrere exakte Treffer → niedrigste Nummer (204, nicht 308)"
+
+# AC5 (Schärfe) – Tiebreak reihenfolge-unabhängig: niedrigste gewinnt auch bei umgekehrter
+# Kandidaten-Reihenfolge. Deckt den `-lt`-false-Zweig ab (ein späterer HÖHERER Treffer ersetzt
+# den bestehenden `best` NICHT).
+CLOG="$TMP_IDEM/ac5d.create"; : > "$CLOG"
+open_multi2=$(printf '204\nDoppelter Titel\n308\nDoppelter Titel\n')
+out=$(FAKE_OPEN="$open_multi2" GH_LOG="$CLOG" idem "Doppelter Titel" "B" "enhancement" 2>/dev/null)
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "AC5: niedrigste Nummer gewinnt auch bei umgekehrter Reihenfolge (204 vor 308)"
+
+# Defensiv-Guard (create-issue.sh: `''|*[!0-9]*)`): eine nicht-numerische „Nummer"-Zeile bei
+# titelgleichem Kandidaten wird übersprungen (schützt das `-lt` vor nicht-numerischem Input),
+# der echte numerische Treffer wird trotzdem gefunden. Erzwingt den sonst nie erreichten
+# Guard-Zweig (testing-standards.md: Exhaustiveness-Guards brauchen einen eigenen Test).
+CLOG="$TMP_IDEM/guard.create"; : > "$CLOG"
+open_bad_num=$(printf 'x\nRefactor foo bar\n204\nRefactor foo bar\n')
+out=$(FAKE_OPEN="$open_bad_num" GH_LOG="$CLOG" idem "Refactor foo bar" "B" "enhancement" 2>/dev/null); rc=$?
+assert_exit 0 "$rc" "Guard: nicht-numerische Nummer-Zeile → exit 0 (kein -lt-Absturz)"
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "Guard: nicht-numerische Nummer übersprungen, echter Treffer (204) gefunden"
+assert_true "$([[ ! -s "$CLOG" ]]; echo $?)" "Guard: Treffer trotz Müll-Zeile → keine Anlage"
+
+# F1 – Lookup nicht durchführbar (gh-Fehler) → fail-open: regulär anlegen + stderr-Warnung
+CLOG="$TMP_IDEM/f1.create"; : > "$CLOG"; ERR="$TMP_IDEM/f1.err"
+out=$(FAKE_LIST_FAIL=1 GH_LOG="$CLOG" idem "Irgendein Titel" "B" "enhancement" 2>"$ERR"); rc=$?
+assert_exit 0 "$rc" "F1: Lookup-Fehler → fail-open, Issue trotzdem angelegt (exit 0)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "F1: fail-open → neue Nummer auf stdout"
+grep -q -- 'issue create' "$CLOG"; assert_true "$?" "F1: fail-open delegiert an reguläre Anlage"
+assert_true "$([[ -s "$ERR" ]]; echo $?)" "F1: fail-open warnt auf stderr"
+
+# F3 – stdout-Hygiene bei Treffer: stdout ist AUSSCHLIESSLICH die Nummer, Hinweis auf stderr
+ERR="$TMP_IDEM/f3.err"
+out=$(FAKE_OPEN="$open_204" idem "Refactor foo bar" "B" "enhancement" 2>"$ERR")
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "F3: Treffer → stdout ist reine Nummer (kein Hinweistext)"
+assert_true "$([[ -s "$ERR" ]]; echo $?)" "F3: Treffer-Hinweis geht auf stderr, nicht stdout"
+
+# F1/FS1-Kaskade – gar kein gh: Lookup unmöglich (fail-open) → Delegation an create_issue,
+# das ohne gh fail-closed abbricht (exit ≠ 0). Netto entsteht kein Issue (korrekt).
+mkdir -p "$TMP_IDEM/empty"; ERR="$TMP_IDEM/nogh.err"
+out=$(env PATH="$TMP_IDEM/empty" "$(command -v bash)" -c 'source "$0"; create_issue_idempotent "T" "B" "enhancement"' "$SEAM_LIB" 2>"$ERR"); rc=$?
+assert_exit 1 "$rc" "F1/FS1: kein gh → fail-open-Lookup kaskadiert in fail-closed-Anlage (exit 1)"
+assert_true "$([[ -z "$out" ]]; echo $?)" "F1/FS1: kein gh → keine Nummer auf stdout"
+
+# AC4 – Retry-Idempotenz (Regressionsschutz): zwei Läufe mit identischem Titel.
+# Lauf 1: kein offenes Issue → legt an (#123). Lauf 2: das offene #123 existiert nun mit
+# demselben Titel → Treffer, KEINE zweite Anlage. Netto: genau eine Anlage.
+CLOG="$TMP_IDEM/ac4.create"; : > "$CLOG"
+run1=$(FAKE_OPEN="" GH_LOG="$CLOG" idem "Wiederkehrender Fund" "B" "enhancement" 2>/dev/null)
+open_123=$(printf '123\nWiederkehrender Fund\n')
+run2=$(FAKE_OPEN="$open_123" GH_LOG="$CLOG" idem "Wiederkehrender Fund" "B" "enhancement" 2>/dev/null)
+n_creates=$(grep -c -- 'issue create' "$CLOG")
+assert_true "$([[ "$run1" = "123" && "$run2" = "123" ]]; echo $?)" "AC4: beide Läufe liefern dieselbe Nummer (123)"
+assert_true "$([[ "$n_creates" -eq 1 ]]; echo $?)" "AC4: zwei Läufe, identischer Titel → genau EINE Anlage"
+
+# Bestandspfad unberührt: create_issue bleibt direkt nutzbar (Delegation ändert ihn nicht)
+CLOG="$TMP_IDEM/plain.create"; : > "$CLOG"
+out=$(PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" GH_LOG="$CLOG" \
+  bash -c 'source "$0"; create_issue "$@"' "$SEAM_LIB" "T" "B" "enhancement" 2>/dev/null)
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "Bestandspfad: create_issue weiterhin direkt nutzbar (unverändert)"
+
+# Lookup ohne FACTORY_REPO/REPO: der no-repo-Zweig der repo_args-Ableitung → kein --repo an
+# `gh issue list` (gh-Auto-Erkennung), der Treffer wird trotzdem gefunden.
+LLOG="$TMP_IDEM/norepo.list"; : > "$LLOG"
+out=$(PATH="$TMP_IDEM/bin:$PATH" FAKE_OPEN="$open_204" LIST_LOG="$LLOG" \
+  bash -c 'unset FACTORY_REPO REPO GITHUB_REPOSITORY; source "$0"; create_issue_idempotent "Refactor foo bar" "B" "enhancement"' \
+  "$SEAM_LIB" 2>/dev/null)
+assert_true "$([[ "$out" = "204" ]]; echo $?)" "Lookup: ohne FACTORY_REPO/REPO findet Treffer (gh-Auto, no-repo-Zweig)"
+assert_true "$(! grep -q -- '--repo' "$LLOG"; echo $?)" "Lookup: ohne Repo-Slug kein --repo an 'gh issue list'"
+
+# W3: Alle drei Pfade laufen als bloßer Aufruf unter `set -euo pipefail` durch – nicht nur der
+# Treffer-Pfad, sondern gerade die errexit-EMPFINDLICHEN No-Match- (while-read-Heredoc-Schleife)
+# und Fail-open-Pfade (`raw=$(…) || return 2`, `existing=$(…) || rc=$?`). Ein künftiger
+# errexit-Bruch dort würde stumm zum Retry-Duplikat führen – genau der #207-Fehlerfall.
+rc=$(PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_OPEN="$open_204" \
+  bash -c 'set -euo pipefail; source "$0"; create_issue_idempotent "Refactor foo bar" "B" "enhancement" >/dev/null; echo "$?"' \
+  "$SEAM_LIB" 2>/dev/null)
+assert_true "$([[ "$rc" = "0" ]]; echo $?)" "W3: Treffer-Pfad läuft unter set -euo pipefail durch (rc=0)"
+rc=$(PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_OPEN="" GH_LOG=/dev/null \
+  bash -c 'set -euo pipefail; source "$0"; create_issue_idempotent "Frischer Fund" "B" "enhancement" >/dev/null; echo "$?"' \
+  "$SEAM_LIB" 2>/dev/null)
+assert_true "$([[ "$rc" = "0" ]]; echo $?)" "W3: No-Match-Pfad läuft unter set -euo pipefail durch (rc=0)"
+rc=$(PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_LIST_FAIL=1 GH_LOG=/dev/null \
+  bash -c 'set -euo pipefail; source "$0"; create_issue_idempotent "Frischer Fund" "B" "enhancement" >/dev/null; echo "$?"' \
+  "$SEAM_LIB" 2>/dev/null)
+assert_true "$([[ "$rc" = "0" ]]; echo $?)" "W3: Fail-open-Pfad läuft unter set -euo pipefail durch (rc=0)"
+
+# W4: F2 (Label-Degradation + fail-closed-Anlage) bleibt hinter dem Wrapper erhalten. No-Match →
+# Delegation an create_issue; ein abgelehntes Aspekt-Label degradiert auf nur-Art, das Issue
+# entsteht trotzdem (exit 0), stdout bleibt reine Nummer.
+CLOG="$TMP_IDEM/w4.create"; : > "$CLOG"; ERR="$TMP_IDEM/w4.err"
+out=$(FAKE_OPEN="" FAKE_BAD_LABEL="tech-debt" GH_LOG="$CLOG" idem "Frischer Fund" "B" "enhancement" "tech-debt" 2>"$ERR"); rc=$?
+assert_exit 0 "$rc" "W4: abgelehntes Aspekt-Label über Wrapper → Issue trotzdem (exit 0, Degradation)"
+assert_true "$([[ "$out" = "123" ]]; echo $?)" "W4: Degradation über Wrapper → stdout bleibt reine Nummer"
+tail -n1 "$CLOG" | grep -q -- '--label enhancement'; assert_true "$?" "W4: Fallback-Anlage trägt das Art-Label (enhancement)"
+assert_true "$(! tail -n1 "$CLOG" | grep -q -- 'tech-debt'; echo $?)" "W4: Fallback-Anlage trägt das abgelehnte Aspekt-Label NICHT mehr"
+
+rm -rf "$TMP_IDEM"
+
+# AC6 – Geltungsbereich: die Bestands-Aufrufer nutzen NICHT den Idempotenz-Wrapper
+assert_true "$(! grep -qE 'create_issue_idempotent' "$SCRIPTS_DIR/start-work.sh"; echo $?)" \
+  "AC6: start-work.sh nutzt den Idempotenz-Wrapper NICHT (unverändert)"
+assert_true "$(! grep -qE 'create_issue_idempotent' "$SCRIPTS_DIR/sync-issues.sh"; echo $?)" \
+  "AC6: sync-issues.sh nutzt den Idempotenz-Wrapper NICHT (unverändert)"
+
+# #207: die drei autonomen Pipeline-Skills rufen den Idempotenz-Wrapper auf
+for sk in codify review security-review; do
+  grep -q 'create_issue_idempotent' "$FACTORY_ROOT/.claude/commands/$sk.md"
+  assert_true "$?" "#207: /$sk-Skill nutzt create_issue_idempotent (Retry-Duplikat-Guard)"
+done
+
 # ── Aufrufer nutzen den Seam (kein eigenes 'gh issue create' mehr) ───────────
 assert_true "$(! grep -qE 'gh issue create' "$SCRIPTS_DIR/start-work.sh"; echo $?)" \
   "#82: start-work.sh enthält kein eigenes 'gh issue create' mehr (nutzt Seam)"

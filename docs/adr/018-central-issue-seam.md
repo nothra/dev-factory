@@ -3,6 +3,11 @@
 ## Status
 Accepted
 
+> **Erweitert durch [ADR-040](040-idempotenter-issue-seam-fuer-pipeline-retries.md)** (#207): der
+> Seam bekommt eine opt-in-Idempotenz-Variante `create_issue_idempotent` daneben (offener
+> Titel-Treffer → keine Duplikat-Anlage bei Pipeline-Retries). `create_issue` selbst bleibt
+> unverändert.
+
 ## Datum
 2026-07-12
 

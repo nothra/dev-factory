@@ -71,7 +71,7 @@ GitHub-Issue. Lege es autonom über den zentralen Seam an – statt es nur zu ve
 
 ```bash
 . scripts/lib/create-issue.sh
-create_issue "<Titel im Imperativ>" "<Kontext: Datei:Zeile, warum eigener Task>" enhancement "tech-debt,test"
+create_issue_idempotent "<Titel im Imperativ>" "<Kontext: Datei:Zeile, warum eigener Task>" enhancement "tech-debt,test"
 ```
 
 **Genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**

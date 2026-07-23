@@ -158,6 +158,29 @@ Abschluss von `/test` den Coverage-Report (`pnpm vitest run --coverage`) gezielt
 neu verkabelten Callbacks prüfen, nicht nur auf die Gesamt-Prozentzahl – ein Review-„Positiv", das
 nur den Code liest, ersetzt diesen Beleg nicht.
 
+### Strict-mode-/Umgebungs-Kontrakt-Tests gehören auf die Fehler-/No-Match-Zweige, nicht den Happy-Path (aus #207, Review-Finding W3)
+
+`create_issue_idempotent` (Bash-Seam) bekam in der ersten `/implement`-Runde **einen**
+`set -euo pipefail`-Regressionstest – ausgerechnet auf dem **Treffer-Pfad**, der früh via
+`return 0` zurückkehrt und gar keine errexit-empfindlichen Konstrukte durchläuft. Die tatsächlich
+riskanten Stellen (`raw=$(gh …) || return 2`, `existing=$(…) || rc=$?`, die `while read`-Schleife)
+liegen im **No-Match-** und **Fail-open-Zweig**. Der grüne Test belegte strict-mode-Sicherheit also
+genau dort, wo am wenigsten schiefgehen kann. Erst im Review (W3) aufgefallen. Failure-Klasse: ein
+späterer errexit-Bruch im No-Match-Pfad → die Funktion liefert nichts auf stdout → der Aufrufer
+wertet das als Fehler → Retry → genau das Duplikat, das die Funktion verhindern soll; der grüne
+Happy-Path-Test bemerkt es nicht.
+
+**Smell:** „Mein `set -euo pipefail`-/Umgebungs-Test läuft über den Happy-Path, der früh
+zurückkehrt – durchläuft er auch den Zweig mit `$(…) || return`, die `while read`-Schleife, die
+Delegation?" Wenn nein, ist der riskante Pfad unter strict mode ungetestet.
+
+**Regel:** Verifiziert ein Test einen Umgebungs-/Shell-Kontrakt (`set -euo pipefail`, `set -u`,
+IFS-Verhalten), muss er **jeden** Zweig durchlaufen, in dem errexit-/nounset-empfindliche
+Konstrukte stehen (`x=$(…) || return`, `while read … done < …`, ungeprüfte Pipes, Array-Expansion
+unter `set -u`) – insbesondere die **Fehler-/No-Match-/Fail-open-Zweige**, nicht nur den
+früh-returnenden Treffer-Pfad. Faustregel: je Kontrakt-Zweig ein eigener strict-mode-Durchlauf. Der
+Happy-Path ist fast nie der Zweig, an dem strict mode zuschlägt.
+
 ### Spiegel-/Symmetrie-Akzeptanzkriterien: beide Richtungen explizit assertieren (aus #211, Review-Runde-1-Finding)
 
 #211 hatte für den Security-Anker eine Assertion in der einen Richtung (AK4: Verdict-Zeile

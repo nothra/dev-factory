@@ -67,7 +67,7 @@ angrenzendes System, Backlog-würdig), gehört in ein eigenes GitHub-Issue. Lege
 
 ```bash
 . scripts/lib/create-issue.sh
-create_issue "<Titel im Imperativ>" "<Kontext: Kategorie, Angriffsfläche, warum eigener Task>" enhancement "security"
+create_issue_idempotent "<Titel im Imperativ>" "<Kontext: Kategorie, Angriffsfläche, warum eigener Task>" enhancement "security"
 ```
 
 **Genau ein Art-Label** (`bug` bei aktivem Defekt, sonst `enhancement`) + Aspekt-Label

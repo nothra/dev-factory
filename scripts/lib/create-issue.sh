@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # create-issue.sh – sourcebare Bibliothek: zentraler Seam für die Issue-Anlage (ADR-018).
 #
-# Diese Datei wird per `source`/`.` eingebunden und stellt EINE Funktion bereit:
+# Diese Datei wird per `source`/`.` eingebunden und stellt ZWEI öffentliche Funktionen bereit:
 #
 #   create_issue <title> <body> <art-label> [aspekt-csv]
 #     → legt ein GitHub-Issue an, setzt Art-Label + optionale Aspekt-Labels
@@ -9,6 +9,13 @@
 #     → alle Warnungen/Diagnostik gehen auf stderr, damit `num=$(create_issue …)`
 #       ausschließlich die reine Nummer erhält (stdout-Hygiene, ADR-018 §2)
 #     → Exit ≠ 0 nur, wenn gar kein Issue entsteht (fail-closed auf die Anlage)
+#
+#   create_issue_idempotent <title> <body> <art-label> [aspekt-csv]   (ADR-040, #207)
+#     → opt-in-Idempotenz-Variante NUR für die autonomen Pipeline-Aufrufer (`/codify`,
+#       `/review`, `/security-review`): findet ein OFFENES Issue mit exakt gleichem Titel →
+#       dessen Nummer auf stdout (keine Anlage), sonst DELEGATION an das unveränderte
+#       `create_issue`. Gleiche Signatur + gleicher stdout/stderr-Kontrakt. Verhindert
+#       Duplikat-Issues, wenn ein gedächtnisloser Retry denselben Fund erneut anlegen würde.
 #
 # Label-Degradation (fail-open aufs Label, ADR-018 §3) – das verpflichtende Art-Label
 # wird nie durch ein fehlendes Aspekt-Label mitgerissen:
@@ -145,4 +152,76 @@ create_issue() {
 
   echo "create_issue: Issue-Anlage fehlgeschlagen (keine Issue-Nummer erhalten)." >&2
   return 1
+}
+
+# _cri_find_open_issue_by_title <title> – sucht ein OFFENES Issue mit EXAKT gleichem Titel.
+# Kontrakt über den Exit-Code (der Aufrufer unterscheidet Treffer / kein Treffer / fail-open):
+#   0 → Treffer: die (bei mehreren exakten Treffern niedrigste/älteste) Nummer auf stdout
+#   1 → kein Treffer (Lookup lief, nichts passte exakt)
+#   2 → Lookup nicht durchführbar (kein gh / gh-Fehler) → Aufrufer geht fail-open
+#
+# Die `--search "in:title …"`-Abfrage ist eine Volltext-/Teilstring-Suche und verengt nur die
+# Kandidatenmenge (ADR-040 §3); der EXAKTE Abgleich erfolgt clientseitig in der Shell. Genutzt
+# wird die in `gh` eingebettete JSON-Projektion (`-q '.[] | .number, .title'`, je Kandidat
+# Nummer- und Titel-Zeile) – keine externe `jq`-Abhängigkeit.
+_cri_find_open_issue_by_title() {
+  local title="$1"
+  command -v gh >/dev/null 2>&1 || return 2
+
+  local repo="${FACTORY_REPO:-${REPO:-}}"
+  local -a repo_args=()
+  [ -n "$repo" ] && repo_args=(--repo "$repo")
+
+  # --limit 100: die `in:title`-Suche verengt bereits stark; sollten >100 offene Issues denselben
+  # Titel-Teilstring tragen, ist ein übersehener älterer Treffer unkritisch (fail-open-Richtung:
+  # höchstens ein Duplikat, nie ein verlorener Fund) – der frisch angelegte Retry-Kandidat ist
+  # ohnehin der neueste und damit stets in der Menge.
+  local raw
+  raw=$(gh issue list ${repo_args[@]+"${repo_args[@]}"} \
+          --state open --search "in:title $title" --limit 100 \
+          --json number,title -q '.[] | .number, .title' 2>/dev/null) || return 2
+
+  # Kandidaten paarweise lesen (Nummer-Zeile, dann Titel-Zeile) und clientseitig EXAKT
+  # vergleichen. Issue-Titel sind einzeilig, daher ist das Zeilenpaar eindeutig.
+  local best="" num="" cand_title expect_num=1 line
+  while IFS= read -r line; do
+    if [ -n "$expect_num" ]; then
+      num="$line"; expect_num=""
+      continue
+    fi
+    cand_title="$line"; expect_num=1
+    [ "$cand_title" = "$title" ] || continue
+    case "$num" in
+      ''|*[!0-9]*) : ;;                          # keine reine Nummer → überspringen
+      *) if [ -z "$best" ] || [ "$num" -lt "$best" ]; then best="$num"; fi ;;
+    esac
+  done <<<"$raw"
+
+  [ -n "$best" ] || return 1
+  printf '%s\n' "$best"
+}
+
+# create_issue_idempotent <title> <body> <art-label> [aspekt-csv]
+# Idempotente Variante des Seams (ADR-040) – nur für die autonomen Pipeline-Aufrufer
+# (`/codify`, `/review`, `/security-review`), damit ein Retry ohne Gedächtnis denselben
+# Out-of-Scope-Fund nicht doppelt als Issue anlegt. Findet ein OFFENES Issue mit exakt gleichem
+# Titel → dessen Nummer auf stdout (Exit 0, keine Anlage); sonst DELEGIERT sie unverändert an
+# `create_issue`. Der stdout/stderr-Kontrakt (nur die Nummer auf stdout) bleibt unverändert.
+create_issue_idempotent() {
+  local title="$1" body="$2" art_label="${3:-}" aspect_csv="${4:-}"
+
+  local existing rc=0
+  existing=$(_cri_find_open_issue_by_title "$title") || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "create_issue_idempotent: offenes Issue #$existing mit exakt gleichem Titel gefunden – lege kein Duplikat an." >&2
+    printf '%s\n' "$existing"
+    return 0
+  fi
+  if [ "$rc" -eq 2 ]; then
+    # fail-open (ADR-040 §4, konsistent mit der Label-Degradation): ein seltenes Duplikat
+    # ist akzeptabler als ein verlorener Fund. Die Anlage selbst bleibt fail-closed.
+    echo "create_issue_idempotent: Duplikat-Prüfung nicht durchführbar (gh-Lookup fehlgeschlagen) – lege regulär an (fail-open)." >&2
+  fi
+
+  create_issue "$title" "$body" "$art_label" "$aspect_csv"
 }

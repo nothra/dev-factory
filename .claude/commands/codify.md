@@ -56,7 +56,7 @@ Härtung), lege es über den zentralen Seam an – statt es nur im Report zu ver
 
 ```bash
 . scripts/lib/create-issue.sh
-create_issue "<Titel im Imperativ>" "<Kontext: warum, woraus>" enhancement "tech-debt"
+create_issue_idempotent "<Titel im Imperativ>" "<Kontext: warum, woraus>" enhancement "tech-debt"
 ```
 
 Konvention (kanonisch in `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels"):

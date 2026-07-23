@@ -55,3 +55,24 @@ für jeden Input**, der in dieselbe Vergleichs-/Rechenoperation fließt – sons
 über den ungeprüften Zweig. Die Guard-Klausel je Input duplizieren (`case "$x" in ''|*[!0-9]*) …`),
 nicht nur für den „offensichtlich unsicheren" Wert. Jeder Guard bekommt zudem einen eigenen Test
 (vgl. `testing-standards.md`).
+
+### Zähl-/Aufzählungs-nennender Modul-Header wird beim Hinzufügen einer Einheit zur Lüge (aus #207, Review-Finding W1)
+
+Der Datei-Header von `scripts/lib/create-issue.sh` lautete „Diese Datei … stellt **EINE** Funktion
+bereit:" und dokumentierte nur `create_issue`. Beim Hinzufügen der zweiten öffentlichen Funktion
+`create_issue_idempotent` (#207) blieb der Header unverändert – er verschwieg die neue Funktion und
+behauptete eine falsche Anzahl. Erst im Clean-Code-Review (W1) aufgefallen. Der Reflex ist, unten die
+neue Funktion samt Doc-Kommentar zu ergänzen und den zusammenfassenden Header oben als „allgemeine
+Einleitung" zu übersehen.
+
+**Smell:** „Nennt der Modul-/Datei-Header eine **Anzahl** oder **Aufzählung** seiner öffentlichen
+Einheiten (‚stellt EINE Funktion bereit', ‚die drei Helfer', ‚exportiert X und Y') – und füge ich
+gerade eine weitere Einheit hinzu (oder entferne eine)?" Dann ist der Header Teil des Diffs.
+
+**Regel:** Ein Header/Docstring, der Menge oder Anzahl der öffentlichen Einheiten eines Moduls
+benennt, ist Teil des Vertrags und wird beim Hinzufügen/Entfernen einer Einheit **im selben Commit**
+mitgepflegt (Zahlwort **und** Aufzählungsblock). Wo möglich, solche Header **zählungsfrei**
+formulieren (z. B. „stellt folgende Funktionen bereit:"), damit sie nicht bei jeder Erweiterung
+nachgezogen werden müssen. Dieselbe Drift-Klasse wie die ADR-Mechanik-Regel (#211/#55: eine
+Code-Änderung, die eine beschreibende Doku betrifft, pflegt die Doku im selben PR mit) – hier auf
+Modul-Docstring-Ebene statt ADR.
