@@ -64,9 +64,13 @@ Verbrauch niedrig, ohne die Qualität zu senken.
   das günstigste Modell, das die Aufgabe zuverlässig löst – aber bei teuren
   Fehlern (übersehene Bugs, Security) lohnt das stärkere Modell, weil ein Miss
   teurer ist als der Token-Aufpreis.
-  Welche Modelle den Tiers zugeordnet sind, ist **kanonisch** in
-  `scripts/run-pipeline.sh` (Defaults) und `README.md` (Tier-Tabelle) definiert –
-  dort nachschlagen statt hier zu duplizieren.
+  Welche Modelle den Tiers zugeordnet sind und welcher Skill welches Tier fährt,
+  ist **kanonisch** in `factory.defaults.yml` definiert (`model_tiers` +
+  `skills.*.tier`, geschichtet per `factory.config.yml`, ADR-009) – dort
+  nachschlagen statt hier zu duplizieren. `review`/`implement`/`bug-fix` wählen
+  das Tier zudem **größenabhängig** (`skills.*.tier_by_size`, ADR-038): kleiner
+  Lauf → günstiges Tier, großer → starkes; bei unbestimmbarer Größe fällt es
+  fail-safe auf das starke Tier zurück.
 - **Turn-Limits:** pro Skill begrenzt (`get_max_turns`) – verhindert ausufernde
   Agenten-Loops.
 - **`--dry-run`:** Ablauf und geplante Aufrufe prüfen, bevor echte Token fließen.

@@ -37,3 +37,21 @@ Review hinterfragen und umbenennen (kostet 1 Datei + Imports). Landet später me
 das keine gemeinsame Verantwortung teilt, ist das ein Zeichen, es aufzuteilen, nicht ein
 `utils` zu rechtfertigen.
 
+
+### Fail-Safe/Guard symmetrisch auf ALLE Inputs einer Vergleichsoperation (aus #197, Review-Finding)
+
+`select_tier(size, threshold, fallback)` sicherte zunächst nur `size` gegen „nicht bestimmbar"
+(leer/nicht-numerisch → Fallback), nicht aber `threshold`. Bei nicht-numerischem `threshold` wird
+`[ "$size" -ge "$threshold" ]` falsy → stille Ausgabe `light` – also ein **stilles Downgrade** genau
+in der Fail-Safe-Linie, deren erklärter Zweck „nie still auf das schwächere Modell" ist. Real nur
+erreichbar, wenn ein anderer Guard (hier das Config-Gate) umgangen wird – aber der eine abgesicherte
+Input erweckt den Eindruck durchgängiger Absicherung, den der zweite bricht.
+
+**Smell:** „Ich fange Input A gegen den Unbestimmbarkeits-Fall ab – speist die kritische Operation
+(`-ge`, `-lt`, Division …) noch einen zweiten Input B, der denselben Fall auslösen kann?"
+
+**Regel:** Trägt eine Funktion einen Fail-Safe für „Input nicht bestimmbar", gilt er **symmetrisch
+für jeden Input**, der in dieselbe Vergleichs-/Rechenoperation fließt – sonst leckt die Invariante
+über den ungeprüften Zweig. Die Guard-Klausel je Input duplizieren (`case "$x" in ''|*[!0-9]*) …`),
+nicht nur für den „offensichtlich unsicheren" Wert. Jeder Guard bekommt zudem einen eigenen Test
+(vgl. `testing-standards.md`).

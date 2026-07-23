@@ -387,3 +387,18 @@ Vertippern ein – und das AC „verlustfrei" ist dann nur behauptet, nicht bele
 Verwandt mit dem #144-Terminologie-Sweep (zweifach verifizieren), aber der Auslöser ist hier eine
 **Verschiebung** großer Blöcke – der entscheidende Beleg ist die Byte-Reconstruction gegen
 `origin/main`, nicht ein Grep-Zähler allein.
+
+### ADR-Status beim Implementieren einer frisch erstellten ADR auf „Accepted" flippen (aus #197, Review-Finding)
+
+Wird eine ADR in Phase 1 (`/architecture`) mit Status `Proposed` angelegt und im selben Feature
+in Phase 2 (`/implement`) vollständig umgesetzt+getestet, bleibt sie leicht auf `Proposed` stehen –
+niemand „entscheidet" sie noch einmal bewusst. In #197 fiel das erst im Review auf: ADR-038 war
+merge-reif umgesetzt, trug aber weiter `Proposed`, während alle anderen umgesetzten ADRs im Repo
+(009, 011, 029, 037) `Accepted` tragen → Status-Konventions-Drift.
+
+**Smell:** „Die ADR beschreibt, was dieser PR gerade baut – steht ihr Status noch auf `Proposed`?"
+
+**Regel:** Realisiert der PR eine ADR (ob frisch in derselben Task erstellt oder bestehend), gehört
+ihr Status **im selben PR** auf `Accepted (<Datum>)`. `Proposed` bleibt nur, wenn die Entscheidung
+bewusst offen/ungebaut ist. Beim `/implement` mitprüfen, spätestens im `/review` (Runde Architektur)
+als Punkt „ADR-Status ↔ Umsetzungsstand konsistent?" – analog zum ADR-Drift-Check nach Review-Rework.

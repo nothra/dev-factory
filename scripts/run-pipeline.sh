@@ -37,6 +37,11 @@ NC='\033[0m'
 # shellcheck source=scripts/lib/report-verdict.sh
 source "$FACTORY_DIR/scripts/lib/report-verdict.sh"
 
+# Größenabhängige Tier-Wahl (ADR-038): measure_size/select_tier als reine, testbare
+# Funktionen ausgelagert – von get_model genutzt, im Test-Harness ohne claude-Lauf geprüft.
+# shellcheck source=scripts/lib/tier-select.sh
+source "$FACTORY_DIR/scripts/lib/tier-select.sh"
+
 # ─── Argumente prüfen ────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -112,15 +117,31 @@ get_max_turns() {
   cfg_skill_field "$1" max_turns
 }
 
+# get_model <skill> [task_id]
+# Reihenfolge (ADR-038): CLAUDE_MODEL-Override → tier_by_size (größenabhängig) →
+# statisches tier (Fail-Safe) → tier→Modell-Map. task_id wird nur für das proxy-Signal
+# (Spec-AK-Zahl) gebraucht; für diff genügt der Repo-Zustand.
 get_model() {
-  local skill="$1"
-  # Globaler Override: CLAUDE_MODEL setzt das Modell für ALLE Skills
+  local skill="$1" task_id="${2:-}"
+  # 1. Globaler Override: CLAUDE_MODEL setzt das Modell für ALLE Skills (sticht weiterhin).
   if [ -n "$CLAUDE_MODEL" ]; then
     echo "$CLAUDE_MODEL"
     return
   fi
-  # Sonst tier-gestuft (tier kommt aus der Config); tier→Modell über die Env-Tiers
-  case "$(cfg_skill_field "$skill" tier)" in
+  # Statischer Tier = Fail-Safe-Fallback (heute: heavy bei den dynamischen Skills).
+  local tier
+  tier="$(cfg_skill_field "$skill" tier)"
+  # 2. Größenabhängig, falls tier_by_size gesetzt ist (yq liefert "null"/"" wenn nicht).
+  local signal
+  signal="$(cfg_skill_field "$skill" tier_by_size.signal)"
+  if [ -n "$signal" ] && [ "$signal" != "null" ]; then
+    local threshold size
+    threshold="$(cfg_skill_field "$skill" tier_by_size.threshold)"
+    size="$(measure_size "$signal" "$task_id" "$FACTORY_DIR")"
+    tier="$(select_tier "$size" "$threshold" "$tier")"
+  fi
+  # 3. tier → Modell über die Env-Tiers.
+  case "$tier" in
     heavy) echo "$CLAUDE_MODEL_HEAVY" ;;
     *)     echo "$CLAUDE_MODEL_LIGHT" ;;
   esac
@@ -192,7 +213,7 @@ run_skill() {
   local task_id="$2"
   local turns="${MAX_TURNS:-$(get_max_turns "$skill")}"
   local model
-  model="$(get_model "$skill")"
+  model="$(get_model "$skill" "$task_id")"
   echo -e "${YELLOW}→ Starte: /${skill} ${task_id} (model: ${model}, max ${turns} turns)${NC}"
 
   if [ "$DRY_RUN" = true ]; then

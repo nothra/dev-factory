@@ -91,4 +91,23 @@ while IFS= read -r entry; do
   fi
 done < <(printf '%s' "$effective" | yq eval '(.skills | to_entries | .[] | .key + "=" + (.value.max_turns | tostring)), ("default=" + (.default.max_turns | tostring))' -)
 
+# 4c. tier_by_size (nur wo gesetzt, ADR-038): signal ∈ {diff, proxy}, threshold
+#     positiver Integer. Additiv zu 4a — das statische tier bleibt separat geprüft.
+#     Format je Zeile: <skill>=<signal>|<threshold> (fehlende Felder → "" bzw. "null"
+#     → fallen unten in die Integer-/Enum-Ablehnung, F3).
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  name="${entry%%=*}"; rest="${entry#*=}"
+  signal="${rest%%|*}"; threshold="${rest#*|}"
+  case "$signal" in
+    diff|proxy) ;;
+    *) fail "ungültiges tier_by_size.signal '$signal' bei '$name' (erlaubt: diff, proxy)." ;;
+  esac
+  case "$threshold" in
+    ''|*[!0-9]*) fail "tier_by_size.threshold bei '$name' ist kein positiver Integer: '$threshold'." ;;
+  esac
+  [ "$threshold" -ge 1 ] \
+    || fail "tier_by_size.threshold bei '$name' = $threshold muss >= 1 sein (Gate-Policy, ADR-038)."
+done < <(printf '%s' "$effective" | yq eval '.skills | to_entries | .[] | select(.value.tier_by_size) | .key + "=" + (.value.tier_by_size.signal // "") + "|" + (.value.tier_by_size.threshold | tostring)' -)
+
 exit 0

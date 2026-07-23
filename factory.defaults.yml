@@ -38,19 +38,38 @@ model_tiers:
   heavy: claude-opus-4-8      # CLAUDE_MODEL_HEAVY
   light: claude-sonnet-4-6    # CLAUDE_MODEL_LIGHT
 
-# Pro Skill: Tier (→ Modell) + max_turns (Kosten-Deckel). Werte = heutiger
-# Hardcode. Jeder Wert hat eine Begründung am Knopf — das ist der Sinn von YAML
-# statt JSON (ADR-009 #2).
+# Pro Skill: Tier (→ Modell) + max_turns (Kosten-Deckel). Jeder Wert hat eine
+# Begründung am Knopf — das ist der Sinn von YAML statt JSON (ADR-009 #2).
 # @reason: tier wählt das Modell pro Skill, max_turns deckelt die Kosten je Lauf —
 #   die zwei Knöpfe, die ein Team realistisch justiert.
 # @tradeoff: höheres tier / mehr max_turns = mehr Spielraum und Qualität, aber
 #   teurer pro Lauf; niedriger spart, kann aber Qualität kosten oder vorzeitig
 #   abbrechen.
+#
+# Größenabhängige Tier-Wahl (ADR-038): review/implement/bug-fix wählen das Tier
+# NICHT mehr pauschal, sondern je nach Größe des einzelnen Laufs über das optionale
+# Feld `tier_by_size`. Das statische `tier` bleibt daneben stehen und dient als
+# Fail-Safe: greift, wenn die Größe nicht bestimmbar ist (git-Fehler, fehlende Spec)
+# — dann läuft der teure Fall (heavy), nie ein stilles Downgrade auf light.
+# @reason: teure Modelle nur, wo der Aufwand sie rechtfertigt (kleiner Lauf → light,
+#   großer → heavy); Signal = Diff-Zeilen (review) bzw. AK-Zahl der Spec (implement/
+#   bug-fix, da der Diff bei der Modellwahl noch nicht existiert).
+# @tradeoff: Schwellwerte sind Richtwerte und kalibrierbar — zu niedrig wählt zu oft
+#   heavy (teurer), zu hoch lässt große Läufe auf light laufen (mehr Review-Runden).
 skills:
-  implement:       { tier: heavy, max_turns: 20 }  # @reason: TDD-Zyklen, schreibt Code → schweres Reasoning lohnt heavy.
-  review:          { tier: heavy, max_turns: 14 }  # @reason: Lese-Analyse über mehrere Personas; 8 riss bei mehrstufigen Reviews vor dem Verdict (Task 91).
-  security-review: { tier: heavy, max_turns: 14 }  # @reason: OWASP-Prüfung vor Merge; 8 riss vor dem Verdict-Report (Task 91).
-  bug-fix:         { tier: heavy, max_turns: 20 }  # @reason: wie implement: reproduzieren → fixen.
+  implement:
+    tier: heavy                                    # @reason: Fail-Safe, wenn die Proxy-Größe nicht bestimmbar ist (F2).
+    tier_by_size: { signal: proxy, threshold: 6 }  # @reason: AK-Zahl der Spec als Aufwand-Proxy; < 6 → light, >= 6 → heavy. @tradeoff: misst Spec-Detailtiefe, nicht garantiert Implementierungsaufwand (kalibrierbar, ADR-038).
+    max_turns: 20                                  # @reason: TDD-Zyklen, schreibt Code.
+  review:
+    tier: heavy                                    # @reason: Fail-Safe, wenn die Diff-Größe nicht bestimmbar ist (F1).
+    tier_by_size: { signal: diff, threshold: 150 } # @reason: reine Lese-Analyse, läuft pro Feature ggf. mehrfach → kleiner Diff (< 150 Zeilen) rechtfertigt light. @tradeoff: Richtwert ~150, kalibrierbar (ADR-038).
+    max_turns: 14                                  # @reason: Lese-Analyse über mehrere Personas; 8 riss bei mehrstufigen Reviews vor dem Verdict (Task 91).
+  bug-fix:
+    tier: heavy                                    # @reason: Fail-Safe, wenn die Proxy-Größe nicht bestimmbar ist (F2).
+    tier_by_size: { signal: proxy, threshold: 6 }  # @reason: wie implement (reproduzieren → fixen); Proxy = AK-Zahl der Spec.
+    max_turns: 20                                  # @reason: wie implement: reproduzieren → fixen.
+  security-review: { tier: heavy, max_turns: 14 }  # @reason: bewusst FIX heavy, KEIN tier_by_size — ein übersehenes Finding ist teurer als der Token-Aufpreis, unabhängig von der Diff-Größe (ADR-038, token-efficiency.md §6); 8 Turns rissen vor dem Verdict-Report (Task 91).
   test:            { tier: light, max_turns: 20 }  # @reason: Test-Suite vervollständigen, wenig schweres Reasoning.
   refactor:        { tier: light, max_turns: 20 }  # @reason: Clean-Code-Pass, kein neues Verhalten.
   codify:          { tier: light, max_turns: 8 }   # @reason: Learnings extrahieren.

@@ -159,6 +159,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$SCRIPTS_DIR/run-pipeline.sh" "$TMP_PF/scripts/"
   cp "$SCRIPTS_DIR/checks/config-validation-check.sh" "$TMP_PF/scripts/checks/"  # Gate-Abhängigkeit (ADR-010)
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
+  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_PF/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
   cp "$SCRIPTS_DIR/../factory.defaults.yml" "$TMP_PF/"   # run-pipeline liest sie (Phase 1b, ADR-009)
   bash "$TMP_PF/scripts/run-pipeline.sh" 55 --dry-run >/dev/null 2>&1 || true
   assert_true "$([[ ! -f "$TMP_PF/tasks/INTERRUPT-55.md" ]]; echo $?)" "Preflight entfernt Stale-Sentinel vor Pipeline-Start"
@@ -927,6 +928,7 @@ if [ "$HAS_YQ" = 1 ]; then
   TMP_CFG="$(mktemp -d)"; mkdir -p "$TMP_CFG/scripts/checks" "$TMP_CFG/scripts/lib" "$TMP_CFG/tasks" "$TMP_CFG/docs/factory"
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
+  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_CFG/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -947,6 +949,7 @@ if [ "$HAS_YQ" = 1 ]; then
   TMP_DRY91="$(mktemp -d)"; mkdir -p "$TMP_DRY91/scripts/checks" "$TMP_DRY91/scripts/lib" "$TMP_DRY91/tasks" "$TMP_DRY91/docs/factory"
   cp "$PIPELINE" "$TMP_DRY91/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_DRY91/scripts/checks/"; cp "$DEFAULTS" "$TMP_DRY91/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_DRY91/scripts/lib/"
+  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_DRY91/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
   echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
   printf 'VERDICT: APPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
@@ -1635,6 +1638,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_G101/scripts/"
   cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_G101/scripts/checks/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_G101/scripts/lib/"
+  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_G101/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
   cp "$DEFAULTS_YML" "$TMP_G101/"
   echo "# ctx" > "$TMP_G101/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_G101/.claude/commands/implement.md"
@@ -2073,6 +2077,177 @@ if [ "$HAS_YQ" = 1 ]; then
 else
   skip_yq "#173: deploy-freeze-release.yml bleibt valides YAML"
 fi
+
+# ─── #197: Größenabhängige Modell-Tier-Wahl (ADR-038) ────────────────────────
+echo ""
+echo "#197 Größenabhängige Modell-Tiers (ADR-038):"
+
+TIER_LIB="$SCRIPTS_DIR/lib/tier-select.sh"
+assert_true "$([[ -f "$TIER_LIB" ]]; echo $?)" "#197: scripts/lib/tier-select.sh vorhanden"
+
+# Reine Funktionen im Subshell testbar OHNE claude/yq (Kern der ADR-038-Testbarkeit).
+tsel()  { ( source "$TIER_LIB"; select_tier "$@" ); }
+msize() { ( source "$TIER_LIB"; measure_size "$@" ); }
+
+# select_tier: Schwellwert-Grenzen + Fail-Safe (F1/F2 = leere/nicht-numerische Größe → Fallback).
+assert_true "$([[ "$(tsel 149 150 heavy)" = "light" ]]; echo $?)" "#197 AK1: select_tier 149/150 → light (unter Schwelle)"
+assert_true "$([[ "$(tsel 150 150 heavy)" = "heavy" ]]; echo $?)" "#197 AK2: select_tier 150/150 → heavy (an Schwelle)"
+assert_true "$([[ "$(tsel 500 150 heavy)" = "heavy" ]]; echo $?)" "#197 AK2: select_tier 500/150 → heavy (über Schwelle)"
+assert_true "$([[ "$(tsel 5 6 heavy)"   = "light" ]]; echo $?)" "#197 AK4: select_tier 5/6 → light (Proxy unter Schwelle)"
+assert_true "$([[ "$(tsel 6 6 heavy)"   = "heavy" ]]; echo $?)" "#197 AK5: select_tier 6/6 → heavy (Proxy an Schwelle)"
+assert_true "$([[ "$(tsel '' 150 heavy)" = "heavy" ]]; echo $?)" "#197 F1/F2: leere Größe → Fail-Safe auf Fallback-Tier (heavy)"
+assert_true "$([[ "$(tsel abc 150 heavy)" = "heavy" ]]; echo $?)" "#197 F1/F2: nicht-numerische Größe → Fail-Safe (heavy)"
+assert_true "$([[ "$(tsel '' 150 light)" = "light" ]]; echo $?)" "#197: Fail-Safe respektiert den übergebenen Fallback-Tier"
+assert_true "$([[ "$(tsel 200 abc heavy)" = "heavy" ]]; echo $?)" "#197: nicht-numerische Schwelle → Fail-Safe (kein stilles Downgrade auf light)"
+
+# measure_size proxy: AK-Checkboxen im Abschnitt zählen; fehlende Spec/fehlender Abschnitt → leer.
+PXR="$(mktemp -d)"; mkdir -p "$PXR/docs/specs"
+printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [x] C\n## Weiter\n- [ ] nicht zaehlen\n' > "$PXR/docs/specs/spec-7-x.md"
+assert_true "$([[ "$(msize proxy 7 "$PXR")" = "3" ]]; echo $?)" "#197 AK4/AK5: measure_size proxy zählt genau die AK-Checkboxen (3)"
+printf '# Spec\n## Kontext\nkein AK-Abschnitt\n' > "$PXR/docs/specs/spec-8-x.md"
+assert_true "$([[ -z "$(msize proxy 8 "$PXR")" ]]; echo $?)" "#197 F2: fehlender AK-Abschnitt → leer (Fail-Safe)"
+printf '# Spec\n## Akzeptanzkriterien\n(noch keine Kriterien)\n' > "$PXR/docs/specs/spec-9-x.md"
+assert_true "$([[ "$(msize proxy 9 "$PXR")" = "0" ]]; echo $?)" "#197: Abschnitt vorhanden, 0 Checkboxen → 0 (nicht leer)"
+assert_true "$([[ -z "$(msize proxy 404 "$PXR")" ]]; echo $?)" "#197 F2: keine Spec-Datei → leer (Fail-Safe)"
+assert_true "$([[ -z "$(msize bogus 7 "$PXR")" ]]; echo $?)" "#197: unbekanntes Signal → leer (Fail-Safe)"
+rm -rf "$PXR"
+
+# measure_size diff: added+deleted gegen origin/main; misst NUR die Branch-eigenen Änderungen.
+DFR="$(mktemp -d)"
+git init -q --bare "$DFR/origin.git"
+git clone -q "$DFR/origin.git" "$DFR/work" 2>/dev/null
+printf 'base\n' > "$DFR/work/f.txt"
+git -C "$DFR/work" add .; git -C "$DFR/work" -c user.email=t@t -c user.name=t commit -q -m base
+git -C "$DFR/work" push -q origin HEAD:main 2>/dev/null
+git -C "$DFR/work" checkout -q -b feature/x
+printf 'a\nb\nc\n' >> "$DFR/work/f.txt"
+git -C "$DFR/work" add .; git -C "$DFR/work" -c user.email=t@t -c user.name=t commit -q -m small
+assert_true "$([[ "$(msize diff '' "$DFR/work")" = "3" ]]; echo $?)" "#197 AK1: measure_size diff summiert added+deleted der Branch-Commits (3)"
+# AK3: ein Fremd-Commit auf origin/main darf die Größe NICHT aufblähen (Drei-Punkt/Merge-Base).
+git clone -q "$DFR/origin.git" "$DFR/work2" 2>/dev/null
+git -C "$DFR/work2" checkout -q -B main origin/main
+seq 1 100 >> "$DFR/work2/f.txt"
+git -C "$DFR/work2" add .; git -C "$DFR/work2" -c user.email=t@t -c user.name=t commit -q -m fremd
+git -C "$DFR/work2" push -q origin main 2>/dev/null
+assert_true "$([[ "$(msize diff '' "$DFR/work")" = "3" ]]; echo $?)" "#197 AK3: Fremd-Commit auf origin/main bläht die Diff-Größe nicht auf (weiter 3)"
+# O4: Binärdatei (numstat "-") wird übersprungen → zählt nicht zur Größe (weiter 3, nicht mehr).
+printf '\x00\x01\x02\xff\x00\x10' > "$DFR/work/bin.dat"
+git -C "$DFR/work" add .; git -C "$DFR/work" -c user.email=t@t -c user.name=t commit -q -m binary
+assert_true "$([[ "$(msize diff '' "$DFR/work")" = "3" ]]; echo $?)" "#197 O4: Binärdatei wird bei der Diff-Größe übersprungen (weiter 3)"
+# F1: kein origin-Remote → git-Fehler → leer (Fail-Safe heavy).
+git init -q "$DFR/noremote"
+printf 'x\n' > "$DFR/noremote/f.txt"
+git -C "$DFR/noremote" add .; git -C "$DFR/noremote" -c user.email=t@t -c user.name=t commit -q -m init
+assert_true "$([[ -z "$(msize diff '' "$DFR/noremote")" ]]; echo $?)" "#197 F1: kein origin/main → measure_size diff leer (Fail-Safe)"
+rm -rf "$DFR"
+
+# End-to-End über run-pipeline --dry-run (nur mit yq, ADR-009-Prerequisite).
+if [ "$HAS_YQ" = 1 ]; then
+  # gemeinsames Scaffolding einer minimalen Pipeline-Repo-Kopie
+  _mk_pipe_repo() {
+    mkdir -p "$1/scripts/checks" "$1/scripts/lib" "$1/tasks" "$1/docs/factory" "$1/docs/specs"
+    cp "$PIPELINE" "$1/scripts/"
+    cp "$CHECKS_DIR/config-validation-check.sh" "$1/scripts/checks/"
+    cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" "$1/scripts/lib/"
+    cp "$DEFAULTS" "$1/"
+    echo "# ctx" > "$1/docs/factory/PROJECT-CONTEXT.md"
+  }
+
+  # E2E-1: review mit kleinem Diff → light; security-review + test bleiben; CLAUDE_MODEL sticht.
+  RVO="$(mktemp -d)"; RVW="$(mktemp -d)"
+  git init -q --bare "$RVO/origin.git"
+  _mk_pipe_repo "$RVW"
+  echo "# Task 3: review-tier" > "$RVW/tasks/task-3-review-tier.md"
+  printf 'VERDICT: APPROVED\n' > "$RVW/tasks/review-3.md"   # Review-Loop endet sofort
+  git -C "$RVW" init -q
+  git -C "$RVW" remote add origin "$RVO/origin.git"
+  git -C "$RVW" add .
+  git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m base
+  git -C "$RVW" push -q origin HEAD:main 2>/dev/null
+  git -C "$RVW" checkout -q -b feature/tier
+  printf 'x\ny\nz\n' >> "$RVW/tasks/task-3-review-tier.md"   # kleiner Diff (< 150)
+  git -C "$RVW" add .
+  git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m small
+  rv_out=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
+  printf '%s' "$rv_out" | grep -q '/review 3 (model: claude-sonnet-4-6, max 14 turns)'
+  assert_true "$?" "#197 AK1/AK3 (E2E): kleiner Diff → /review auf light (Basis origin/main)"
+  printf '%s' "$rv_out" | grep -q '/security-review 3 (model: claude-opus-4-8, max 14 turns)'
+  assert_true "$?" "#197 AK6 (E2E): /security-review immer heavy (kein tier_by_size)"
+  printf '%s' "$rv_out" | grep -q '/test 3 (model: claude-sonnet-4-6, max 20 turns)'
+  assert_true "$?" "#197 AK7 (E2E): übriger Skill /test bleibt light"
+  rv_ovr=$(CLAUDE_MODEL=my-forced-model bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
+  printf '%s' "$rv_ovr" | grep -q '/review 3 (model: my-forced-model'
+  assert_true "$?" "#197 AK10 (E2E): CLAUDE_MODEL-Override sticht die größenabhängige Wahl"
+  # AK2 (E2E, Symmetrie zum proxy-Signal): großer Diff (>= 150) → /review auf heavy.
+  seq 1 200 >> "$RVW/tasks/task-3-review-tier.md"
+  git -C "$RVW" add .
+  git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m big
+  rv_big=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
+  printf '%s' "$rv_big" | grep -q '/review 3 (model: claude-opus-4-8, max 14 turns)'
+  assert_true "$?" "#197 AK2 (E2E): großer Diff (>= 150) → /review auf heavy"
+  rm -rf "$RVO" "$RVW"
+
+  # E2E-2: implement-Proxy klein (<6) → light, groß (>=6) → heavy.
+  IMS="$(mktemp -d)"; _mk_pipe_repo "$IMS"
+  echo "# Task 4: small" > "$IMS/tasks/task-4-small.md"
+  printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n## Weiter\n- [ ] x\n' > "$IMS/docs/specs/spec-4-small.md"
+  git -C "$IMS" init -q; git -C "$IMS" add .; git -C "$IMS" -c user.email=t@t -c user.name=t commit -q -m init
+  ims_out=$(bash "$IMS/scripts/run-pipeline.sh" 4 --dry-run 2>&1 || true)
+  printf '%s' "$ims_out" | grep -q '/implement 4 (model: claude-sonnet-4-6, max 20 turns)'
+  assert_true "$?" "#197 AK4 (E2E): kleiner Proxy (3 AK < 6) → /implement auf light"
+  rm -rf "$IMS"
+
+  IML="$(mktemp -d)"; _mk_pipe_repo "$IML"
+  echo "# Task 5: large" > "$IML/tasks/task-5-large.md"
+  printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n- [ ] G\n- [ ] H\n' > "$IML/docs/specs/spec-5-large.md"
+  git -C "$IML" init -q; git -C "$IML" add .; git -C "$IML" -c user.email=t@t -c user.name=t commit -q -m init
+  iml_out=$(bash "$IML/scripts/run-pipeline.sh" 5 --dry-run 2>&1 || true)
+  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-4-8, max 20 turns)'
+  assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy"
+  rm -rf "$IML"
+
+  # AK9 + F3: Config-Gate akzeptiert reale tier_by_size-Defaults, lehnt ungültige Werte ab.
+  G4="$(mktemp -d)"
+  bash "$GATE" "$DEFAULTS" >/dev/null 2>&1
+  assert_true "$?" "#197 AK9: Defaults mit tier_by_size bestehen das Config-Gate (Regel 4c)"
+  printf 'skills:\n  review: { tier_by_size: { threshold: 200 } }\n' > "$G4/ok.yml"
+  bash "$GATE" "$DEFAULTS" "$G4/ok.yml" >/dev/null 2>&1
+  assert_true "$?" "#197: Override justiert tier_by_size.threshold → exit 0"
+  printf 'skills:\n  review: { tier_by_size: { threshold: viele } }\n' > "$G4/nonint.yml"
+  bash "$GATE" "$DEFAULTS" "$G4/nonint.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "#197 F3: tier_by_size.threshold nicht-integer → fail-closed"
+  printf 'skills:\n  review: { tier_by_size: { threshold: 0 } }\n' > "$G4/zero.yml"
+  bash "$GATE" "$DEFAULTS" "$G4/zero.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "#197 F3: tier_by_size.threshold = 0 → fail-closed"
+  printf 'skills:\n  review: { tier_by_size: { signal: bogus } }\n' > "$G4/sig.yml"
+  bash "$GATE" "$DEFAULTS" "$G4/sig.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "#197 F3: ungültiges tier_by_size.signal → fail-closed"
+  rm -rf "$G4"
+
+  # AK7: übrige Skills + default bleiben light UND tragen KEIN tier_by_size (keine Tier-Änderung).
+  ak7_ok=0
+  for s in test refactor codify pr-shepherd requirements architecture release-notes; do
+    [ "$(yq ".skills.\"$s\".tier" "$DEFAULTS")" = "light" ] || ak7_ok=1
+    [ "$(yq ".skills.\"$s\" | has(\"tier_by_size\")" "$DEFAULTS")" = "false" ] || ak7_ok=1
+  done
+  [ "$(yq '.default.tier' "$DEFAULTS")" = "light" ] || ak7_ok=1
+  assert_true "$ak7_ok" "#197 AK7: test/refactor/codify/pr-shepherd/requirements/architecture/release-notes + default = light ohne tier_by_size"
+
+  # AK12: der provisorische implement-Tier-Override ist aufgelöst (kein .skills.implement.tier mehr).
+  if [ -f "$FACTORY_ROOT/factory.config.yml" ]; then
+    [ "$(yq '.skills.implement | has("tier")' "$FACTORY_ROOT/factory.config.yml")" = "false" ]
+    assert_true "$?" "#197 AK12: factory.config.yml führt kein statisches implement.tier mehr (Override aufgelöst)"
+  fi
+else
+  skip_yq "#197 End-to-End (run-pipeline get_model) + Config-Gate Regel 4c + AK7/AK12"
+fi
+
+# AK11 (yq-frei): token-efficiency.md §6 verweist auf die reale SSOT, nicht auf eine README-Tabelle.
+TOKEFF="$FACTORY_ROOT/docs/factory/guidelines/token-efficiency.md"
+grep -q 'factory.defaults.yml' "$TOKEFF"
+assert_true "$?" "#197 AK11: token-efficiency.md verweist auf die reale SSOT (factory.defaults.yml)"
+grep -q 'README.md (Tier-Tabelle)' "$TOKEFF"
+assert_true "$([ $? -ne 0 ]; echo $?)" "#197 AK11: veralteter README-Tier-Tabellen-Verweis ist entfernt"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
