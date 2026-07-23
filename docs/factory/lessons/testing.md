@@ -111,3 +111,25 @@ den zweiten Blick sichtbar war).
 in `run-tests.sh` finden (`grep -n 'cp .*lib/report-verdict.sh'` als Ankerpunkt – dort steht das
 Muster) und die neue Lib daneben mitkopieren. Danach die **volle** Suite laufen lassen, nicht nur
 die neuen Fälle – die Regression zeigt sich in fremden Tests, nicht in den eigenen.
+
+### Layout-Timing-Test-Stub (rAF) vor dem Neuschreiben im Verzeichnis suchen (aus #194, Review-Finding)
+
+`IdentityGate.test.tsx` (#194) schrieb denselben `requestAnimationFrame`-Capture-Stub
+(`rafCallbacks`-Array + `flushRaf()`) nochmal von Grund auf, den `FokusListe.test.tsx` bereits aus
+#188 für exakt dasselbe Problem (Fokus/Scroll erst im nächsten Frame nach einem layout-änderndem
+State-Wechsel) mitbrachte – im selben Verzeichnis (`app/theke/[token]/`). Der Reflow-Timing-Test
+selbst war korrekt; nur die Infrastruktur dafür wurde blind dupliziert statt wiederverwendet.
+Erst im Code-Qualität-Review aufgefallen, nicht in `/implement` – der Reflex ist, einen
+funktionierenden Test-Setup-Block aus Erinnerung zu reproduzieren statt im Zielverzeichnis danach
+zu suchen.
+
+**Smell:** „Schreibe ich gerade einen `beforeEach`, der `requestAnimationFrame`/`IntersectionObserver`
+o.ä. stubbt, um Layout-Timing zu testen?" → vor dem Schreiben `grep -rl "requestAnimationFrame"
+<gleiches-Verzeichnis>/*.test.tsx` prüfen, ob es den Stub schon gibt.
+
+**Regel:** Vor einem neuen Timing-/Browser-API-Stub (rAF, `IntersectionObserver`, `matchMedia` etc.)
+in einer Testdatei erst im **selben Feature-/Routen-Verzeichnis** nach einem bereits bestehenden
+Stub für dieselbe API suchen. Gibt es einen, in ein geteiltes Helper-Modul auslagern (z. B.
+`app/theke/[token]/raf-stub.ts`, exportiert eine `flush()`/`pendingCount()`-Factory) statt ihn zu
+kopieren – auch wenn nur zwei Testdateien ihn brauchen (kein Over-Engineering, da es sich um
+Test-Infrastruktur handelt, nicht um Produktionscode-Abstraktion).
