@@ -133,3 +133,27 @@ Stub für dieselbe API suchen. Gibt es einen, in ein geteiltes Helper-Modul ausl
 `app/theke/[token]/raf-stub.ts`, exportiert eine `flush()`/`pendingCount()`-Factory) statt ihn zu
 kopieren – auch wenn nur zwei Testdateien ihn brauchen (kein Over-Engineering, da es sich um
 Test-Infrastruktur handelt, nicht um Produktionscode-Abstraktion).
+
+### Callback-Prop nur durch Codelesen belegt ist keine Testabdeckung – Coverage-Report gegen jedes „Review-Positiv" gegenprüfen (aus #187, Test-Selbstfund)
+
+`IdentityGate` verkabelte den editierbaren Zweig mit
+`onFokusWechsel={(id) => writeZielId(token, id)}`. Reviews über drei Runden bewerteten das AC „F7
+merkt Ziel weiterhin geräte-lokal" als erfüllt – belegt durch **Codelesen** (die Zeile ist da, der
+Callback wird nur im editierbaren Zweig gesetzt). Kein Test tippte in der Fokus-Ansicht tatsächlich
+auf einen anderen Chip und prüfte `localStorage`. Erst `pnpm vitest run --coverage` markierte
+`IdentityGate.tsx:169` als **nicht** ausgeführt – die Arrow-Function wurde beim Rendern zwar
+*erzeugt*, aber ihr Rumpf (`writeZielId(...)`) nie *aufgerufen*, weil kein Test den Chip-Klick im
+schon-gemerkten Zustand simulierte.
+
+**Smell:** „Ist dieses AC nur durch **Lesen** der Verkabelung als erfüllt bewertet (Review-Positiv),
+oder gibt es einen Testfall, der den Callback tatsächlich **auslöst** und seine Wirkung prüft
+(hier: den geschriebenen `localStorage`-Wert)?" Bleibt die Antwort „nur gelesen", ist die Zeile
+ungetestet – unabhängig davon, wie plausibel die Verkabelung beim Lesen wirkt.
+
+**Regel:** Für jede inline verkabelte Callback-Prop (`onX={(arg) => sideEffect(arg)}`), die ein AC
+über Verkabelung (nicht über sichtbaren Render-Output) erfüllt, braucht es einen eigenen Testfall,
+der den auslösenden User-Event tatsächlich feuert und die **Wirkung** des Callback-Rumpfs prüft
+(Mock-Aufruf, `localStorage`-Wert, o. ä.) – nicht nur, dass die Komponente rendert. Vor dem
+Abschluss von `/test` den Coverage-Report (`pnpm vitest run --coverage`) gezielt auf die Zeilen der
+neu verkabelten Callbacks prüfen, nicht nur auf die Gesamt-Prozentzahl – ein Review-„Positiv", das
+nur den Code liest, ersetzt diesen Beleg nicht.
