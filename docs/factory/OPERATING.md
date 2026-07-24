@@ -318,6 +318,8 @@ Sentinel wird beim nächsten Lauf im Preflight entfernt, dann Pipeline neu start
 | `CI_FAILURE` | `/pr-shepherd` | CI rot, nicht selbst behebbar | Ursache fixen, CI grün, fortsetzen |
 | `APPROVAL_PENDING` | `/pr-shepherd` | Review-Approval fehlt | menschliches Approval einholen |
 | `POST_MERGE_FAIL` | `post-merge-verify.sh` | deployte Umgebung verhält sich falsch (CI-grün ≠ Prod-grün) | Deployment prüfen, ggf. Rollback, neu verifizieren |
+| `INCOMPLETE_OUTCOME` | `run-pipeline.sh` (Endzustands-Verifikation, ADR-040) | Lauf würde Erfolg melden, aber der reale Endzustand stimmt nicht (uncommittet/ungepusht, oder PR Draft bzw. weder gemergt noch Auto-Merge scharf) | realen Endzustand herstellen (pushen / PR aus Draft holen / Merge freigeben), dann neu starten |
+| `PUSH_GATE_BLOCKED` | `/pr-shepherd` | fremdes, den Push-Gate blockierendes getracktes Artefakt (z. B. versehentlich committete Coverage-Ausgaben) | Artefakt bewusst bereinigen/entfernen (kein autonomes `git rm --cached`), dann fortsetzen |
 
 Manuell einen Interrupt setzen (z. B. um einen Stage-3-Lauf gezielt anzuhalten):
 

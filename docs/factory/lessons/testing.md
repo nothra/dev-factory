@@ -201,3 +201,26 @@ eines bereits getesteten AK ist. Ein Wiring-/Abwesenheits-Guard (z. B. „das al
 verschwunden") belegt die Verkabelung, nicht das Laufzeitverhalten der Gegenrichtung; er ersetzt
 die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permissive Richtung
 („blockiert **nicht**") mindestens so wichtig zu testen wie die restriktive.
+
+### Deterministisches Gate/Backstop in einem Orchestrator-Skript braucht einen E2E-Verhaltenstest, nicht nur einen Wiring-Grep (aus #212, Review-Runde-2-Finding)
+
+#212 fügte `run-pipeline.sh` einen Endzustands-Verifikations-Backstop hinzu (Verletzung →
+`raise-interrupt INCOMPLETE_OUTCOME` → `exit 1`, sonst Erfolgs-Banner). Die reine Entscheidungslogik
+(`evaluate_final_state`) war gut unit-getestet, aber der **verdrahtete Pfad im Orchestrator** war
+zunächst nur per `grep` belegt („ruft `verify_final_state`", „enthält `INCOMPLETE_OUTCOME`",
+Reihenfolge-Guard). Damit war ausgerechnet die **Kern-Symptomatik** der Task („Skript meldet Erfolg
+trotz unverifiziertem Endzustand") end-to-end **ungetestet** – ein Wiring-Grep beweist, dass eine
+Zeile existiert, nicht, dass das Skript sich bei verletztem Endzustand richtig verhält.
+
+**Smell:** „Der neue Gate-/Abbruch-Pfad in meinem Bash-Orchestrator ist nur durch `grep` auf die
+Verdrahtung abgesichert – wird der Zweig (Erfolg unterdrückt, Non-Zero-Exit, Log-Eintrag) je
+tatsächlich **ausgeführt**?"
+
+**Regel:** Für ein neues deterministisches Gate/Backstop in einem Orchestrator-Skript einen
+**E2E-Verhaltenstest** schreiben, der den Zweig echt durchläuft: das Skript in einem Temp-Repo mit
+gestubbten Agenten-/Tool-Aufrufen (`claude`/`gh` als PATH-Shim, no-op) starten, den realen
+Terminalzustand herstellen (hier: ein ungepushter Commit) und Exit-Code + Abwesenheit der
+Erfolgs-Ausgabe + den Log-/Interrupt-Effekt asserten – plus eine **Positiv-Gegenprobe** (sauberer
+Zustand → Erfolg), damit der Test nicht nur „scheitert immer" beweist. Ergänzt „Callback nur durch
+Codelesen belegt ist keine Testabdeckung" (#187) und „Reihenfolge-Guards: Kommando ≠ Prosa" (#114)
+um Orchestrator-Gates.

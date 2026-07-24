@@ -42,6 +42,12 @@ source "$FACTORY_DIR/scripts/lib/report-verdict.sh"
 # shellcheck source=scripts/lib/tier-select.sh
 source "$FACTORY_DIR/scripts/lib/tier-select.sh"
 
+# Deterministische Endzustands-Verifikation (ADR-040): evaluate_final_state/verify_final_state
+# als reine bzw. I/O-Funktion ausgelagert – agenten-signal-unabhängiger Backstop vor der
+# Erfolgs-Ausgabe. Im Test-Harness ohne echtes Repo/GitHub prüfbar (git/gh injizierbar).
+# shellcheck source=scripts/lib/verify-final-state.sh
+source "$FACTORY_DIR/scripts/lib/verify-final-state.sh"
+
 # ─── Argumente prüfen ────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -481,6 +487,29 @@ fi
 # ─── Abschluss ───────────────────────────────────────────────────────────────
 
 pipeline_summary "$TASK_ID" "$REVIEW_ITERATION"
+
+# ─── Endzustands-Verifikation (ADR-040) ──────────────────────────────────────
+# Deterministischer Backstop UNMITTELBAR vor der Erfolgs-Ausgabe: prüft den real
+# beobachteten Repo-/PR-Zustand (git/gh), nicht Report-Dateitext oder Skill-Exit-Codes.
+# Fail-closed – bei Verletzung/Unklarheit kein „Erfolg", sondern Interrupt (ADR-004-
+# Mechanik, Typ INCOMPLETE_OUTCOME → ehrliche Autonomie-Rate, ADR-006) + Non-Zero-Exit.
+# --dry-run überspringt die Verifikation (keine echten Skill-Läufe → kein realer Endzustand).
+if [ "$DRY_RUN" = true ]; then
+  echo -e "${BLUE}[DRY-RUN] Endzustands-Verifikation übersprungen${NC}"
+else
+  CURRENT_BRANCH="$(git -C "$FACTORY_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if ! FINAL_STATE_REASON="$(verify_final_state "$CURRENT_BRANCH" "${PR_SHEPHERD:-false}" "$FACTORY_DIR")"; then
+    echo ""
+    echo -e "${RED}✗ Endzustand nicht verifiziert:${NC} ${FINAL_STATE_REASON}"
+    bash "$FACTORY_DIR/scripts/raise-interrupt.sh" "$TASK_ID" INCOMPLETE_OUTCOME \
+      "$FINAL_STATE_REASON" \
+      "Realen Endzustand herstellen (Commits pushen / PR aus Draft holen / Merge freigeben), dann Pipeline erneut starten"
+    exit 1
+  fi
+  VERIFY_SCOPE="sauber, gepusht"
+  [ "${PR_SHEPHERD:-false}" = "true" ] && VERIFY_SCOPE="$VERIFY_SCOPE, PR merge-ready/gemergt"
+  echo -e "${GREEN}✓${NC} Endzustand verifiziert (${VERIFY_SCOPE})"
+fi
 
 echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║     Pipeline erfolgreich abgeschlossen ║${NC}"

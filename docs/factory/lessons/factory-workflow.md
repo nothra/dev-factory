@@ -425,3 +425,43 @@ Schon beim `/implement` mitpflegen: nach dem Umbau `grep -rn` in `docs/adr/` nac
 Symbol-/Mechanik-Namen (hier `grep -oE`, `tail -1`, Funktionsname), nicht erst im Review auffangen.
 Ergänzt #55 (das nur bei ADR-**Datei**-Änderungen triggert) um den Fall „Code-Änderung, die eine
 ADR beschreibt".
+
+### Test einer `.claude/**`-Patch-Lieferung prüft den Endzustand der committeten Live-Datei, nicht das Patch-Artefakt (aus #212, Review-Runde 1/3)
+
+`.claude/**` ist für den Agenten hard-denied → die Änderung kommt als `tasks/patch-<id>.diff`, den
+der Mensch anwendet und committet; der Patch wird danach entfernt (Lesson #145). Der Reflex, den
+zugehörigen Test „green nach apply" über das **Patch-Artefakt** zu belegen (`[ -f patch-<id>.diff ]`,
+`git apply --check`, Anwenden auf eine Temp-Kopie), ist eine Falle: Sobald der Fix ausgeliefert wird
+(`.claude/**`-Datei committet, `patch-<id>.diff` entfernt), scheitern genau diese Assertions – und
+der einzige „grüne" Zustand (Patch da, Änderung uncommittet) liefert den Fix **nie auf main**. Es
+gibt keinen auslieferbaren Endzustand, in dem Fix committet **und** Suite grün ist. In #212 lief die
+CI-Suite dadurch rot (2 Fehler), obwohl der inhaltliche Fix korrekt war (von drei Review-Runden
+unabhängig gefunden).
+
+**Smell:** „Prüft mein Test die **Existenz/Anwendbarkeit** von `patch-<id>.diff` oder das
+**Anwenden auf eine Temp-Kopie** – also einen Zustand, den die vorgeschriebene Pre-Merge-Bereinigung
+(#145) gerade auflöst?"
+
+**Regel:** Ein Test für eine `.claude/**`-Änderung asserted den **Endzustand** der committeten
+Live-Datei direkt (`grep -qF '<Marker>' "$SHEPHERD"` o. Ä.), nie das transiente Patch-Artefakt. Der
+Patch ist nur der **Liefer**-Mechanismus, nicht der Prüfgegenstand – so ist der Test nach
+Anwenden+Committen grün und übersteht das Entfernen von `patch-<id>.diff`. Die inhaltlichen
+Content-Assertions sind meist schon richtig gebaut; sie müssen nur gegen die Live-/committete Datei
+laufen statt gegen eine Temp-Kopie.
+
+### Neuer Interrupt-Typ → kanonische OPERATING.md-Interrupt-Tabelle mitpflegen (aus #212, Review-Finding)
+
+`raise-interrupt.sh` akzeptiert den Typ als **Freitext** – kein Gate erzwingt einen neuen Typ gegen
+eine Registry. Die einzige kanonische Registry ist die Interrupt-Typen-Tabelle in
+`docs/factory/OPERATING.md` (Präzedenz: ADR-007 trug dort `POST_MERGE_FAIL` nach). #212 führte zwei
+neue Typen ein (`INCOMPLETE_OUTCOME` in run-pipeline.sh, `PUSH_GATE_BLOCKED` in pr-shepherd.md) und
+vergaß beide zunächst in der Tabelle – Instanz der „kanonische Quellen mitpflegen"-Familie, hier
+ohne Gate, das es auffängt.
+
+**Smell:** „Rufe ich `raise-interrupt.sh <id> <TYP> …` mit einem Typ auf, der noch nicht in der
+OPERATING.md-Interrupt-Tabelle steht?"
+
+**Regel:** Jeder neu eingeführte Interrupt-Typ wird **im selben PR** in die Interrupt-Typen-Tabelle
+in `docs/factory/OPERATING.md` eingetragen (Typ · ausgelöst von · Bedeutung · was der Mensch tut).
+Selbstcheck: die Typen aus `grep -rhoE 'raise-interrupt\.sh [^ ]+ [A-Z_]+' scripts/ .claude/` gegen
+die Tabellen-Spalte abgleichen.

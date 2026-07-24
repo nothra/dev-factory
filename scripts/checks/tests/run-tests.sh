@@ -160,6 +160,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$SCRIPTS_DIR/checks/config-validation-check.sh" "$TMP_PF/scripts/checks/"  # Gate-Abhängigkeit (ADR-010)
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
   cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_PF/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
+  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
   cp "$SCRIPTS_DIR/../factory.defaults.yml" "$TMP_PF/"   # run-pipeline liest sie (Phase 1b, ADR-009)
   bash "$TMP_PF/scripts/run-pipeline.sh" 55 --dry-run >/dev/null 2>&1 || true
   assert_true "$([[ ! -f "$TMP_PF/tasks/INTERRUPT-55.md" ]]; echo $?)" "Preflight entfernt Stale-Sentinel vor Pipeline-Start"
@@ -1119,6 +1120,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
   cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_CFG/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
+  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -1140,6 +1142,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_DRY91/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_DRY91/scripts/checks/"; cp "$DEFAULTS" "$TMP_DRY91/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_DRY91/scripts/lib/"
   cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_DRY91/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
+  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_DRY91/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
   echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
   printf '## Empfehlung\nAPPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
@@ -1150,6 +1153,12 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$?" "#91: dry-run zeigt /review mit max 14 turns (Turn-Budget, Lücke 2)"
   printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-4-8, max 14 turns)'
   assert_true "$?" "#91: dry-run zeigt /security-review mit max 14 turns (Turn-Budget, Lücke 2)"
+  # #212 F4: --dry-run läuft bis zum Ende (APPROVED-Review) und markiert die Endzustands-
+  # Verifikation als übersprungen, statt sie auszuführen/abzubrechen.
+  printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
+  assert_true "$?" "#212 F4: --dry-run markiert Endzustands-Verifikation als übersprungen (kein Abbruch)"
+  printf '%s' "$dry91_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  assert_true "$?" "#212 F4: --dry-run erreicht die Erfolgs-Ausgabe (Verifikation blockiert nicht)"
   rm -rf "$TMP_DRY91"
 else
   skip_yq "YAML-Parse, Config-Werte (implement/codify/default) und End-to-End-Resolution"
@@ -1863,6 +1872,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_G101/scripts/checks/"
   cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_G101/scripts/lib/"
   cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_G101/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
+  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_G101/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
   cp "$DEFAULTS_YML" "$TMP_G101/"
   echo "# ctx" > "$TMP_G101/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_G101/.claude/commands/implement.md"
@@ -2372,7 +2382,8 @@ if [ "$HAS_YQ" = 1 ]; then
     mkdir -p "$1/scripts/checks" "$1/scripts/lib" "$1/tasks" "$1/docs/factory" "$1/docs/specs"
     cp "$PIPELINE" "$1/scripts/"
     cp "$CHECKS_DIR/config-validation-check.sh" "$1/scripts/checks/"
-    cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" "$1/scripts/lib/"
+    cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
+       "$SCRIPTS_DIR/lib/verify-final-state.sh" "$1/scripts/lib/"  # run-pipeline sourct verify-final-state.sh (ADR-040)
     cp "$DEFAULTS" "$1/"
     echo "# ctx" > "$1/docs/factory/PROJECT-CONTEXT.md"
   }
@@ -2472,6 +2483,260 @@ grep -q 'factory.defaults.yml' "$TOKEFF"
 assert_true "$?" "#197 AK11: token-efficiency.md verweist auf die reale SSOT (factory.defaults.yml)"
 grep -q 'README.md (Tier-Tabelle)' "$TOKEFF"
 assert_true "$([ $? -ne 0 ]; echo $?)" "#197 AK11: veralteter README-Tier-Tabellen-Verweis ist entfernt"
+
+# ─── #212: Endzustands-Verifikation (ADR-040) ────────────────────────────────
+echo ""
+echo "#212 evaluate_final_state (reine Entscheidung, ADR-040):"
+
+VFS_LIB="$SCRIPTS_DIR/lib/verify-final-state.sh"
+assert_true "$([[ -f "$VFS_LIB" ]]; echo $?)" "#212: scripts/lib/verify-final-state.sh vorhanden"
+# shellcheck source=/dev/null
+source "$VFS_LIB"
+
+# Signatur: evaluate_final_state <tree_status> <unpushed> <pr_shepherd> <pr_state> <is_draft> <auto_merge>
+efs()     { evaluate_final_state "$@" >/dev/null 2>&1; }   # nur Exit-Code
+efs_msg() { evaluate_final_state "$@" 2>/dev/null; }        # nur Reason (stdout)
+
+# AK2: sauber + gepusht, ohne PR_SHEPHERD → verifiziert (Erfolg)
+efs clean 0 false "" "" "";  assert_exit 0 "$?" "#212 AK2: sauber+gepusht (PR_SHEPHERD=false) → verifiziert (exit 0)"
+# AK1: ungepushte Commits → nicht verifiziert + gemeldeter Zustand
+efs clean 3 false "" "" "";  assert_exit 1 "$?" "#212 AK1: ungepushte Commits → nicht verifiziert (exit 1)"
+printf '%s' "$(efs_msg clean 3 false '' '' '')" | grep -q 'Ungepushte Commits'
+assert_true "$?" "#212 AK1: meldet 'Ungepushte Commits' als realen Zustand"
+# F3: uncommittete Änderungen (dirty) → nicht verifiziert
+efs dirty 0 false "" "" "";  assert_exit 1 "$?" "#212 F3: uncommittete Änderungen → nicht verifiziert (exit 1)"
+printf '%s' "$(efs_msg dirty 0 false '' '' '')" | grep -q 'Working Tree nicht sauber'
+assert_true "$?" "#212 F3: meldet 'Working Tree nicht sauber'"
+# F2: kein Upstream (nicht-numerischer unpushed) → fail-closed
+efs clean NO_UPSTREAM false "" "" ""; assert_exit 1 "$?" "#212 F2: kein Upstream → fail-closed nicht verifiziert"
+printf '%s' "$(efs_msg clean NO_UPSTREAM false '' '' '')" | grep -q 'Push-Zustand nicht verifizierbar'
+assert_true "$?" "#212 F2: meldet 'Push-Zustand nicht verifizierbar'"
+# AK3: PR_SHEPHERD, PR noch Draft → blockiert
+efs clean 0 true OPEN true none; assert_exit 1 "$?" "#212 AK3: Draft-PR (PR_SHEPHERD) → nicht verifiziert"
+printf '%s' "$(efs_msg clean 0 true OPEN true none)" | grep -q 'PR noch Draft'
+assert_true "$?" "#212 AK3: meldet 'PR noch Draft'"
+# AK4: PR_SHEPHERD, nicht Draft, aber weder gemergt noch Auto-Merge scharf → blockiert
+efs clean 0 true OPEN false none; assert_exit 1 "$?" "#212 AK4: weder gemergt noch Auto-Merge scharf → nicht verifiziert"
+printf '%s' "$(efs_msg clean 0 true OPEN false none)" | grep -q 'weder gemergt noch Auto-Merge'
+assert_true "$?" "#212 AK4: meldet 'weder gemergt noch Auto-Merge scharfgeschaltet'"
+# AK4-Edge: geschlossener, NICHT gemergter PR (pr_state=CLOSED) → blockiert (kein Sonderfall)
+efs clean 0 true CLOSED false none; assert_exit 1 "$?" "#212 AK4-Edge: geschlossener (nicht gemergter) PR → nicht verifiziert"
+# AK5: PR_SHEPHERD, nicht Draft, Auto-Merge scharf → verifiziert (Erfolg)
+efs clean 0 true OPEN false set;  assert_exit 0 "$?" "#212 AK5: Auto-Merge scharf → verifiziert (exit 0)"
+# AK6: PR_SHEPHERD, PR bereits MERGED → verifiziert (Erfolg)
+efs clean 0 true MERGED false none; assert_exit 0 "$?" "#212 AK6: PR MERGED → verifiziert (exit 0)"
+# F1: PR_SHEPHERD, gh nicht verwertbar (leerer pr_state) → fail-closed
+efs clean 0 true "" "" "";    assert_exit 1 "$?" "#212 F1: gh ohne verwertbaren PR-Zustand → fail-closed"
+printf '%s' "$(efs_msg clean 0 true '' '' '')" | grep -q 'PR-Zustand nicht verifizierbar'
+assert_true "$?" "#212 F1: meldet 'PR-Zustand nicht verifizierbar'"
+
+echo ""
+echo "#212 verify_final_state (I/O über echtes git + gestubbtes gh):"
+
+VFS_REPO="$(mktemp -d)"; VFS_ORIGIN="$(mktemp -d)"; mkdir -p "$VFS_REPO/bin"
+git init --bare -q "$VFS_ORIGIN"
+git -C "$VFS_REPO" init -q
+git -C "$VFS_REPO" -c init.defaultBranch=main symbolic-ref HEAD refs/heads/feature/x 2>/dev/null
+git -C "$VFS_REPO" config user.email t@t; git -C "$VFS_REPO" config user.name t
+printf 'hi\n' > "$VFS_REPO/f.txt"; git -C "$VFS_REPO" add .; git -C "$VFS_REPO" commit -q -m init
+git -C "$VFS_REPO" remote add origin "$VFS_ORIGIN"
+VFS_BR="$(git -C "$VFS_REPO" rev-parse --abbrev-ref HEAD)"
+git -C "$VFS_REPO" push -q origin "$VFS_BR"
+
+# Fakten neu erzeugen: schreibt einen gh-Stub, der genau eine TSV-Zeile ausgibt (isDraft state auto).
+# HINWEIS (Coverage-Loch, bewusst): Der Stub ignoriert die gh-Argumente und bildet die TSV fest
+# nach → der `-q '[.isDraft,.state,(.autoMergeRequest!=null)]|@tsv'`-Ausdruck in verify-final-state.sh
+# wird NICHT ausgeführt (kein echtes gh im Harness). Getestet ist nur das IFS-read-Mapping; die
+# gh-Filter-Semantik ist durch Codelesen abgesichert (siehe Kommentar an der Lib-Zeile).
+mkgh() { printf '#!/bin/sh\nprintf "%%s\\t%%s\\t%%s\\n" "%s" "%s" "%s"\n' "$1" "$2" "$3" > "$VFS_REPO/bin/gh"; chmod +x "$VFS_REPO/bin/gh"; }
+# gh-Stub, der scheitert (simuliert nicht verwertbaren Aufruf → F1)
+failgh() { printf '#!/bin/sh\nexit 1\n' > "$VFS_REPO/bin/gh"; chmod +x "$VFS_REPO/bin/gh"; }
+
+# Sauber + gepusht, PR_SHEPHERD=false → verifiziert
+verify_final_state "$VFS_BR" false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 0 "$?" "#212 I/O AK2: sauber+gepusht (false) → verifiziert (exit 0)"
+# Ein ungepushter Commit → nicht verifiziert
+printf 'more\n' >> "$VFS_REPO/f.txt"; git -C "$VFS_REPO" add .; git -C "$VFS_REPO" commit -q -m second
+verify_final_state "$VFS_BR" false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O AK1: ungepushter Commit → nicht verifiziert (exit 1)"
+git -C "$VFS_REPO" push -q origin "$VFS_BR"    # wieder sauber+gepusht
+# Dirty Working Tree → nicht verifiziert
+printf 'dirty\n' >> "$VFS_REPO/f.txt"
+verify_final_state "$VFS_BR" false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O F3: dirty Working Tree → nicht verifiziert (exit 1)"
+git -C "$VFS_REPO" checkout -q -- f.txt        # wieder sauber
+# Branch ohne origin-Tracking → fail-closed
+git -C "$VFS_REPO" checkout -q -b feature/no-upstream
+verify_final_state feature/no-upstream false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O F2: kein origin-Tracking → fail-closed (exit 1)"
+git -C "$VFS_REPO" checkout -q "$VFS_BR"
+# Detached HEAD (branch='HEAD') bzw. leerer Branch-Name → fail-closed, nie gegen origin/HEAD
+# (Default-Branch) auflösen (neuer Guard aus dem Review-Rework).
+verify_final_state HEAD false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O: detached HEAD (branch='HEAD') → fail-closed (exit 1)"
+verify_final_state "" false "$VFS_REPO" >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O: leerer Branch-Name → fail-closed (exit 1)"
+# PR_SHEPHERD=true über gh-Stub (PATH im Subshell exportiert → (cd && gh) findet den Stub)
+mkgh false OPEN true
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 0 "$?" "#212 I/O AK5: nicht Draft + Auto-Merge scharf → verifiziert (exit 0)"
+mkgh false MERGED false
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 0 "$?" "#212 I/O AK6: PR MERGED → verifiziert (exit 0)"
+mkgh false OPEN false
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O AK4: nicht Draft, weder gemergt noch Auto-Merge → nicht verifiziert (exit 1)"
+mkgh true OPEN false
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O AK3: Draft-PR → nicht verifiziert (exit 1)"
+failgh
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 1 "$?" "#212 I/O F1: gh-Aufruf scheitert → fail-closed (exit 1)"
+rm -rf "$VFS_REPO" "$VFS_ORIGIN"
+
+echo ""
+echo "#212 Pipeline-Wiring (run-pipeline.sh, ADR-040):"
+
+# Sourced die Lib und ruft die Verifikationsfunktion auf
+grep -q 'source .*lib/verify-final-state.sh' "$PIPELINE"
+assert_true "$?" "#212: run-pipeline.sh sourct verify-final-state.sh"
+grep -q 'verify_final_state' "$PIPELINE"
+assert_true "$?" "#212: run-pipeline.sh ruft verify_final_state auf"
+# Verletzung wird als Interrupt geloggt (Typ INCOMPLETE_OUTCOME, ADR-040 §3)
+grep -q 'INCOMPLETE_OUTCOME' "$PIPELINE"
+assert_true "$?" "#212: BLOCKED-Endzustand wird per raise-interrupt (INCOMPLETE_OUTCOME) geloggt"
+# Reihenfolge (Kommando, nicht Prosa): Verifikation steht VOR der Erfolgs-Ausgabe
+verify_line=$(grep -n 'verify_final_state' "$PIPELINE" | head -1 | cut -d: -f1)
+banner_line=$(grep -n 'Pipeline erfolgreich abgeschlossen' "$PIPELINE" | head -1 | cut -d: -f1)
+{ [ -n "$verify_line" ] && [ -n "$banner_line" ] && [ "$verify_line" -lt "$banner_line" ]; }
+assert_true "$?" "#212: Endzustands-Verifikation läuft VOR der Erfolgs-Ausgabe"
+# --dry-run überspringt die Verifikation (F4)
+grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen' "$PIPELINE"
+assert_true "$?" "#212 F4: --dry-run-Zweig überspringt die Verifikation"
+
+echo ""
+echo "#212 AK8: Interrupt-Sentinel stoppt Pipeline vor der Erfolgs-Ausgabe (Regressions-Guard):"
+if [ "$HAS_YQ" = 1 ]; then
+  TMP_INT="$(mktemp -d)"
+  mkdir -p "$TMP_INT/scripts/checks" "$TMP_INT/scripts/lib" "$TMP_INT/tasks" \
+           "$TMP_INT/docs/factory" "$TMP_INT/.claude/commands" "$TMP_INT/bin"
+  cp "$PIPELINE" "$TMP_INT/scripts/"
+  cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_INT/scripts/checks/"
+  cp "$SCRIPTS_DIR/raise-interrupt.sh" "$TMP_INT/scripts/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
+     "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_INT/scripts/lib/"
+  cp "$DEFAULTS_YML" "$TMP_INT/"
+  echo "# ctx" > "$TMP_INT/docs/factory/PROJECT-CONTEXT.md"
+  echo "# implement mock" > "$TMP_INT/.claude/commands/implement.md"
+  echo "# Task 77: interrupt" > "$TMP_INT/tasks/task-77-interrupt.md"
+  # Mock claude: signalisiert beim implement-Aufruf einen Interrupt (schreibt Sentinel), exit 0.
+  cat > "$TMP_INT/bin/claude" <<'CLEOF'
+#!/bin/sh
+FACTORY_DIR="$PWD" bash "$PWD/scripts/raise-interrupt.sh" 77 PUSH_GATE_BLOCKED \
+  "fremdes getracktes Artefakt blockiert den Push-Gate" >/dev/null 2>&1
+exit 0
+CLEOF
+  chmod +x "$TMP_INT/bin/claude"
+  git -C "$TMP_INT" init -q; git -C "$TMP_INT" add .
+  git -C "$TMP_INT" -c user.email=t@t -c user.name=t commit -q -m init
+  int_out=$(cd "$TMP_INT" && PATH="$TMP_INT/bin:$PATH" \
+    FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
+    bash "$TMP_INT/scripts/run-pipeline.sh" 77 2>&1); int_rc=$?
+  assert_true "$([[ "$int_rc" -ne 0 ]]; echo $?)" "#212 AK8: Interrupt-Sentinel → Non-Zero-Exit"
+  printf '%s' "$int_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  assert_true "$([ $? -ne 0 ]; echo $?)" "#212 AK8: Erfolgs-Ausgabe wird bei Interrupt NICHT erreicht"
+  grep -q 'PUSH_GATE_BLOCKED' "$TMP_INT/tasks/interrupt-log.jsonl" 2>/dev/null
+  assert_true "$?" "#212 AK8: Stopp-Grund (PUSH_GATE_BLOCKED) ist im interrupt-log protokolliert"
+  rm -rf "$TMP_INT"
+else
+  skip_yq "#212 AK8: Interrupt-Sentinel stoppt Pipeline"
+fi
+
+echo ""
+echo "#212 WICHTIG-3: Verifikations-Interrupt end-to-end (Kern-Symptomatik #212):"
+# Der neue Pfad „Endzustand verletzt → raise-interrupt INCOMPLETE_OUTCOME → exit 1" wird echt
+# ausgeführt (nicht nur grep-verifiziert): mock claude (no-op) durchläuft alle Phasen, kein
+# Sentinel, aber am Ende liegt ein ungepushter Commit → Verifikation blockiert den Erfolg.
+if [ "$HAS_YQ" = 1 ]; then
+  TMP_E2E="$(mktemp -d)"; TMP_E2E_ORIGIN="$(mktemp -d)"
+  mkdir -p "$TMP_E2E/scripts/checks" "$TMP_E2E/scripts/lib" "$TMP_E2E/tasks" \
+           "$TMP_E2E/docs/factory" "$TMP_E2E/.claude/commands" "$TMP_E2E/bin"
+  cp "$PIPELINE" "$TMP_E2E/scripts/"
+  cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_E2E/scripts/checks/"
+  cp "$SCRIPTS_DIR/raise-interrupt.sh" "$TMP_E2E/scripts/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
+     "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_E2E/scripts/lib/"
+  cp "$DEFAULTS_YML" "$TMP_E2E/"
+  echo "# ctx" > "$TMP_E2E/docs/factory/PROJECT-CONTEXT.md"
+  for s in implement review test refactor security-review codify; do
+    echo "# $s mock" > "$TMP_E2E/.claude/commands/$s.md"
+  done
+  echo "# Task 78: e2e" > "$TMP_E2E/tasks/task-78-e2e.md"
+  printf '## Empfehlung\nAPPROVED\n' > "$TMP_E2E/tasks/review-78.md"   # Review-Loop sofort grün
+  printf '#!/bin/sh\nexit 0\n' > "$TMP_E2E/bin/claude"; chmod +x "$TMP_E2E/bin/claude"   # no-op-Skills
+  git init --bare -q "$TMP_E2E_ORIGIN"
+  git -C "$TMP_E2E" init -q
+  git -C "$TMP_E2E" symbolic-ref HEAD refs/heads/feature/e2e 2>/dev/null
+  git -C "$TMP_E2E" config user.email t@t; git -C "$TMP_E2E" config user.name t
+  git -C "$TMP_E2E" add .; git -C "$TMP_E2E" commit -q -m init
+  git -C "$TMP_E2E" remote add origin "$TMP_E2E_ORIGIN"
+  E2E_BR="$(git -C "$TMP_E2E" rev-parse --abbrev-ref HEAD)"
+  git -C "$TMP_E2E" push -q origin "$E2E_BR"
+  # Unvollständiger Endzustand: ein ungepushter Commit (Working Tree bleibt sauber → Preflight ok)
+  echo "extra" > "$TMP_E2E/extra.txt"; git -C "$TMP_E2E" add .; git -C "$TMP_E2E" commit -q -m unpushed
+  e2e_out=$(cd "$TMP_E2E" && PATH="$TMP_E2E/bin:$PATH" \
+    FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
+    bash "$TMP_E2E/scripts/run-pipeline.sh" 78 2>&1); e2e_rc=$?
+  assert_true "$([[ "$e2e_rc" -ne 0 ]]; echo $?)" "#212 W3: unverifizierter Endzustand → Non-Zero-Exit (E2E)"
+  printf '%s' "$e2e_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  assert_true "$([ $? -ne 0 ]; echo $?)" "#212 W3: kein Erfolgs-Banner bei unverifiziertem Endzustand (E2E)"
+  printf '%s' "$e2e_out" | grep -q 'Endzustand nicht verifiziert'
+  assert_true "$?" "#212 W3: meldet den realen Zustand (Endzustand nicht verifiziert)"
+  grep -q '"type":"INCOMPLETE_OUTCOME"' "$TMP_E2E/tasks/interrupt-log.jsonl" 2>/dev/null
+  assert_true "$?" "#212 W3: INCOMPLETE_OUTCOME wird ins interrupt-log geschrieben (ADR-006)"
+  # Positiv-Gegenprobe: sauber+gepusht → Erfolgs-Banner erreicht (kein Fehlalarm)
+  git -C "$TMP_E2E" push -q origin "$E2E_BR"
+  e2e_ok=$(cd "$TMP_E2E" && PATH="$TMP_E2E/bin:$PATH" \
+    FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
+    bash "$TMP_E2E/scripts/run-pipeline.sh" 78 2>&1); e2e_ok_rc=$?
+  assert_exit 0 "$e2e_ok_rc" "#212 W3: sauber+gepushter Endzustand → Erfolg (exit 0, Gegenprobe)"
+  printf '%s' "$e2e_ok" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  assert_true "$?" "#212 W3: Erfolgs-Banner erscheint bei verifiziertem Endzustand"
+  rm -rf "$TMP_E2E" "$TMP_E2E_ORIGIN"
+else
+  skip_yq "#212 W3: Verifikations-Interrupt end-to-end"
+fi
+
+echo ""
+echo "#212 AK9: .gitignore deckt Coverage-Temp generisch ab:"
+GI212="$FACTORY_ROOT/.gitignore"
+grep -qF '.coverage-tmp*/' "$GI212"
+assert_true "$?" "#212 AK9: .gitignore enthält generisches Muster .coverage-tmp*/"
+TMP_GI="$(mktemp -d)"; git -C "$TMP_GI" init -q; cp "$GI212" "$TMP_GI/.gitignore"
+git -C "$TMP_GI" check-ignore -q ".coverage-tmp209/coverage-summary.json"
+assert_true "$?" "#212 AK9: .coverage-tmp209/ (Vorfall-id) ist ignoriert"
+git -C "$TMP_GI" check-ignore -q ".coverage-tmp999/x.json"
+assert_true "$?" "#212 AK9: .coverage-tmp999/ (beliebige id) ist ignoriert"
+# AK10: Vitest-Default-Coverage-Verzeichnis coverage/ ist ebenfalls ignoriert (getrackt-frei)
+git -C "$TMP_GI" check-ignore -q "coverage/index.html"
+assert_true "$?" "#212 AK10: Vitest-Default coverage/ ist ignoriert"
+rm -rf "$TMP_GI"
+# AK10: die dokumentierte Konvention benennt den ignorierten Temp-Pfad-Präfix
+grep -qF '.coverage-tmp' "$FACTORY_ROOT/docs/factory/guidelines/testing-standards.md"
+assert_true "$?" "#212 AK10: testing-standards.md dokumentiert den ignorierten Coverage-Temp-Präfix"
+
+echo ""
+echo "#212 AK7: pr-shepherd eskaliert unter Stage 3 (Endzustand der committeten Live-Datei):"
+# `.claude/**` ist für den Agenten hard-denied → die Änderung kam via tasks/patch-212.diff (vom
+# Menschen angewandt + committet, Patch danach entfernt – Lesson #145). Der Test prüft daher den
+# ENDZUSTAND der committeten Live-Datei $SHEPHERD direkt, nicht das transiente Patch-Artefakt
+# (Kopplung an patch-212.diff wäre im auslieferbaren Zustand zwangsläufig rot – Review #212).
+{ grep -qF 'FACTORY_STAGE=3' "$SHEPHERD" && grep -qF 'niemals eine interaktive Freigabe' "$SHEPHERD"; }
+assert_true "$?" "#212 AK7: Stage-3-Blocker → raise-interrupt statt interaktiver Freigabefrage"
+grep -qF 'kein autonomes `git rm --cached`' "$SHEPHERD"
+assert_true "$?" "#212 AK7: verbietet autonomes 'git rm --cached'"
+grep -qF 'PUSH_GATE_BLOCKED' "$SHEPHERD"
+assert_true "$?" "#212 AK7: benennt Interrupt-Typ PUSH_GATE_BLOCKED für blockierendes Artefakt"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

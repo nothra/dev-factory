@@ -161,3 +161,21 @@ Flaky Tests (manchmal grün, manchmal rot) sind sofort zu beheben oder zu lösch
 - Coverage ist ein Hinweis auf ungetestete Pfade – kein Qualitätsbeweis
 - Lieber 80% Coverage mit guten Tests als 100% mit sinnlosen Tests
 - Neuer Code: 100% coverage erwartet (wird im Review geprüft)
+
+---
+
+## Coverage-Ausgabe nur in ignorierte Pfade schreiben (ADR-040)
+
+Coverage-Artefakte (HTML-Report, `coverage-summary.json`, sonstige Zwischenausgaben) dürfen
+**nie** in einen von Git getrackten Pfad geschrieben werden. Ein versehentlich committetes
+Coverage-Verzeichnis blockiert später den Push-Gate (Prettier) – und ein unbeaufsichtigter
+Pipeline-Lauf lief genau daran auf (#212: `.coverage-tmp209/coverage-summary.json`).
+
+**Regel:** Coverage-Ausgabe zielt ausschließlich auf einen `.gitignore`-abgedeckten Pfad:
+- Standard-Report von `pnpm test:coverage` (Vitest): Default-Verzeichnis `coverage/` – bereits
+  ignoriert.
+- Braucht ein Schritt (z. B. `/test`/`/review`, per-Diff-Coverage) ein **isoliertes** oder
+  temporäres Coverage-Verzeichnis, ist der ignorierte Präfix **`.coverage-tmp<id>/`** zu nutzen
+  (deckt `.coverage-tmp*/` in `.gitignore`), nie ein Ad-hoc-Pfad im Projektbaum.
+
+Kurz: Wenn Coverage nach `git status` auftaucht, ist der Zielpfad falsch gewählt.

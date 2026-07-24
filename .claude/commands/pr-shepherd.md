@@ -141,6 +141,15 @@ neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 - Nie force-pushen ohne vorherigen Interrupt
 - Kein Merge, wenn CI rot oder Approval fehlt
 - Widersprüchliche Review-Kommentare immer zu einem Interrupt eskalieren
+- **Unter `FACTORY_STAGE=3` (nicht-interaktiv) niemals eine interaktive Freigabe-/Rückfrage
+  stellen.** Jeder nicht autonom auflösbare Blocker wird über `scripts/raise-interrupt.sh`
+  eskaliert (deterministischer Stopp, ADR-004). Auf eine Antwort zu warten, die niemand gibt,
+  endet sonst als stiller Exit 0 mit ungemergtem PR (Vorfall #212).
+- **Keine index-/history-mutierenden Git-Operationen außerhalb der dokumentierten Schritte** –
+  insbesondere **kein autonomes `git rm --cached`** o. Ä. Trifft der Push-Gate auf ein fremdes,
+  ihn blockierendes getracktes Artefakt (z. B. versehentlich committete Coverage-Ausgaben),
+  ist das ein Blocker → `scripts/raise-interrupt.sh` (Typ `PUSH_GATE_BLOCKED`), nicht eine
+  eigenmächtige Bereinigung.
 
 ## Output
 
@@ -153,5 +162,7 @@ neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 
 Input: Task-ID
 Output: Branch merge-ready, Merge freigegeben
-Nicht-automatisierbare Zustände (Konflikte, CI-Fehler, fehlende Approvals):
+Nicht-automatisierbare Zustände (Konflikte, CI-Fehler, fehlende Approvals, ein den
+Push-Gate blockierendes fremdes getracktes Artefakt):
 → `scripts/raise-interrupt.sh` aufrufen – Pipeline stoppt deterministisch (ADR-004).
+**Nie** stattdessen interaktiv nach Freigabe fragen oder autonom `git rm --cached` ausführen.
