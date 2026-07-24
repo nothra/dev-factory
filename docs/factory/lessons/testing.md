@@ -224,3 +224,46 @@ Erfolgs-Ausgabe + den Log-/Interrupt-Effekt asserten – plus eine **Positiv-Geg
 Zustand → Erfolg), damit der Test nicht nur „scheitert immer" beweist. Ergänzt „Callback nur durch
 Codelesen belegt ist keine Testabdeckung" (#187) und „Reihenfolge-Guards: Kommando ≠ Prosa" (#114)
 um Orchestrator-Gates.
+
+### Negativ-Test mit mehreren Fail-Pfaden muss auf den Ziel-Pfad isoliert werden – sonst grün aus dem falschen Grund (aus #214, Review-Finding W1, von 2 Personas unabhängig)
+
+#214 führte einen Drift-Guard mit mehreren unabhängigen Fail-closed-Pfaden ein (fehlender
+Verdict-Anker **und** fehlende Findings-Sektionen führen je zu `exit 1`). Der Negativtest für
+Fehlerszenario 2 („Verdict-Anker nur im Fließtext, nicht als Überschrift → rot") nutzte ein
+Fixture, das **weder** den Verdict-Anker als Überschrift **noch** die Findings-Sektionen enthielt.
+Damit trug bereits die Sektions-Prüfung das `exit 1` – der Test war grün, belegte aber **nicht** die
+exakt-verankerte Verdict-Logik. Hätte jemand genau diese (die #211-Regression: Verdict unankert
+gematcht), wäre der Test **trotzdem grün** geblieben, weil die fehlenden Sektionen das Exit trugen.
+
+**Smell:** „Kann die zu prüfende Funktion in diesem Negativtest über **mehr als einen** Pfad rot
+werden – und stelle ich sicher, dass **nur der eine** Pfad greift, den der Testname behauptet?"
+
+**Regel:** Ein Negativ-/Fehlerfall-Test gegen eine Einheit mit mehreren unabhängigen Fail-Pfaden
+muss das Fixture so bauen, dass **alle anderen** Bedingungen erfüllt bleiben und **nur** der
+Zielpfad fehlschlägt – und zusätzlich das **pfadspezifische Fehlersignal** assertieren (Meldung/
+Konstante), nicht bloß `exit != 0`. Konkret in #214: das Fixture aus der echten Quelldatei ableiten
+und nur das Zielmerkmal brechen (die `## Empfehlung`-Überschrift → Fließtext), sodass die Sektionen
+intakt bleiben; dann `grep` auf `report_verdict(review)` in der Ausgabe **und** die Abwesenheit der
+anderen Fehlermeldung (`count_section_items` darf **nicht** erscheinen) prüfen. Ergänzt „Guard-
+Clause-Branches brauchen dedizierte Tests" um Einheiten mit mehreren gleichzeitig auslösbaren
+Fail-Pfaden. (Der TDD-Stub `guard() { return 0; }` beweist nur Nicht-Vakuität – dass der Test
+**überhaupt** rot werden kann –, nicht die Isolation; beides ist nötig.)
+
+### Kopplungs-/Drift-Guard, der Quelle A gegen Quelle B prüft, braucht einen Negativtest je Seite (aus #214, /test-Selbstfund zu AC6)
+
+#214s Guard liest die erwarteten Konstanten aus den Parser-Skripten (`report-verdict.sh`,
+`run-pipeline.sh`) und prüft, ob sie als Anker in den Command-Contracts (`review.md`,
+`security-review.md`) auftauchen. Das AC verlangte ausdrücklich Erkennung, wenn **eine der beiden
+Seiten** driftet („Command **oder** Parser"). Die erste Implementierung testete den Drift aber nur
+über Mutation der **Command-Seite** (Überschrift umbenannt); die Gegenrichtung – die **Parser-
+Konstante** umbenannt, Command unverändert – blieb ungetestet. Damit war die halbe vom AC geforderte
+Drift-Erkennung nicht belegt, obwohl alle Tests grün waren.
+
+**Smell:** „Mein Guard verknüpft zwei Quellen (liest A, prüft gegen B). Habe ich einen Negativtest,
+der **A** mutiert, **und** einen, der **B** mutiert – oder mutiere ich immer nur dieselbe Seite?"
+
+**Regel:** Für einen Guard, der zwei Quellen koppelt, je Seite einen eigenen Negativtest: einmal
+Quelle A brechen (B echt lassen), einmal Quelle B brechen (A echt lassen) – jeweils rot + korrekte
+Konstante. Zusätzlich den Fail-closed-Fall „Quelle unlesbar/Format geändert → Extraktion leer → rot,
+nicht still grün" abdecken. Spezialfall der #211-Symmetrie-Regel, zugeschnitten auf Kopplungs-/
+Drift-Guards.

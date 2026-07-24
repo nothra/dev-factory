@@ -1704,6 +1704,190 @@ else
   skip_yq "#91: review + security-review max_turns=14"
 fi
 
+# ─── #214: Contract-Drift-Guard – Report-Anker ↔ Parser-Konstanten ───────────
+# Die Verdict-/Section-Parser koppeln HART an die Anker-Überschriften der Report-Contracts
+# (.claude/commands/review.md, security-review.md). Wird eine Überschrift umbenannt, bricht die
+# Pipeline STILL (leeres Verdict / Count 0), ohne dass ein Test rot wird. Dieser Guard macht den
+# Drift sichtbar. Reiner Test (tech-debt + test); Spec/AC in docs/specs/spec-214-*.md.
+echo ""
+echo "#214 Contract-Drift-Guard (Report-Anker ↔ Parser-Konstanten):"
+
+RV_LIB214="$SCRIPTS_DIR/lib/report-verdict.sh"
+PIPELINE214="$SCRIPTS_DIR/run-pipeline.sh"
+REVIEW_MD214="$FACTORY_ROOT/.claude/commands/review.md"
+SECURITY_MD214="$FACTORY_ROOT/.claude/commands/security-review.md"
+
+# extract_verdict_header <skill> <report-verdict.sh> – liest die EXAKTE Anker-Überschrift der
+# report_verdict-case-Zeile aus dem echten Parser-Skript (AC6: nicht im Test dupliziert).
+extract_verdict_header() {
+  local skill="$1" lib="$2"
+  # Der Pipeline-Exit wird bewusst nicht ausgewertet (nur der String zählt, kein `set -e`):
+  # `head -n1` kann unter pipefail SIGPIPE(141) erzeugen, ist hier aber folgenlos.
+  grep -E "^[[:space:]]*${skill}\)" "$lib" | sed -E "s/.*header='([^']*)'.*/\1/" | head -n1
+}
+
+# extract_section_headers <run-pipeline.sh> – liest die distinct "## …"-Sektions-Muster, die
+# count_section_items als Argumente übergeben bekommt (AC6: aus der echten Quelle).
+extract_section_headers() {
+  local pipeline="$1"
+  grep 'count_section_items "' "$pipeline" | grep -oE '"## [^"]*"' | tr -d '"' | sort -u
+}
+
+# drift_guard <review_md> <security_md> <report-verdict.sh> <run-pipeline.sh>
+#   Exit 0 = jede Parser-Konstante als Anker im zugehörigen Command auffindbar.
+#   Exit 1 = Drift: druckt die betroffene Konstante + Datei auf stdout (fail-closed).
+drift_guard() {
+  local review_md="$1" security_md="$2" rv_lib="$3" pipeline="$4"
+  local rc=0
+
+  # Fail-closed: Command-Dateien müssen existieren und nicht-leer sein.
+  local f
+  for f in "$review_md" "$security_md"; do
+    if [ ! -s "$f" ]; then
+      echo "DRIFT: Command-Datei fehlt oder ist leer: $f"
+      return 1
+    fi
+  done
+
+  # report_verdict: exakt-verankerte Überschriftszeile (Semantik aus report-verdict.sh:
+  # '^[[:space:]]*<header>[[:space:]]*$'). Extraktion aus der echten Quelle → sonst fail-closed.
+  local review_header sec_header
+  review_header="$(extract_verdict_header review "$rv_lib")"
+  sec_header="$(extract_verdict_header security-review "$rv_lib")"
+  if [ -z "$review_header" ] || [ -z "$sec_header" ]; then
+    echo "DRIFT: report_verdict-Anker nicht aus $rv_lib extrahierbar (Parser-Format geändert?)"
+    return 1
+  fi
+  if ! grep -Eq "^[[:space:]]*${review_header}[[:space:]]*\$" "$review_md"; then
+    echo "DRIFT: report_verdict(review) erwartet Anker '${review_header}' in $review_md"; rc=1
+  fi
+  if ! grep -Eq "^[[:space:]]*${sec_header}[[:space:]]*\$" "$security_md"; then
+    echo "DRIFT: report_verdict(security-review) erwartet Anker '${sec_header}' in $security_md"; rc=1
+  fi
+
+  # count_section_items: Teilstring/unankert wie das awk-Muster (/pattern/) – alle drei
+  # Findings-Sektionen liegen in review.md. Leere Extraktion → fail-closed (Parser-Format geändert).
+  local sections sec
+  sections="$(extract_section_headers "$pipeline")"
+  if [ -z "$sections" ]; then
+    echo "DRIFT: count_section_items-Sektionen nicht aus $pipeline extrahierbar (Parser-Format geändert?)"
+    return 1
+  fi
+  while IFS= read -r sec; do
+    [ -n "$sec" ] || continue
+    if ! grep -Eq "$sec" "$review_md"; then
+      echo "DRIFT: count_section_items erwartet Sektion '${sec}' in $review_md"; rc=1
+    fi
+  done <<SECEOF
+$sections
+SECEOF
+
+  return "$rc"
+}
+
+# ── AC6: Konstanten wurden aus den echten Skripten gelesen (nicht leer) ──
+review_header214="$(extract_verdict_header review "$RV_LIB214")"
+security_header214="$(extract_verdict_header security-review "$RV_LIB214")"
+section_headers214="$(extract_section_headers "$PIPELINE214")"
+assert_true "$([ -n "$review_header214" ]; echo $?)" \
+  "AC6: review-Verdict-Anker aus report-verdict.sh extrahiert (nicht leer)"
+assert_true "$([ -n "$security_header214" ]; echo $?)" \
+  "AC6: security-Verdict-Anker aus report-verdict.sh extrahiert (nicht leer)"
+assert_true "$([ -n "$section_headers214" ]; echo $?)" \
+  "AC6: count_section_items-Sektionen aus run-pipeline.sh extrahiert (nicht leer)"
+# AC3-Abdeckung pinnen: count_section_items deckt GENAU die drei Findings-Sektionen ab. Schrumpft
+# die Extraktion still (z. B. 2 statt 3), bliebe der Guard grün, obwohl eine Sektion ungeprüft ist.
+section_count214="$(printf '%s\n' "$section_headers214" | grep -c '^## ')"
+assert_true "$([ "$section_count214" -eq 3 ]; echo $?)" \
+  "AC3: alle drei count_section_items-Sektionen extrahiert (Guard-Abdeckung vollständig)"
+
+# ── AC1-3/AC5: Guard grün gegen die echten Quellen (heute konsistent) ──
+drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214" >/dev/null; guard_rc214=$?
+assert_exit 0 "$guard_rc214" "AC1-3: alle Parser-Konstanten als Anker im Command auffindbar (Guard grün)"
+
+TMP214="$(mktemp -d)"
+# Erste extrahierte Sektion für den Section-Drift-Negativtest (aus der Quelle abgeleitet, nicht
+# hardcodet – ein konsistenter beidseitiger Rename bräche diesen Test sonst fälschlich).
+first_section214="$(printf '%s\n' "$section_headers214" | head -n1)"
+
+# ── AC4: umbenannter review-Verdict-Anker (## Empfehlung) → rot + nennt Konstante ──
+sed "s/^${review_header214}\$/## Fazit/" "$REVIEW_MD214" > "$TMP214/review-verdict-drift.md"
+out214=$(drift_guard "$TMP214/review-verdict-drift.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "AC4: umbenannter review-Verdict-Anker → Guard rot"
+printf '%s' "$out214" | grep -q 'report_verdict(review)'
+assert_true "$?" "AC4: Guard nennt betroffene Konstante report_verdict(review)"
+
+# ── AC4: umbenannter security-Verdict-Anker (## Ergebnis) → rot + nennt Konstante ──
+sed "s/^${security_header214}\$/## Fazit/" "$SECURITY_MD214" > "$TMP214/security-verdict-drift.md"
+out214=$(drift_guard "$REVIEW_MD214" "$TMP214/security-verdict-drift.md" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "AC4: umbenannter security-Verdict-Anker → Guard rot"
+printf '%s' "$out214" | grep -q 'report_verdict(security-review)'
+assert_true "$?" "AC4: Guard nennt betroffene Konstante report_verdict(security-review)"
+
+# ── AC4: umbenannte Findings-Sektion → rot + nennt Konstante (Anker aus der Quelle) ──
+sed "s/^${first_section214}.*/## Blocker/" "$REVIEW_MD214" > "$TMP214/section-drift.md"
+out214=$(drift_guard "$TMP214/section-drift.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "AC4: umbenannte Findings-Sektion → Guard rot"
+printf '%s' "$out214" | grep -q 'count_section_items'
+assert_true "$?" "AC4: Guard nennt betroffene Konstante count_section_items"
+
+# ── Fehlerszenario 1: fehlende Command-Datei → fail-closed (rot), nicht still bestanden ──
+out214=$(drift_guard "$TMP214/does-not-exist.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "F1 (#214): fehlende Command-Datei → Guard rot (fail-closed)"
+
+# ── Fehlerszenario 1b: LEERE Command-Datei → ebenfalls fail-closed (Spec: „fehlt oder ist leer") ──
+: > "$TMP214/empty.md"
+out214=$(drift_guard "$TMP214/empty.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "F1 (#214): leere Command-Datei → Guard rot (fail-closed)"
+
+# ── Fehlerszenario 2: Verdict-Anker NUR im Fließtext (keine ##-Überschriftszeile) ──
+# Isoliert auf den exakt-verankerten report_verdict-Pfad: die echte review.md wird kopiert und nur
+# die '## Empfehlung'-Überschriftszeile in Fließtext verwandelt. Alle Findings-Sektionen bleiben
+# intakt → count_section_items besteht; rot darf NUR die Verdict-Exaktverankerung erzeugen (sonst
+# bliebe die #211-Regression „Verdict unankert" unentdeckt – Review-Finding W1).
+sed "s/^${review_header214}\$/Siehe Abschnitt ${review_header214} weiter unten./" \
+  "$REVIEW_MD214" > "$TMP214/prose-only.md"
+out214=$(drift_guard "$TMP214/prose-only.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "F2 (#214): Verdict-Anker nur im Fließtext → Guard rot (exakt-verankert)"
+printf '%s' "$out214" | grep -q 'report_verdict(review)'
+assert_true "$?" "F2 (#214): Guard nennt report_verdict(review) (nicht durch fehlende Sektionen rot)"
+printf '%s' "$out214" | grep -q 'count_section_items'
+assert_true "$([ $? -ne 0 ]; echo $?)" "F2 (#214): Findings-Sektionen bleiben intakt (rot NUR wegen Verdict-Anker)"
+
+# ── AC6 (Parser-Seite): Konstante NUR im Parser umbenannt (Command unverändert) → rot ──
+# Zweite Drift-Richtung: AC4 mutiert die Command-Seite; AC6 verlangt Erkennung auch, wenn die
+# PARSER-Konstante driftet. Fake-report-verdict.sh mit umbenanntem review-Anker → Guard rot.
+printf "  review)          header='## Fazit' ;;\n  security-review) header='## Ergebnis' ;;\n" \
+  > "$TMP214/rv-verdict-drift.sh"
+out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$TMP214/rv-verdict-drift.sh" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "AC6: Parser-seitig umbenannter Verdict-Anker (nur report-verdict.sh) → Guard rot"
+printf '%s' "$out214" | grep -q 'report_verdict(review)'
+assert_true "$?" "AC6: Guard nennt report_verdict(review) bei Parser-seitigem Drift"
+
+# ── AC6 (Parser-Seite): count_section_items-Sektion nur im Parser umbenannt → rot ──
+printf 'count_section_items "$f" "## Geändert" "## Wichtige Findings"\ncount_section_items "$f" "## Wichtige Findings" "## Nitpicks"\n' \
+  > "$TMP214/pipeline-section-drift.sh"
+out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$RV_LIB214" "$TMP214/pipeline-section-drift.sh"); rc214=$?
+assert_exit 1 "$rc214" "AC6: Parser-seitig umbenannte Sektion (nur run-pipeline.sh) → Guard rot"
+printf '%s' "$out214" | grep -q 'count_section_items'
+assert_true "$?" "AC6: Guard nennt count_section_items bei Parser-seitigem Drift"
+
+# ── Fail-closed: Parser-Format ganz verändert (keine Konstante extrahierbar) → rot, nicht grün ──
+printf '# report-verdict.sh ohne case-Zweige (Format geändert)\n' > "$TMP214/rv-empty.sh"
+out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$TMP214/rv-empty.sh" "$PIPELINE214"); rc214=$?
+assert_exit 1 "$rc214" "Fail-closed (#214): Verdict-Anker nicht extrahierbar → Guard rot"
+printf '%s' "$out214" | grep -q 'report_verdict-Anker nicht aus'
+assert_true "$?" "Fail-closed (#214): meldet nicht-extrahierbaren Verdict-Anker (kein stilles Grün)"
+
+printf '# run-pipeline.sh ohne count_section_items-Aufrufe (Format geändert)\n' > "$TMP214/pipeline-empty.sh"
+out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$RV_LIB214" "$TMP214/pipeline-empty.sh"); rc214=$?
+assert_exit 1 "$rc214" "Fail-closed (#214): Sektionen nicht extrahierbar → Guard rot"
+printf '%s' "$out214" | grep -q 'count_section_items-Sektionen nicht'
+assert_true "$?" "Fail-closed (#214): meldet nicht-extrahierbare Sektionen (kein stilles Grün)"
+
+rm -rf "$TMP214"
+unset -f drift_guard extract_verdict_header extract_section_headers
+
 # ─── #91: Permissions-Konsistenz (.claude/settings.json, ADR-019 §2/§3) ──────
 echo ""
 echo "#91 Permissions-Konsistenz (.claude/settings.json):"
