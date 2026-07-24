@@ -59,7 +59,9 @@ skills:
   security-review:
     tier: heavy                 # @reason: bewusst fix heavy, KEIN tier_by_size (Miss teurer als Token)
     max_turns: 14
-  # test/refactor/codify/pr-shepherd/requirements/architecture/release-notes: unverändert (light, kein tier_by_size)
+  # test/refactor/codify/pr-shepherd: unverändert (light, kein tier_by_size)
+  # requirements/architecture/release-notes: kein eigener Eintrag (Phase-1-Skills, pipeline-inert)
+  #   → effektiv light über den default-Block
 ```
 
 - **`tier` bleibt auf jedem Skill ein gültiger `model_tiers`-Schlüssel** → `config-validation`

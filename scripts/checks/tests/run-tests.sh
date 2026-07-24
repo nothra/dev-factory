@@ -2643,14 +2643,27 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "#197 F3: ungültiges tier_by_size.signal → fail-closed"
   rm -rf "$G4"
 
-  # AK7: übrige Skills + default bleiben light UND tragen KEIN tier_by_size (keine Tier-Änderung).
+  # AK7: übrige pipeline-getriebene Skills + default bleiben light UND tragen KEIN tier_by_size
+  # (keine Tier-Änderung durch #197).
   ak7_ok=0
-  for s in test refactor codify pr-shepherd requirements architecture release-notes; do
+  for s in test refactor codify pr-shepherd; do
     [ "$(yq ".skills.\"$s\".tier" "$DEFAULTS")" = "light" ] || ak7_ok=1
     [ "$(yq ".skills.\"$s\" | has(\"tier_by_size\")" "$DEFAULTS")" = "false" ] || ak7_ok=1
   done
   [ "$(yq '.default.tier' "$DEFAULTS")" = "light" ] || ak7_ok=1
-  assert_true "$ak7_ok" "#197 AK7: test/refactor/codify/pr-shepherd/requirements/architecture/release-notes + default = light ohne tier_by_size"
+  assert_true "$ak7_ok" "#197 AK7: test/refactor/codify/pr-shepherd + default = light ohne tier_by_size"
+
+  # #201 AK1/AK2/AK5: Phase-1-Skills (requirements/architecture/release-notes) sind pipeline-inert
+  # (run-pipeline.sh ruft sie nie über run_skill auf) und tragen daher KEINEN eigenen skills-Eintrag
+  # mehr. Ihre effektive Auflösung fällt über cfg_skill_field (.skills.<s>.<feld> // .default.<feld>)
+  # sauber auf default-light / max_turns 10 zurück — kein stilles Heavy-Upgrade.
+  ph1_ok=0
+  for s in requirements architecture release-notes; do
+    [ "$(yq ".skills | has(\"$s\")" "$DEFAULTS")" = "false" ] || ph1_ok=1
+    [ "$(yq ".skills.\"$s\".tier // .default.tier" "$DEFAULTS")" = "light" ] || ph1_ok=1
+    [ "$(yq ".skills.\"$s\".max_turns // .default.max_turns" "$DEFAULTS")" = "10" ] || ph1_ok=1
+  done
+  assert_true "$ph1_ok" "#201 AK1/AK2: requirements/architecture/release-notes ohne eigenen Eintrag → effektiv default-light, max_turns 10"
 
   # AK12: der provisorische implement-Tier-Override ist aufgelöst (kein .skills.implement.tier mehr).
   if [ -f "$FACTORY_ROOT/factory.config.yml" ]; then

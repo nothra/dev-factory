@@ -74,9 +74,11 @@ skills:
   refactor:        { tier: light, max_turns: 20 }  # @reason: Clean-Code-Pass, kein neues Verhalten.
   codify:          { tier: light, max_turns: 8 }   # @reason: Learnings extrahieren.
   pr-shepherd:     { tier: light, max_turns: 8 }   # @reason: PR-Lifecycle-Orchestrierung.
-  requirements:    { tier: light, max_turns: 6 }   # @reason: scoped, dokument-erzeugend.
-  architecture:    { tier: light, max_turns: 6 }   # @reason: ADR-erzeugend.
-  release-notes:   { tier: light, max_turns: 6 }   # @reason: Changelog aus letzten Features.
+
+  # Phase-1-Skills (requirements/architecture/release-notes) tragen bewusst KEINEN eigenen
+  # Eintrag: run-pipeline.sh ruft sie nie über run_skill auf (Phase 1 ist immer interaktiv),
+  # ihre Config wäre inert. Sie fallen über cfg_skill_field (.skills.<s>.<feld> // .default.<feld>)
+  # sauber auf den default-Block (light, max_turns 10) zurück — kein stilles Heavy-Upgrade.
 
 # Fallback für Skills ohne eigenen Eintrag (heute: get_*-default).
 # @reason: Sicherer, günstiger Default für Skills ohne eigenen Eintrag.
