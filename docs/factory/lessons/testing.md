@@ -267,3 +267,26 @@ Quelle A brechen (B echt lassen), einmal Quelle B brechen (A echt lassen) – je
 Konstante. Zusätzlich den Fail-closed-Fall „Quelle unlesbar/Format geändert → Extraktion leer → rot,
 nicht still grün" abdecken. Spezialfall der #211-Symmetrie-Regel, zugeschnitten auf Kopplungs-/
 Drift-Guards.
+
+### ESLint-Ignore-Config verhaltensbasiert testen – mit Diskriminierungs-Kontrolle (aus #172, /test-Selbstfund)
+
+Die Ignore-Liste (`globalIgnores`) einer ESLint-**Flat-Config** (`eslint.config.mjs`) wird von
+ESLint geladen, **nicht** von Vitest importiert → sie erscheint nicht im Coverage-Report, und ein
+String-Match auf das Config-Array beweist nur, dass ein Eintrag *dasteht*, nicht dass ESLint ihn
+*anwendet*. Der belastbare Guard prüft das **Verhalten** über die ESLint-Node-API:
+`await new ESLint().isPathIgnored("<pfad>")`. Zweite, in `/implement` übersehene Falle: `isPathIgnored`
+ist ein boolesches Mitgliedschafts-Prädikat – reine `toBe(true)`-Assertions (der Pfad wird
+ignoriert) blieben auch bei einer versehentlich **zu breiten** Regel (z. B. `"**"`) grün. Erst in
+`/test` aufgefallen; der Reflex ist, nur die „soll-ignoriert"-Richtung zu prüfen.
+
+**Smell:** „Ich assertiere nur, dass ignorierte Pfade `true` liefern – würde mein Test auch dann
+grün bleiben, wenn die Ignore-Regel *alles* erfasst?" Wenn ja, fehlt die Diskriminierungs-Kontrolle.
+
+**Regel:** Ein Test einer Ignore-/Allow-Liste (oder jedes booleschen Mitgliedschafts-Prädikats)
+prüft das echte Verhalten (bei ESLint: `isPathIgnored`, nicht das Config-Array) **und** enthält
+eine **Positiv-Kontrolle in der Gegenrichtung** – eine bekannte Nicht-Mitglied-Eingabe, die das
+Gegenteil liefern muss (hier: eine normale Quelldatei wie `app/layout.tsx` → `isPathIgnored === false`).
+Als konkretes JS-Prädikat-Analogon zu #211 (beide Richtungen) und #212 (Positiv-Gegenprobe): ohne
+die `false`-Kontrolle beweist der Test nur „ist-immer-ignoriert", nicht „ignoriert **genau** das
+Richtige". Bei mehreren Ignore-Zielen jedes einzeln assertieren (Wegfall genau eines Eintrags → nur
+der zugehörige Test rot).
