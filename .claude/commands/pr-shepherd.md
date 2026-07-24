@@ -9,7 +9,7 @@ stoppen, wenn menschliche Entscheidung nötig ist.
 Lies zuerst:
 - `docs/factory/PROJECT-CONTEXT.md` – Projekt-Name, Git-Remote, CI-Konfiguration
 - `tasks/task-$ARGUMENTS.md` – Aufgaben-Details, Status
-- Aktuellen Branch-Status: `git status`, `git log main...HEAD --oneline`
+- Aktuellen Branch-Status: `git status`, `git fetch origin` (best-effort), `git log origin/main...HEAD --oneline`
 - Offenen PR via `gh pr view`
 
 ## Shepherd-Prozess
@@ -18,7 +18,8 @@ Lies zuerst:
 
 ```bash
 git status
-git log main...HEAD --oneline
+git fetch origin   # best-effort: frischt origin/main, kein Abbruch bei Offline
+git log origin/main...HEAD --oneline
 gh pr view
 ```
 

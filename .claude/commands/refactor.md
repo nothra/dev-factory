@@ -8,7 +8,7 @@ Spawne einen spezialisierten Refactoring-Agenten mit der Persona aus
 - `docs/factory/guidelines/clean-code.md`
 - `tasks/task-$ARGUMENTS.md`
 - `tasks/review-$ARGUMENTS.md` (Review-Findings, falls vorhanden)
-- Geänderter Code: `git diff main...HEAD`
+- Geänderter Code: `git fetch origin` (best-effort), dann `git diff origin/main...HEAD`
 
 ## Wichtigste Regel
 

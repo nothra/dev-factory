@@ -9,7 +9,7 @@ Personas aus: `docs/factory/agents/review-agent.md`
 
 - `docs/factory/PROJECT-CONTEXT.md`
 - `tasks/task-$ARGUMENTS.md`
-- Git diff des aktuellen Branches: `git diff main...HEAD`
+- Git diff des aktuellen Branches: `git fetch origin` (best-effort), dann `git diff origin/main...HEAD`
 - Relevante Spec: `docs/specs/spec-$ARGUMENTS.md`
 
 ## Review-Runden

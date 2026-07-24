@@ -133,7 +133,7 @@ Patch geliefert – Mensch wendet an", der Blocker fordert weiter `git apply`, u
 liegt als **totes Artefakt** herum – `git apply --check` darauf schlägt jetzt fehl („patch does not
 apply"), weil die Änderung schon im Baum ist. Das verstößt gegen die Guardrails „Task-Datei final
 vor Merge abschließen" und „keine offenen Checkboxen → kein Done". **Regel:** Sobald der Patch im
-Branch ist (per `git diff main...HEAD` an der `.claude/**`-Datei sichtbar), die `[~]`-Checkboxen auf
+Branch ist (per `git diff origin/main...HEAD` an der `.claude/**`-Datei sichtbar), die `[~]`-Checkboxen auf
 `[x]` setzen, den Blocker als **erledigt [Datum]** markieren (Historie behalten, nicht löschen) und
 die stale `tasks/patch-<id>.diff` **entfernen** – alles vor `/pr-shepherd`/Merge, committet über
 `factory-commit.sh`.
@@ -304,8 +304,9 @@ allgemein formulieren („grüne CI-Gates") statt eine falsche Einzelaufzählung
 
 ### Review-Diff-Scope: `git diff main...HEAD` zeigt Fremd-PRs, wenn lokales `main` hinter `origin/main` liegt (aus #161)
 
-Die Skills `/review`, `/security-review` und `/refactor` laden ihren Diff-Kontext per
-`git diff main...HEAD` (analog `git log main...HEAD` in `/pr-shepherd`). `start-work.sh` legt den
+Die Skills `/review`, `/security-review` und `/refactor` luden ihren Diff-Kontext **vormals** per
+`git diff main...HEAD` (analog `git log main...HEAD` in `/pr-shepherd`); seit **#176** nutzen die
+Skill-Vorlagen `origin/main...HEAD` (siehe Regel unten). `start-work.sh` legt den
 Feature-Branch aber in einem Worktree an, der auf **`origin/main`** basiert – das **lokale**
 `main`-Ref im Haupt-Baum wird dabei **nicht** aktualisiert. Der Drei-Punkt-Operator difft gegen die
 **Merge-Basis** von `main` und `HEAD`. Liegt lokales `main` hinter `origin/main` (Normalfall direkt
@@ -320,9 +321,9 @@ Refactor-Scope auf. Tückisch: Der Review würde fremden, längst gemergten Code
 bestimmen – nach `git fetch origin` mit `git diff origin/main...HEAD` (bzw.
 `git log origin/main...HEAD`), nicht gegen das lokale `main`. Erscheinen Dateien im Diff, die
 erkennbar nichts mit der Task zu tun haben, **zuerst die Scope-Referenz prüfen** (stale local
-`main`), bevor man sie reviewt. Die Skill-Vorlagen selbst auf `origin/main...HEAD` umzustellen ist
-als Follow-up erfasst (#176) – sie liegen unter `.claude/commands/**` (agent-hard-denied) und
-brauchen daher den Patch-Workflow.
+`main`), bevor man sie reviewt. Die Skill-Vorlagen selbst wurden in **#176** auf `origin/main...HEAD`
+umgestellt (mit vorangestelltem best-effort `git fetch origin`) – via Patch-Workflow, da sie unter
+`.claude/commands/**` liegen (agent-hard-denied).
 
 ### ADR nach Review-Rework auf Drift prüfen – nicht nur `docs/routes.md` (aus #55, Review-Runde-2-Finding)
 
@@ -425,6 +426,30 @@ Schon beim `/implement` mitpflegen: nach dem Umbau `grep -rn` in `docs/adr/` nac
 Symbol-/Mechanik-Namen (hier `grep -oE`, `tail -1`, Funktionsname), nicht erst im Review auffangen.
 Ergänzt #55 (das nur bei ADR-**Datei**-Änderungen triggert) um den Fall „Code-Änderung, die eine
 ADR beschreibt".
+
+### Auch Lesson-/Kontext-Doku im selben PR nachziehen: Präsens-Mechanik + benannter Follow-up (#N) werden stale (aus #176, Review-Finding)
+
+#176 stellte den Diff-Scope der Skills von `main...HEAD` auf `origin/main...HEAD` um. Die Lesson,
+die den ursprünglichen Bug beschrieb (`factory-workflow.md` „Review-Diff-Scope …"), enthielt zwei
+Aussagen, die der Fix **stale** machte: (1) eine **Präsens**-Beschreibung des Ist-Verhaltens („Die
+Skills … **laden** ihren Diff-Kontext per `git diff main...HEAD`") und (2) einen Satz, der die
+Umstellung als **offenen Follow-up (#176)** auswies – erledigt durch genau diesen PR, ein
+selbst-referenzieller Beleg. `/implement` pflegte Task + Spec, fand die Prosa aber nicht; `/review`
+fing den Drift.
+
+**Smell:** „Beschreibt eine Lesson/Kontext-Doku die Mechanik, die dieser PR ändert, im **Präsens** –
+oder nennt sie einen **Follow-up (#N)**, den dieser PR gerade erledigt? Dann ist genau diese Prosa
+jetzt veraltet, obwohl keine ADR/Routen-Doku betroffen ist." Das #211-/#55-Prinzip gilt breiter als
+nur für ADRs.
+
+**Regel:** Erweitert #211 über ADRs hinaus auf **`docs/factory/lessons/**` und `PROJECT-CONTEXT.md`**.
+Ändert ein PR eine Mechanik oder erledigt er einen benannten `#N`-Follow-up, im selben PR
+sweepen (`grep -rn` nach dem alten Mechanik-Term **und** nach `#<eigene-id>`/„Follow-up"):
+Präsens-Beschreibungen auf Vergangenheit/„vormals … seit #id" umstellen, Follow-up-Sätze als
+erledigt markieren. **Historische Vorfall-Narrative** (die *Warum-es-ein-Bug-war*-Erklärung) bleiben
+bewusst unverändert – nur die Ist-Behauptung und die Offen-Markierung werden nachgezogen. Da der
+Feature-Zyklus `/codify` **im selben PR** ausführt, ist „im selben PR" auch dann erfüllt, wenn die
+Spec die Prosa-Pflege bewusst aus `/implement` herausnimmt und an `/codify` delegiert (so in #176).
 
 ### Test einer `.claude/**`-Patch-Lieferung prüft den Endzustand der committeten Live-Datei, nicht das Patch-Artefakt (aus #212, Review-Runde 1/3)
 

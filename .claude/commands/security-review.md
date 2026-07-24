@@ -6,7 +6,7 @@ Spawne einen spezialisierten Security-Agenten mit der Persona aus
 ## Kontext laden
 
 - `docs/factory/PROJECT-CONTEXT.md`
-- Git diff: `git diff main...HEAD`
+- Git diff: `git fetch origin` (best-effort), dann `git diff origin/main...HEAD`
 - `tasks/task-$ARGUMENTS.md`
 
 ## Prüfkatalog (OWASP Top 10 + Basics)
