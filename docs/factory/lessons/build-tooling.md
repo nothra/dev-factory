@@ -86,3 +86,34 @@ Externalisierung fest; das echte Laufzeitverhalten deckt `/post-merge-verify` ab
 der #164-Lehre: nicht der gemeldeten Ursache glauben, sondern am realen Artefakt (Build-Output,
 Response-Header) messen.
 
+### Verschachtelte alte `@types/node`-Kopie kollidiert mit dem generischen `Buffer`-Typ bei TS≥5.7 (aus #189)
+
+`berichtXlsx.test.ts` rief erstmals `workbook.xlsx.load(buffer)` auf (Zurücklesen eines
+gerenderten `exceljs`-Reports zur Zellwert-Prüfung). `pnpm typecheck` schlug fehl:
+„Argument of type 'Buffer\<ArrayBufferLike\>' is not assignable to parameter of type 'Buffer'" –
+obwohl `buffer` exakt der `Buffer`-Rückgabetyp der eigenen `berichtXlsx()`-Funktion war. Ursache:
+`exceljs` hat `fast-csv` (eigene Dependency) im Baum, welches wiederum eine **alte,
+verschachtelte** `@types/node@14`-Kopie mitbringt (`declare class Buffer extends Uint8Array {}`,
+nicht generisch). Ab TS 5.7 lädt `@types/node@20`s eigenes `buffer.buffer.d.ts` einen
+**generischen** `Buffer<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>`. `skipLibCheck:
+true` lässt die inkonsistente Merge dieser zwei Deklarationen für den globalen `Buffer`-Typ
+durchgehen (keine Fehlermeldung an der Quelle), aber an der **Aufrufstelle** ist der resultierende
+Typ nicht mehr sauber zuweisbar – ein reiner Typsystem-Artefakt, keine Laufzeit-Inkompatibilität
+(dieselbe Node-`Buffer`-Klasse). Der naheliegende Fix `buffer as unknown as Buffer` griff **nicht**
+(der eigene `Buffer`-Bezeichner ist ja Teil derselben kaputten Merge); erst der Umweg über die
+Funktionssignatur selbst löste es zuverlässig.
+
+**Smell:** „`tsc` meldet `Buffer<ArrayBufferLike>` nicht zuweisbar zu `Buffer`, obwohl beide Seiten
+offensichtlich derselbe Wert sind, und ein einfacher `as Buffer`-Cast ändert nichts?" → Verdacht auf
+verschachtelte, ältere `@types/node`-Kopie einer transitiven Dependency (`pnpm ls --depth=Infinity
+@types/node` bzw. `find node_modules/.pnpm -maxdepth 1 -iname "@types+node@*"` zeigt mehrere
+Versionen).
+
+**Regel:** Bei genau diesem Fehlerbild **nicht** `as unknown as Buffer` versuchen (trifft dieselbe
+kaputte globale Merge), sondern über die **Ziel-Funktionssignatur selbst** casten:
+`buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]` – das ist immer strukturell
+korrekt, unabhängig davon, welche Gestalt der ambiente `Buffer`-Typ gerade hat. Kein
+Produktionscode-Fix nötig (Laufzeitverhalten korrekt, reines Typsystem-Artefakt einer fremden
+Dependency-Kette); den Grund als Kommentar direkt an der Cast-Stelle festhalten, damit der nächste
+Leser nicht erneut recherchiert.
+

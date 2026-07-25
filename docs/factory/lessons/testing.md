@@ -290,3 +290,27 @@ Als konkretes JS-Prädikat-Analogon zu #211 (beide Richtungen) und #212 (Positiv
 die `false`-Kontrolle beweist der Test nur „ist-immer-ignoriert", nicht „ignoriert **genau** das
 Richtige". Bei mehreren Ignore-Zielen jedes einzeln assertieren (Wegfall genau eines Eintrags → nur
 der zugehörige Test rot).
+
+### Row/Cell-Index-Assertions gegen einen gerenderten Report sind beim Schreiben Magic Numbers – Herleitung sofort mitschreiben (aus #189, Review-Runde-1-Finding)
+
+Ein Test für `berichtXlsx.ts` (Excel-Renderer) rendert einen Bericht und liest ihn über
+`workbook.xlsx.load()` zurück, um konkrete Zellwerte zu prüfen (hier: Formula-Injection-
+Neutralisierung in `bezeichnung`/`anzeigename`). Die naheliegende erste Fassung griff direkt
+`sheet.getRow(2)`, `sheet.getRow(9)`, `sheet.getRow(14)` – korrekt hergeleitet aus der
+Zeilenreihenfolge des Renderers, aber **ohne** Kommentar, warum genau diese Zahlen stimmen. Ohne
+Herleitung ist so ein Row-Index nicht von einem echten Zufallswert zu unterscheiden: Ändert sich
+das Renderer-Layout (eine Kopfzeile mehr, ein zusätzlicher Teilnehmer vor der Zielzeile), bricht
+der Test **stillschweigend falsch** (liest die falsche Zelle, statt rot zu werden) – erst im
+Review (nicht in `/implement`) als Magic-Number-Verstoß gegen `clean-code.md` aufgefallen.
+
+**Smell:** „Ich greife in einem Renderer-Round-Trip-Test auf `getRow(<Zahl>)`/`getCell(<Zahl>)` zu
+– kann ich in einem Satz erklären, warum genau diese Zahl die Zielzelle trifft, ohne den
+Renderer-Quellcode danebenzuhalten?" Wenn nein, fehlt die Herleitung.
+
+**Regel:** Row-/Cell-Index-Zugriffe in einem Renderer-Round-Trip-Test (Bericht rendern → Datei-
+Format zurücklesen → Zellwert prüfen) sofort beim Schreiben als **benannte Konstanten mit
+WHY-Kommentar** einführen, der die Zeilen-Arithmetik gegen die tatsächliche `addRow`-Reihenfolge
+im Renderer referenziert (z. B. „5 Kopfzeilen + Leerzeile + Header + Preiszeile ⇒ Zeile 9 für den
+ersten Teilnehmer") – nicht erst auf einen Review-Fund warten. Wiederkehrende Lade-/Cast-
+Boilerplate (`new Workbook()` + Format-Load) in einen kleinen Helper extrahieren, wenn mehr als
+ein Testfall sie braucht.
