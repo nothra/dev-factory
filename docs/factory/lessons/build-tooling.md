@@ -117,3 +117,33 @@ Produktionscode-Fix nötig (Laufzeitverhalten korrekt, reines Typsystem-Artefakt
 Dependency-Kette); den Grund als Kommentar direkt an der Cast-Stelle festhalten, damit der nächste
 Leser nicht erneut recherchiert.
 
+### `pnpm audit` scheitert in dieser Sandbox an einem Gzip-Decoding-Bug – manueller `curl`-Workaround liefert echte Advisory-Daten (aus #228, /security-review-Selbstfund)
+
+`pnpm audit` bricht hier reproduzierbar mit `ERR_PNPM_AUDIT_BAD_RESPONSE` ab
+(„returned invalid JSON … Unexpected token"). Ursache: Der Registry-Endpoint
+(`https://registry.npmjs.org/-/npm/v1/security/advisories/bulk`) liefert den Body **gzip-
+komprimiert, aber ohne `Content-Encoding`-Header** – pnpms HTTP-Client dekomprimiert deshalb
+nicht und versucht, die rohen Gzip-Bytes als JSON zu parsen. `spec-228` sah dafür bereits ein
+Ersatzkriterium vor (Lockfile-Check statt `pnpm audit`) – das reicht als Nachweis, ist aber
+schwächer als eine echte Advisory-Abfrage. Auch `curl --compressed` scheitert bei **kleinen**
+Antworten (z. B. `{}`), weil der Server dort tatsächlich unkomprimiertes JSON sendet und
+`--compressed` nichts falsch macht – nur bei **größeren**, wirklich gzip-komprimierten
+Antworten (viele Advisories) tritt derselbe fehlende-Header-Bug auch gegen `curl` auf.
+
+**Smell:** „`pnpm audit` liefert `ERR_PNPM_AUDIT_BAD_RESPONSE` – bevor ich das Lockfile-
+Ersatzkriterium als einzigen Nachweis akzeptiere: gibt es einen Weg, echte Advisory-Daten zu
+bekommen?"
+
+**Regel:** Den Registry-Endpoint direkt abfragen und **bedingungslos manuell entpacken**
+(`gunzip`), unabhängig davon, ob `curl --compressed` scheinbar schon ein Ergebnis liefert:
+```bash
+curl -s -X POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk \
+  -H "Content-Type: application/json" \
+  -d '{"<paket>":["<version>"]}' -o /tmp/audit.bin
+file /tmp/audit.bin   # "gzip compressed data" → gunzip nötig; "JSON data" → direkt lesbar
+gunzip -c /tmp/audit.bin 2>/dev/null || cat /tmp/audit.bin
+```
+`{}` heißt **0 Advisories** für exakt diese Version – ein stärkerer Nachweis als das
+Lockfile-Ersatzkriterium und über den einzelnen Task hinaus für jeden `/security-review`
+nutzbar, der eine Dependency-Version gegen bekannte CVEs verifizieren muss.
+

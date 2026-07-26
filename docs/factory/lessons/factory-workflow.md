@@ -474,6 +474,29 @@ Anwenden+Committen grün und übersteht das Entfernen von `patch-<id>.diff`. Die
 Content-Assertions sind meist schon richtig gebaut; sie müssen nur gegen die Live-/committete Datei
 laufen statt gegen eine Temp-Kopie.
 
+### Neuer Worktree hat kein `.env.local` → irreführender `CredentialsSignin`-Fehlschlag beim ersten E2E-Lauf, keine echte Regression (aus #228, /implement-Selbstfund)
+
+`start-work.sh` legt jede Task standardmäßig in einem **eigenen** Worktree an (Geschwister-
+Ordner `…​.worktrees/<branch>`, siehe `git-workflow.md` → „Parallele Sessions"). `.env.local`
+ist gitignored und wird dabei **nicht** kopiert. Die lokale Postgres-DB läuft dagegen meist
+schon als **gemeinsamer** Docker-Container über alle Worktrees hinweg (fester Host-Port,
+zwei Wochen alt in #228). Ein `pnpm test:e2e e2e/auth.spec.ts` im frischen Worktree scheitert
+dadurch beim Login mit `CredentialsSignin` – nicht weil der Login-Code kaputt ist, sondern weil
+für die (nach dem manuellen `.env.local`-Kopieren) geladenen `SEED_ADMIN_*`-Zugangsdaten schlicht
+**noch kein Konto in der DB existiert**. In #228 sah das zunächst wie eine echte Regression durch
+den next-auth-Versions-Bump aus, war aber ein reines Umgebungs-Setup-Problem.
+
+**Smell:** „Login-E2E-Test schlägt im frisch angelegten Worktree mit `CredentialsSignin` fehl,
+obwohl der Code unverändert ist (oder nur eine Dependency gebumpt wurde)?" → zuerst Umgebung
+prüfen, nicht den Code verdächtigen.
+
+**Regel:** Vor dem ersten `pnpm test:e2e` in einem neuen Worktree: (1) `.env.local` aus dem
+Haupt-Worktree kopieren, falls nicht vorhanden; (2) `pnpm db:seed` laufen lassen (idempotent,
+legt das Admin-Konto an/aktualisiert es für die geladenen `SEED_ADMIN_*`-Werte) – **bevor** ein
+E2E-Fehlschlag vorschnell dem gerade bearbeiteten Task-Diff zugeschrieben wird. Root-Cause-Fix
+(Automatisierung in `start-work.sh`) ist als eigener Task ausgelagert:
+[#236](https://github.com/nothra/tch-gastro-services/issues/236).
+
 ### Neuer Interrupt-Typ → kanonische OPERATING.md-Interrupt-Tabelle mitpflegen (aus #212, Review-Finding)
 
 `raise-interrupt.sh` akzeptiert den Typ als **Freitext** – kein Gate erzwingt einen neuen Typ gegen
