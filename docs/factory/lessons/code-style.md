@@ -56,6 +56,30 @@ für jeden Input**, der in dieselbe Vergleichs-/Rechenoperation fließt – sons
 nicht nur für den „offensichtlich unsicheren" Wert. Jeder Guard bekommt zudem einen eigenen Test
 (vgl. `testing-standards.md`).
 
+### Magic-Number-Konsistenz-Bewertung braucht projektweiten Grep, nicht nur Datei-/PR-lokalen Vergleich (aus #142, Review→Refactor-Diskrepanz)
+
+`/review` Runde 2 (Code-Qualität) bewertete das duplizierte Literal `2_147_483_647` in
+`catalogItemSchema` (`priceCents`-Refine + neues `sortOrder`-Max) als „kein Finding" mit der
+Begründung: „Kein neues Muster – `priceCents` nutzt bereits denselben Inline-Literal, Konsistenz
+mit dem etablierten Muster ist ein triftiger Grund, dies nicht zu werten." Das war die falsche
+Schlussfolgerung: Es existierte bereits eine zentrale Konstante `INT4_MAX` in `lib/money.ts`
+(dokumentiert, in `app/veranstaltung/schema.ts` bereits genutzt) – der Review verglich nur
+**innerhalb derselben Datei** und schloss daraus fälschlich auf „kein Bedarf für eine Konstante",
+statt projektweit zu prüfen, ob eine passende Konstante schon existiert. Erst `/refactor` fand es
+per Codebase-weitem Grep nach dem Zahlenwert.
+
+**Smell:** Ein Review-Finding zu einem duplizierten Literal/Magic Number wird mit „konsistent zu
+einem bestehenden Muster in derselben Datei/demselben PR" abgeschlossen, **ohne** dass zuvor
+projektweit (nicht nur im Diff oder der betroffenen Datei) nach einer bereits existierenden
+benannten Konstante für denselben Wert gesucht wurde.
+
+**Regel:** Bevor ein Magic-Number-/Literal-Duplikations-Finding als „kein Fix nötig" abgeschlossen
+wird, per `grep -rn` nach dem konkreten Wert **und** nach naheliegenden Domänennamen (z. B.
+`INT4_MAX`, `MAX_*`) über die gesamte Codebase suchen – nicht nur gegen die geänderte Datei oder
+denselben PR vergleichen. „Konsistent mit bestehendem Muster" ist nur dann ein gültiger Grund,
+eine Konstante wegzulassen, wenn diese Suche keine bereits existierende zentrale Konstante zutage
+fördert. Gilt für `/review` (Code-Qualität-Perspektive) ebenso wie für `/refactor`.
+
 ### Zähl-/Aufzählungs-nennender Modul-Header wird beim Hinzufügen einer Einheit zur Lüge (aus #207, Review-Finding W1)
 
 Der Datei-Header von `scripts/lib/create-issue.sh` lautete „Diese Datei … stellt **EINE** Funktion
