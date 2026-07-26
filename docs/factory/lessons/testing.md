@@ -314,3 +314,28 @@ im Renderer referenziert (z. B. „5 Kopfzeilen + Leerzeile + Header + Preiszeil
 ersten Teilnehmer") – nicht erst auf einen Review-Fund warten. Wiederkehrende Lade-/Cast-
 Boilerplate (`new Workbook()` + Format-Load) in einen kleinen Helper extrahieren, wenn mehr als
 ein Testfall sie braucht.
+
+### Flaky Timeout durch unamortisierten teuren Erst-Aufruf: in `beforeAll` aufwärmen mit eigenem, endlichem Timeout – nicht das Default-Timeout global erhöhen (aus #238)
+
+`eslint.config.test.ts` (#172-Regression-Guard) schlug sporadisch mit einem Timeout fehl, aber
+**nur** unter Parallellast (volle Suite, viele Worker) – isoliert lief er immer grün. Ursache:
+`new ESLint().isPathIgnored(...)` löst beim **ersten** Aufruf die teure Flat-Config-Resolution
+aus (lädt `eslint.config.mjs`, cached das Config-Array danach pfad-unabhängig). Unter
+Parallellast überschritt allein diese einmalige Resolution gelegentlich das Vitest-Default-
+Timeout (5000 ms) des ersten Testfalls – ein klassischer „isoliert immer grün, unter Last
+manchmal rot"-Flaky, der leicht als reines Last-/Infrastruktur-Problem abgetan wird.
+
+**Smell:** „Dieser Test ist isoliert **immer** grün, aber unter voller Suite/Last gelegentlich
+rot mit Timeout" + der erste Testfall ruft eine teure, aber cachende Operation zum ersten Mal
+auf (Config-Resolution, Erst-Verbindung, Erst-Kompilierung o. ä.). Der Reflex „globales
+Vitest-Timeout hochsetzen" behebt das Symptom für **alle** Tests und maskiert echte Hänger.
+
+**Regel:** Den teuren Erst-Aufruf explizit in einem `beforeAll` vorab ausführen (Aufwärmen) und
+diesem `beforeAll` ein **eigenes, großzügigeres, aber weiterhin endliches** Timeout geben (hier
+30_000 ms statt des 5000-ms-Defaults) – nicht das globale Timeout aller Testfälle erhöhen. Die
+eigentlichen Testkörper bleiben beim Default-Timeout, da die teure Ressource danach bereits
+aufgelöst/gecacht ist. Ein echter Hänger in der Resolution schlägt weiterhin nach endlicher
+Frist fehl (kein unbegrenztes Timeout, das Bugs maskiert – Zero-Tolerance-Vorgabe oben bleibt
+gewahrt). Pfad-Literale, die im Aufwärm-Aufruf **und** in einer Testassertion (z. B. einer
+Positiv-Kontrolle) identisch sein müssen, sofort als geteilte benannte Konstante einführen, um
+Drift zwischen beiden Stellen zu verhindern.
