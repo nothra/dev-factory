@@ -100,3 +100,24 @@ formulieren (z. B. „stellt folgende Funktionen bereit:"), damit sie nicht bei 
 nachgezogen werden müssen. Dieselbe Drift-Klasse wie die ADR-Mechanik-Regel (#211/#55: eine
 Code-Änderung, die eine beschreibende Doku betrifft, pflegt die Doku im selben PR mit) – hier auf
 Modul-Docstring-Ebene statt ADR.
+
+### Neue Verfügbarkeits-/Capability-Prüfung immer gegen bereits vorhandene im selben File abgleichen (aus #224, Review-Runde-1-Finding, unabhängig von allen drei Review-Perspektiven aufgegriffen)
+
+In `scripts/checks/tests/run-tests.sh` wurde eine dritte, abweichende jq-Verfügbarkeitsprüfung
+(`[ "$(command -v jq >/dev/null 2>&1; echo $?)" -eq 0 ]`) ergänzt, obwohl dieselbe Datei bereits
+zwei etablierte Varianten kennt: eine Direktform (`if command -v jq >/dev/null 2>&1; then`) und
+eine wiederverwendbare Variable (`command -v jq >/dev/null 2>&1 && HAS_JQ=1 || HAS_JQ=0`, danach
+`if [ "$HAS_JQ" -eq 1 ]`). Die neue Variante war funktional identisch, aber eine unnötige dritte
+Schreibweise für dieselbe Sache in derselben Datei – gefunden, weil **alle drei** unabhängigen
+Review-Perspektiven (Logik, Code-Qualität, Architektur) denselben Punkt unabhängig voneinander
+aufgriffen, nicht weil ein einzelner Reviewer besonders aufmerksam war.
+
+**Smell:** „Prüfe ich hier, ob ein Tool/eine Capability verfügbar ist (`command -v`, Feature-Flag,
+Versions-Check) – und tut das derselbe File/dasselbe Modul das nicht bereits woanders?"
+
+**Regel:** Vor dem Hinzufügen einer neuen Verfügbarkeits-/Capability-Prüfung per `grep` im selben
+File nach bereits vorhandenen Prüfungen derselben Sache suchen (z. B. `grep -n "command -v jq"
+<file>`) und die bestehende Variable/Direktform wiederverwenden statt eine neue Schreibweise
+einzuführen. Gilt insbesondere für Shell-Skripte mit wachsender Testsuite, wo Prüf-Idiome
+(`HAS_JQ`, `HAS_YQ`, `skip_yq`) bereits etabliert sind – Konsistenz mit dem etablierten Idiom
+schlägt eine lokal „einfachere" Neuerfindung.

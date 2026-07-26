@@ -2014,16 +2014,85 @@ assert_true "$(line_before 'factory-commit.sh' 'gh pr merge --squash' "$SHEPHERD
 assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" \
   "#91: kein pauschales Bash(git *)/Bash(gh *)"
 
-# deny unverändert: .claude/** und .env* bleiben gesperrt.
+# deny unverändert: .claude/** und .env* bleiben gesperrt. Bewusster jq-unabhängiger
+# Fallback (läuft IMMER, auch ohne jq) neben der geparsten #224-Gegenrichtungsprüfung unten
+# (AK4) – die dortige jq-Prüfung wird bei fehlendem jq übersprungen (Review-Finding #224).
 { grep -qF 'Write(.claude/**)' "$SETTINGS" && grep -qF 'Edit(.claude/**)' "$SETTINGS" \
-  && grep -qF 'Write(.env*)' "$SETTINGS" && grep -qF 'Read(.env*)' "$SETTINGS"; }
-assert_true "$?" "#91: deny behält .claude/** und .env* (fail-closed)"
+  && grep -qF 'Edit(.env*)' "$SETTINGS" && grep -qF 'Write(.env*)' "$SETTINGS" \
+  && grep -qF 'Read(.env*)' "$SETTINGS"; }
+assert_true "$?" "#91: deny behält .claude/** und .env* (fail-closed, jq-unabhängiger Fallback)"
 
 # Skill-Doku: Code-erzeugende Skills committen/pushen über den Seam, nicht rohes git.
 for sk in implement test refactor bug-fix; do
   grep -q 'factory-commit.sh' "$FACTORY_ROOT/.claude/commands/$sk.md"
   assert_true "$?" "#91: /$sk committet/pusht über scripts/factory-commit.sh"
 done
+
+# ─── #224: Top-Level-YAML-Freigabe + Write-Symmetrie (.claude/settings.json) ─
+# AK5: die GEPARSTE allow-/deny-Liste wird geprüft (jq-Array-Lookup), nicht ein bloßer
+# Text-Treffer irgendwo in der Datei – je Eintrag eine eigene Assertion, damit der Wegfall
+# genau eines Eintrags genau die zugehörige Assertion rot färbt (AK5). AK6: $SETTINGS zeigt auf
+# die committete Live-Datei im Arbeitsbaum, nicht auf tasks/patch-224.diff.
+echo ""
+echo "#224 Top-Level-YAML-Freigabe (.claude/settings.json):"
+
+if [ "$HAS_JQ" -eq 1 ]; then
+  # AK8: settings.json bleibt valides JSON mit unveränderter Grundstruktur.
+  jq -e '.hooks and .permissions.allow and .permissions.deny' "$SETTINGS" >/dev/null 2>&1
+  assert_true "$?" "#224: settings.json valides JSON mit hooks/permissions.allow/deny (AK8)"
+
+  # AK1: Top-Level-YAML per Edit freigegeben. Root-verankert (führender Slash) statt slash-frei
+  # (Security-Review-Finding: slash-freie Muster matchen laut Claude-Code-Doku auf jeder
+  # Verzeichnistiefe, gitignore-Semantik – die Spec adressiert aber ausdrücklich nur
+  # Top-Level-Dateien; alle vier realen Zieldateien liegen im Root, root-verankert verliert
+  # nichts, schließt aber die Least-Privilege-Lücke für künftige *.yml/*.yaml-Dateien).
+  for entry in 'Edit(/*.yml)' 'Edit(/*.yaml)'; do
+    jq -e --arg v "$entry" '.permissions.allow | index($v) != null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#224: allow (geparst) enthält '$entry'"
+  done
+
+  # AK2: Write symmetrisch zu allen Top-Level-Extensions. Hinweis (Task-224-Blocker-Abschnitt,
+  # claude --print-Probe): die installierte Claude-Code-Version wertet Write(pfad)-Regeln nicht
+  # aus (nur Edit(pfad) deckt Edit+Write ab) – strukturell dennoch gefordert (mit dem
+  # Entwickler abgestimmter Scope), das eigentliche Verhalten liefert Edit(/*.yml)/Edit(/*.yaml)
+  # aus der Schleife oben. Cleanup-Kandidat ausgelagert: Issue #240. Die YAML-Pendants sind aus
+  # demselben Root-Anker-Grund wie AK1 verankert; die vorbestehenden #88-Extensions (*.ts/*.tsx/
+  # *.mjs/*.json/*.md) bleiben bewusst slash-frei – kein Teil dieses Findings/Scopes.
+  for entry in 'Write(*.ts)' 'Write(*.tsx)' 'Write(*.mjs)' 'Write(*.json)' 'Write(*.md)' \
+    'Write(/*.yml)' 'Write(/*.yaml)'; do
+    jq -e --arg v "$entry" '.permissions.allow | index($v) != null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#224: allow (geparst) enthält '$entry'"
+  done
+
+  # AK3 (Gegenrichtung): pnpm-lock.yaml bleibt trotz generischer YAML-Freigabe per deny gesperrt.
+  for entry in 'Edit(pnpm-lock.yaml)' 'Write(pnpm-lock.yaml)'; do
+    jq -e --arg v "$entry" '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#224: deny (geparst) enthält '$entry'"
+  done
+
+  # AK4 (Gegenrichtung): #88-Grenze unverändert – bestehende deny-Einträge bleiben erhalten.
+  for entry in 'Edit(.claude/**)' 'Write(.claude/**)' 'Edit(.env*)' 'Write(.env*)' 'Read(.env*)'; do
+    jq -e --arg v "$entry" '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#224: deny (geparst) behält '$entry' (#88-Grenze)"
+  done
+else
+  echo "  • #224: Permissions-Konsistenz (geparst) – übersprungen (jq fehlt)"
+fi
+
+# AK7: die stale Präsens-Aussage zu factory.defaults.yml ist korrigiert; die weiterhin gültige
+# Patch-Workflow-Regel (#94) bleibt erhalten. Bislang die einzige Regressionsabsicherung für
+# AK7 (/test-Selbstfund) – ohne diesen Test könnte ein künftiger Edit die Korrektur
+# stillschweigend zurückdrehen, ohne dass irgendein Test rot würde.
+WORKFLOW_LESSON="$FACTORY_ROOT/docs/factory/lessons/factory-workflow.md"
+
+assert_true "$(! grep -qF 'außerhalb von `scripts/*`/`pnpm`-Scope sind nicht' "$WORKFLOW_LESSON"; echo $?)" \
+  "#224: stale Präsens-Aussage zu factory.defaults.yml aus der Lesson entfernt (AK7)"
+
+grep -qF 'ist seit #224 über eine generische' "$WORKFLOW_LESSON"
+assert_true "$?" "#224: Lesson nennt die korrigierte Allow-Regel für Top-Level-YAML (AK7)"
+
+grep -qF 'Patch NICHT von Hand schreiben (aus #94)' "$WORKFLOW_LESSON"
+assert_true "$?" "#224: Patch-Workflow-Regel (#94) bleibt in der Lesson erhalten (AK7)"
 
 # ─── Task 101: Pipeline-Quality-Gates rufen echte Befehle (kein Platzhalter) ──
 echo ""

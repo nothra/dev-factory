@@ -102,9 +102,11 @@ Branches mit bereits committetem Report manuell prüfen (ADR-019 §4 ergänzen).
 ### `.claude/**`-Änderungen erfordern Patch-Workflow (aus #91)
 
 Änderungen an `.claude/settings.json` und `.claude/commands/*.md` sind für einen Agenten hard
-denied (`Edit(.claude/**)` / `Write(.claude/**)` – #88-Grenze). Auch `factory.defaults.yml`
-(root `*.yml`) und andere Konfigurationsdateien außerhalb von `scripts/*`/`pnpm`-Scope sind nicht
-in der Allow-Liste und lösen einen Interrupt aus.
+denied (`Edit(.claude/**)` / `Write(.claude/**)` – #88-Grenze). Top-Level-YAML wie
+`factory.defaults.yml` ist seit #224 über eine generische `Edit(*.yml)`/`Write(*.yml)`-Regel
+freigegeben (`pnpm-lock.yaml` bleibt als generiertes Lockfile explizit per `deny` gesperrt);
+andere Top-Level-Konfigurationsdateien ohne passende Extension (z. B. `LICENSE`,
+`.prettierignore`) haben weiterhin keine Allow-Regel und lösen einen Interrupt aus.
 
 **Regel:** Enthält eine Task solche Änderungen, liefert der Agent sie als **Patch-Datei**
 (`tasks/patch-<id>.diff`, erstellt via `git diff`) und protokolliert den Blocker explizit in der
@@ -160,6 +162,60 @@ Human-Apply-Zyklus (Review-Findings W1/N2/N7):
    Regeln und committete Templates** – und im selben Patch mitziehen. Sonst folgt ein vermeidbarer
    zweiter Patch-/Apply-Zyklus. Faustregel: `git grep -n <alter-Begriff> <skill-datei>` nach dem
    ersten Draft, bewusste Ausnahmen (z. B. Skill-Titel „…bis Auto-Merge" = Gesamtziel) begründen.
+
+### Permission-Regeln in `.claude/settings.json`: Pfad-Semantik und `Write`-Wirkungslosigkeit vorab prüfen (aus #224)
+
+Beim Hinzufügen neuer `Edit(...)`/`Write(...)`-Allow-/Deny-Einträge (Top-Level-YAML-Freigabe,
+#224) zwei nicht offensichtliche Verhaltensweisen der Claude-Code-Permission-Engine per
+`claude --print`-Verhaltensprobe (Positiv/Negativ, `FACTORY_STAGE=3`) verifiziert – beide waren
+vor der Probe reine Annahmen im Task-File:
+
+1. **Slash-freie Muster matchen auf jeder Verzeichnistiefe, nicht nur Root.** `Edit(*.yml)` folgt
+   gitignore-Semantik („Bare filenames follow gitignore semantics and match at any depth",
+   Claude-Code-Doku) und greift damit auch für `some/nested/path/foo.yml` – nicht nur für `foo.yml`
+   im Repo-Root, obwohl die naheliegende Lesart „Top-Level-Freigabe" das nahelegt. Ein Root-Anker
+   braucht einen **führenden Slash**: `Edit(/*.yml)`. Für eine `deny`-Regel ist die breitere (nicht
+   verankerte) Variante meist erwünscht (schützt auch verschachtelte Treffer); für eine
+   `allow`-Regel ist sie ein Least-Privilege-Risiko, wenn nur Top-Level-Dateien gemeint waren –
+   in #224 erst im `/security-review` bemerkt (Wichtiges Finding), nicht schon in `/implement`.
+2. **`Write(pfad)`-Regeln werden von der installierten Claude-Code-Version (2.1.218) gar nicht
+   ausgewertet** – weder in `allow` noch in `deny`. Jeder `claude --print`-Aufruf gibt dafür eine
+   Warnung aus: „Write(<pfad>) is not matched by file permission checks — only Edit(path) rules
+   are … (Edit rules cover all file-editing tools)". Ein `Edit(pfad)`-Eintrag deckt bereits **Edit
+   und Write** für diesen Pfad ab; eine separate `Write(...)`-Liste (wie sie seit #88 in diesem
+   Repo existiert) ist aktuell **komplett wirkungslos**, in beide Richtungen (Cleanup-Kandidat:
+   Issue #240).
+
+**Regel:** Vor jeder neuen `.claude/settings.json`-Permission-Änderung, die auf Datei-Pfad-Muster
+setzt (nicht auf Verzeichnis-Globs mit `**`):
+- Slash-freie `*.ext`-Muster nur für **absichtlich repo-weite** Freigaben verwenden; ist nur eine
+  Root-Datei gemeint, `/*.ext` (führender Slash) schreiben.
+- **Keine neuen `Write(...)`-Einträge mehr hinzufügen** – ein `Edit(...)`-Eintrag reicht (deckt
+  beide Tools ab). Bestehende `Write(...)`-Einträge sind bekannter, bereits getrackter
+  Cleanup-Kandidat (Issue #240) – nicht als Vorbild für neue Einträge kopieren.
+- Beide Verhaltensweisen sind Eigenschaften der Claude-Code-Version, nicht des Repos – bei einem
+  größeren Claude-Code-Update (Changelog prüfen) erneut per `claude --print`-Probe verifizieren,
+  ob sie noch gelten, bevor man sich weiter darauf verlässt.
+
+### Neue Edit-Freigabe auf bislang gesperrter Config-Klasse: Selbstschwächungs-Check für Review-/Security-Review-Parameter (aus #224, Security-Review-Finding)
+
+Wird `.claude/settings.json` so erweitert, dass ein Stage-3-Agent erstmals eine bislang
+hard-denied Top-Level-Config-Datei per `Edit` erreichen kann (hier: `factory.config.yml` /
+`factory.defaults.yml`, vorher komplett ohne Allow-Regel), reicht die übliche #88-Prüfung
+(„`.claude/**`/`.env*` bleiben gesperrt?") allein nicht – zusätzlich prüfen, **was** die neu
+erreichbare Datei steuert. `factory.config.yml` überschreibt u. a. `skills.security-review.tier`/
+`max_turns` (ADR-009); `scripts/checks/config-validation-check.sh` validiert dort nur Struktur/
+Wertebereich (`tier ∈ model_tiers`, `max_turns ∈ [1, MAX_TURNS_CEILING]`), **ohne** eine
+Mindest-Tier-Schwelle für sicherheitsrelevante Skills zu erzwingen – ein Agent könnte die eigene
+`/security-review`-Schärfe künftig autonom herabsetzen, bevor sie läuft (Issue #241).
+
+**Regel:** Öffnet eine Task erstmals Edit-Zugriff auf eine Config-Datei, die Pipeline-Parameter
+(Modell-Tier, Turn-Budget, Gate-Schwellen) steuert, im `/security-review`-Schritt explizit prüfen,
+ob die zugehörige Validierung (`config-validation-check.sh` o. ä.) einen Floor für
+sicherheitsrelevante Skills erzwingt. Fehlt er, als eigenes Issue (Aspekt-Label `security`)
+auslagern statt nur als Randnotiz zu vermerken – die neue Zugriffsmöglichkeit selbst bleibt im
+Scope der ursprünglichen Task (hier bewusst gewünscht), die fehlende Floor-Absicherung ist ein
+eigenständiger Härtungs-Task.
 
 ### Notiz-vor-Merge bei Squash-Strategie (aus #114)
 
