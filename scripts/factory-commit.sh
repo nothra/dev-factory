@@ -56,25 +56,37 @@ if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
   exit 4
 fi
 
+# Pushen. Ohne Upstream (frischer Branch) das Tracking-Ref neu anlegen, sonst normaler
+# Push. Kein --force. Schlägt der Push fehl, reicht `set -e` den non-zero Exit weiter →
+# kein stiller „committed, aber nicht gepusht"-Zustand.
+push_branch() {
+  if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    git push
+  else
+    git push -u origin HEAD
+  fi
+}
+
 git add -A
 
 # Nichts zu committen? Kein harter Fehler – die Pipeline soll nicht abbrechen, nur
-# weil ein Schritt keine Änderungen produziert hat (ADR-019 §1).
+# weil ein Schritt keine Änderungen produziert hat (ADR-019 §1). Ein zuvor
+# fehlgeschlagener Push darf dabei aber nicht liegen bleiben (#239): steht der Branch
+# vor seinem Upstream oder hat er noch keinen, wird der Push nachgeholt.
 if git diff --cached --quiet; then
+  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 ||
+    [ -n "$(git rev-list '@{u}..HEAD')" ]; then
+    err "nichts zu committen auf '$BRANCH' – hole ausstehenden Push nach."
+    push_branch
+    err "ausstehenden Push nachgeholt auf '$BRANCH'."
+    exit 0
+  fi
   err "nichts zu committen auf '$BRANCH' – übersprungen."
   exit 0
 fi
 
 git commit -m "$COMMIT_MESSAGE"
-
-# Pushen. Ohne Upstream (frischer Branch) das Tracking-Ref neu anlegen, sonst normaler
-# Push. Kein --force. Schlägt der Push fehl, reicht `set -e` den non-zero Exit weiter →
-# kein stiller „committed, aber nicht gepusht"-Zustand.
-if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  git push
-else
-  git push -u origin HEAD
-fi
+push_branch
 
 err "committet und gepusht auf '$BRANCH'."
 exit 0

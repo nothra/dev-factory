@@ -569,3 +569,28 @@ OPERATING.md-Interrupt-Tabelle steht?"
 in `docs/factory/OPERATING.md` eingetragen (Typ · ausgelöst von · Bedeutung · was der Mensch tut).
 Selbstcheck: die Typen aus `grep -rhoE 'raise-interrupt\.sh [^ ]+ [A-Z_]+' scripts/ .claude/` gegen
 die Tabellen-Spalte abgleichen.
+
+### Vorbestehenden, scheinbar unabhängigen Bash-Suite-Testfehlschlag mit zwei konkreten Prüfungen belegen, nicht nur behaupten (aus #239, /review-Selbstfund)
+
+`scripts/checks/tests/run-tests.sh` endete in #239 mit 4 roten Fällen in einem Block, der mit dem
+eigenen Task-Diff (nur `factory-commit.sh` + ein neuer Testabschnitt) nichts zu tun zu haben schien.
+Die naheliegende Reaktion – „betrifft mich nicht, der Block ist ein anderes Thema" – wäre eine
+unbelegte Behauptung geblieben. Stattdessen wurden zwei konkrete, automatisierbare Prüfungen
+herangezogen, die die Trennung tatsächlich **beweisen**: (1) der Diff besteht aus **genau einem
+Hunk**, der die fremden Zeilen gar nicht enthält (`git diff` auf Hunk-Grenzen geprüft); (2) der
+fragliche Block ist ein E2E-Test, der einen bestimmten Datei-Satz in ein Test-Repo kopiert – die
+eigene geänderte Datei kommt in dessen Referenzliste/Copy-Set **nicht** vor (`grep` nach dem
+Dateinamen in der kopierten/referenzierten Dateimenge), kann den Fehlschlag also nicht verursacht
+haben.
+
+**Smell:** „Ich will einen roten Testfall als ‚pre-existing, nicht mein Scope' abbuchen – habe ich
+das durch mehr als ‚sieht unabhängig aus' belegt?"
+
+**Regel:** Vor dem Vermerk „vorbestehender, unabhängiger Fehlschlag" im Review-/Task-Report zwei
+Prüfungen tatsächlich ausführen und ihr Ergebnis zitieren, nicht nur die Einschätzung: (1) den
+eigenen Diff auf Hunk-Ebene gegen die fraglichen Zeilen prüfen (`git diff` enthält sie nicht), (2)
+bei E2E-Tests mit kopiertem/referenziertem Datei-Satz die eigene geänderte Datei **nicht** in
+dessen Referenzen finden. Beide Prüfungen zusammen sind der Beleg – eine allein (nur Diff-Scope
+*oder* nur Referenz-Check) wäre schwächer. Trotzdem bleibt die Einordnung „real vs. environmental"
+menschliche Entscheidung; ein Tracking-Issue für den Fehlschlag selbst gehört unabhängig davon
+angelegt (hier [#244](https://github.com/nothra/tch-gastro-services/issues/244)).

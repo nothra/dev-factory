@@ -1615,6 +1615,63 @@ echo "w" > "$WT/change.txt"
 ( cd "$WT" && bash "$FCOMMIT" "feat: push fail" ) >/dev/null 2>&1
 assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: push scheitert → exit ≠ 0 (Ursache weitergereicht)"
 
+# ─── #239: leerer Commit-Zweig holt ausstehenden Push nach ───────────────────
+echo ""
+echo "#239 factory-commit.sh (Push-Nachholen im leeren Zweig):"
+
+# 9. Nichts zu committen, aber Branch hat Upstream + unpushten Commit → Push wird
+#    nachgeholt (exit 0), Remote-Tracking-Ref zeigt danach auf den lokalen Stand.
+WT=$(fc_repo pushpending)
+git -C "$WT" checkout -q -b feature/239-pushpending
+git -C "$WT" push -q -u origin feature/239-pushpending
+echo "lokal, noch nicht gepusht" > "$WT/change.txt"
+git -C "$WT" add -A
+git -C "$WT" commit -q -m "feat: lokaler commit ohne push"
+fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=$?
+assert_exit 0 "$fc_rc" "factory-commit: nichts zu committen + unpushter Commit → exit 0 (Push nachgeholt)"
+git -C "$WT" diff --quiet HEAD origin/feature/239-pushpending
+assert_true "$?" "factory-commit: holt ausstehenden Push nach (Remote-Ref = lokaler Stand)"
+printf '%s' "$fc_out" | grep -qF 'committet und gepusht'
+assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: Nachhol-Meldung unterscheidet sich vom Happy-Path-Text"
+printf '%s' "$fc_out" | grep -qF 'ausstehenden Push nachgeholt'
+assert_true "$?" "factory-commit: Nachhol-Meldung bestätigt den nachgeholten Push positiv"
+
+# 10. Nichts zu committen, kein Upstream (frischer Branch mit lokalem Commit) →
+#     Push mit `-u origin HEAD` wird nachgeholt (exit 0), Tracking-Ref entsteht.
+WT=$(fc_repo noupstream)
+git -C "$WT" checkout -q -b feature/239-noupstream
+echo "lokal, kein upstream" > "$WT/change.txt"
+git -C "$WT" add -A
+git -C "$WT" commit -q -m "feat: lokaler commit, kein upstream"
+( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" ) >/dev/null 2>&1
+assert_exit 0 "$?" "factory-commit: nichts zu committen + kein Upstream → exit 0 (Push mit -u nachgeholt)"
+git -C "$WT" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1
+assert_true "$?" "factory-commit: legt beim Nachhol-Push das Tracking-Ref an"
+
+# 11. Nichts zu committen, Branch deckungsgleich mit Upstream → weiterhin keine
+#     Aktion, unveränderte Meldung „übersprungen" (Regression zu Fall 4).
+WT=$(fc_repo insync)
+git -C "$WT" checkout -q -b feature/239-insync
+git -C "$WT" push -q -u origin feature/239-insync
+fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=$?
+assert_exit 0 "$fc_rc" "factory-commit: deckungsgleich mit Upstream → exit 0, keine Aktion"
+printf '%s' "$fc_out" | grep -qi 'übersprungen'
+assert_true "$?" "factory-commit: deckungsgleicher Branch behält die unveränderte 'übersprungen'-Meldung"
+
+# 12. Nichts zu committen, unpushter Commit vorhanden, Nachhol-Push scheitert →
+#     exit ≠ 0 (Fehlschlag wird weitergereicht, kein stiller Erfolg).
+WT=$(fc_repo pushpendingfail)
+git -C "$WT" checkout -q -b feature/239-pushpendingfail
+git -C "$WT" push -q -u origin feature/239-pushpendingfail
+echo "lokal, push schlaegt fehl" > "$WT/change.txt"
+git -C "$WT" add -A
+git -C "$WT" commit -q -m "feat: lokaler commit, nachhol-push scheitert"
+git -C "$WT" remote set-url origin "$TMP_FC/does-not-exist.git"
+fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=$?
+assert_true "$([ $fc_rc -ne 0 ]; echo $?)" "factory-commit: Nachhol-Push scheitert → exit ≠ 0"
+printf '%s' "$fc_out" | grep -qF 'hole ausstehenden Push nach'
+assert_true "$?" "factory-commit: Fehlschlag stammt aus dem erreichten Push-Pfad (nicht aus einem anderen Grund)"
+
 rm -rf "$TMP_FC"
 
 # ─── #91: Report-Verdict-Helper / run_skill-Report-Guard (ADR-019 §4) ────────

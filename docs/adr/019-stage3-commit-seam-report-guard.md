@@ -155,3 +155,30 @@ Permissions-Grenze und die Erfolgssemantik der Orchestrierung dauerhaft prägen.
   (Spec offene Frage 2) – nur tatsächlich genutzte Verben freigeben.
 - **stdout/stderr-Hygiene** im Wrapper: Diagnostik auf stderr; Fehler weiterreichen, kein stiller
   „committed aber nicht gepusht"-Zustand.
+
+## Nachtrag (2026-07-26, #239): Push-Nachholung im „nichts zu committen"-Zweig
+
+**Kontext.** Der in §1 beschriebene „nichts zu committen"-Zweig (bewusst kein harter Fehler)
+prüfte bislang **nur** auf einen leeren `git diff --cached` – nicht darauf, ob der Branch noch
+ungepushte Commits hat. Blieb ein vorheriger `git push` stecken (z. B. am pre-push-Gate durch
+einen flakigen Test), verewigte der nächste Aufruf genau den Zustand, den §1 ausdrücklich
+ausschließen soll: „committed, aber nicht gepusht" – ohne dass ein Stage-3-Agent das über den
+Seam selbst auflösen könnte (rohes `git push` hat keine Allow-Regel, s. §1).
+
+**Entscheidung.** Kein neuer Design-Fork, sondern eine Lückenschließung der unter §1 bereits
+getroffenen Entscheidung: Der leere Zweig prüft zusätzlich, ob der Branch Commits gegenüber
+seinem Upstream voraus ist (`git rev-list @{u}..HEAD`) **oder** noch keinen Upstream hat, und
+holt den Push in dem Fall nach – mit derselben Push-Logik wie im Commit-Pfad (`git push -u
+origin HEAD` ohne Upstream, sonst `git push`). Schlägt dieser nachgeholte Push fehl, gilt
+dieselbe Fail-Closed-Regel wie am regulären Push (Exit ≠ 0, weitergereicht). Bleibt der Branch
+deckungsgleich mit seinem Upstream, bleibt das Verhalten unverändert (Exit 0, keine Aktion).
+Die bestehenden Guards (main/master, Argumentanzahl, kein `--force`) sind von dieser Erweiterung
+nicht betroffen – sie laufen unverändert davor.
+
+Kein eigenes ADR, weil keine neuen Alternativen abzuwägen sind: die Push-Mechanik existiert
+bereits (unten im Skript), es wird nur derselbe Pfad zusätzlich aus dem leeren Zweig erreicht.
+Details/Testfälle: `docs/specs/spec-239-factory-commit-push-nachholen.md`.
+
+**Betroffene Artefakte (Ergänzung):** `scripts/factory-commit.sh` (erweiterter leerer Zweig,
+idealerweise Push-Logik in einem gemeinsamen Helper statt dupliziert), `scripts/checks/tests/
+run-tests.sh` (neue Fälle: nichts zu committen + ungepusht/kein-Upstream/Push-scheitert).
