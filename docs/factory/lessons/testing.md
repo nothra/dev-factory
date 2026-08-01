@@ -405,3 +405,28 @@ die Regel oben: Beim Schreiben eines **neuen** `grep -qF`/`grep -qi`-Fixed-Strin
 bereits vorhandenen Fließtext vorher `grep -n '<Teil-Phrase>' <Zieldatei>` gegen die Zieldatei
 laufen lassen, um zu verifizieren, dass die volle Testphrase tatsächlich auf einer Zeile steht –
 nicht erst durch den ersten (roten) Testlauf herausfinden.
+
+### „Kein Argument übergeben"-Test simuliert nicht automatisch Abwesenheit, wenn das Skript einen echten Repo-Datei-Default hat (aus #254, Review-Finding)
+
+Task 254 ergänzte Gate #254 AK6 („kein Override-File vorhanden → neue Checks übersprungen").
+Der erste Testentwurf rief `bash "$GATE" "$DEFAULTS" >/dev/null 2>&1` — also ohne zweites
+Argument, in der Annahme, das simuliere „kein Override vorhanden". `config-validation-check.sh`
+defaultet `$OVERRIDE` bei fehlendem `$2` aber nicht auf einen leeren/nicht-existenten Pfad,
+sondern auf `$REPO_ROOT/factory.config.yml` (`OVERRIDE="${2:-$REPO_ROOT/factory.config.yml}"`) —
+und diese Datei existiert im Repo real und ist selbst ein gültiger Mapping-Override. Der Test
+war grün, bewies aber **nicht** den behaupteten Skip-Pfad, sondern war inhaltlich deckungsgleich
+mit dem bereits bestehenden Positiv-Test für den realen Override. Erst im Review aufgefallen,
+nicht in `/implement` oder `/test` selbst.
+
+**Smell:** „Mein Test lässt ein optionales Positionsargument weg, um dessen 'nicht gesetzt'-Fall
+zu simulieren – hat das Skript für dieses Argument einen `${N:-<default>}`-Fallback, der auf
+einen REALEN, im Repo vorhandenen Pfad zeigt (statt auf einen leeren String)?" Falls ja, testet
+das Weglassen den Default, nicht die Abwesenheit.
+
+**Regel:** Vor dem Schreiben eines „Argument X fehlt"-Tests die Default-Zeile des Skripts
+(`grep -n '\${.*:-' <skript>` als Ankerpunkt) prüfen. Zeigt der Default auf einen echten,
+existierenden Repo-Pfad, muss der Test stattdessen einen garantiert nicht existierenden Pfad
+(z. B. `$GTMP/does-not-exist.yml`) explizit als Argument übergeben, um die entsprechende
+Existenzprüfung (hier `override_present()`) nachweislich `false` zu machen — nicht das Argument
+einfach weglassen. Gilt für jedes Bash-Gate mit einem `${N:-$REPO_ROOT/...}`-Default-Muster,
+nicht nur `config-validation-check.sh`.

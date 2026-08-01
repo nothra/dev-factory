@@ -1319,6 +1319,51 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   bash "$GATE" "$DEFAULTS" "$FACTORY_ROOT/factory.config.yml" >/dev/null 2>&1
   assert_true "$?" "Gate #249 AK5: reales factory.config.yml (nur .light-Override) bleibt gültig"
 
+  # ── Config-Validation Root-Typ-Guard (Task 254) ─────────────────────────────
+  # AK1 (Negativ): Skalar-Root im Override → explizite "kein Mapping"-Meldung, nicht
+  #   die irreführende max_turns-Meldung aus Regel 4b.
+  printf 'just_a_string\n' > "$GTMP/root-scalar.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-scalar.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK1: Skalar-Root im Override → fail-closed"
+  printf '%s' "$out" | grep -qi 'kein YAML-Mapping' && ! printf '%s' "$out" | grep -qi 'max_turns'
+  assert_true "$?" "Gate #254 AK1: Fehlermeldung nennt 'kein YAML-Mapping', nicht die max_turns-Folgemeldung"
+
+  # AK2 (Negativ): Boolean-Root im Override → dieselbe explizite Meldung.
+  printf 'true\n' > "$GTMP/root-bool.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-bool.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK2: Boolean-Root im Override → fail-closed"
+  printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  assert_true "$?" "Gate #254 AK2: Fehlermeldung nennt 'kein YAML-Mapping'"
+
+  # AK3 (Negativ): Sequence-Root im Override → dieselbe explizite Meldung.
+  printf -- '- a\n- b\n' > "$GTMP/root-seq.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-seq.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK3: Sequence-Root im Override → fail-closed"
+  printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  assert_true "$?" "Gate #254 AK3: Fehlermeldung nennt 'kein YAML-Mapping'"
+
+  # AK4 (Negativ): Mehrdokument-Override (zwei gültige Mapping-Dokumente via '---') →
+  #   eigene, von der "kein Mapping"-Meldung unterscheidbare Meldung.
+  printf 'skills:\n  implement: { max_turns: 5 }\n---\nskills:\n  test: { max_turns: 10 }\n' > "$GTMP/root-multidoc.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-multidoc.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK4: Mehrdokument-Override → fail-closed"
+  printf '%s' "$out" | grep -qi 'mehrere YAML-Dokumente' && ! printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  assert_true "$?" "Gate #254 AK4: Fehlermeldung nennt Mehrdokument-Struktur, unterscheidbar vom 'kein Mapping'-Fall"
+
+  # AK5 (Positiv, Nicht-Regression): gültiger Override (ein Dokument, Mapping-Root)
+  #   verhält sich unverändert — deckt sich mit dem bereits oben laufenden "ok.yml"-Fall.
+  bash "$GATE" "$DEFAULTS" "$GTMP/ok.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #254 AK5: gültiger Override (Mapping-Root, ein Dokument) → exit 0 (Nicht-Regression)"
+
+  # AK6 (Positiv): kein Override-File vorhanden → neue Root-Typ-/Mehrdokument-Checks
+  #   werden übersprungen (wie bei den bestehenden Override-only-Regeln). Explizit ein
+  #   garantiert nicht existierender Pfad als $2 (statt kein $2), sonst defaultet das
+  #   Gate auf das reale $REPO_ROOT/factory.config.yml (Zeile "OVERRIDE=..."), das
+  #   selbst ein gültiger Override ist — der Skip-Pfad wäre dann nicht isoliert getestet
+  #   (Review-Finding, Task 254).
+  bash "$GATE" "$DEFAULTS" "$GTMP/does-not-exist.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #254 AK6: kein Override-File vorhanden → neue Checks übersprungen, exit 0"
+
   rm -rf "$GTMP"
 else
   skip_yq "Gate-Validierung (Positiv/Negativ-Fixtures)"
