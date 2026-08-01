@@ -594,3 +594,25 @@ dessen Referenzen finden. Beide Prüfungen zusammen sind der Beleg – eine alle
 *oder* nur Referenz-Check) wäre schwächer. Trotzdem bleibt die Einordnung „real vs. environmental"
 menschliche Entscheidung; ein Tracking-Issue für den Fehlschlag selbst gehört unabhängig davon
 angelegt (hier [#244](https://github.com/nothra/tch-gastro-services/issues/244)).
+
+### Real-vs-environmental-Einordnung eines gemeldeten Testfehlschlags durch Wiederholung statt Diff-Analyse belegen (aus #244, /requirements-Selbstfund)
+
+#239 hatte einen Bash-Suite-Fehlschlag im Block „#212 W3" per Diff-Scope- und Referenz-Check als
+„nicht selbst verursacht" belegt (siehe Eintrag oben), die Frage „real vs. environmental" aber
+bewusst offengelassen und dafür Issue #244 angelegt. Ein Diff-Scope-Check beweist nur, dass man den
+Fehlschlag nicht *verursacht* hat – er beweist nicht, ob der Fehlschlag *reproduzierbar* ist. #244
+hat das mit einer anderen Prüfungsart geklärt: (1) der isolierte E2E-Block 5× hintereinander
+außerhalb der Gesamt-Suite wiederholt (kein Flackern), (2) die volle Suite auf aktuellem Stand
+laufen lassen (0 rot), (3) die CI-Historie (`gh run list`) für die betroffenen Branches auf
+`conclusion: success` geprüft. Alle drei negativ (kein Fehlschlag mehr) → Verdict „environmental",
+ohne dass die eigentliche Sandbox-Ursache der Ursprungs-Session identifiziert werden musste.
+
+**Smell:** „Ich will einen gemeldeten Testfehlschlag als „environmental" abbuchen – reicht dafür,
+dass er *diesmal* nicht auftrat, oder habe ich Wiederholung, volle Suite und CI-Historie geprüft?"
+
+**Regel:** Eine „real vs. environmental"-Einordnung für einen nicht mehr reproduzierbaren
+Testfehlschlag braucht mindestens drei Belege, nicht nur einen einzelnen grünen Lauf: (1) den
+betroffenen Test-/E2E-Block isoliert **mehrfach** wiederholen (Flakiness ausschließen), (2) die
+volle Suite auf aktuellem Stand laufen lassen, (3) die CI-Historie für die relevanten Branches
+prüfen. Erst wenn alle drei übereinstimmend grün sind, gilt der Fehlschlag als environmental und
+das Tracking-Issue kann ohne Code-Fix geschlossen werden.
