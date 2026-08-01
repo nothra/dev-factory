@@ -217,6 +217,26 @@ auslagern statt nur als Randnotiz zu vermerken – die neue Zugriffsmöglichkeit
 Scope der ursprünglichen Task (hier bewusst gewünscht), die fehlende Floor-Absicherung ist ein
 eigenständiger Härtungs-Task.
 
+### Ein Floor auf einen Lookup-Key ist kein Floor auf das, wofür er steht (aus #241, Security-Review-Finding)
+
+Task 241 hat `config-validation-check.sh` um eine Mindest-Tier-Regel erweitert: `tier` von
+`security-review`/`review` darf effektiv nicht unter `heavy` liegen. Der Fail-Safe wirkt aber
+nur auf das **Label** – `tier: heavy` ist selbst nur ein Schlüssel in `model_tiers`, und dieser
+Lookup-Pfad (`model_tiers.heavy`) blieb weiterhin frei override-bar. Ein Override, der
+`model_tiers.heavy` auf ein schwächeres Modell remapped, passiert alle Regeln (Label bleibt
+`heavy`, `tier_by_size` bleibt unbenutzt) und hebelt exakt den Fail-Safe aus, den die neue Regel
+herstellen sollte – nur über einen zweiten, nicht enumerierten Pfad. Belegt per PoC: Override auf
+`model_tiers.heavy` → Gate `exit 0`, obwohl `security-review.tier` unverändert `heavy` zeigt
+(Issue #249, aus #241 ausgelagert statt Merge-Blocker).
+
+**Regel:** Pinnt ein Gate einen Wert, der selbst nur ein Schlüssel in eine weitere,
+override-bare Config-Sektion ist (Tier-Label → `model_tiers`, Rollen-Name → Rechte-Tabelle,
+Environment-Name → Secret-Store-Pfad – jede Ebene der Indirektion), reicht die Prüfung des
+Schlüssels allein nicht. Zusätzlich prüfen (oder als eigenes Issue benennen), ob die
+**Zielseite der Indirektion** ebenfalls gegen Remap abgesichert ist – sonst bleibt der neue
+Floor eine Fassade, die im Diff plausibel aussieht, aber den Bypass nur verschiebt statt
+schließt.
+
 ### Notiz-vor-Merge bei Squash-Strategie (aus #114)
 
 Ein Skill-Schritt, der eine Notiz in eine versionierte Datei (Task-Datei, Changelog) schreibt

@@ -16,13 +16,28 @@
 #   3. schemaVersion: Integer == Defaults-Wert; weicht der Override ab → fail + Upgrade-Hinweis
 #   4. Werte-Constraints (effektive Config): tier ∈ model_tiers,
 #      max_turns Integer in [1, MAX_TURNS_CEILING]
+#   5. Mindest-Tier für sicherheitsrelevante Skills (effektive Config): security-review
+#      und review müssen tier == MIN_TIER_REQUIRED behalten; security-review darf zudem
+#      kein tier_by_size tragen (Task 241, s.u.).
 #
-# MAX_TURNS_CEILING ist Gate-Policy (ADR-009 §6 / ADR-010), bewusst NICHT in der
-# merge-baren Config — sonst könnte ein Override sein eigenes Maximum anheben und
-# den Guard aushebeln.
+# MAX_TURNS_CEILING, MIN_TIER_REQUIRED und die zugehörigen Skill-Listen sind
+# Gate-Policy (ADR-009 §6 / ADR-010), bewusst NICHT in der merge-baren Config — sonst
+# könnte ein Override sein eigenes Maximum/Minimum anheben und den Guard aushebeln.
 set -uo pipefail
 
 MAX_TURNS_CEILING=50
+
+# Mindest-Tier-Policy (Task 241): security-review und review sind Gates ohne
+# automatisierten Backstop (ADR-009 §G) — review entscheidet zudem über die
+# Merge-Freigabe. Ein Override darf ihr statisches tier nicht unter diese Schwelle
+# schwächen. Für security-review ist zusätzlich JEDES tier_by_size verboten: die
+# Defaults lassen es bewusst weg (ADR-038: „ein übersehenes Finding ist teurer als der
+# Token-Aufpreis, unabhängig von der Diff-Größe") — ein Override darf das nicht
+# unterlaufen. Analog zu MAX_TURNS_CEILING lebt die Schwelle als Konstante hier, nicht
+# in der Config. Kein neues ADR — Erweiterung des ADR-010-Musters (Task 241, Nicht-ADR).
+MIN_TIER_REQUIRED=heavy
+MIN_TIER_SKILLS="security-review review"
+NO_TIER_BY_SIZE_SKILLS="security-review"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEFAULTS="${1:-$REPO_ROOT/factory.defaults.yml}"
@@ -109,5 +124,23 @@ while IFS= read -r entry; do
   [ "$threshold" -ge 1 ] \
     || fail "tier_by_size.threshold bei '$name' = $threshold muss >= 1 sein (Gate-Policy, ADR-038)."
 done < <(printf '%s' "$effective" | yq eval '.skills | to_entries | .[] | select(.value.tier_by_size) | .key + "=" + (.value.tier_by_size.signal // "") + "|" + (.value.tier_by_size.threshold | tostring)' -)
+
+# 5. Mindest-Tier für sicherheitsrelevante Skills (Task 241). Läuft NACH 4a, damit ein
+#    strukturell ungültiges tier (z.B. 'medium') zuerst die passende 4a-Meldung erhält
+#    und nicht fälschlich als „unter Mindest-Tier" abgelehnt wird.
+# 5a. Statisches tier muss MIN_TIER_REQUIRED sein.
+for skill in $MIN_TIER_SKILLS; do
+  eff_tier="$(printf '%s' "$effective" | yq eval ".skills.\"$skill\".tier // \"\"" -)"
+  [ "$eff_tier" = "$MIN_TIER_REQUIRED" ] \
+    || fail "tier '$eff_tier' bei '$skill' unterschreitet die geforderte Mindest-Tier '$MIN_TIER_REQUIRED' (Gate-Policy, Task 241 — sicherheitsrelevantes Gate ohne automatisierten Backstop)."
+done
+
+# 5b. security-review darf kein tier_by_size tragen (größenabhängige Wahl würde die
+#     Fix-heavy-Entscheidung unterlaufen, ADR-038). Additiv zu 4c/Regel 2.
+for skill in $NO_TIER_BY_SIZE_SKILLS; do
+  if [ "$(printf '%s' "$effective" | yq eval ".skills.\"$skill\" | has(\"tier_by_size\")" -)" = "true" ]; then
+    fail "tier_by_size bei '$skill' ist nicht erlaubt (Gate-Policy, Task 241 — größenabhängige Tier-Wahl würde die Fix-heavy-Entscheidung unterlaufen, ADR-038)."
+  fi
+done
 
 exit 0

@@ -1233,6 +1233,59 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   bash "$GATE" "$DEFAULTS" "$GTMP/zero.yml" >/dev/null 2>&1; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate: max_turns = 0 (unter Minimum) → fail-closed"
 
+  # ── Mindest-Tier für sicherheitsrelevante Skills (Task 241, Regel 5) ────────
+  # AK1 (Negativ): security-review.tier unter heavy → fail-closed. light ist ein
+  #   gültiger model_tiers-Key (passiert Regel 2/4a) → nur Regel 5 kann greifen;
+  #   die Meldungs-Assertion belegt, dass genau Regel 5 (nicht ein Fremdpfad) fällt.
+  printf 'skills:\n  security-review: { tier: light }\n' > "$GTMP/sr-tier-light.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/sr-tier-light.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK1: security-review.tier=light (unter Mindest-Tier) → fail-closed"
+  printf '%s' "$out" | grep -qi 'Mindest-Tier' && printf '%s' "$out" | grep -q 'security-review'
+  assert_true "$?" "Gate #241 AK1: Fehlermeldung nennt Mindest-Tier + Skill (Regel 5 isoliert)"
+
+  # AK2 (Negativ): review.tier unter heavy → fail-closed (analog AK1)
+  printf 'skills:\n  review: { tier: light }\n' > "$GTMP/rv-tier-light.yml"
+  out="$(bash "$GATE" "$DEFAULTS" "$GTMP/rv-tier-light.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK2: review.tier=light (unter Mindest-Tier) → fail-closed"
+  printf '%s' "$out" | grep -qi 'Mindest-Tier' && printf '%s' "$out" | grep -qw 'review'
+  assert_true "$?" "Gate #241 AK2: Fehlermeldung nennt Mindest-Tier + Skill (Regel 5 isoliert)"
+
+  # AK3a (Negativ, reale Config): Override führt security-review.tier_by_size ein →
+  #   fail-closed. Gegen die realen Defaults greift bereits die Unbekannte-Key-Regel 2
+  #   (die Defaults lassen den Pfad bewusst weg) — Regel 5 ist hier Defense-in-Depth.
+  printf 'skills:\n  security-review: { tier_by_size: { signal: diff, threshold: 150 } }\n' > "$GTMP/sr-tbs.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/sr-tbs.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK3a: security-review.tier_by_size (reale Defaults) → fail-closed"
+
+  # AK3b (Negativ, Regel 5 isoliert): Custom-Defaults DEKLARIEREN den tier_by_size-Pfad
+  #   für security-review (→ Regel 2 hat nichts zu beanstanden) und die Form ist laut
+  #   4c gültig (→ 4c passiert) — dennoch muss Regel 5 fallen, weil security-review
+  #   keine größenabhängige Tier-Wahl haben darf. So testet AK3 wirklich Regel 5, nicht
+  #   einen Fremdpfad (#214: Ziel-Pfad isolieren + pfadspezifisches Signal assertieren).
+  printf 'schemaVersion: 1\nmodel_tiers:\n  heavy: m-heavy\n  light: m-light\nskills:\n  security-review:\n    tier: heavy\n    max_turns: 14\n    tier_by_size: { signal: diff, threshold: 150 }\n  review:\n    tier: heavy\n    max_turns: 14\ndefault:\n  tier: light\n  max_turns: 10\n' > "$GTMP/def-sr-tbs.yml"
+  # Expliziter leerer Override, damit NICHT die reale factory.config.yml als Default-$2
+  # einspringt (deren Fremd-Keys würden sonst Regel 2 vor Regel 5 auslösen).
+  : > "$GTMP/empty-ovr.yml"
+  out="$(bash "$GATE" "$GTMP/def-sr-tbs.yml" "$GTMP/empty-ovr.yml" 2>&1)"; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK3b: security-review.tier_by_size (Regel 5 isoliert) → fail-closed"
+  printf '%s' "$out" | grep -q 'tier_by_size' && printf '%s' "$out" | grep -q 'security-review'
+  assert_true "$?" "Gate #241 AK3b: Fehlermeldung nennt tier_by_size + Skill (Regel 5, nicht Regel 2)"
+
+  # AK4 (Positiv): review.tier_by_size bleibt override-bar, solange tier=heavy → exit 0
+  printf 'skills:\n  review: { tier_by_size: { signal: diff, threshold: 300 } }\n' > "$GTMP/rv-tbs.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/rv-tbs.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #241 AK4: review.tier_by_size-Override (tier bleibt heavy) → exit 0 (Nicht-Regression ADR-038)"
+
+  # AK5 (Positiv): Override, der security-review/review unangetastet lässt → exit 0
+  printf 'skills:\n  test: { max_turns: 15 }\n' > "$GTMP/untouched.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/untouched.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #241 AK5: Override ohne security-review/review-Änderung → exit 0"
+
+  # AK6 (Positiv): explizite redundante Bestätigung des Minimums (tier=heavy) → exit 0
+  printf 'skills:\n  security-review: { tier: heavy }\n' > "$GTMP/sr-tier-heavy.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/sr-tier-heavy.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #241 AK6: security-review.tier=heavy (redundant zum Default) → exit 0"
+
   rm -rf "$GTMP"
 else
   skip_yq "Gate-Validierung (Positiv/Negativ-Fixtures)"
