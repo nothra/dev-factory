@@ -66,34 +66,13 @@
       "Edit(*.json)",
       "Edit(*.md)",
       "Edit(/*.yml)",
-      "Edit(/*.yaml)",
-      "Write(app/**)",
-      "Write(lib/**)",
-      "Write(db/**)",
-      "Write(e2e/**)",
-      "Write(types/**)",
-      "Write(scripts/**)",
-      "Write(docs/**)",
-      "Write(tasks/**)",
-      "Write(config/**)",
-      "Write(public/**)",
-      "Write(.github/workflows/**)",
-      "Write(*.ts)",
-      "Write(*.tsx)",
-      "Write(*.mjs)",
-      "Write(*.json)",
-      "Write(*.md)",
-      "Write(/*.yml)",
-      "Write(/*.yaml)"
+      "Edit(/*.yaml)"
     ],
     "deny": [
       "Edit(.claude/**)",
-      "Write(.claude/**)",
       "Edit(.env*)",
-      "Write(.env*)",
       "Read(.env*)",
-      "Edit(pnpm-lock.yaml)",
-      "Write(pnpm-lock.yaml)"
+      "Edit(pnpm-lock.yaml)"
     ]
   }
 }

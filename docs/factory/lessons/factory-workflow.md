@@ -102,11 +102,14 @@ Branches mit bereits committetem Report manuell prüfen (ADR-019 §4 ergänzen).
 ### `.claude/**`-Änderungen erfordern Patch-Workflow (aus #91)
 
 Änderungen an `.claude/settings.json` und `.claude/commands/*.md` sind für einen Agenten hard
-denied (`Edit(.claude/**)` / `Write(.claude/**)` – #88-Grenze). Top-Level-YAML wie
-`factory.defaults.yml` ist seit #224 über eine generische `Edit(*.yml)`/`Write(*.yml)`-Regel
-freigegeben (`pnpm-lock.yaml` bleibt als generiertes Lockfile explizit per `deny` gesperrt);
-andere Top-Level-Konfigurationsdateien ohne passende Extension (z. B. `LICENSE`,
-`.prettierignore`) haben weiterhin keine Allow-Regel und lösen einen Interrupt aus.
+denied (`Edit(.claude/**)` – #88-Grenze; das frühere zusätzliche `Write(.claude/**)`-Deny war
+wirkungslos und ist seit #240 entfernt).
+
+Top-Level-YAML wie `factory.defaults.yml` ist seit #224 über eine generische `Edit(*.yml)`-Regel
+freigegeben (das ehemalige `Write(*.yml)`-Pendant war aus demselben Grund wirkungslos und ist
+ebenfalls seit #240 entfernt; `pnpm-lock.yaml` bleibt als generiertes Lockfile explizit per
+`deny` gesperrt); andere Top-Level-Konfigurationsdateien ohne passende Extension (z. B.
+`LICENSE`, `.prettierignore`) haben weiterhin keine Allow-Regel und lösen einen Interrupt aus.
 
 **Regel:** Enthält eine Task solche Änderungen, liefert der Agent sie als **Patch-Datei**
 (`tasks/patch-<id>.diff`, erstellt via `git diff`) und protokolliert den Blocker explizit in der
@@ -182,17 +185,18 @@ vor der Probe reine Annahmen im Task-File:
    ausgewertet** – weder in `allow` noch in `deny`. Jeder `claude --print`-Aufruf gibt dafür eine
    Warnung aus: „Write(<pfad>) is not matched by file permission checks — only Edit(path) rules
    are … (Edit rules cover all file-editing tools)". Ein `Edit(pfad)`-Eintrag deckt bereits **Edit
-   und Write** für diesen Pfad ab; eine separate `Write(...)`-Liste (wie sie seit #88 in diesem
-   Repo existiert) ist aktuell **komplett wirkungslos**, in beide Richtungen (Cleanup-Kandidat:
-   Issue #240).
+   und Write** für diesen Pfad ab; eine separate `Write(...)`-Liste existierte seit #88 in diesem
+   Repo und war **komplett wirkungslos**, in beide Richtungen – per erneuter
+   `claude --print`-Probe auf CLI 2.1.220 bestätigt und in **#240 entfernt** (`allow`/`deny`
+   enthalten seither keine `Write(...)`-Einträge mehr, nur noch `Edit(...)`).
 
 **Regel:** Vor jeder neuen `.claude/settings.json`-Permission-Änderung, die auf Datei-Pfad-Muster
 setzt (nicht auf Verzeichnis-Globs mit `**`):
 - Slash-freie `*.ext`-Muster nur für **absichtlich repo-weite** Freigaben verwenden; ist nur eine
   Root-Datei gemeint, `/*.ext` (führender Slash) schreiben.
 - **Keine neuen `Write(...)`-Einträge mehr hinzufügen** – ein `Edit(...)`-Eintrag reicht (deckt
-  beide Tools ab). Bestehende `Write(...)`-Einträge sind bekannter, bereits getrackter
-  Cleanup-Kandidat (Issue #240) – nicht als Vorbild für neue Einträge kopieren.
+  beide Tools ab). Die vormals bestehenden `Write(...)`-Einträge wurden in #240 entfernt – nicht
+  wieder einführen, auch nicht als Vorbild für neue Einträge.
 - Beide Verhaltensweisen sind Eigenschaften der Claude-Code-Version, nicht des Repos – bei einem
   größeren Claude-Code-Update (Changelog prüfen) erneut per `claude --print`-Probe verifizieren,
   ob sie noch gelten, bevor man sich weiter darauf verlässt.
@@ -636,3 +640,32 @@ betroffenen Test-/E2E-Block isoliert **mehrfach** wiederholen (Flakiness ausschl
 volle Suite auf aktuellem Stand laufen lassen, (3) die CI-Historie für die relevanten Branches
 prüfen. Erst wenn alle drei übereinstimmend grün sind, gilt der Fehlschlag als environmental und
 das Tracking-Issue kann ohne Code-Fix geschlossen werden.
+
+### Write-Tool-Zielpfad im Worktree explizit gegen den Worktree-Suffix prüfen, nicht dem Bash-cwd vertrauen (aus #240, /implement-Selbstfund)
+
+Beim Anlegen der neuen Spec-Datei in Task 240 landete der erste `Write`-Aufruf im **geteilten
+Hauptbaum** (`.../TCH Gastro Services/docs/specs/...`) statt im per `start-work.sh` angelegten
+**Worktree** (`.../TCH Gastro Services.worktrees/chore-240-.../docs/specs/...`) – trotz eines
+zuvor erfolgreichen `cd` in den Worktree per Bash. Ursache: Der Bash-cwd springt nach **jedem**
+Bash-Aufruf auf den Hauptbaum zurück (dokumentiertes Verhalten, sichtbar an der Zeile „Shell cwd
+was reset to …" nach jedem Tool-Ergebnis) – aber das `Write`-Tool ist ein **eigenes** Tool ohne
+eigenen cwd-Zustand und interpretiert einen absoluten Pfad genau so, wie er getippt wurde. Der
+Fehler war kein Tool-Bug, sondern ein mentales Modell „ich bin doch gerade in den Worktree
+gewechselt" (aus dem vorherigen Bash-`cd`), das beim nächsten `Write`-Aufruf nicht mehr stimmte.
+Bemerkt nur durch Zufall (`git status --short` im Hauptbaum zeigte die verirrte Datei als
+`??`) – ein stiller Fund, kein Test hätte ihn automatisch gemeldet.
+
+**Smell:** „Arbeite ich in dieser Session in einem git-Worktree (nicht im Hauptbaum) und rufe
+gerade `Write`/`Edit` mit einem **absoluten** Pfad auf – enthält der Pfad tatsächlich das
+Worktree-Suffix (`.worktrees/<branch>/…`), oder habe ich ihn aus einer früheren Zeile
+kopiert/rekonstruiert, die noch den Hauptbaum-Pfad zeigte?"
+
+**Regel:** In einer Worktree-Session vor **jedem** `Write`-Tool-Aufruf, der eine **neue** Datei
+anlegt (kein vorheriges `Read` desselben Pfads, das den Fehler sonst schon vorher aufgedeckt
+hätte), den Zielpfad explizit gegen den bekannten Worktree-Pfad abgleichen – nicht aus dem
+Bash-cwd oder einer vorherigen `cd`-Zeile ableiten, da beide nach dem nächsten Bash-Aufruf schon
+wieder auf den Hauptbaum zurückgesprungen sind. Nach dem Anlegen sicherheitshalber `git status
+--short` **sowohl** im Worktree **als auch** im Hauptbaum prüfen, um eine versehentlich falsch
+platzierte Datei sofort zu bemerken (nicht erst beim Commit). Ergänzt „Bash-cwd springt auf main
+zurück" (persönliche Session-Erfahrung) um die Erkenntnis, dass dasselbe Risiko unabhängig vom
+Bash-Tool auch für `Write`/`Edit` gilt.

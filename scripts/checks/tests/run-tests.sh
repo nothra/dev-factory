@@ -2127,10 +2127,11 @@ assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" 
 # deny unverändert: .claude/** und .env* bleiben gesperrt. Bewusster jq-unabhängiger
 # Fallback (läuft IMMER, auch ohne jq) neben der geparsten #224-Gegenrichtungsprüfung unten
 # (AK4) – die dortige jq-Prüfung wird bei fehlendem jq übersprungen (Review-Finding #224).
-{ grep -qF 'Write(.claude/**)' "$SETTINGS" && grep -qF 'Edit(.claude/**)' "$SETTINGS" \
-  && grep -qF 'Edit(.env*)' "$SETTINGS" && grep -qF 'Write(.env*)' "$SETTINGS" \
-  && grep -qF 'Read(.env*)' "$SETTINGS"; }
-assert_true "$?" "#91: deny behält .claude/** und .env* (fail-closed, jq-unabhängiger Fallback)"
+# Write(...)-Pendants sind seit #240 entfernt (wirkungslos, Edit(...) deckt beide Tools ab).
+{ grep -qF 'Edit(.claude/**)' "$SETTINGS" && grep -qF 'Edit(.env*)' "$SETTINGS" \
+  && grep -qF 'Read(.env*)' "$SETTINGS" \
+  && ! grep -qF 'Write(.claude/**)' "$SETTINGS" && ! grep -qF 'Write(.env*)' "$SETTINGS"; }
+assert_true "$?" "#91/#240: deny behält .claude/** und .env* (Edit), ohne wirkungslose Write(...)"
 
 # Skill-Doku: Code-erzeugende Skills committen/pushen über den Seam, nicht rohes git.
 for sk in implement test refactor bug-fix; do
@@ -2161,33 +2162,56 @@ if [ "$HAS_JQ" -eq 1 ]; then
     assert_true "$?" "#224: allow (geparst) enthält '$entry'"
   done
 
-  # AK2: Write symmetrisch zu allen Top-Level-Extensions. Hinweis (Task-224-Blocker-Abschnitt,
-  # claude --print-Probe): die installierte Claude-Code-Version wertet Write(pfad)-Regeln nicht
-  # aus (nur Edit(pfad) deckt Edit+Write ab) – strukturell dennoch gefordert (mit dem
-  # Entwickler abgestimmter Scope), das eigentliche Verhalten liefert Edit(/*.yml)/Edit(/*.yaml)
-  # aus der Schleife oben. Cleanup-Kandidat ausgelagert: Issue #240. Die YAML-Pendants sind aus
-  # demselben Root-Anker-Grund wie AK1 verankert; die vorbestehenden #88-Extensions (*.ts/*.tsx/
-  # *.mjs/*.json/*.md) bleiben bewusst slash-frei – kein Teil dieses Findings/Scopes.
-  for entry in 'Write(*.ts)' 'Write(*.tsx)' 'Write(*.mjs)' 'Write(*.json)' 'Write(*.md)' \
+  # #240 AK1 (alle 18 vormals in allow vorhandenen Write(...)-Einträge): Die 11 ursprünglichen
+  # Write(<verzeichnis>/**)-Einträge (aus #88) und die 7 Write(<extension>)-Einträge (aus der
+  # #224-Symmetrie-Ergänzung) waren laut claude --print-Probe gleichermaßen wirkungslos (nur
+  # Edit(pfad) deckt Edit+Write ab – das eigentliche Verhalten liefert weiterhin Edit(/*.yml)/
+  # Edit(/*.yaml) aus der Schleife oben) und wurden in #240 entfernt. Je Eintrag eine eigene
+  # Assertion (nicht nur der pauschale Check weiter unten), damit ein versehentlich wieder
+  # eingeführter Einzeleintrag namentlich rot färbt.
+  for entry in 'Write(app/**)' 'Write(lib/**)' 'Write(db/**)' 'Write(e2e/**)' \
+    'Write(types/**)' 'Write(scripts/**)' 'Write(docs/**)' 'Write(tasks/**)' \
+    'Write(config/**)' 'Write(public/**)' 'Write(.github/workflows/**)' \
+    'Write(*.ts)' 'Write(*.tsx)' 'Write(*.mjs)' 'Write(*.json)' 'Write(*.md)' \
     'Write(/*.yml)' 'Write(/*.yaml)'; do
-    jq -e --arg v "$entry" '.permissions.allow | index($v) != null' "$SETTINGS" >/dev/null 2>&1
-    assert_true "$?" "#224: allow (geparst) enthält '$entry'"
+    jq -e --arg v "$entry" '.permissions.allow | index($v) == null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#240: allow (geparst) enthält NICHT mehr '$entry'"
   done
 
   # AK3 (Gegenrichtung): pnpm-lock.yaml bleibt trotz generischer YAML-Freigabe per deny gesperrt.
-  for entry in 'Edit(pnpm-lock.yaml)' 'Write(pnpm-lock.yaml)'; do
-    jq -e --arg v "$entry" '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
-    assert_true "$?" "#224: deny (geparst) enthält '$entry'"
-  done
+  jq -e --arg v 'Edit(pnpm-lock.yaml)' '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
+  assert_true "$?" "#224: deny (geparst) enthält 'Edit(pnpm-lock.yaml)'"
 
-  # AK4 (Gegenrichtung): #88-Grenze unverändert – bestehende deny-Einträge bleiben erhalten.
-  for entry in 'Edit(.claude/**)' 'Write(.claude/**)' 'Edit(.env*)' 'Write(.env*)' 'Read(.env*)'; do
+  # AK4 (Gegenrichtung): #88-Grenze unverändert – bestehende Edit(...)-Deny-Einträge bleiben
+  # erhalten. Die Write(...)-Pendants waren wirkungslos und sind seit #240 entfernt (separat
+  # unten geprüft).
+  for entry in 'Edit(.claude/**)' 'Edit(.env*)' 'Read(.env*)'; do
     jq -e --arg v "$entry" '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
     assert_true "$?" "#224: deny (geparst) behält '$entry' (#88-Grenze)"
   done
+
+  # #240 AK2 (alle 3 vormals in deny vorhandenen Write(...)-Einträge): Write(pnpm-lock.yaml),
+  # Write(.claude/**) und Write(.env*) waren aus demselben Grund wie in allow wirkungslos und
+  # wurden in #240 entfernt.
+  for entry in 'Write(pnpm-lock.yaml)' 'Write(.claude/**)' 'Write(.env*)'; do
+    jq -e --arg v "$entry" '.permissions.deny | index($v) == null' "$SETTINGS" >/dev/null 2>&1
+    assert_true "$?" "#240: deny (geparst) enthält NICHT mehr '$entry'"
+  done
+
+  # AK1/AK2/AK7 (#240, umfassend): Keine einzelne Assertion oben deckt einen KÜNFTIGEN, nicht
+  # in der Liste antizipierten Write(...)-Eintrag ab – deshalb zusätzlich eine pauschale
+  # geparste Prüfung über allow UND deny hinweg, dass kein Eintrag mehr mit "Write(" beginnt.
+  jq -e '[.permissions.allow[], .permissions.deny[]] | map(select(startswith("Write("))) | length == 0' \
+    "$SETTINGS" >/dev/null 2>&1
+  assert_true "$?" "#240: weder allow noch deny (geparst) enthalten irgendeinen Write(...)-Eintrag"
 else
-  echo "  • #224: Permissions-Konsistenz (geparst) – übersprungen (jq fehlt)"
+  echo "  • #224/#240: Permissions-Konsistenz (geparst) – übersprungen (jq fehlt)"
 fi
+
+# #240 (jq-unabhängiger Fallback, analog zum #91-Grep-Fallback oben): kein Write(...)-Eintrag
+# mehr irgendwo in der Datei, unabhängig davon ob jq verfügbar ist.
+assert_true "$(! grep -qF '"Write(' "$SETTINGS"; echo $?)" \
+  "#240: settings.json enthält keinen 'Write(...)'-Eintrag mehr (jq-unabhängiger Fallback)"
 
 # AK7: die stale Präsens-Aussage zu factory.defaults.yml ist korrigiert; die weiterhin gültige
 # Patch-Workflow-Regel (#94) bleibt erhalten. Bislang die einzige Regressionsabsicherung für
@@ -2203,6 +2227,15 @@ assert_true "$?" "#224: Lesson nennt die korrigierte Allow-Regel für Top-Level-
 
 grep -qF 'Patch NICHT von Hand schreiben (aus #94)' "$WORKFLOW_LESSON"
 assert_true "$?" "#224: Patch-Workflow-Regel (#94) bleibt in der Lesson erhalten (AK7)"
+
+# AK8 (#240): die stale Präsens-Aussage zur "existierenden" Write(...)-Liste ist korrigiert
+# (Cleanup-Kandidat ist erledigt, nicht mehr offen) – ohne diesen Test könnte ein künftiger Edit
+# die Korrektur stillschweigend zurückdrehen, ohne dass irgendein Test rot würde.
+assert_true "$(! grep -qF 'existiert) ist aktuell' "$WORKFLOW_LESSON"; echo $?)" \
+  "#240: stale Präsens-Aussage zur 'existierenden' Write(...)-Liste aus der Lesson entfernt (AK8)"
+
+grep -qF 'in **#240 entfernt**' "$WORKFLOW_LESSON"
+assert_true "$?" "#240: Lesson nennt die erledigte Entfernung der Write(...)-Liste (AK8)"
 
 # ─── Task 101: Pipeline-Quality-Gates rufen echte Befehle (kein Platzhalter) ──
 echo ""

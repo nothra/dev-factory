@@ -339,3 +339,55 @@ Frist fehl (kein unbegrenztes Timeout, das Bugs maskiert – Zero-Tolerance-Vorg
 gewahrt). Pfad-Literale, die im Aufwärm-Aufruf **und** in einer Testassertion (z. B. einer
 Positiv-Kontrolle) identisch sein müssen, sofort als geteilte benannte Konstante einführen, um
 Drift zwischen beiden Stellen zu verhindern.
+
+### Neue Regressions-Assertion-Schleife gegen bereits vorhandene Schleife mit identischem Rumpf abgleichen, bevor eine parallele Schleife angelegt wird (aus #240, /test→/refactor-Diskrepanz)
+
+`/test` ergänzte in `run-tests.sh` 11 neue Einzel-Assertionen für vorbestehende
+`Write(<verzeichnis>/**)`-Einträge (Regressionslücke: nur ein pauschaler Blanket-Check deckte
+sie ab) – als **neue, eigene** `for entry in ...`-Schleife direkt neben einer bereits
+existierenden Schleife, die exakt denselben Prüfausdruck (`jq -e --arg v "$entry"
+'.permissions.allow | index($v) == null' ...`) und dasselbe Assert-Message-Format nutzte, nur
+mit einer anderen Eintragsliste (7 Extension-Einträge). Beide Schleifen waren bis auf die
+Eintragsliste **byte-identisch** – echte Duplikation, erst im nachfolgenden `/refactor`
+bemerkt, nicht schon beim Schreiben in `/test`. Passiert leicht, weil der Fokus beim
+Testschreiben auf „deckt jeder Eintrag eine Assertion ab" liegt, nicht auf „gibt es schon eine
+Schleife mit demselben Rumpf, die ich einfach erweitern kann".
+
+**Smell:** „Ich schreibe eine neue `for entry in ...`-Schleife für eine Regressions-Assertion –
+gibt es im selben Testabschnitt bereits eine Schleife mit demselben `jq`-/`grep`-Prüfausdruck
+und Assert-Message-Format, nur für eine andere Eintragsliste?" Wenn ja, gehört der neue Eintrag
+in die bestehende Liste, nicht in eine zweite Schleife.
+
+**Regel:** Vor dem Anlegen einer neuen Assertion-Schleife für zusätzliche Einträge derselben
+Prüfart (z. B. „Eintrag X darf nicht mehr in `allow`/`deny` vorkommen") im selben Testabschnitt
+nach einer bereits vorhandenen Schleife mit identischem Prüfausdruck suchen (`grep -n
+"index(\$v) == null"` als Ankerpunkt) und deren Eintragsliste um die neuen Werte erweitern,
+statt eine zweite, strukturgleiche Schleife danebenzustellen. Konkrete Instanz von „Neue
+Verfügbarkeits-/Capability-Prüfung gegen bereits vorhandene abgleichen" (aus #224,
+`code-style.md`) – gilt genauso für Regressions-Assertion-Schleifen in Bash-Testsuiten, nicht
+nur für Capability-Checks wie `command -v`.
+
+### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session)
+
+Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei
+**zweimal hintereinander** einen bestehenden `grep -qF 'ist seit #224 über eine generische'
+"$WORKFLOW_LESSON"`-Regressionstest (aus #224, AK7) – nicht durch einen inhaltlichen Fehler,
+sondern weil die neu formulierten Sätze beim manuellen Zeilenumbruch die vom Test erwartete
+Zeichenkette über einen Zeilenumbruch verteilten. `grep -qF` matched nur **innerhalb einer
+Zeile** – eine über zwei Zeilen gebrochene Phrase erzeugt keinen Syntaxfehler und keine
+Warnung, der Test schlägt einfach lautlos fehl, weil die Zeichenkette „verschwunden" ist. Der
+erste Korrekturversuch brach die Phrase erneut an einer anderen Stelle, weil beim Neu-Umbrechen
+nicht gezielt auf die exakte Testphrase geachtet wurde, sondern nur auf „ähnliche Zeilenlänge
+wie der Rest der Datei".
+
+**Smell:** „Ich formuliere/breche einen Absatz in einer Doku-Datei um, die per `grep -qF
+'<phrase>'` regressionsgetestet wird – bleibt die exakte Testphrase dabei auf **einer** Zeile?"
+
+**Regel:** Vor dem Committen einer Umformulierung/eines Zeilenumbruchs in einer Datei mit
+`grep -qF`-Fixed-String-Regressionstests (`grep -n "grep -qF.*<Datei-Basename>" run-tests.sh`
+als Ankerpunkt, um die erwarteten Phrasen zu finden) den vollen Testlauf **sofort** danach
+ausführen – nicht erst am Ende des Schritts. Ein rot gewordener Test aus dieser Klasse zeigt
+sich nur als „Assertion nicht gefunden", nicht als offensichtlicher Zusammenhang mit dem
+Zeilenumbruch; die Fehlerquelle ist sonst überraschend schwer zu finden. Bei langen Sätzen mit
+einer testkritischen Phrase notfalls die Phrase bewusst unformatiert auf einer langen Zeile
+lassen (Prettier reflowt Markdown-Prosa standardmäßig nicht) statt sie „schöner" umzubrechen.
