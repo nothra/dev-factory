@@ -34,6 +34,12 @@ schemaVersion: 1
 #   damit teure Modelle nur dort laufen, wo sie sich lohnen.
 # @tradeoff: heavy senkt die Fehlerrate, kostet aber mehr pro Turn; light spart,
 #   muss bei komplexem Reasoning aber ggf. nachfassen.
+# Seit Task 249 ist model_tiers.heavy per Gate-Policy (config-validation-check.sh,
+# Regel 6) nicht mehr per Team-Override änderbar (unabhängig vom Wert) — ein
+# Remapping auf ein schwächeres Modell würde die Mindest-Tier-Policy aus Task 241
+# unterlaufen, ohne selbst dagegen zu verstoßen. Modell-ID-Pflege für 'heavy' läuft
+# künftig ausschließlich hier (Template-Update). model_tiers.light bleibt frei
+# override-bar.
 model_tiers:
   heavy: claude-opus-4-8      # CLAUDE_MODEL_HEAVY
   light: claude-sonnet-4-6    # CLAUDE_MODEL_LIGHT

@@ -27,8 +27,11 @@
 # ── Knopf: model_tiers (welches Modell hinter heavy/light steht) ──────────────
 # Begründung/Trade-off: siehe factory.defaults.yml → model_tiers (Tags @reason, @tradeoff)
 # Konkrete Modell-IDs sind zusätzlich per Env-Var überschreibbar (CLAUDE_MODEL_*).
+# model_tiers.heavy ist seit Task 249 nicht override-bar (Gate-Policy-Konstante,
+# config-validation-check.sh lehnt jeden Versuch fail-closed ab, unabhängig vom
+# Wert) — Modell-ID-Pflege für 'heavy' läuft ausschließlich über
+# factory.defaults.yml. Nur .light bleibt hier ein gültiges Beispiel.
 # model_tiers:
-#   heavy: claude-opus-4-8
 #   light: claude-sonnet-4-6
 #
 # ── Knopf: skills.<name> (tier → Modell, max_turns → Kosten-Deckel) ───────────

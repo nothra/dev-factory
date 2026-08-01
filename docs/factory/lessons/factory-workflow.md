@@ -669,3 +669,42 @@ wieder auf den Hauptbaum zurückgesprungen sind. Nach dem Anlegen sicherheitshal
 platzierte Datei sofort zu bemerken (nicht erst beim Commit). Ergänzt „Bash-cwd springt auf main
 zurück" (persönliche Session-Erfahrung) um die Erkenntnis, dass dasselbe Risiko unabhängig vom
 Bash-Tool auch für `Write`/`Edit` gilt.
+
+### Divergiertes `origin/main` während laufender Pipeline: Rebase-Verantwortung bei `/pr-shepherd` belassen, nicht in einem Zwischenschritt nachholen (aus #249, /refactor-Selbstfund)
+
+Im `/refactor`-Schritt von Task 249 war `origin/main` zwischenzeitlich weitergelaufen (Task 240
+wurde parallel gemergt, PR desselben Repos). Der allgemeinen Git-Workflow-Regel „vor dem Push:
+pullen und rebasen" folgend wurde `git fetch origin && git rebase origin/main` auf dem
+Feature-Branch ausgeführt – konfliktfrei. Der Branch war aber bereits mehrfach über
+`scripts/factory-commit.sh` gepusht worden (aus `/implement`, `/review`, `/test`); der Rebase
+schrieb die bereits gepushten Commit-SHAs um, wodurch ein normaler `git push` als
+Non-Fast-Forward abgelehnt wurde. Ein `git push --force-with-lease` war die einzige Lösung –
+in der interaktiven Stage-2-Session ließ sich das per Rückfrage an den Menschen absichern, aber
+`scripts/factory-commit.sh` lässt Force-Push **bewusst** nicht zu (ADR-019 §1: „Force-Push und
+destruktive Operationen sind bewusst NICHT Teil dieses Skripts"), und eine nicht-interaktive
+Stage-3-Pipeline (`run-pipeline.sh`) hat niemanden, der eine Force-Push-Rückfrage beantworten
+könnte – ohne einen dafür vorgesehenen Interrupt-Typ hätte der Lauf hier stecken bleiben können.
+Dabei existiert für genau dieses Szenario bereits der richtige, sichere Mechanismus:
+`/pr-shepherd` löst die Divergenz über `gh pr update-branch` (GitHub-seitiger Merge, kein
+lokaler Force-Push nötig) – „ein lokales `git rebase` würde nie im Remote-PR landen, ohne
+force zu pushen" (`.claude/commands/pr-shepherd.md`, Schritt 3).
+
+**Smell:** „Ich bin in einem Zwischenschritt der Pipeline (`/review`, `/test`, `/refactor`,
+`/security-review` – nicht `/pr-shepherd`) auf einem Feature-Branch, der bereits mindestens
+einmal über `factory-commit.sh` gepusht wurde – will ich jetzt `git fetch` + `git rebase
+origin/main` ausführen, nur weil die allgemeine Regel „vor dem Push pullen und rebasen" das
+nahelegt, obwohl der aktuelle Schritt gar keinen inhaltlichen Konflikt mit `main` hat?"
+
+**Regel:** Intermediate Pipeline-Skills (`/review`, `/test`, `/refactor`, `/security-review`)
+rebasen NICHT eigenständig gegen ein zwischenzeitlich weitergelaufenes `origin/main`, solange
+der Feature-Branch bereits einen Upstream hat (mindestens ein erfolgreicher `factory-commit.sh`
+-Push liegt vor). Divergenz zu `origin/main` während einer laufenden Pipeline ist erwartetes
+Verhalten bei parallelen Feature-Branches und gehört in die Zuständigkeit von `/pr-shepherd`
+(`gh pr update-branch`, kein Force-Push, respektiert ADR-019 §1). Blockiert die Divergenz den
+aktuellen Schritt tatsächlich inhaltlich (z. B. Merge-Konflikt in einer Datei, die dieser
+Schritt gerade ändert), gehört das als Blocker in der Task-Datei protokolliert bzw. – in Stage 3
+– über `scripts/raise-interrupt.sh` eskaliert, nicht durch einen eigenständigen
+Rebase-plus-Force-Push mitten im Zyklus aufgelöst. Die „vor dem Push: pullen und rebasen"-Regel
+aus `docs/factory/guidelines/git-workflow.md` gilt für die Branch-Erstellung (`start-work.sh`)
+und den finalen Merge (`/pr-shepherd`) – nicht für jeden Zwischen-Commit einer laufenden
+Pipeline auf einem bereits gepushten Branch.

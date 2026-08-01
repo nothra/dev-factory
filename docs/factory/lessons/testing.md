@@ -367,7 +367,7 @@ Verfügbarkeits-/Capability-Prüfung gegen bereits vorhandene abgleichen" (aus #
 `code-style.md`) – gilt genauso für Regressions-Assertion-Schleifen in Bash-Testsuiten, nicht
 nur für Capability-Checks wie `command -v`.
 
-### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session)
+### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus #249, umgekehrte Kausalrichtung)
 
 Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei
 **zweimal hintereinander** einen bestehenden `grep -qF 'ist seit #224 über eine generische'
@@ -391,3 +391,17 @@ sich nur als „Assertion nicht gefunden", nicht als offensichtlicher Zusammenha
 Zeilenumbruch; die Fehlerquelle ist sonst überraschend schwer zu finden. Bei langen Sätzen mit
 einer testkritischen Phrase notfalls die Phrase bewusst unformatiert auf einer langen Zeile
 lassen (Prettier reflowt Markdown-Prosa standardmäßig nicht) statt sie „schöner" umzubrechen.
+
+**Drittes Vorkommnis, umgekehrte Kausalrichtung (aus #249, /test-Selbstfund):** Bei Task 249
+lag der Fehler nicht in einer Umformulierung, sondern in der **Reihenfolge**: `/implement`
+schrieb einen neuen Kommentar-Absatz in `factory.config.yml.example`, der die Phrase „NICHT
+override-bar" naturgemäß über einen Zeilenumbruch verteilte (kein Fehler für sich – reiner
+Fließtext). Erst danach schrieb `/test` einen **neuen** `grep -qi 'nicht override-bar'`-Test
+gegen genau diesen bereits vorhandenen Text – und der Test schlug beim ersten Lauf lautlos rot
+fehl, weil die Phrase nie zusammenhängend auf einer Zeile stand. Derselbe Mechanismus wie oben
+(einzeiliges `grep` matcht keinen Umbruch), aber die Reihenfolge ist umgekehrt: nicht „bestehender
+Test bricht durch neue Prosa", sondern „neuer Test bricht an bereits vorhandener Prosa". Ergänzt
+die Regel oben: Beim Schreiben eines **neuen** `grep -qF`/`grep -qi`-Fixed-String-Tests gegen
+bereits vorhandenen Fließtext vorher `grep -n '<Teil-Phrase>' <Zieldatei>` gegen die Zieldatei
+laufen lassen, um zu verifizieren, dass die volle Testphrase tatsächlich auf einer Zeile steht –
+nicht erst durch den ersten (roten) Testlauf herausfinden.
