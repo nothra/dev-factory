@@ -279,6 +279,20 @@ der zufällig trotzdem rot war. Ergänzt `clean-code.md` „Ein Gate-Regex gehö
 abgesichert … Positiv- **und** Negativ-Beispiel"; der subtile Fall hier ist ein *legitimer*
 Prosa-Treffer, der nicht matchen darf.
 
+**Nachtrag (aus #265, Selbstfund im selben Skill – Rezidiv trotz vorhandener Lesson):** Die Falle
+ist nicht auf Skill-Doku beschränkt. Ein neuer Reihenfolge-Test für einen CI-YAML-Job-Block
+(„Schritt A steht vor Schritt B") geriet an genau demselben Muster ins Straucheln: der
+erklärende Kommentar **über** dem neuen Workflow-Schritt erwähnte den Namen des zweiten Schritts
+in Prosa (`… run-tests.sh ruft pre-push.sh …`) – die Zeilennummer dieser Erwähnung lag VOR dem
+neuen Schritt und wurde vom `grep -n 'run-tests.sh' | head -1`-Anker fälschlich als „Position von
+Schritt B" genommen, obwohl der echte `run:`-Aufruf weiter unten stand. Sofort per Gegenprobe
+(Schritte im Workflow testweise vertauscht → Test muss dann rot werden) aufgefallen, nicht erst
+im Review. **Generalisierte Regel:** Der Anker einer Reihenfolge-Assertion ist unabhängig vom
+Dokumenttyp (Skill-Markdown, CI-YAML, Shell-Skript) die **exakte Aufruf-Zeile** (z. B. `run: bash
+scripts/install-hooks.sh`), nie ein bloßer Dateiname/Kommando-Fragment, das auch in einem
+selbst verfassten Kommentar direkt daneben stehen könnte – gerade eigene, erklärende Kommentare
+oberhalb eines neuen Schritts sind eine unterschätzte Quelle für genau diesen Fehl-Treffer.
+
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
 Beim Erstellen der Routen-Übersicht (`docs/routes.md`) und des Drift-Checks
@@ -788,3 +802,35 @@ Nachher-Vergleich, CI-Historie, Lesson #244), nicht blind nacharbeiten. Die eige
 (der E2E-Block sollte `PR_SHEPHERD`/`FACTORY_STAGE` selbst neutralisieren statt sie aus der
 Umgebung zu erben) ist als eigenes Issue getrackt, nicht Teil der Task, die den Fehlschlag
 zuerst beobachtet.
+
+### Neuer pre-push.sh-Check, der lokalen Installationszustand voraussetzt, bricht bestehende Selbsttests in CI (aus #265, User-gemeldete CI-Regression)
+
+Task 265 verdrahtete einen neuen, fail-closed Check in `pre-push.sh` (`hooks-installed-check.sh`,
+ADR-042), der prüft, ob die Factory-Git-Hooks im aufrufenden Repo installiert sind. Lokal
+(dieser Worktree) lief die gesamte Self-Test-Suite grün, weil hier tatsächlich Hooks installiert
+sind. Der `factory-self-test`-CI-Job wurde trotzdem rot: der bereits **vorbestehende** `#149`-Test
+(`run_prepush_149` in `run-tests.sh`) ruft `pre-push.sh` **echt gegen das reale `FACTORY_DIR`**
+auf (kein isoliertes Fixture-Repo – `pre-push.sh` leitet `FACTORY_DIR` immer von seinem eigenen
+Skriptpfad ab, nicht von einer überschreibbaren Variable). Ein frischer CI-Checkout hat aber –
+anders als jeder eingerichtete lokale Entwickler-Worktree – **nie** installierte Hooks (git hooks
+laufen in CI ohnehin nie über den echten Hook-Mechanismus); der neue Check schlug dort also
+IMMER fehl und riss zwei eigentlich unabhängige Format-Gate-Testfälle mit in den roten Zustand
+(erwartet exit 0, tatsächlich exit 1). Root-Cause bestätigt durch Reproduktion: lokales
+Entfernen der eigenen Hooks erzeugte exakt dasselbe Fehlerbild wie der CI-Log.
+
+**Smell:** „Ich verdrahte einen neuen Check in `pre-push.sh`, der von echtem, **lokalem**
+Umgebungszustand abhängt (installierte Hooks, vorhandene Config-Datei, laufender Dienst o. Ä.) –
+gibt es einen bestehenden Self-Test, der `pre-push.sh` **echt** (nicht über ein isoliertes
+Fixture-Repo) gegen das reale `FACTORY_DIR` aufruft? Wenn ja: hat die CI-Umgebung, in der dieser
+Self-Test läuft, denselben Zustand wie mein lokaler Entwickler-Worktree – oder nur Letzterer?"
+
+**Regel:** Vor dem Verdrahten eines neuen `pre-push.sh`/`pre-commit.sh`-Checks, der reale
+Installations- oder Umgebungszustand voraussetzt (nicht nur Repo-**Inhalt** wie
+`routes-doc-check.sh`), prüfen, ob ein bestehender Self-Test das Gate-Skript real gegen
+`FACTORY_DIR` aufruft (Suchmuster: `bash "$CHECKS_DIR/pre-push.sh"` ohne Fixture-Wrapper). Trifft
+das zu, muss die CI-Umgebung diesen Zustand VOR der Self-Test-Suite selbst herstellen (hier:
+einen `Git-Hooks installieren`-Schritt mit `bash scripts/install-hooks.sh` vor der
+Self-Test-Suite in `factory-ci.yml`) – nicht den Check abschwächen oder den bestehenden Test
+nachträglich isolieren. Den Fix mit einem Wiring-Test absichern, der den CI-Job-Block extrahiert
+und die **Reihenfolge** der beiden Schritte prüft (sonst wirkungslos, falls die Installation
+nach der Suite liefe).

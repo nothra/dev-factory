@@ -3811,6 +3811,145 @@ assert_true "$?" "#262: Erfolgs-Banner erscheint bei erfolgreicher Hook-Installa
 rm -rf "$IF_TMP"
 
 echo ""
+echo "#265 hooks-installed-check.sh (fail-closed Präsenz+Ausführbarkeit, ADR-042):"
+
+HI_CHECK="$CHECKS_DIR/hooks-installed-check.sh"
+assert_true "$([[ -f "$HI_CHECK" ]]; echo $?)" "#265: hooks-installed-check.sh vorhanden"
+assert_true "$([[ -x "$HI_CHECK" ]]; echo $?)" "#265: hooks-installed-check.sh ausführbar"
+
+TMP_HI="$(mktemp -d)"
+
+# hi_repo <name> → Wegwerf-git-Repo (nur git init, kein Factory-Setup nötig – der Check
+# selbst hat keine Laufzeit-Abhängigkeiten außer git). Lokale Identität setzen (wie
+# ih_repo() im #262-Abschnitt) – ohne globale Git-Identität in der Ausführungsumgebung
+# schlägt der Worktree-Test-Commit sonst mit "empty ident name" fehl (Review-Finding #265).
+hi_repo() {
+  local wt="$TMP_HI/$1"
+  git init -q -b main "$wt" >/dev/null 2>&1
+  git -C "$wt" config user.email t@t
+  git -C "$wt" config user.name t
+  printf '%s\n' "$wt"
+}
+
+# install_all_hooks <repo-root> → legt alle drei Factory-Hooks ausführbar an.
+install_all_hooks() {
+  local wt="$1"
+  mkdir -p "$wt/.git/hooks"
+  for h in pre-commit pre-push commit-msg; do
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$wt/.git/hooks/$h"
+    chmod +x "$wt/.git/hooks/$h"
+  done
+}
+
+rc_hooks() { FACTORY_DIR="$1" bash "$HI_CHECK" 2>&1; }
+
+# 1. Alle drei Hooks vorhanden + ausführbar → Erfolg, Push nicht blockiert.
+WT=$(hi_repo allok)
+install_all_hooks "$WT"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 0 "$rc" "#265 AK1: alle drei Hooks vorhanden+ausführbar → exit 0"
+
+# 2. commit-msg fehlt (nie installiert) → fail-closed, nennt Hook-Namen + Remediation.
+WT=$(hi_repo missing-commitmsg)
+install_all_hooks "$WT"
+rm -f "$WT/.git/hooks/commit-msg"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 1 "$rc" "#265 AK2: fehlender commit-msg-Hook → exit 1 (Push blockiert)"
+printf '%s' "$out" | grep -qF 'commit-msg'
+assert_true "$?" "#265 AK2: Fehlermeldung nennt den fehlenden Hook (commit-msg)"
+printf '%s' "$out" | grep -qF 'bash scripts/install-hooks.sh'
+assert_true "$?" "#265 AK2: Fehlermeldung nennt den Remediation-Befehl"
+
+# 3. Hook existiert als Datei, ist aber nicht ausführbar → wie fehlend behandelt.
+WT=$(hi_repo not-executable)
+install_all_hooks "$WT"
+chmod -x "$WT/.git/hooks/pre-push"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 1 "$rc" "#265 AK3: nicht ausführbarer pre-push-Hook → exit 1 (reine Existenz reicht nicht)"
+printf '%s' "$out" | grep -qF 'pre-push'
+assert_true "$?" "#265 AK3: Fehlermeldung nennt den nicht ausführbaren Hook (pre-push)"
+
+# 3b. Boundary: Hook-Name existiert als VERZEICHNIS statt Datei (keine reguläre Datei).
+# Ein Verzeichnis ist per `[ -x ]` fast immer "ausführbar" (durchsuchbar, typ. 755) – ohne
+# den `-f`-Test würde ein Verzeichnis fälschlich als installierter Hook durchgehen.
+WT=$(hi_repo dir-not-file)
+install_all_hooks "$WT"
+rm -f "$WT/.git/hooks/pre-commit"
+mkdir -p "$WT/.git/hooks/pre-commit"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 1 "$rc" "#265 Boundary: Hook-Name als Verzeichnis (statt Datei) → exit 1 (keine reguläre Datei)"
+printf '%s' "$out" | grep -qF 'pre-commit'
+assert_true "$?" "#265 Boundary: Fehlermeldung nennt pre-commit, obwohl das Verzeichnis 'ausführbar' ist"
+
+# 4. Läuft aus einem Worktree heraus – Hooks liegen im GEMEINSAMEN .git (nicht worktree-lokal).
+WT=$(hi_repo worktreebase)
+install_all_hooks "$WT"
+echo "x" > "$WT/x.txt"; git -C "$WT" add -A >/dev/null 2>&1
+git -C "$WT" commit -q -m "chore: init" >/dev/null 2>&1
+git -C "$WT" worktree add -q -b improvement/265-probe "$TMP_HI/worktreebase-wt" >/dev/null 2>&1
+out=$(FACTORY_DIR="$TMP_HI/worktreebase-wt" bash "$HI_CHECK" 2>&1); rc=$?
+assert_exit 0 "$rc" "#265 AK4: Check aus einem Worktree heraus findet die Hooks im gemeinsamen .git"
+
+# 5. Mehrere Hooks fehlen gleichzeitig → alle betroffenen Namen werden genannt.
+WT=$(hi_repo missing-multi)
+install_all_hooks "$WT"
+rm -f "$WT/.git/hooks/pre-commit" "$WT/.git/hooks/commit-msg"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 1 "$rc" "#265 AK5: mehrere fehlende Hooks → exit 1"
+printf '%s' "$out" | grep -qF 'pre-commit'
+assert_true "$?" "#265 AK5: Fehlermeldung nennt pre-commit"
+printf '%s' "$out" | grep -qF 'commit-msg'
+assert_true "$?" "#265 AK5: Fehlermeldung nennt commit-msg"
+printf '%s' "$out" | grep -qF 'pre-push'
+assert_true "$([ $? -ne 0 ]; echo $?)" "#265 AK5: pre-push (vorhanden) wird NICHT als fehlend genannt (diskriminierend)"
+
+# 6. .git/hooks-Verzeichnis existiert noch gar nicht (Retrofit nie durchgeführt).
+WT=$(hi_repo no-hooks-dir)
+rm -rf "$WT/.git/hooks"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 1 "$rc" "#265: fehlendes .git/hooks-Verzeichnis → exit 1, alle drei Hooks gelten als fehlend"
+for h in pre-commit pre-push commit-msg; do
+  printf '%s' "$out" | grep -qF "$h"
+  assert_true "$?" "#265: fehlendes .git/hooks-Verzeichnis → Meldung nennt $h"
+done
+
+# 7. Kein Git-Repository → fail-closed (kein stiller Erfolg).
+NOGIT="$TMP_HI/nogit"
+mkdir -p "$NOGIT"
+out=$(FACTORY_DIR="$NOGIT" bash "$HI_CHECK" 2>&1); rc=$?
+assert_true "$([ $rc -ne 0 ]; echo $?)" "#265: kein git-Repository → exit ≠ 0 (fail-closed)"
+
+rm -rf "$TMP_HI"
+
+# Struktur: der Check ist im Push-Gate (pre-push.sh) verdrahtet.
+grep -q 'hooks-installed-check.sh' "$CHECKS_DIR/pre-push.sh"
+assert_true "$?" "#265: pre-push.sh verdrahtet den Git-Hooks-Installiert-Check"
+
+echo ""
+echo "#265 CI-Absicherung: factory-self-test-Job installiert Hooks vor der Self-Test-Suite:"
+
+# CI-Regression (beobachtet in PR zu #265): der #149-Test ruft pre-push.sh ECHT gegen das
+# reale FACTORY_DIR auf (kein Fixture-Repo, siehe run_prepush_149 oben) – in einem frischen
+# CI-Checkout sind dort NIE Hooks installiert (git hooks laufen in CI ohnehin nie), also
+# schlägt Check 5 (hooks-installed-check.sh) dort IMMER fehl und reißt die Format-Gate-Tests
+# mit sich (erwartet exit 0, tatsächlich exit 1). Fix: der CI-Job installiert die Hooks vor
+# der Self-Test-Suite, genau wie es jeder frische Clone lokal tun müsste (README/CLAUDE.md) –
+# damit erfüllt auch der CI-Checkout die Invariante, die Check 5 selbst einfordert.
+ci_selftest_block="$(awk '/^  factory-self-test:/{f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$CI_FILE")"
+assert_true "$([[ -n "$ci_selftest_block" ]]; echo $?)" "#265: factory-self-test-Job-Block ist extrahierbar"
+
+printf '%s' "$ci_selftest_block" | grep -qF 'bash scripts/install-hooks.sh'
+assert_true "$?" "#265: factory-self-test-Job installiert die Git-Hooks (bash scripts/install-hooks.sh)"
+
+# Anker auf den echten COMMAND ('run:'-Zeile), nicht auf jede Erwähnung von 'run-tests.sh' –
+# eine Prosa-Erwähnung (z. B. in einem Kommentar oberhalb) wäre keine Reihenfolge-Aussage
+# über den tatsächlichen Schritt-Aufruf (Lesson #114 "Kommando ≠ Prosa-Erwähnung").
+ci_install_line="$(printf '%s\n' "$ci_selftest_block" | grep -n 'run: bash scripts/install-hooks.sh' | head -1 | cut -d: -f1)"
+ci_selftest_line="$(printf '%s\n' "$ci_selftest_block" | grep -n 'run: bash scripts/checks/tests/run-tests.sh' | head -1 | cut -d: -f1)"
+[ -n "$ci_install_line" ] && [ -n "$ci_selftest_line" ] && [ "$ci_install_line" -lt "$ci_selftest_line" ]
+assert_true "$?" "#265: Hook-Installation steht VOR der Self-Test-Suite (Reihenfolge, sonst wirkungslos)"
+
+echo ""
 echo "#262 Doku nennt den kanonischen Installationsweg (Lesson #211/#176):"
 
 # Ein neues Gate ist nur wirksam, wenn ein frischer Clone erfährt, dass es zu installieren ist –

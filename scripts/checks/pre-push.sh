@@ -107,7 +107,26 @@ else
   echo -e "  ${YELLOW}⚠${NC}  Routen-Doku-Drift-Check fehlt ($ROUTES_DOC_CHECK) – übersprungen"
 fi
 
-# ─── Check 5: Nicht auf main/master pushen ohne PR ───────────────────────────
+# ─── Check 5: Git-Hooks installiert ──────────────────────────────────────────
+# Fail-closed-Verifikation, dass pre-commit/pre-push/commit-msg im gemeinsamen
+# Git-Verzeichnis vorhanden und ausführbar sind – ein vergessener Retrofit von
+# install-hooks.sh (frischer Clone, gelöschtes .git/hooks) bliebe sonst unbemerkt
+# (Issue #265, ADR-042 §Consequences).
+HOOKS_INSTALLED_CHECK="$FACTORY_DIR/scripts/checks/hooks-installed-check.sh"
+if [ -f "$HOOKS_INSTALLED_CHECK" ]; then
+  echo -e "  ${YELLOW}→${NC} Git-Hooks: pre-commit/pre-push/commit-msg installiert?"
+  if HOOKS_INSTALLED_OUTPUT="$(FACTORY_DIR="$FACTORY_DIR" bash "$HOOKS_INSTALLED_CHECK" 2>&1)"; then
+    echo -e "  ${GREEN}✓${NC} Git-Hooks installiert und ausführbar"
+  else
+    echo -e "  ${RED}✗${NC} Git-Hooks fehlen oder sind nicht ausführbar – push blockiert"
+    echo "$HOOKS_INSTALLED_OUTPUT" | sed 's/^/     /'
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  Git-Hooks-Check fehlt ($HOOKS_INSTALLED_CHECK) – übersprungen"
+fi
+
+# ─── Check 6: Nicht auf main/master pushen ohne PR ───────────────────────────
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo -e "  ${RED}✗${NC} Direkter Push auf $CURRENT_BRANCH nicht erlaubt"

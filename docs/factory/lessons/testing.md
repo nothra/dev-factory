@@ -475,3 +475,31 @@ werden, einen echten Merge nutzen (`yq -i eval '.<pfad> = "<wert>"' <datei>`), n
 `yq eval '.<key>' <kopie>` gegenprüfen, dass alle ursprünglich vorhandenen Geschwister-Werte
 (hier `model_tiers.light`) im Ergebnis erhalten geblieben sind – ein verschwundener
 Geschwister-Wert ist das Signal für ein Duplicate-Key-Problem, nicht nur ein Nebenaspekt.
+
+### Neuer git-Repo-Fixture-Helper, der committet, braucht lokale Git-Identität – auch wenn er lokal zufällig ohne sie durchläuft (aus #265, Review-Finding)
+
+Ein neuer Testfixture-Helper (`hi_repo()` im #265-Abschnitt von `run-tests.sh`, AK4-Worktree-Test)
+rief `git init` + später `git commit` auf, ohne vorher `user.email`/`user.name` lokal zu setzen –
+anders als jeder andere commit-erzeugende Helper in derselben Datei (u. a. das direkte
+Schwestermuster `ih_repo()` aus dem #262-Abschnitt, das denselben Worktree-Aufbau nutzt und dort
+explizit `git config user.email`/`user.name` setzt). Auf macOS/den meisten Linux-Entwickler-
+umgebungen fällt `git commit` ohne gesetzte Identität auf `whoami@hostname` zurück und läuft
+klaglos durch – der Test war lokal grün, aber nur zufällig. In einer Umgebung ohne auflösbare
+Identität (kein `~/.gitconfig`, kein GECOS-Eintrag, z. B. ein schlankeres Docker-Test-Image)
+schlägt derselbe Commit mit `fatal: empty ident name (for <>) not allowed` fehl (exit 128) –
+verifiziert per `env -i HOME=<leer> GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME= GIT_AUTHOR_EMAIL=
+GIT_COMMITTER_NAME= GIT_COMMITTER_EMAIL=`.
+
+**Smell:** „Mein neuer Testfixture-Helper ruft `git commit` (oder `git worktree add` nach einem
+Commit) auf – setzt er vorher lokal `user.email`/`user.name`, oder verlässt er sich auf eine
+globale/System-Identität, die in DIESER Entwicklungsumgebung zufällig vorhanden ist?"
+
+**Regel:** Jeder neue Fixture-Helper, der in einem frisch initialisierten Wegwerf-Repo committet,
+setzt die Git-Identität **lokal und explizit** (`git -C "$wt" config user.email t@t` /
+`user.name t`, oder `-c user.email=… -c user.name=…` inline) – unabhängig davon, ob die aktuelle
+Entwicklungsumgebung zufällig einen Fallback liefert. Vor dem Ergänzen eines neuen
+commit-erzeugenden Helpers die bereits vorhandenen Helper in derselben Datei als Muster
+heranziehen (>15 Stellen in `run-tests.sh` setzen die Identität bereits); ein Helper ohne diese
+Zeile ist die Abweichung, nicht die Norm. Gilt als Spezialfall von „Flaky Tests: Zero Tolerance"
+(`testing-standards.md`) – Umgebungsabhängigkeit ist eine Flakiness-Quelle, auch wenn sie beim
+Schreiben nicht auffällt.

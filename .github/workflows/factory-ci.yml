@@ -91,6 +91,13 @@ jobs:
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
           yq --version
+      # Ein frischer CI-Checkout hat wie jeder frische Clone keine installierten Hooks
+      # (README/CLAUDE.md: einmalig auszuführen). scripts/checks/tests/run-tests.sh ruft
+      # pre-push.sh weiter unten (#149-Format-Gate-Test) echt gegen dieses Checkout auf –
+      # ohne installierte Hooks schlägt der Git-Hooks-Installiert-Check (#265, ADR-042)
+      # dort IMMER fehl und reißt den Format-Gate-Test mit (falsch-rot, kein echter Defekt).
+      - name: Git-Hooks installieren
+        run: bash scripts/install-hooks.sh
       - name: Self-Test-Suite
         run: bash scripts/checks/tests/run-tests.sh
 
