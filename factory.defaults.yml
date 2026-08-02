@@ -41,8 +41,8 @@ schemaVersion: 1
 # künftig ausschließlich hier (Template-Update). model_tiers.light bleibt frei
 # override-bar.
 model_tiers:
-  heavy: claude-opus-4-8      # CLAUDE_MODEL_HEAVY
-  light: claude-sonnet-4-6    # CLAUDE_MODEL_LIGHT
+  heavy: claude-opus-5        # CLAUDE_MODEL_HEAVY
+  light: claude-sonnet-5      # CLAUDE_MODEL_LIGHT
 
 # Pro Skill: Tier (→ Modell) + max_turns (Kosten-Deckel). Jeder Wert hat eine
 # Begründung am Knopf — das ist der Sinn von YAML statt JSON (ADR-009 #2).
@@ -70,12 +70,12 @@ skills:
   review:
     tier: heavy                                    # @reason: Fail-Safe, wenn die Diff-Größe nicht bestimmbar ist (F1).
     tier_by_size: { signal: diff, threshold: 150 } # @reason: reine Lese-Analyse, läuft pro Feature ggf. mehrfach → kleiner Diff (< 150 Zeilen) rechtfertigt light. @tradeoff: Richtwert ~150, kalibrierbar (ADR-038).
-    max_turns: 14                                  # @reason: Lese-Analyse über mehrere Personas; 8 riss bei mehrstufigen Reviews vor dem Verdict (Task 91).
+    max_turns: 30                                  # @reason: Lese-Analyse über mehrere Personas; 14 riss bei größeren Diffs vor dem Verdict-Report (Task 241, validierter Wert), 8 schon früher (Task 91).
   bug-fix:
     tier: heavy                                    # @reason: Fail-Safe, wenn die Proxy-Größe nicht bestimmbar ist (F2).
     tier_by_size: { signal: proxy, threshold: 6 }  # @reason: wie implement (reproduzieren → fixen); Proxy = AK-Zahl der Spec.
     max_turns: 20                                  # @reason: wie implement: reproduzieren → fixen.
-  security-review: { tier: heavy, max_turns: 14 }  # @reason: bewusst FIX heavy, KEIN tier_by_size — ein übersehenes Finding ist teurer als der Token-Aufpreis, unabhängig von der Diff-Größe (ADR-038, token-efficiency.md §6); 8 Turns rissen vor dem Verdict-Report (Task 91).
+  security-review: { tier: heavy, max_turns: 30 }  # @reason: bewusst FIX heavy, KEIN tier_by_size — ein übersehenes Finding ist teurer als der Token-Aufpreis, unabhängig von der Diff-Größe (ADR-038, token-efficiency.md §6); 14 riss bei größeren Diffs vor dem Verdict-Report (Task 241, validierter Wert), 8 schon früher (Task 91).
   test:            { tier: light, max_turns: 20 }  # @reason: Test-Suite vervollständigen, wenig schweres Reasoning.
   refactor:        { tier: light, max_turns: 20 }  # @reason: Clean-Code-Pass, kein neues Verhalten.
   codify:          { tier: light, max_turns: 8 }   # @reason: Learnings extrahieren.

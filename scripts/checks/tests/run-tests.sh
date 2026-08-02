@@ -1125,17 +1125,17 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   cfg_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$cfg_out" | grep -q 'Starte: /implement 1 (model: claude-opus-4-8, max 20 turns)'
+  printf '%s' "$cfg_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5, max 20 turns)'
   assert_true "$?" "Phase 1b: run-pipeline löst implement aus der Config zu opus/20 auf (end-to-end)"
   # Team-Override greift: factory.config.yml setzt implement auf 5 Turns → 5 statt 20
   printf 'skills:\n  implement: { max_turns: 5 }\n' > "$TMP_CFG/factory.config.yml"
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m override
   ovr_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-4-8, max 5 turns)'
+  printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
   rm -rf "$TMP_CFG"
 
-  # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 14 turns im Output (AC Lücke 2).
+  # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
   # Bestehender mock review-2.md (APPROVED) sorgt dafür, dass Review-Loop sofort endet und
   # die Pipeline bis Phase 5 (security-review) läuft – beide "Starte:"-Zeilen erscheinen.
   TMP_DRY91="$(mktemp -d)"; mkdir -p "$TMP_DRY91/scripts/checks" "$TMP_DRY91/scripts/lib" "$TMP_DRY91/tasks" "$TMP_DRY91/docs/factory"
@@ -1149,10 +1149,10 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_DRY91" init -q; git -C "$TMP_DRY91" add .
   git -C "$TMP_DRY91" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   dry91_out=$(bash "$TMP_DRY91/scripts/run-pipeline.sh" 2 --dry-run 2>&1 || true)
-  printf '%s' "$dry91_out" | grep -q '/review 2 (model: claude-opus-4-8, max 14 turns)'
-  assert_true "$?" "#91: dry-run zeigt /review mit max 14 turns (Turn-Budget, Lücke 2)"
-  printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-4-8, max 14 turns)'
-  assert_true "$?" "#91: dry-run zeigt /security-review mit max 14 turns (Turn-Budget, Lücke 2)"
+  printf '%s' "$dry91_out" | grep -q '/review 2 (model: claude-opus-5, max 30 turns)'
+  assert_true "$?" "#91: dry-run zeigt /review mit max 30 turns (Turn-Budget, Lücke 2)"
+  printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-5, max 30 turns)'
+  assert_true "$?" "#91: dry-run zeigt /security-review mit max 30 turns (Turn-Budget, Lücke 2)"
   # #212 F4: --dry-run läuft bis zum Ende (APPROVED-Review) und markiert die Endzustands-
   # Verifikation als übersprungen, statt sie auszuführen/abzubrechen.
   printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
@@ -1965,13 +1965,14 @@ assert_true "$([ "$approved_grep" -ne 0 ]; echo $?)" "AK5 (#211): Phase-2-Loop o
 grep -qF 'grep -q "NEEDS_FIXES"' "$PIPELINE"; needsfixes_grep=$?
 assert_true "$([ "$needsfixes_grep" -ne 0 ]; echo $?)" "AK6 (#211): Security-Gate ohne Volltext-grep \"NEEDS_FIXES\""
 
-# Budget-Puffer: review + security-review auf max_turns 14 (ADR-019 §5).
+# Budget-Puffer: review + security-review auf max_turns 30 (ADR-019 §5 + Nachtrag #252;
+# 8→14 in Task 91, 14→30 in Task 241/252 als validierter Wert kalibriert).
 if [ "$HAS_YQ" = 1 ]; then
-  [ "$(yq '.skills.review.max_turns' "$DEFAULTS_YML")" = "14" ] \
-    && [ "$(yq '.skills.security-review.max_turns' "$DEFAULTS_YML")" = "14" ]
-  assert_true "$?" "#91: review + security-review max_turns=14 (Budget-Puffer)"
+  [ "$(yq '.skills.review.max_turns' "$DEFAULTS_YML")" = "30" ] \
+    && [ "$(yq '.skills.security-review.max_turns' "$DEFAULTS_YML")" = "30" ]
+  assert_true "$?" "#91: review + security-review max_turns=30 (Budget-Puffer)"
 else
-  skip_yq "#91: review + security-review max_turns=14"
+  skip_yq "#91: review + security-review max_turns=30"
 fi
 
 # ─── #214: Contract-Drift-Guard – Report-Anker ↔ Parser-Konstanten ───────────
@@ -2988,11 +2989,11 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$RVW" add .
   git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m small
   rv_out=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$rv_out" | grep -q '/review 3 (model: claude-sonnet-4-6, max 14 turns)'
+  printf '%s' "$rv_out" | grep -q '/review 3 (model: claude-sonnet-5, max 30 turns)'
   assert_true "$?" "#197 AK1/AK3 (E2E): kleiner Diff → /review auf light (Basis origin/main)"
-  printf '%s' "$rv_out" | grep -q '/security-review 3 (model: claude-opus-4-8, max 14 turns)'
+  printf '%s' "$rv_out" | grep -q '/security-review 3 (model: claude-opus-5, max 30 turns)'
   assert_true "$?" "#197 AK6 (E2E): /security-review immer heavy (kein tier_by_size)"
-  printf '%s' "$rv_out" | grep -q '/test 3 (model: claude-sonnet-4-6, max 20 turns)'
+  printf '%s' "$rv_out" | grep -q '/test 3 (model: claude-sonnet-5, max 20 turns)'
   assert_true "$?" "#197 AK7 (E2E): übriger Skill /test bleibt light"
   rv_ovr=$(CLAUDE_MODEL=my-forced-model bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
   printf '%s' "$rv_ovr" | grep -q '/review 3 (model: my-forced-model'
@@ -3002,7 +3003,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$RVW" add .
   git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m big
   rv_big=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$rv_big" | grep -q '/review 3 (model: claude-opus-4-8, max 14 turns)'
+  printf '%s' "$rv_big" | grep -q '/review 3 (model: claude-opus-5, max 30 turns)'
   assert_true "$?" "#197 AK2 (E2E): großer Diff (>= 150) → /review auf heavy"
   rm -rf "$RVO" "$RVW"
 
@@ -3012,7 +3013,7 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n## Weiter\n- [ ] x\n' > "$IMS/docs/specs/spec-4-small.md"
   git -C "$IMS" init -q; git -C "$IMS" add .; git -C "$IMS" -c user.email=t@t -c user.name=t commit -q -m init
   ims_out=$(bash "$IMS/scripts/run-pipeline.sh" 4 --dry-run 2>&1 || true)
-  printf '%s' "$ims_out" | grep -q '/implement 4 (model: claude-sonnet-4-6, max 20 turns)'
+  printf '%s' "$ims_out" | grep -q '/implement 4 (model: claude-sonnet-5, max 20 turns)'
   assert_true "$?" "#197 AK4 (E2E): kleiner Proxy (3 AK < 6) → /implement auf light"
   rm -rf "$IMS"
 
@@ -3021,7 +3022,7 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n- [ ] G\n- [ ] H\n' > "$IML/docs/specs/spec-5-large.md"
   git -C "$IML" init -q; git -C "$IML" add .; git -C "$IML" -c user.email=t@t -c user.name=t commit -q -m init
   iml_out=$(bash "$IML/scripts/run-pipeline.sh" 5 --dry-run 2>&1 || true)
-  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-4-8, max 20 turns)'
+  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-5, max 20 turns)'
   assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy"
   rm -rf "$IML"
 

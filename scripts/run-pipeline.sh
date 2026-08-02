@@ -206,8 +206,8 @@ load_config
 # Modell-Tiers: WELCHE Modelle hinter heavy/light stehen, kommt aus der Config
 # (model_tiers); Env-Var sticht weiterhin (Kosten-Hebel). Tier→Skill-Zuordnung
 # und Turns siehe factory.defaults.yml + get_model/get_max_turns.
-CLAUDE_MODEL_HEAVY="${CLAUDE_MODEL_HEAVY:-$(printf '%s' "$FACTORY_CFG" | yq '.model_tiers.heavy // "claude-opus-4-8"' -)}"
-CLAUDE_MODEL_LIGHT="${CLAUDE_MODEL_LIGHT:-$(printf '%s' "$FACTORY_CFG" | yq '.model_tiers.light // "claude-sonnet-4-6"' -)}"
+CLAUDE_MODEL_HEAVY="${CLAUDE_MODEL_HEAVY:-$(printf '%s' "$FACTORY_CFG" | yq '.model_tiers.heavy // "claude-opus-5"' -)}"
+CLAUDE_MODEL_LIGHT="${CLAUDE_MODEL_LIGHT:-$(printf '%s' "$FACTORY_CFG" | yq '.model_tiers.light // "claude-sonnet-5"' -)}"
 CLAUDE_MODEL="${CLAUDE_MODEL:-}"                    # Optional: globaler Override für ALLE Skills (sonst gestuft)
 MAX_TURNS="${MAX_TURNS:-}"                          # Optional: globaler Override (sonst per-skill via get_max_turns)
 

@@ -182,3 +182,24 @@ Details/Testfälle: `docs/specs/spec-239-factory-commit-push-nachholen.md`.
 **Betroffene Artefakte (Ergänzung):** `scripts/factory-commit.sh` (erweiterter leerer Zweig,
 idealerweise Push-Logik in einem gemeinsamen Helper statt dupliziert), `scripts/checks/tests/
 run-tests.sh` (neue Fälle: nichts zu committen + ungepusht/kein-Upstream/Push-scheitert).
+
+## Nachtrag (2026-08-02, #252): `max_turns` für review/security-review weiter auf 30 kalibriert
+
+**Kontext.** §5 („Budget-Puffer") hob `max_turns` für `review`/`security-review` von `8` auf `14`
+an. In der Praxis reichte auch `14` bei größeren Diffs wiederholt nicht (Task 91, Task 241) – ein
+Team-Override in `factory.config.yml` hob den effektiven Wert bereits auf den validierten Wert
+`30` an (`MAX_TURNS_CEILING=50`). Task 252 zieht diesen validierten Wert als neuen **Default**
+in `factory.defaults.yml` (der bisherige Override wird dadurch redundant und entfällt). Der hier
+in §5 genannte Wert „14" ist damit nicht mehr der aktuelle Default.
+
+**Entscheidung.** Kein neuer Design-Fork und keine Korrektur des historischen Werts in §5 – der
+Text dokumentiert weiterhin zutreffend die **damalige** Entscheidung (8 → 14) inklusive ihres
+Kontexts. Dieser Nachtrag hält lediglich fest, dass derselbe Knopf seither ein zweites Mal
+kalibriert wurde (14 → 30) und verweist auf den aktuellen Wert als kanonisch in
+`factory.defaults.yml` selbst (ADR-009 SSOT) – nicht in diesem ADR-Text. Details:
+`docs/specs/spec-252-factory-defaults-kalibrieren.md`.
+
+**Betroffene Artefakte (Ergänzung):** `factory.defaults.yml` (`skills.review.max_turns`,
+`skills.security-review.max_turns`: 14 → 30), `factory.config.yml` (redundanter Override
+entfernt), `scripts/checks/tests/run-tests.sh` (Dry-Run-Assertions auf „max 30 turns"
+aktualisiert).
