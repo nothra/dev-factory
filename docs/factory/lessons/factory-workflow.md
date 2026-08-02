@@ -761,3 +761,30 @@ Runden bündeln. Jede nachfolgende Runde, die ihren Kontext per `git diff origin
 (oder `git log`) bezieht, sieht sonst einen veralteten Stand und muss den bereits gelösten Fund
 irrtümlich erneut aufwerfen oder – schlimmer – bemerkt die Diskrepanz nicht und bewertet
 gegen einen Stand, der im Repo so nicht mehr existiert.
+
+### `PR_SHEPHERD`/`FACTORY_STAGE` in der aufrufenden Shell exportiert schlagen in jedes von der Testsuite erzeugte Wegwerf-Repo durch (aus #262, Task-Selbstfund; Härtung ausgelagert: #264)
+
+`run-pipeline.sh` wurde für Task 262 als `PR_SHEPHERD=true bash scripts/run-pipeline.sh 262`
+gestartet – ein einzelner Kommando-Präfix, der die Variable nur für diesen einen Prozess setzt.
+Wird eine Pipeline stattdessen über `export PR_SHEPHERD=true` (oder eine Session, die die
+Variable bereits aus einem Elternprozess erbt) gestartet, bleibt sie in der **gesamten Shell**
+gesetzt – und damit auch für jeden `bash scripts/checks/tests/run-tests.sh`-Lauf, der aus
+derselben Shell heraus gestartet wird. Der `#212 W3`-E2E-Testblock erzeugt dort ein
+Wegwerf-Repo und ruft darin `run-pipeline.sh` real auf, um dessen Endzustands-Verifikation zu
+prüfen – die geerbte `PR_SHEPHERD=true` löst darin ungewollt **Phase 7 (PR Shepherd)** aus, die
+im Wegwerf-Repo abbricht (`.claude/commands/pr-shepherd.md` existiert dort nicht). Ergebnis:
+vier Assertionen dieses Blocks werden rot, ohne dass der aktuelle Diff sie überhaupt berührt –
+über drei aufeinanderfolgende Implement-Runden hinweg reproduzierbar identisch.
+
+**Smell:** „Ein E2E-Testblock, der intern `run-pipeline.sh` (oder ein anderes Skript mit
+eigenen Env-Var-Schaltern) real aufruft, wird rot – aber der aktuelle Diff berührt keine seiner
+Eingaben, und die Shell, aus der die Testsuite läuft, hat `PR_SHEPHERD`/`FACTORY_STAGE` (oder
+eine ähnliche Pipeline-Env-Var) exportiert?"
+
+**Regel:** Vor dem Einordnen eines solchen Fehlschlags als real: mit `unset PR_SHEPHERD
+FACTORY_STAGE` (bzw. `env -u`) gegenprüfen, ob er verschwindet. Verschwindet er, ist es ein
+Umgebungsproblem der aufrufenden Shell, keine Regression – dokumentieren (Diff-Scope, Vorher/
+Nachher-Vergleich, CI-Historie, Lesson #244), nicht blind nacharbeiten. Die eigentliche Härtung
+(der E2E-Block sollte `PR_SHEPHERD`/`FACTORY_STAGE` selbst neutralisieren statt sie aus der
+Umgebung zu erben) ist als eigenes Issue getrackt, nicht Teil der Task, die den Fehlschlag
+zuerst beobachtet.

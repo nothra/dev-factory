@@ -76,27 +76,14 @@ echo -e "  ${GREEN}✓${NC} PROJECT-CONTEXT.md initialisiert"
 echo ""
 echo -e "${YELLOW}Schritt 5: Git Hooks installieren...${NC}"
 
-GIT_HOOKS_DIR="$FACTORY_DIR/.git/hooks"
-
-if [ -d "$GIT_HOOKS_DIR" ]; then
-  # pre-commit Hook
-  cat > "$GIT_HOOKS_DIR/pre-commit" << 'EOF'
-#!/usr/bin/env bash
-bash scripts/checks/pre-commit.sh
-EOF
-  chmod +x "$GIT_HOOKS_DIR/pre-commit"
-  echo -e "  ${GREEN}✓${NC} pre-commit Hook installiert"
-
-  # pre-push Hook
-  cat > "$GIT_HOOKS_DIR/pre-push" << 'EOF'
-#!/usr/bin/env bash
-bash scripts/checks/pre-push.sh
-EOF
-  chmod +x "$GIT_HOOKS_DIR/pre-push"
-  echo -e "  ${GREEN}✓${NC} pre-push Hook installiert"
-else
-  echo -e "  ${YELLOW}⚠${NC}  Kein .git Verzeichnis gefunden – Hooks nicht installiert"
-  echo -e "     Führe 'git init' aus und dann nochmal 'bash scripts/init-factory.sh'"
+# Kanonische Quelle für Inhalt und Umfang der Hooks ist scripts/install-hooks.sh
+# (ADR-042) – hier bewusst nur der Aufruf, damit Neuprojekt-Bootstrap und Retrofit
+# bestehender Repos nicht auseinanderdriften.
+HOOKS_INSTALLED=1
+if ! bash "$FACTORY_DIR/scripts/install-hooks.sh"; then
+  HOOKS_INSTALLED=0
+  echo -e "  ${YELLOW}⚠${NC}  Hook-Installation fehlgeschlagen – siehe Meldung oben"
+  echo -e "     Ursache beheben (z. B. 'git init') und dann 'bash scripts/install-hooks.sh'"
 fi
 
 # ─── 5. Scripts ausführbar machen ────────────────────────────────────────────
@@ -108,6 +95,20 @@ chmod +x "$FACTORY_DIR/scripts/checks/"*.sh
 echo -e "  ${GREEN}✓${NC} Scripts sind ausführbar"
 
 # ─── 6. Abschluss ────────────────────────────────────────────────────────────
+
+# Der Installer bricht bei gesetztem core.hooksPath o. Ä. bewusst fail-closed ab (ADR-042).
+# Diese Aufrufstelle darf das nicht zur Warnung degradieren: ein Bootstrap ohne Git-Hooks
+# ist unvollständig und meldet das per Banner UND Exit-Code.
+if [ "$HOOKS_INSTALLED" -eq 0 ]; then
+  echo ""
+  echo -e "${RED}╔═════════════════════════════════════════════╗${NC}"
+  echo -e "${RED}║  Bootstrap unvollständig – keine Git-Hooks  ║${NC}"
+  echo -e "${RED}╚═════════════════════════════════════════════╝${NC}"
+  echo ""
+  echo "Alles außer den Git-Hooks ist eingerichtet. Ursache oben beheben, dann nachziehen:"
+  echo "  bash scripts/install-hooks.sh"
+  exit 1
+fi
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"

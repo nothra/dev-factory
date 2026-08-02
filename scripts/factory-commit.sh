@@ -28,6 +28,25 @@ set -euo pipefail
 
 err() { echo "factory-commit: $*" >&2; }
 
+usage() {
+  cat <<'EOF'
+factory-commit.sh – Commit/Push-Seam für Factory-Skills (ADR-019).
+
+Aufruf: factory-commit.sh "<commit-message>"
+
+Ablauf: git add -A → git commit -m "<commit-message>" → git push (nie --force).
+Genau ein Argument erwartet; -h/--help gibt nur diese Hilfe aus.
+EOF
+}
+
+# `-h`/`--help` als einziges Argument ist eine Hilfe-Anfrage, keine Commit-Message.
+# Ohne dieses Guard würde das Flag wörtlich zur Commit-Message (#262) – hier: nur Usage,
+# kein git add/commit/push.
+if [ "$#" -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
+  usage
+  exit 0
+fi
+
 # Genau ein Argument: die Commit-Message. Mehr Argumente wären ein Einfallstor für
 # Flags (etwa --force) → fail-closed abweisen. Die Message-Verantwortung (Conventional-
 # Commit-Präfix) bleibt beim aufrufenden Skill (ADR-019 §1).

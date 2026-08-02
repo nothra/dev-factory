@@ -238,6 +238,72 @@ pinnte Default + Semantik code-eindeutig.
 
 ---
 
+## 9. `commit-msg`-Hook: Git säubert Kommentarzeilen erst NACH dem Hook – jeder Aufrufpfad hinterlässt anderen Rohinhalt
+
+Ein `commit-msg`-Hook bekommt den Pfad zur Message-**Datei** übergeben, bevor Git irgendetwas
+daraus entfernt (`--cleanup`). Was in dieser Datei tatsächlich steht, hängt vom Aufrufpfad ab –
+ein Hook, der nur den `-m`-Fall testet, übersieht mindestens zwei weitere:
+
+```bash
+# `-m` (kein Editor): Datei enthält NUR die Message – der einfache Fall.
+git commit -m "--help"                     # Datei: "--help\n"
+
+# Editor-Pfad (kein -m/-e/--amend/Merge): Datei enthält die Message PLUS das
+# unbearbeitete Template – jede Zeile mit Kommentar-Präfix (Default '#').
+git commit                                 # Datei: "--help\n\n# Please enter …\n#\n# On branch …\n"
+
+# Verbose-Pfad (`-v`/`--verbose`, mit ODER ohne -m): Git hängt den Diff UNTER der
+# Scissors-Zeile ("# ---- >8 ----") an – OHNE Kommentar-Präfix. Ein Filter, der nur
+# präfigierte Zeilen verwirft, lässt den unpräfigierten Diff in der Message stehen.
+git commit -v                              # Datei: "--help\n…\n# ---- >8 ----\ndiff --git a/x b/x\n@@ …\n+x\n"
+```
+
+Ein reiner Trim-Vergleich (`TRIMMED = message`) greift nur auf dem `-m`-Pfad. Ein Filter, der
+nur Kommentarzeilen verwirft, greift auf dem Editor-Pfad, aber nicht mehr auf dem Verbose-Pfad
+– der Diff ist nicht präfigiert. Beide Lücken wurden empirisch erst in **zwei separaten**
+Review-Runden gefunden (Editor-Pfad, dann Verbose-Pfad), weil sie wie derselbe Fix aussehen,
+aber unterschiedliche Zeilen im Guard betreffen.
+
+**Faustregel:** Beim Schreiben eines `commit-msg`-Hooks (oder eines anderen Hooks, der eine
+von Git verwalteten Datei roh liest) **vor der ersten Implementierung** alle bekannten
+Aufrufpfade auflisten und je einen End-to-End-Test dagegen schreiben – nicht nur den, an den
+man zuerst denkt (meist `-m`). Für `commit-msg` mindestens: `-m`, Editor ohne `-m`, `-v`/
+`--verbose`, `--cleanup=scissors`. Ein Filter muss zusätzlich an einer strukturellen
+Abbruchmarke (hier: der Scissors-Zeile) stoppen, nicht nur zeilenweise nach Präfix filtern –
+sonst rutscht unpräfigierter Inhalt unterhalb der Abbruchmarke durch.
+
+**Bit uns:** #262 – Editor-Pfad-Lücke in Review-Runde 2 gefunden und gefixt, Verbose-Pfad-Lücke
+(dieselbe Fehlerklasse, andere Ursache) erst in Review-Runde 3.
+
+---
+
+## 10. `git diff --cached --quiet` beweist nicht „kein `git add`" – vergleicht Index gegen HEAD, nicht gegen leer
+
+Ein Test will belegen, dass ein Guard `git add` verhindert hat, und prüft dafür
+`git diff --cached --quiet` (exit 0 = „nichts staged"). Das stimmt nur, solange kein
+nachfolgender Commit lief. Läuft trotz entferntem Guard die volle Kette `git add -A && git
+commit`, ist der Index nach dem Commit identisch mit dem **neuen** HEAD – der Vergleich liefert
+wieder „keine Differenz" und die Assertion bleibt grün, obwohl `git add` (und sogar der Commit)
+tatsächlich passiert ist.
+
+```bash
+# FALSCH – vergleicht Index gegen HEAD, nicht gegen "nichts staged":
+git diff --cached --quiet                  # exit 0 auch nach vollem add+commit (Index==neuer HEAD)
+
+# RICHTIG – prüft direkt, dass die Datei nie den Tracked-Zustand verlassen hat:
+[ "$(git status --porcelain -- datei.txt)" = "?? datei.txt" ]   # nur wahr, wenn `git add` NIE lief
+```
+
+**Faustregel:** Soll ein Test beweisen, dass ein bestimmter Git-Schritt (hier: `add`) NICHT
+gelaufen ist, den Zustand direkt gegen das erwartete Ergebnis dieses Schritts prüfen (Datei
+bleibt `??` untracked), nicht über einen Index-vs-HEAD-Vergleich, der auch durch einen ganz
+anderen, weiter gelaufenen Schritt (ein Commit) wieder "leer" werden kann.
+
+**Bit uns:** #262 – die Assertion „führt kein `git add` aus" wäre bei entferntem Guard trotzdem
+grün geblieben, weil der nachfolgende Commit den Index wieder mit HEAD in Deckung gebracht hätte.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

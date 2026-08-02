@@ -144,6 +144,12 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   lokales Feedback; server-seitig ist `main` zusätzlich durch das GitHub-Ruleset
   `protect-main` fail-closed geschützt (kein Direkt-/Force-Push, PR-Pflicht, squash,
   required Checks – [ADR-029](docs/adr/029-branch-protection-main-ruleset.md)).
+- **Git-Hooks kommen ausschließlich aus `bash scripts/install-hooks.sh`** (kanonische Quelle,
+  [ADR-042](docs/adr/042-hook-installation-single-source.md); idempotent, beliebig oft
+  ausführbar). Installiert werden `pre-commit`, `pre-push` und der `commit-msg`-Hook – letzterer
+  lehnt Commit-Messages ab, die in Wahrheit ein CLI-Flag sind (`--help`/`-h`, `commit-msg-check.sh`).
+  In einem frischen Clone bzw. einem vor dieser Regel initialisierten Repo einmalig ausführen;
+  die Hooks liegen im gemeinsamen `.git` und gelten damit für alle Worktrees.
 - Keine offenen Checkboxen in der Task-Datei → kein Done
 - **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
   oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff

@@ -86,7 +86,7 @@ Diese Schritte sind einmalig. Danach greift die Automatik.
 | Docker (Compose v2) | lokale DEV-Postgres | `docker compose version` |
 
 Projekt aufsetzen: siehe [README → DEV](../../README.md#dev--lokale-entwicklung)
-(`pnpm install` · `.env.local` · `pnpm db:up` · `db:migrate` · `db:seed` · `pnpm dev`).
+(`pnpm install` · `install-hooks.sh` · `.env.local` · `pnpm db:up` · `db:migrate` · `db:seed` · `pnpm dev`).
 
 ### 0.2 GitHub-Repository-Secrets (für das Deploy-Gate)
 
@@ -426,8 +426,13 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
 - **Nie direkt auf `main`** – pre-push-Hook blockiert hart; immer über Feature-Branch + PR.
 - **Parallele Sessions in eigenen Worktrees** – `start-work.sh` legt jede Task in einem eigenen
   git-Worktree an; nach dem Merge `git worktree remove <pfad>` (siehe git-workflow.md).
-- **Gates lokal vor dem Push:** `scripts/checks/pre-commit.sh` und `pre-push.sh` laufen sowieso,
-  aber Lint/Tests/Format vorab spart CI-Runden.
+- **Lokale Git-Hooks installiert halten** (ADR-042): `bash scripts/install-hooks.sh` ist die
+  kanonische Quelle für `pre-commit`, `pre-push` und den `commit-msg`-Hook (Flag-Guard gegen
+  `--help`/`-h` als Commit-Message, #262). Idempotent – in einem frischen Clone und in einem vor
+  Einführung eines Hooks initialisierten Repo einmalig ausführen, sonst greift die lokale
+  Gate-Ebene gar nicht.
+- **Gates lokal vor dem Push:** `scripts/checks/pre-commit.sh` und `pre-push.sh` laufen bei
+  installierten Hooks sowieso, aber Lint/Tests/Format vorab spart CI-Runden.
 
 ---
 

@@ -49,6 +49,37 @@ verbindliche Grenze.
 
 ---
 
+## Git-Hooks installieren (ADR-042)
+
+**Kanonische Quelle für Inhalt und Umfang der lokalen Hooks ist `scripts/install-hooks.sh`.**
+Das Skript ist idempotent und jederzeit erneut ausführbar – für einen frischen Clone, für ein
+Repo, das vor Einführung eines Hooks initialisiert wurde (Retrofit), und für künftige
+Hook-Änderungen:
+
+```bash
+bash scripts/install-hooks.sh
+```
+
+Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch der neue
+`commit-msg`-Hook (Flag-Guard, #262). Kanonisch ist jeweils das aufgerufene Check-Skript:
+
+| Hook | Ruft auf | Zweck (Stand der Check-Skripte) |
+|------|----------|---------------------------------|
+| `pre-commit` | `scripts/checks/pre-commit.sh` | Merge-Konflikte, Debug-Statements, TODO-ohne-Ticket (Warnung), hardkodierte Credentials, Lint |
+| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Schutz gegen Push auf `main`/`master` |
+| `commit-msg` | `scripts/checks/commit-msg-check.sh` | Flag-Guard: lehnt `--help`/`-h` als Commit-Message ab (#262) |
+
+- **Neue Projekte:** `scripts/init-factory.sh` ruft `install-hooks.sh` auf – die
+  Hook-Inhalte stehen nur an dieser einen Stelle, kein zweiter Heredoc-Block.
+- **Alle Worktrees auf einmal:** Die Hooks landen im gemeinsamen Git-Verzeichnis
+  (`git rev-parse --git-common-dir`), gelten also sofort repo-weit. Keine
+  Pro-Worktree-Installation nötig.
+- **`core.hooksPath`:** Ist die Option gesetzt (z. B. durch husky), bricht der Installer
+  fail-closed ab, statt wirkungslos nach `.git/hooks` zu schreiben – dann bewusst entscheiden
+  (Option entfernen oder die Factory-Checks dort einbinden).
+
+---
+
 ## Jeder Task hat ein GitHub-Issue (ADR-013)
 
 **Die Task-ID ist die GitHub-Issue-Nummer.** Jede `tasks/task-<id>-*.md` hat ein

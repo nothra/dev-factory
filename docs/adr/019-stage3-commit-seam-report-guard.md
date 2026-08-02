@@ -203,3 +203,25 @@ kalibriert wurde (14 → 30) und verweist auf den aktuellen Wert als kanonisch i
 `skills.security-review.max_turns`: 14 → 30), `factory.config.yml` (redundanter Override
 entfernt), `scripts/checks/tests/run-tests.sh` (Dry-Run-Assertions auf „max 30 turns"
 aktualisiert).
+
+## Nachtrag (2026-08-02, #262): `-h`/`--help` ist eine Hilfe-Anfrage, kein Pflicht-Argument
+
+**Kontext.** §1 formuliert „Die Message ist Pflicht-Argument", und der #239-Nachtrag nennt die
+davor laufenden Guards „main/master, Argumentanzahl, kein `--force`". Task #262 setzt vor die
+Argumentanzahl-Prüfung ein weiteres Guard: `factory-commit.sh -h` bzw. `--help` (als **einziges**
+Argument) gibt nur die Usage aus und endet mit **exit 0** – ohne `git add`/`commit`/`push`. Grund
+ist derselbe Fehlgriff, der #262 auslöste: ohne dieses Guard würde das Flag wörtlich zur
+Commit-Message (siehe `docs/specs/spec-262-flag-guard-commit-message.md`, ADR-042).
+
+**Entscheidung.** Kein neuer Design-Fork – §1 bleibt inhaltlich gültig, ist aber im Wortlaut
+präziser zu lesen: Pflicht-Argument bleibt die Message für jeden **Commit**-Aufruf; `-h`/`--help`
+ist kein Message-Aufruf, sondern eine Hilfe-Anfrage, die vor allen git-Operationen abbiegt. Jedes
+andere Argument – auch ein `-`-präfigiertes wie `-x` – bleibt eine gewöhnliche Commit-Message
+(kein allgemeines Flag-Parsing), und die Leer-/Argumentanzahl-Prüfung sowie die main/master- und
+`--force`-Guards laufen unverändert. Ergänzend greift derselbe Schutz aufrufpfad-unabhängig über
+den `commit-msg`-Git-Hook (`scripts/checks/commit-msg-check.sh`, ADR-042) – auch bei rohem
+`git commit -m "--help"`, das den Seam gar nicht durchläuft.
+
+**Betroffene Artefakte (Ergänzung):** `scripts/factory-commit.sh` (`-h`/`--help`-Guard + Usage),
+`scripts/checks/tests/run-tests.sh` (AK4/AK6-Fälle: Help-Flags, `--help` mit Zusatz-Argument,
+leere Message, `-x` als reguläre Message).
