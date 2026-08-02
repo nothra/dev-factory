@@ -382,9 +382,12 @@ pipeline_summary() {
     # non-zero muss geschluckt werden, sonst bricht die Zuweisung unter set -e ab → "|| true".
     rule_count=$(grep -c "^- " "$codify_file" 2>/dev/null || true); rule_count=${rule_count:-0}
     echo "  → ${rule_count} neue Regel(n) hinzugefügt"
+    # grep gibt bei 0 Treffern Exit 1; unter pipefail wird das zum Exit-Code der
+    # while-Schleife (read trifft sofort auf EOF) → muss geschluckt werden, sonst
+    # bricht die gesamte Pipeline unter set -e ab (Issue #261).
     grep "^- " "$codify_file" 2>/dev/null | head -3 | while IFS= read -r line; do
       echo "    ${line}"
-    done
+    done || true
     if [ "${rule_count}" -gt 3 ] 2>/dev/null; then
       echo "    … (weitere in tasks/codify-${task_id}.md)"
     fi

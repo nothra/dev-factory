@@ -1090,6 +1090,93 @@ rm -f "$ZERO"
 grep -qE 'grep -c "\^- " "\$codify_file" 2>/dev/null \|\| true' "$PIPELINE"
 assert_true "$?" "run-pipeline.sh rule_count ist set-e-sicher (|| true, K-1)"
 
+# K-2 (Issue #261): Laufzeit-Beweis der set-e-Sicherheit für den grep|head|while-Block
+# (pipeline_summary's Codify-Regelzeilen-Ausgabe) gegen ein 0-Treffer-File unter set -e.
+ZERO_WHILE_LOOP=$(mktemp); printf '# nur ein Header, keine Regel-Zeilen\n' > "$ZERO_WHILE_LOOP"
+# Korrektes Idiom (|| true nach done) → kein Abbruch, rc=0:
+( set -euo pipefail; grep "^- " "$ZERO_WHILE_LOOP" 2>/dev/null | head -3 | while IFS= read -r line; do echo "    ${line}"; done || true ) 2>/dev/null
+assert_exit 0 "$?" "Issue #261 RICHTIG-Idiom (|| true nach done) ist set-e-sicher bei 0 Treffern"
+# Gegenprobe: ohne || true bricht es unter set -e ab (beweist, dass der Test scharf ist):
+( set -euo pipefail; grep "^- " "$ZERO_WHILE_LOOP" 2>/dev/null | head -3 | while IFS= read -r line; do echo "    ${line}"; done ) 2>/dev/null
+assert_true "$([ $? -ne 0 ]; echo $?)" "Gegenprobe: ohne || true bricht der grep|head|while-Block unter set -e ab (K-2)"
+rm -f "$ZERO_WHILE_LOOP"
+
+# (3) run-pipeline.sh Codify-Regelzeilen-Block nutzt das set-e-sichere Idiom (|| true nach
+# done) – Issue #261. Block-isoliert statt Datei-weitem Fragment-Grep (Review-Finding
+# Runde 2/3, Lesson zu Reihenfolge-Guards aus #114/#265: Anker ist die exakte Aufruf-
+# Zeile, nie ein Kommando-Fragment) – awk extrahiert nur den Block zwischen der
+# Codify-Pipeline und ihrem "done", analog zur Job-Block-Isolation aus #255. Anders als
+# dort schließt der Block hier Start- UND Endzeile bewusst mit ein (nicht aus), weil
+# genau die "done"-Zeile selbst geprüft werden muss. Ein-Wort-Anker als Variable
+# (nicht zweimal als Regex-Literal), damit Original- und Mutations-Extraktion (unten)
+# nicht auseinanderlaufen können.
+codify_block_awk='/grep "\^- " "\$codify_file" 2>\/dev\/null \| head -3 \| while/{f=1} f{print} f&&/done/{exit}'
+codify_regelzeilen_block="$(awk "$codify_block_awk" "$PIPELINE")"
+assert_true "$([[ -n "$codify_regelzeilen_block" ]]; echo $?)" "Codify-Regelzeilen-Block ist extrahierbar (Issue #261)"
+printf '%s' "$codify_regelzeilen_block" | grep -qE 'done \|\| true'
+assert_true "$?" "run-pipeline.sh Codify-Regelzeilen-Block ist set-e-sicher (|| true nach done, Issue #261)"
+
+# Schärfe-Beweis: ein unabhängiges "done || true" an anderer Stelle im Skript darf den
+# Guard nicht fälschlich grün machen, wenn der Codify-Block selbst ungesichert wäre.
+MUT_PIPELINE=$(mktemp)
+sed -e 's/    done || true/    done/' "$PIPELINE" > "$MUT_PIPELINE"
+printf '\ndone || true\n' >> "$MUT_PIPELINE"
+mut_block="$(awk "$codify_block_awk" "$MUT_PIPELINE")"
+! printf '%s' "$mut_block" | grep -qE 'done \|\| true'
+assert_true "$?" "Schärfe-Beweis: unabhängiges 'done || true' anderswo täuscht den Block-Guard nicht (Issue #261)"
+rm -f "$MUT_PIPELINE"
+
+# #261 AC2/AC3: End-to-end-Beweis über den echten pipeline_summary()-Pfad (--dry-run),
+# dass 1-3 Treffer unverändert ausgegeben werden und >3 Treffer bei 3 gekappt + Hinweis
+# ergänzt wird. Bisher nur strukturell begründet (|| true wirkt nur bei vorangehendem
+# Fehlschlag, ändert im Treffer-Fall nichts) – hier zusätzlich empirisch belegt
+# (/test-Vollständigkeitsprüfung), analog zum #91-Dry-Run-Scaffold.
+if [ "$HAS_YQ" = 1 ]; then
+  TMP_261="$(mktemp -d)"
+  mkdir -p "$TMP_261/scripts/checks" "$TMP_261/scripts/lib" "$TMP_261/tasks" "$TMP_261/docs/factory"
+  cp "$PIPELINE" "$TMP_261/scripts/"
+  cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_261/scripts/checks/"
+  cp "$FACTORY_ROOT/factory.defaults.yml" "$TMP_261/"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_261/scripts/lib/"
+  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_261/scripts/lib/"
+  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_261/scripts/lib/"
+  echo "# ctx" > "$TMP_261/docs/factory/PROJECT-CONTEXT.md"
+  echo "# Task 3: codify-regelzeilen-ac" > "$TMP_261/tasks/task-3-codify-regelzeilen-ac.md"
+  printf '## Empfehlung\nAPPROVED\n' > "$TMP_261/tasks/review-3.md"
+  git -C "$TMP_261" init -q
+  git -C "$TMP_261" add .
+  git -C "$TMP_261" -c user.email="t@t.com" -c user.name="t" commit -q -m init
+
+  # AC2: 1-3 Treffer → alle Zeilen unverändert ausgegeben, kein "… weitere"-Hinweis
+  printf -- '- Regel A\n- Regel B\n' > "$TMP_261/tasks/codify-3.md"
+  git -C "$TMP_261" add .; git -C "$TMP_261" -c user.email="t@t.com" -c user.name="t" commit -q -m ac2
+  ac2_out=$(bash "$TMP_261/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
+  printf '%s' "$ac2_out" | grep -qF '2 neue Regel(n) hinzugefügt'
+  assert_true "$?" "#261 AC2: 1-3 Treffer – Regelzahl korrekt im Summary"
+  printf '%s' "$ac2_out" | grep -qF -- '- Regel A'
+  assert_true "$?" "#261 AC2: 1-3 Treffer – erste Regelzeile unverändert ausgegeben"
+  printf '%s' "$ac2_out" | grep -qF -- '- Regel B'
+  assert_true "$?" "#261 AC2: 1-3 Treffer – zweite Regelzeile unverändert ausgegeben"
+  printf '%s' "$ac2_out" | grep -qF '(weitere in tasks/codify-3.md)'
+  assert_true "$([[ $? -ne 0 ]]; echo $?)" "#261 AC2: bei nur 2 Treffern erscheint kein '… weitere'-Hinweis"
+
+  # AC3: >3 Treffer → erste 3 Zeilen ausgegeben, vierte gekappt, Hinweis ergänzt
+  printf -- '- Regel A\n- Regel B\n- Regel C\n- Regel D\n- Regel E\n' > "$TMP_261/tasks/codify-3.md"
+  git -C "$TMP_261" add .; git -C "$TMP_261" -c user.email="t@t.com" -c user.name="t" commit -q -m ac3
+  ac3_out=$(bash "$TMP_261/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
+  printf '%s' "$ac3_out" | grep -qF '5 neue Regel(n) hinzugefügt'
+  assert_true "$?" "#261 AC3: >3 Treffer – reale Regelzahl (5) im Summary, nicht gekappt"
+  printf '%s' "$ac3_out" | grep -qF -- '- Regel C'
+  assert_true "$?" "#261 AC3: >3 Treffer – dritte Regelzeile noch ausgegeben"
+  printf '%s' "$ac3_out" | grep -qF -- '- Regel D'
+  assert_true "$([[ $? -ne 0 ]]; echo $?)" "#261 AC3: >3 Treffer – vierte Regelzeile NICHT ausgegeben (Kappung bei 3)"
+  printf '%s' "$ac3_out" | grep -qF '(weitere in tasks/codify-3.md)'
+  assert_true "$?" "#261 AC3: >3 Treffer – '… weitere'-Hinweis erscheint"
+  rm -rf "$TMP_261"
+else
+  skip_yq "#261 AC2/AC3: End-to-end Codify-Regelzeilen-Ausgabe (1-3 / >3 Treffer)"
+fi
+
 # ─── Stufe-2.5: Factory-Config Phase 1b – run-pipeline liest die Config (#25) ─
 echo ""
 echo "Factory-Config Phase 1b (#25, ADR-009):"

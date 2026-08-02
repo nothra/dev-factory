@@ -293,6 +293,30 @@ scripts/install-hooks.sh`), nie ein bloßer Dateiname/Kommando-Fragment, das auc
 selbst verfassten Kommentar direkt daneben stehen könnte – gerade eigene, erklärende Kommentare
 oberhalb eines neuen Schritts sind eine unterschätzte Quelle für genau diesen Fehl-Treffer.
 
+**Nachtrag 2 (aus #261, Review-Runde-2/3-Selbstfund – drittes Rezidiv, diesmal außerhalb von
+Reihenfolge-Checks):** Die Falle betrifft nicht nur Reihenfolge-Assertions, sondern jeden
+Präsenz-/Idiom-Guard. Ein neuer Test für Task #261 (`run-tests.sh`, prüft ob `run-pipeline.sh`
+das Fix-Idiom `|| true` an der richtigen Stelle nutzt) griff anfangs auf
+`grep -qE 'done \|\| true' "$PIPELINE"` zurück – ein **datei-weites** Kommando-Fragment, das an
+jeder beliebigen Stelle im Skript hätte auftauchen können, nicht nur an der konkreten, zu
+prüfenden Codify-Regelzeilen-Pipeline. Grund für den Rückgriff auf das Fragment: Das zu
+prüfende Konstrukt (`grep | head | while … done`) erstreckt sich über drei Zeilen – ein
+einzelner `grep -E`-Aufruf kann so etwas nicht in einer Zeile exakt binden (Multi-Line-Match nur
+über `-z`, was `bash-gotchas.md`/`clean-code.md` als nicht-portabel meidet). Erst im Review
+(Runde 2/3, unabhängig gefunden) fiel auf: der Guard bliebe auch dann grün, wenn ein späteres,
+unabhängiges `done || true` an anderer Stelle im Skript entstünde, während der eigentliche
+Codify-Block selbst nicht mehr abgesichert wäre.
+
+**Regel (Multi-Zeilen-Konstrukte):** Muss ein Guard auf ein Konstrukt anchoren, das sich über
+mehrere Zeilen erstreckt (keine Single-Line-`grep -E`-Bindung möglich), nicht auf ein kürzeres,
+datei-weit matchendes Fragment ausweichen. Stattdessen den bereits etablierten
+`awk`-Block-Extraktions-Ansatz nutzen (`awk '/start-muster/{f=1} f{print} f&&/end-muster/{exit}'`,
+siehe `cv_job_block`/`ci_selftest_block` aus #255), der die Prüfung auf exakt den relevanten
+Block einschränkt. Ist die zu prüfende Zeile selbst die Endgrenze des Blocks (z. B. das `done`,
+dessen `|| true`-Suffix geprüft werden soll), den Block bewusst **inklusive** Start- und Endzeile
+extrahieren (Variante des #255-Musters, das beide Grenzen exklusiv hält) – und diese Abweichung
+im Kommentar explizit benennen, sonst wirkt sie wie eine unreflektierte Kopie des Precedents.
+
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
 Beim Erstellen der Routen-Übersicht (`docs/routes.md`) und des Drift-Checks
