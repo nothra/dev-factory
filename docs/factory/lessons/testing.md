@@ -503,3 +503,27 @@ heranziehen (>15 Stellen in `run-tests.sh` setzen die Identität bereits); ein H
 Zeile ist die Abweichung, nicht die Norm. Gilt als Spezialfall von „Flaky Tests: Zero Tolerance"
 (`testing-standards.md`) – Umgebungsabhängigkeit ist eine Flakiness-Quelle, auch wenn sie beim
 Schreiben nicht auffällt.
+
+### Positions-/Zustand-Freeze-Test ohne vorherige Divergenz-Aktion ist nicht diskriminierend – dreifach im selben Task übersehen (aus #253, Review-Runde 1–3, W-Findings)
+
+Task #253 fror die Render-Reihenfolge einer Liste client-seitig ein (`useState`-Initializer); der
+Server liefert bei jedem Rerender ggf. eine andere Sortierung, die eingefrorene Position soll aber
+bestehen bleiben. Drei aufeinanderfolgende Review-Runden fanden an drei verschiedenen Stellen
+(`page.test.tsx` StatusToggle-Test, `EingefroreneZeilenListe.test.tsx` Fehlerszenario-Test)
+denselben Fehler: `render`/`rerender` wurden mit **identischen** bzw. nicht-divergierenden Props
+aufgerufen. Solange Server-Reihenfolge und eingefrorene Reihenfolge gleich sind, ist weder eine
+Reihenfolge- noch eine daran hängende Status-Assertion diskriminierend – beide bleiben grün, ob
+der Freeze-Code existiert oder komplett entfernt ist (Mutation `ordneNachEingefrorenerReihenfolge(
+…).map(...)` → `zeilen.map(...)`: Test bleibt grün).
+
+**Smell:** „Mein Test prüft ‚Position/Status bleibt trotz X unverändert' – divergiert die
+Server-Reihenfolge an irgendeiner Stelle im Testverlauf tatsächlich von der eingefrorenen? Wenn
+nicht, kann die Assertion gar nicht unterscheiden zwischen ‚Freeze wirkt' und ‚kein Freeze da'."
+
+**Regel:** Ein Freeze-/Unverändert-Test (Position, Reihenfolge, Zustand bleibt über einen Rerender
+hinweg stabil) braucht **zuerst eine echte, state-ändernde Aktion**, die Server- und eingefrorenen
+Zustand tatsächlich auseinanderlaufen lässt (hier: ein *erfolgreicher* Kassiervorgang, der die
+Server-Sortierung ändert), **bevor** der eigentliche Zielfall (z. B. ein *fehlgeschlagenes*
+Kassieren, ein StatusToggle) ausgeführt wird. Ohne diesen vorgeschalteten Divergenz-Schritt ist der
+Test bestenfalls ein Wiring-Test, kein Freeze-Beweis – Spezialfall von #214 („grün aus dem
+falschen Grund"), hier auf Zustands-Freeze statt auf Fail-Pfad-Isolation zugeschnitten.

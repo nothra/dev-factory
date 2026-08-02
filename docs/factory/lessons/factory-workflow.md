@@ -571,6 +571,30 @@ bewusst unverändert – nur die Ist-Behauptung und die Offen-Markierung werden 
 Feature-Zyklus `/codify` **im selben PR** ausführt, ist „im selben PR" auch dann erfüllt, wenn die
 Spec die Prosa-Pflege bewusst aus `/implement` herausnimmt und an `/codify` delegiert (so in #176).
 
+### Frisch im selben PR erstellte/geänderte Spec braucht denselben Drift-Check wie ADRs – nicht nur vorbestehende Architekturdoku (aus #253, Review-Runde-3-Finding)
+
+Bislang deckte die #211-/#176-Kette Drift zwischen Code und **vorbestehenden** ADRs/Lessons ab.
+#253 zeigte eine weitere Quelle: die **im selben PR** (Requirements-Phase) neu geschriebene Spec
+(`spec-253`) beschrieb eine engere Mechanik („nur der Kassieren-Klick friert die Position ein")
+als die tatsächlich gebaute und in Runde 2 per Test zementierte („die Reihenfolge wird beim
+ersten Rendern eingefroren und gilt session-weit, auch für einen StatusToggle danach"). Zwei
+vorangehende Review-Runden prüften ADRs auf Drift (per Sweep über `docs/adr/**`), verglichen den
+Code aber nie gegen die eigene, frisch gelieferte Spec-Prosa – sie nahmen die Spec unhinterfragt
+als Maßstab, statt sie gegen das reale, getestete Ergebnis zu spiegeln.
+
+**Smell:** „Diese Task hat in derselben PR-Session eine Spec neu geschrieben oder erweitert – stimmt
+deren Wortlaut noch mit dem überein, was am Ende tatsächlich gebaut und getestet wurde, oder ist sie
+seit `/requirements` unverändert, während sich der Implementierungs-Scope verschoben hat?"
+
+**Regel:** Erweitert #211/#176 (ADR-/Lessons-Drift) explizit auf **`docs/specs/*.md`, die im selben
+PR entstanden oder geändert wurden**: `/review` vergleicht die Spec-Prosa (insbesondere
+AC-Formulierungen und Abgrenzungssätze wie „nur X löst Y aus"/„kein Y ohne X") wörtlich gegen den
+zementierenden Test, nicht nur gegen den Produktionscode. Widerspricht der Test-Beweis der
+Spec-Formulierung, gewinnt das **getestete Verhalten** (es ist das belastbarere Artefakt) – die Spec
+wird nachgezogen, nicht das Verhalten nachträglich verengt. Auch angrenzende, nicht direkt
+geänderte Specs mitprüfen (hier: `spec-223`, dessen AC „offene oberhalb bezahlter" seit #253 nur
+noch für den Zustand nach einem Seitenaufruf gilt).
+
 ### Test einer `.claude/**`-Patch-Lieferung prüft den Endzustand der committeten Live-Datei, nicht das Patch-Artefakt (aus #212, Review-Runde 1/3)
 
 `.claude/**` ist für den Agenten hard-denied → die Änderung kommt als `tasks/patch-<id>.diff`, den
