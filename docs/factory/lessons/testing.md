@@ -367,6 +367,26 @@ Verfügbarkeits-/Capability-Prüfung gegen bereits vorhandene abgleichen" (aus #
 `code-style.md`) – gilt genauso für Regressions-Assertion-Schleifen in Bash-Testsuiten, nicht
 nur für Capability-Checks wie `command -v`.
 
+**Rezidiv trotz vorhandener Lesson, ausgelöst durch mehrdeutigen Spec-Wortlaut (aus #251,
+Review-Runde-1-Finding):** `/implement` legte für `run-tests.sh` erneut eine rumpfidentische
+Schleife neben eine bestehende an (`jq -e --arg v "$entry" '.permissions.allow | index($v) !=
+null' ...`, nur andere Werteliste) – **obwohl** genau diese Lesson bereits existierte und im
+selben File ein Merge-Präzedenzfall (die #240-AK1-Schleife) sichtbar war. Ursache: Die Spec
+(`spec-251`) formulierte das AK selbst zweideutig – „die Werteliste an geeigneter Stelle
+ergänzen/**eine neue Schleife direkt daneben platzieren**" – und bot damit eine scheinbar
+gleichwertige Alternative an, die dem eigentlichen Lesson-Verbot widerspricht. Der Implementer
+begründete die neue Schleife mit „andere Eintragsgruppe" – exakt die Rechtfertigung, die der
+obige Smell bereits ausdrücklich zurückweist („nur für eine andere Eintragsliste").
+
+**Regel (Ergänzung):** Formuliert eine Spec/ein AK eine Anforderung, die einer bestehenden
+Lesson entspricht (Duplikat-Rumpf-Vermeidung, Guard-Symmetrie o. Ä.), muss der Wortlaut die
+tatsächlich vorgeschriebene Lösung nennen (hier: „in die bestehende Schleife mergen"), nicht
+eine weichere Alternativformulierung, die die Lesson wieder zur Option macht. `/implement`
+prüft in diesem Fall zusätzlich gegen die Lesson selbst (nicht nur gegen den Spec-Wortlaut) und
+gewichtet den Lesson-Text höher, wenn Spec und Lesson widersprüchlich klingen. „Andere
+Eintragsgruppe/-liste" ist **nie** eine hinreichende Begründung für eine zweite,
+prüfausdrucksidentische Schleife.
+
 ### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus #249, umgekehrte Kausalrichtung)
 
 Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei

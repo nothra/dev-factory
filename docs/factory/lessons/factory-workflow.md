@@ -736,3 +736,28 @@ Job-Trennkommentar `# ───`:
 den Extraktor **isoliert ausführen** und das Ergebnis auf Länge/Inhalt prüfen (`awk '...' datei
 | wc -l`, Volltext lesen) – nicht nur den nachgelagerten Negativ-Test grün laufen lassen, der
 bei zufällig unauffälligem Nachbarinhalt auch mit einer löchrigen Extraktion grün bleibt.
+
+### Fix zwischen zwei `/review`-Runden sofort committen, nicht erst nach der letzten Runde (aus #251, Review-Runde-3-Finding)
+
+`/review` lief für Task 251 als drei sequenzielle Persona-Runden (Logik, Code-Qualität,
+Architektur). Runde 2 fand ein Kritisch-Finding (rumpfidentische Duplikat-Schleife, siehe
+`lessons/testing.md`); der Fix wurde sofort im Working Tree angewendet, aber **nicht committet**,
+bevor Runde 3 startete. Runde 3 bekam den Auftrag, `git diff origin/main...HEAD` zu lesen –
+dieser Befehl zeigt nur committete Commits, nicht den unstaged Working-Tree-Stand. Der
+Review-Agent bemerkte die Diskrepanz selbst (Prosa-Hinweis „diff zeigt noch die alte Variante"),
+verifizierte den echten Dateiinhalt zusätzlich direkt und flaggte das Fehlen des Commits richtig
+als eigenes Wichtig-Finding – aber nur, weil er zufällig nachprüfte. Ein Review-Agent, der sich
+blind auf den Diff verlässt, hätte den bereits behobenen Fund erneut als offen gemeldet.
+
+**Smell:** „Ich habe während eines laufenden Multi-Runden-Reviews (oder einer anderen
+Sub-Agenten-Kette) einen Fix im Working Tree angewendet, aber die nächste Runde bekommt ihren
+Kontext über `git diff origin/main...HEAD` oder eine ähnliche Commit-basierte Diff-Quelle –
+liegt der Fix schon committet vor, oder nur im Arbeitsbaum?"
+
+**Regel:** Wird ein Finding **zwischen** zwei Runden einer laufenden Multi-Agenten-Kette (Review,
+Security-Review, o. Ä.) behoben, den Fix **sofort** über `factory-commit.sh` committen und
+pushen, bevor die nächste Runde/der nächste Sub-Agent gestartet wird – nicht erst am Ende aller
+Runden bündeln. Jede nachfolgende Runde, die ihren Kontext per `git diff origin/main...HEAD`
+(oder `git log`) bezieht, sieht sonst einen veralteten Stand und muss den bereits gelösten Fund
+irrtümlich erneut aufwerfen oder – schlimmer – bemerkt die Diskrepanz nicht und bewertet
+gegen einen Stand, der im Repo so nicht mehr existiert.

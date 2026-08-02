@@ -2307,6 +2307,16 @@ done
 echo ""
 echo "#224 Top-Level-YAML-Freigabe (.claude/settings.json):"
 
+# #251: gemeinsame Werteliste für die jq-Schleife (unten) UND den jq-unabhängigen Grep-Fallback
+# (weiter unten, außerhalb des HAS_JQ-Blocks) – als geteilte Konstante statt zweimal ausgeschrieben,
+# damit beide Stellen nicht auseinanderdriften können (lessons/testing.md: Literale, die an zwei
+# Stellen identisch bleiben müssen, sofort als geteilte Konstante einführen).
+EDIT_ALLOW_88=(
+  'Edit(app/**)' 'Edit(lib/**)' 'Edit(db/**)' 'Edit(e2e/**)' 'Edit(types/**)'
+  'Edit(scripts/**)' 'Edit(docs/**)' 'Edit(tasks/**)' 'Edit(config/**)' 'Edit(public/**)'
+  'Edit(.github/workflows/**)' 'Edit(*.ts)' 'Edit(*.tsx)' 'Edit(*.mjs)' 'Edit(*.json)' 'Edit(*.md)'
+)
+
 if [ "$HAS_JQ" -eq 1 ]; then
   # AK8: settings.json bleibt valides JSON mit unveränderter Grundstruktur.
   jq -e '.hooks and .permissions.allow and .permissions.deny' "$SETTINGS" >/dev/null 2>&1
@@ -2317,9 +2327,16 @@ if [ "$HAS_JQ" -eq 1 ]; then
   # Verzeichnistiefe, gitignore-Semantik – die Spec adressiert aber ausdrücklich nur
   # Top-Level-Dateien; alle vier realen Zieldateien liegen im Root, root-verankert verliert
   # nichts, schließt aber die Least-Privilege-Lücke für künftige *.yml/*.yaml-Dateien).
-  for entry in 'Edit(/*.yml)' 'Edit(/*.yaml)'; do
+  # #251 erweitert dieselbe Liste um die 16 ursprünglichen #88-Edit(...)-Allow-Einträge (statt
+  # einer zweiten, rumpfidentischen Schleife danebenzustellen – exakt das in
+  # lessons/testing.md ("Neue Regressions-Assertion-Schleife … abgleichen") kodifizierte
+  # #240-Learning; Präzedenzfall im selben File: die #240-AK1-Schleife unten vereint ebenso
+  # zwei unterschiedliche Eintragsgruppen in einer Liste statt zwei getrennten Schleifen).
+  # Die 16 #88-Einträge kommen aus dem gemeinsamen EDIT_ALLOW_88-Array oben (geteilt mit dem
+  # Grep-Fallback weiter unten).
+  for entry in 'Edit(/*.yml)' 'Edit(/*.yaml)' "${EDIT_ALLOW_88[@]}"; do
     jq -e --arg v "$entry" '.permissions.allow | index($v) != null' "$SETTINGS" >/dev/null 2>&1
-    assert_true "$?" "#224: allow (geparst) enthält '$entry'"
+    assert_true "$?" "#224/#251: allow (geparst) enthält '$entry'"
   done
 
   # #240 AK1 (alle 18 vormals in allow vorhandenen Write(...)-Einträge): Die 11 ursprünglichen
@@ -2372,6 +2389,17 @@ fi
 # mehr irgendwo in der Datei, unabhängig davon ob jq verfügbar ist.
 assert_true "$(! grep -qF '"Write(' "$SETTINGS"; echo $?)" \
   "#240: settings.json enthält keinen 'Write(...)'-Eintrag mehr (jq-unabhängiger Fallback)"
+
+# #251 (jq-unabhängiger Fallback, analog zum #91/#240-Muster): läuft IMMER, auch ohne jq,
+# damit die Regressionsabsicherung für die 16 ursprünglichen #88-Edit(...)-Allow-Einträge
+# nicht stillschweigend übersprungen wird, wenn jq in der Ausführungsumgebung fehlt (die
+# geparste #251-Schleife oben wird dann laut Zeile "übersprungen (jq fehlt)" nicht erreicht).
+# Nutzt dasselbe EDIT_ALLOW_88-Array wie die jq-Schleife oben (geteilte Konstante, kein
+# Literal-Duplikat mehr – Refactor-Finding aus /review).
+for entry in "${EDIT_ALLOW_88[@]}"; do
+  grep -qF -- "$entry" "$SETTINGS"
+  assert_true "$?" "#251: settings.json enthält '$entry' (jq-unabhängiger Fallback)"
+done
 
 # AK7: die stale Präsens-Aussage zu factory.defaults.yml ist korrigiert; die weiterhin gültige
 # Patch-Workflow-Regel (#94) bleibt erhalten. Bislang die einzige Regressionsabsicherung für
