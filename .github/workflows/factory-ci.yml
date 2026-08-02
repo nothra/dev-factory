@@ -53,6 +53,28 @@ jobs:
       - name: Task ↔ Issue-Sync prüfen
         run: bash scripts/sync-issues.sh --check
 
+  # ─── Config-Validation-Gate (ADR-041, Task 255) ─────────────────────────────
+  # Fail-closed Validierung der geschichteten Factory-Config (factory.defaults.yml
+  # * factory.config.yml) als eigener, benannter Required-Check — bislang lief das
+  # Gate in CI nur indirekt über eine Testzeile in run-tests.sh (Gate #249 AK5).
+  # Ruft das Gate explizit gegen die realen Repo-Dateien auf, unabhängig von
+  # run-pipeline.sh oder einer Test-Fixture. Kein Node/pnpm nötig (analog issue-sync).
+  config-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yq bereitstellen
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+      - name: Config-Validation-Gate (fail-closed)
+        run: |
+          bash scripts/checks/config-validation-check.sh \
+            "$GITHUB_WORKSPACE/factory.defaults.yml" \
+            "$GITHUB_WORKSPACE/factory.config.yml"
+
   # ─── Factory-eigene Checks ──────────────────────────────────────────────────
   # Prüft die Integrität der Factory-Skripte selbst (Self-Test-Suite).
   # Läuft immer – auch in adoptierten Projekten, die das Template als Basis nutzen.

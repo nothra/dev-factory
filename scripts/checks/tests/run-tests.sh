@@ -1314,11 +1314,6 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   bash "$GATE" "$DEFAULTS" >/dev/null 2>&1
   assert_true "$?" "Gate #249 AK4: reiner Default-Lauf (kein Override) → exit 0"
 
-  # AK5 (Positiv): das reale, produktive factory.config.yml (überschreibt nur .light)
-  #   bleibt gültig — die neue Regel darf den legitimen Ist-Zustand nicht brechen.
-  bash "$GATE" "$DEFAULTS" "$FACTORY_ROOT/factory.config.yml" >/dev/null 2>&1
-  assert_true "$?" "Gate #249 AK5: reales factory.config.yml (nur .light-Override) bleibt gültig"
-
   # ── Config-Validation Root-Typ-Guard (Task 254) ─────────────────────────────
   # AK1 (Negativ): Skalar-Root im Override → explizite "kein Mapping"-Meldung, nicht
   #   die irreführende max_turns-Meldung aus Regel 4b.
@@ -1367,6 +1362,79 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   rm -rf "$GTMP"
 else
   skip_yq "Gate-Validierung (Positiv/Negativ-Fixtures)"
+fi
+
+# ─── Config-Validation als eigener CI-Required-Check (Task 255, ADR-041) ─────
+echo ""
+echo "Config-Validation CI-Wiring (Task 255, ADR-041):"
+
+grep -q 'config-validation:' "$CI_FILE"
+assert_true "$?" "config-validation-Job in factory-ci.yml"
+
+# Job-Block isoliert extrahieren (nicht das ganze File scannen) — sonst würde die
+# "kein Node/pnpm"-Prüfung (AK7) an einem Fremd-Job (z. B. lint/test) vorbeirutschen,
+# der pnpm durchaus nutzt. Bricht sowohl am nächsten Job-Key als auch am nächsten
+# Job-Trennkommentar ("  # ─── …") ab — reine Key-Erkennung würde den führenden
+# Kommentarkopf des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen
+# (Review-Finding Runde 1, Task 255).
+cv_job_block="$(awk '/^  config-validation:/{f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$CI_FILE")"
+assert_true "$([[ -n "$cv_job_block" ]]; echo $?)" "config-validation-Job-Block ist extrahierbar"
+
+printf '%s' "$cv_job_block" | grep -q 'actions/checkout'
+assert_true "$?" "config-validation-Job checkt das Repo aus"
+
+printf '%s' "$cv_job_block" | grep -qi 'yq'
+assert_true "$?" "config-validation-Job stellt yq bereit (Gate-Prerequisite, ADR-009 §A)"
+
+printf '%s' "$cv_job_block" | grep -q 'config-validation-check.sh'
+assert_true "$?" "config-validation-Job ruft config-validation-check.sh auf"
+
+printf '%s' "$cv_job_block" | grep -q 'GITHUB_WORKSPACE/factory.defaults.yml' \
+  && printf '%s' "$cv_job_block" | grep -q 'GITHUB_WORKSPACE/factory.config.yml'
+assert_true "$?" "AK3: Job ruft das Gate explizit mit den Pfaden der realen Repo-Dateien auf"
+
+# AK3 (Positions-Reihenfolge): das Gate liest strikt positional ($1=Defaults,
+# $2=Override, s. Script-Header). Reine Anwesenheits-Prüfung beider Pfade würde
+# einen vertauschten Aufruf nicht erkennen (Review-Finding Runde 1, Task 255).
+cv_defaults_line="$(printf '%s\n' "$cv_job_block" | grep -n 'GITHUB_WORKSPACE/factory.defaults.yml' | head -1 | cut -d: -f1)"
+cv_config_line="$(printf '%s\n' "$cv_job_block" | grep -n 'GITHUB_WORKSPACE/factory.config.yml' | head -1 | cut -d: -f1)"
+assert_true "$([[ -n "$cv_defaults_line" && -n "$cv_config_line" && "$cv_defaults_line" -lt "$cv_config_line" ]]; echo $?)" \
+  "AK3: defaults-Pfad steht als \$1 VOR dem config-Pfad als \$2 (Positions-Reihenfolge)"
+
+! printf '%s' "$cv_job_block" | grep -qE 'pnpm/action-setup|actions/setup-node'
+assert_true "$?" "AK7: config-validation-Job braucht kein Node/pnpm-Setup"
+
+# ── Behavior-Level: derselbe Aufruf wie im config-validation-Job, real ausgeführt ──
+# Ersetzt strukturell die entfernte "Gate #249 AK5"-Zeile (AK5) auf CI-Wiring-Ebene:
+# reine Wiring-Greps oben belegen nur, DASS der Job etwas Passendes aufruft, nicht
+# DASS der Aufruf tatsächlich grün/rot läuft (Review-Finding Runde 1, Task 255 —
+# Lesson #212: "Deterministisches Gate braucht E2E-Verhaltenstest, nicht nur Wiring-Grep").
+if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
+  # AK2 (Positiv, Nicht-Regression): realer, aktueller Repo-Stand → exit 0.
+  bash "$GATE" "$FACTORY_ROOT/factory.defaults.yml" "$FACTORY_ROOT/factory.config.yml" >/dev/null 2>&1
+  assert_true "$?" "AK2: config-validation-Job-Aufruf gegen reale Repo-Dateien → exit 0"
+
+  CVTMP="$(mktemp -d)"
+
+  # AK1 (Negativ): unbekannter Key in einer Kopie des realen factory.config.yml.
+  cp "$FACTORY_ROOT/factory.config.yml" "$CVTMP/unknown-key.yml"
+  printf '\nbogus_unknown_key_ak1: 1\n' >> "$CVTMP/unknown-key.yml"
+  bash "$GATE" "$FACTORY_ROOT/factory.defaults.yml" "$CVTMP/unknown-key.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "AK1: unbekannter Key in factory.config.yml → config-validation-Job schlägt fehl"
+
+  # AK4 (Negativ, Task-249-Regression): model_tiers.heavy-Override in einer Kopie.
+  # Echter yq-Merge in den bestehenden model_tiers-Block (nicht per printf einen
+  # zweiten Top-Level-Key anhängen) — sonst löst yq das Duplicate-Key-Dokument per
+  # last-key-wins auf und model_tiers.light verschwindet, wodurch der Test kein
+  # realistisches Override-Szenario mehr prüft (Review-Finding Runde 3, Task 255).
+  cp "$FACTORY_ROOT/factory.config.yml" "$CVTMP/heavy-override.yml"
+  yq -i eval '.model_tiers.heavy = "claude-sonnet-5"' "$CVTMP/heavy-override.yml"
+  bash "$GATE" "$FACTORY_ROOT/factory.defaults.yml" "$CVTMP/heavy-override.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "AK4: model_tiers.heavy-Override (Task-249-Regression) → config-validation-Job schlägt fehl"
+
+  rm -rf "$CVTMP"
+else
+  skip_yq "Config-Validation CI-Wiring (Behavior-Level AK1/AK2/AK4)"
 fi
 
 # ─── Stufe-3: Config-Wizards / Single-Source-Begründung (#35, ADR-011) ───────

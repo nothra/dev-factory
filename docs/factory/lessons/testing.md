@@ -430,3 +430,28 @@ existierenden Repo-Pfad, muss der Test stattdessen einen garantiert nicht existi
 Existenzprüfung (hier `override_present()`) nachweislich `false` zu machen — nicht das Argument
 einfach weglassen. Gilt für jedes Bash-Gate mit einem `${N:-$REPO_ROOT/...}`-Default-Muster,
 nicht nur `config-validation-check.sh`.
+
+### YAML-Testfixture per `printf >>` an eine Kopie mit bereits vorhandenem Top-Level-Key anhängen erzeugt ein Duplicate-Key-Dokument – Test besteht nur zufällig (aus #255, Review-Runde-3-Finding)
+
+Ein Negativ-Test für Task 249 (`model_tiers.heavy` nicht override-bar) kopierte das reale
+`factory.config.yml` (enthält bereits `model_tiers: { light: ... }`) und hängte per
+`printf '\nmodel_tiers:\n  heavy: ...\n' >>` einen **zweiten** Top-Level-`model_tiers:`-Block an,
+statt `heavy` in den bestehenden Block einzufügen. `yq` löst dieses YAML-Duplicate-Key-Dokument
+per „last-key-wins" auf – `model_tiers.light` verschwindet aus dem effektiven Dokument spurlos.
+Der Test bestand trotzdem, weil die geprüfte Regel („`model_tiers.heavy` grundsätzlich
+nicht override-bar") ohnehin auf jeden gesetzten `heavy`-Pfad greift, unabhängig vom
+Duplicate-Key-Nebeneffekt – er prüfte aber kein realistisches Override-Szenario (ein echter
+Nutzer würde nie zwei `model_tiers:`-Blöcke schreiben) und hing von einer nicht spezifizierten
+Parser-Eigenheit ab, statt vom eigentlich zu testenden Verhalten.
+
+**Smell:** „Meine Testfixture kopiert eine reale Datei und hängt per `printf`/`cat >>` einen
+neuen YAML-Block an – existiert der Top-Level-Key, den ich damit setze, in der kopierten Datei
+bereits?" Falls ja, entsteht ein Duplicate-Key-Dokument, dessen Auflösung vom Parser abhängt,
+nicht von der Testabsicht.
+
+**Regel:** Soll ein bestehender Top-Level-Key in einer kopierten YAML-Fixture ergänzt/geändert
+werden, einen echten Merge nutzen (`yq -i eval '.<pfad> = "<wert>"' <datei>`), niemals per
+`printf`/`cat >>` einen zweiten gleichnamigen Top-Level-Block anhängen. Vor dem Schreiben kurz
+`yq eval '.<key>' <kopie>` gegenprüfen, dass alle ursprünglich vorhandenen Geschwister-Werte
+(hier `model_tiers.light`) im Ergebnis erhalten geblieben sind – ein verschwundener
+Geschwister-Wert ist das Signal für ein Duplicate-Key-Problem, nicht nur ein Nebenaspekt.
