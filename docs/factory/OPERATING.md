@@ -431,6 +431,12 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
   `--help`/`-h` als Commit-Message, #262). Idempotent – in einem frischen Clone und in einem vor
   Einführung eines Hooks initialisierten Repo einmalig ausführen, sonst greift die lokale
   Gate-Ebene gar nicht.
+- **`yq` in CI nur über den verifizierten Seam** (#258): `bash scripts/install-yq.sh` ist die
+  kanonische Quelle der yq-Bereitstellung für alle Jobs (`config-validation`,
+  `factory-self-test`, `factory-poll`). Das Skript pinnt Version **und** SHA-256 und bricht
+  fail-closed ab, bevor das Ausführbar-Bit fällt. Ein neuer Job ruft den Seam auf statt einen
+  eigenen Download-Block zu kopieren – ein Versions-Bump ändert genau zwei Zeilen im Skript
+  (`YQ_VERSION` + `YQ_SHA256`), sonst nichts.
 - **Gates lokal vor dem Push:** `scripts/checks/pre-commit.sh` und `pre-push.sh` laufen bei
   installierten Hooks sowieso, aber Lint/Tests/Format vorab spart CI-Runden.
 

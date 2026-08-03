@@ -47,13 +47,13 @@ jobs:
       FACTORY_RUN_TIMEOUT: ${{ vars.FACTORY_RUN_TIMEOUT }}
     steps:
       - uses: actions/checkout@v4
+      # yq kommt über den zentralen Seam: gepinnte Version + SHA-256-Verifikation gegen die
+      # Release-Checksums, statt ein `latest`-Asset ungeprüft auszuführen (#258). Dieser Job
+      # hält ANTHROPIC_API_KEY – ein manipuliertes Asset liefe hier mit Secret-Zugriff.
       - name: Runtime bereitstellen (claude-CLI + yq)
         run: |
           npm install -g @anthropic-ai/claude-code
           claude --version
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+          sudo bash scripts/install-yq.sh
       - name: factory::run-Issues pollen
         run: bash scripts/factory-poll.sh

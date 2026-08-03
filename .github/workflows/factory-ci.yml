@@ -64,11 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: yq bereitstellen
-        run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+        run: sudo bash scripts/install-yq.sh
       - name: Config-Validation-Gate (fail-closed)
         run: |
           bash scripts/checks/config-validation-check.sh \
@@ -80,17 +76,15 @@ jobs:
   # Läuft immer – auch in adoptierten Projekten, die das Template als Basis nutzen.
   # bash/git/jq sind auf ubuntu-latest vorinstalliert; yq (mikefarah) wird geholt,
   # weil die gedogfoodete Self-Test-Suite run-pipeline.sh ausführt, das
-  # factory.defaults.yml via yq liest (ADR-009, Phase 1b).
+  # factory.defaults.yml via yq liest (ADR-009, Phase 1b). Die Bereitstellung läuft in
+  # jedem Job über scripts/install-yq.sh – gepinnte Version + SHA-256-Verifikation gegen
+  # die Release-Checksums, statt ein `latest`-Asset ungeprüft auszuführen (#258).
   factory-self-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: yq bereitstellen
-        run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+        run: sudo bash scripts/install-yq.sh
       # Ein frischer CI-Checkout hat wie jeder frische Clone keine installierten Hooks
       # (README/CLAUDE.md: einmalig auszuführen). scripts/checks/tests/run-tests.sh ruft
       # pre-push.sh weiter unten (#149-Format-Gate-Test) echt gegen dieses Checkout auf –

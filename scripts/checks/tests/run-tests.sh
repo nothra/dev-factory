@@ -56,6 +56,15 @@ assert_true() {
 command -v yq >/dev/null 2>&1 && HAS_YQ=1 || HAS_YQ=0
 skip_yq() { echo "  • ${1} – übersprungen (yq fehlt, ADR-009)"; }
 
+# ci_job_block <job-name> <workflow-datei> – gibt den Block genau EINES Workflow-Jobs aus.
+# Nötig, weil eine Prüfung über das ganze File an einem Fremd-Job vorbeirutschen kann (ein
+# anderer Job nutzt pnpm/yq durchaus). Bricht sowohl am nächsten Job-Key als auch am nächsten
+# Job-Trennkommentar ("  # ─── …") ab – reine Key-Erkennung würde den führenden Kommentarkopf
+# des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen (Lesson #255).
+ci_job_block() {
+  awk -v j="$1" '$0 ~ "^  " j ":" {f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$2"
+}
+
 # ─── branch-name-check.sh: direkter Aufruf mit Befehls-String ────────────────
 echo "branch-name-check.sh (Befehls-String als \$1):"
 
@@ -1464,11 +1473,8 @@ assert_true "$?" "config-validation-Job in factory-ci.yml"
 
 # Job-Block isoliert extrahieren (nicht das ganze File scannen) — sonst würde die
 # "kein Node/pnpm"-Prüfung (AK7) an einem Fremd-Job (z. B. lint/test) vorbeirutschen,
-# der pnpm durchaus nutzt. Bricht sowohl am nächsten Job-Key als auch am nächsten
-# Job-Trennkommentar ("  # ─── …") ab — reine Key-Erkennung würde den führenden
-# Kommentarkopf des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen
-# (Review-Finding Runde 1, Task 255).
-cv_job_block="$(awk '/^  config-validation:/{f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$CI_FILE")"
+# der pnpm durchaus nutzt. Abbruchregeln siehe ci_job_block (oben, Lesson #255).
+cv_job_block="$(ci_job_block config-validation "$CI_FILE")"
 assert_true "$([[ -n "$cv_job_block" ]]; echo $?)" "config-validation-Job-Block ist extrahierbar"
 
 printf '%s' "$cv_job_block" | grep -q 'actions/checkout'
@@ -4292,7 +4298,7 @@ echo "#265 CI-Absicherung: factory-self-test-Job installiert Hooks vor der Self-
 # mit sich (erwartet exit 0, tatsächlich exit 1). Fix: der CI-Job installiert die Hooks vor
 # der Self-Test-Suite, genau wie es jeder frische Clone lokal tun müsste (README/CLAUDE.md) –
 # damit erfüllt auch der CI-Checkout die Invariante, die Check 5 selbst einfordert.
-ci_selftest_block="$(awk '/^  factory-self-test:/{f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$CI_FILE")"
+ci_selftest_block="$(ci_job_block factory-self-test "$CI_FILE")"
 assert_true "$([[ -n "$ci_selftest_block" ]]; echo $?)" "#265: factory-self-test-Job-Block ist extrahierbar"
 
 printf '%s' "$ci_selftest_block" | grep -qF 'bash scripts/install-hooks.sh'
@@ -4333,6 +4339,346 @@ README_MD="$FACTORY_ROOT/README.md"
 assert_true "$?" "#262: README.md ist lesbar (Vorbedingung des Setup-Checks)"
 grep -qF 'bash scripts/install-hooks.sh' "$README_MD"
 assert_true "$?" "#262: README.md nennt 'bash scripts/install-hooks.sh' im lokalen Setup"
+
+echo ""
+echo "#258 yq-Bereitstellung: Versions-Pin + Checksum-Verifikation:"
+
+INSTALL_YQ="$FACTORY_ROOT/scripts/install-yq.sh"
+[ -r "$INSTALL_YQ" ]
+assert_true "$?" "#258: scripts/install-yq.sh vorhanden (Vorbedingung der folgenden Checks)"
+
+# Lesbarkeit der Workflow-Dateien als eigene Vorbedingung: der AK1-Guard unten ist ein
+# negierter grep über drei Dateien – fehlt eine (Umbenennung), liefert grep Exit 2 und das
+# '!' macht daraus ein stilles PASS. Fail-closed heißt hier: Lesbarkeit vorher zusichern
+# (Lesson #214 "Fail-closed bei unlesbarer Quelle").
+[ -r "$CI_FILE" ] && [ -r "$POLL_YML" ]
+assert_true "$?" "#258: factory-ci.yml und factory-poll.yml sind lesbar (Vorbedingung des AK1-Guards)"
+
+# AK1: kein `releases/latest/download/...`-URL mehr – weder in den Workflows noch im Seam.
+# Angeankert an der URL-Form, nicht an jeder Erwähnung von "releases/latest": der
+# Skript-Header erklärt genau diese alte Form als WHY-Kommentar (Lesson #114).
+! grep -q 'releases/latest/download' "$CI_FILE" "$POLL_YML" "$INSTALL_YQ"
+assert_true "$?" "#258 AK1: keine releases/latest/download-URL mehr in factory-ci.yml / factory-poll.yml / install-yq.sh"
+
+grep -qE '^YQ_VERSION="v[0-9]+\.[0-9]+\.[0-9]+"$' "$INSTALL_YQ"
+assert_true "$?" "#258 AK1: install-yq.sh pinnt eine konkrete yq-Version (YQ_VERSION=\"vX.Y.Z\")"
+
+# AK7 (aus Review-Runde 1): der Erwartungswert darf nicht ausschließlich aus demselben Kanal
+# stammen wie das Artefakt. Ohne einen im Repo gepinnten Hash wäre die Zusage des
+# Skript-Headers ("ein manipuliertes Release-Asset wird erkannt") unwahr – wer das Binary
+# ersetzen kann, ersetzt die daneben liegende checksums-Datei mit.
+grep -qE '^YQ_SHA256="[0-9a-f]{64}"$' "$INSTALL_YQ"
+assert_true "$?" "#258 AK7: install-yq.sh pinnt den erwarteten SHA-256 im Repo (YQ_SHA256, 64 Hex)"
+
+# …und der Pin ist am PRODUKTIONSAUFRUF verdrahtet. Der Check darüber belegt nur, dass die
+# Konstante existiert und formal ein Hash ist; die AK7-Verhaltenstests unten fahren `--verify`
+# mit einem selbst mitgegebenen Fixture-Pin und berühren die Verdrahtung nicht. Ein Refactor,
+# der als vierten Parameter den aus `checksums` GELESENEN Wert übergibt, macht den
+# Pin-Vergleich trivial wahr (published = pinned) – und bliebe ohne diesen Guard lautlos:
+# Self-Test grün UND CI grün, weil ein ehrlicher Download zu seinem eigenen Hash passt
+# (Lessons #212/#214: Kopplungs-Guard am echten Aufruf, nicht nur Existenz-Grep).
+# Anker ist die Aufruf-Zeile am Spaltenanfang, nicht eine Prosa-Erwähnung (Lesson #114).
+yq_prod_verify_call="$(grep -n '^verify_sha256 "' "$INSTALL_YQ" | head -1 | cut -d: -f2-)"
+printf '%s' "$yq_prod_verify_call" | grep -qE '"\$YQ_SHA256"$'
+assert_true "$?" "#258 AK7: der Produktionsaufruf von verify_sha256 übergibt \$YQ_SHA256 als letztes Argument (Pin ist verdrahtet, nicht nur vorhanden)"
+
+# Die Download-URL muss aus $YQ_VERSION gebildet werden – sonst behauptet die Konstante eine
+# Version, während ein hartkodiertes Tag in der URL eine andere lädt (beide Guards oben würden
+# das passieren lassen; in CI fiele es erst über die Pin-Abweichung auf).
+grep -qF 'releases/download/$YQ_VERSION' "$INSTALL_YQ"
+assert_true "$?" "#258 AK1: die Download-URL wird aus \$YQ_VERSION gebildet (kein zweites, hartkodiertes Tag)"
+
+# AK4: alle drei betroffenen Jobs rufen denselben Seam auf – und keiner hat noch einen
+# eigenen wget+chmod-Block. Job-Block isoliert extrahieren (ci_job_block, Lesson #255).
+#
+# Der Negativ-Anker prüft auf 'wget|curl' im Block, NICHT auf die alte Zwei-Zeilen-Form
+# 'wget.*yq_linux_amd64' (Download-Kommando und URL standen im entfernten Block auf
+# getrennten Zeilen – dieses Fragment konnte nie feuern, grep -E ist zeilenweise) und NICHT
+# auf 'chmod \+x /usr/local/bin/yq' allein (ein wiedereingefügter Block mit `chmod 0755`
+# statt `chmod +x` hätte diese Alternative unbemerkt umgangen). Ein Job, der den Seam
+# aufruft, enthält weder 'wget' noch 'curl' im eigenen Block – ein wiedereingefügter
+# Download+chmod-Block, gleich welcher chmod-Schreibweise, enthält mindestens eines von
+# beiden (Review-Runde-3-Finding, Mutationsbeleg in der Task-Datei).
+for yq_job_spec in "config-validation|$CI_FILE" "factory-self-test|$CI_FILE" "factory-poll|$POLL_YML"; do
+  IFS='|' read -r yq_job yq_job_file <<< "$yq_job_spec"
+  yq_job_block="$(ci_job_block "$yq_job" "$yq_job_file")"
+  assert_true "$([[ -n "$yq_job_block" ]]; echo $?)" "#258 AK4: Job-Block '$yq_job' ist extrahierbar"
+
+  printf '%s' "$yq_job_block" | grep -qF 'bash scripts/install-yq.sh'
+  assert_true "$?" "#258 AK4: Job '$yq_job' ruft 'bash scripts/install-yq.sh' auf"
+
+  ! printf '%s' "$yq_job_block" | grep -qE 'wget|curl'
+  assert_true "$?" "#258 AK4: Job '$yq_job' hat keinen eigenen wget/curl-Download-Block mehr"
+done
+
+# Repo-weiter Präsenz-Guard zusätzlich zur Job-Schleife oben: die Schleife kennt nur die drei
+# heute betroffenen Jobs – ein künftiger vierter Job mit einem wiedereingefügten
+# Download+chmod-Block (auch mit gepinnter URL, CLAUDE.md §Guardrails) fiele ihr nicht auf.
+# Repo-weit trägt genau EINE Stelle die Download-URL: scripts/install-yq.sh selbst (verifiziert
+# per grep). Taucht dieselbe URL-Form in .github/ auf, hat ein Workflow-Job sie inline kopiert.
+! grep -rq 'mikefarah/yq/releases' "$FACTORY_ROOT/.github/"
+assert_true "$?" "#258 AK4: keine .github/-Workflow-Datei enthält die yq-Download-URL inline (Seam-Aufruf statt Kopie)"
+
+# Beide umgebauten Workflow-Dateien müssen valides YAML bleiben (nur wo yq da ist, ADR-009).
+if [ "$HAS_YQ" = 1 ]; then
+  yq '.' "$CI_FILE" >/dev/null 2>&1 && yq '.' "$POLL_YML" >/dev/null 2>&1
+  assert_true "$?" "#258: factory-ci.yml und factory-poll.yml bleiben valides YAML (yq-Parse)"
+else
+  skip_yq "#258: factory-ci.yml / factory-poll.yml bleiben valides YAML"
+fi
+
+# AK3 (Reihenfolge im Download-Pfad): das Ausführbar-Bit darf erst NACH der Verifikation
+# fallen. Der Fixture-Test unten belegt nur den --verify-Zweig (dort gibt es kein chmod);
+# die Reihenfolge im nicht netzwerkfrei testbaren Download-Pfad braucht diesen Anker.
+# Angeankert an den echten Aufruf-Zeilen (Spaltenanfang), nicht an einer Prosa-Erwähnung
+# im Kommentar (Lesson #114 "Kommando ≠ Prosa-Erwähnung").
+yq_verify_line="$(grep -n '^verify_sha256 "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
+yq_chmod_line="$(grep -n '^chmod 0755 "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
+[ -n "$yq_verify_line" ] && [ -n "$yq_chmod_line" ] && [ "$yq_verify_line" -lt "$yq_chmod_line" ]
+assert_true "$?" "#258 AK3: verify_sha256-Aufruf steht VOR 'chmod 0755' (sonst wäre die Verifikation wirkungslos)"
+
+# Der Plattform-Guard muss ebenfalls VOR dem ersten Download stehen – ein Guard nach dem
+# Laden würde das Herunterladen nicht mehr verhindern (gleicher Anker-Grundsatz, Lesson #114).
+yq_guard_line="$(grep -n '^require_linux_amd64$' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
+yq_fetch_line="$(grep -n '^fetch "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
+[ -n "$yq_guard_line" ] && [ -n "$yq_fetch_line" ] && [ "$yq_guard_line" -lt "$yq_fetch_line" ]
+assert_true "$?" "#258: require_linux_amd64 steht VOR dem ersten Download (fetch)"
+
+# ── Verifikationslogik gegen lokale Fixtures (AK2/AK3/AK5/AK6/AK7, netzwerkfrei) ──
+# Fixture-Binary ist bewusst LEER: SHA-256 der leeren Eingabe ist ein öffentlich bekannter
+# Testvektor, damit der Erwartungswert unten ein Literal bleibt (testing-standards: kein
+# Soll-Wert, der aus dem Objekt-under-Test abgeleitet wird) – ohne Hash-Werkzeug beim
+# Testschreiben. Schlägt der Positiv-Fall fehl, ist entweder die Hash-Berechnung oder die
+# Spaltenauswahl im Seam defekt.
+YQ_EMPTY_SHA256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+# yq_fixture <verzeichnis> [sha256-position] – legt eine INTAKTE Fixture-Familie im echten
+# Release-Format an: `checksums_hashes_order` (ein Algorithmus-Name pro Zeile) + `checksums`
+# (Feld 1 = Dateiname, danach die Hashes in genau dieser Reihenfolge).
+# <sha256-position> ist die Order-Zeile, in der `SHA-256` steht (Default 3 = Feld 4). Der
+# Parameter existiert, weil yq die Reihenfolge pro Release rotiert: mit nur EINER getesteten
+# Position wäre eine hartkodierte Spaltennummer nicht von der korrekten Rechnung
+# `$((algo_line + 1))` zu unterscheiden (Diskriminierungs-Kontrolle, Lesson #172).
+# Die Nachbarzeilen `yq_linux_386` und `yq_linux_amd64.tar.gz` tragen in der SHA-256-Spalte
+# absichtlich falsche Werte (Kontrolle gegen Zeilenauswahl per Präfix/erstem Treffer statt
+# exaktem Dateinamen-Vergleich).
+# hex64 <zeichen> – 64-stelliger Hex-Füllwert aus einem Zeichen (Platzhalter-Hash in Fixtures).
+# Nur hier gebraucht (yq_fixture + zwei Fehlerszenarien unten) – deshalb lokal bei den
+# #258-Fixtures definiert statt bei den generischen Helfern am Dateikopf (Review-Runde-2-Nitpick;
+# ci_job_block bleibt oben, weil es drei Nutzer über die Datei verteilt hat).
+hex64() {
+  local i out=""
+  for ((i = 0; i < 64; i++)); do out+="$1"; done
+  printf '%s' "$out"
+}
+
+yq_fixture() {
+  local dir="$1" sha256_pos="${2:-3}"
+  local -a fillers=(BLAKE2B-512 SHA-384 SHA-512 MD5)
+  local -a algos=() row_target=() row_decoy=()
+  local pos filler_idx=0
+  for ((pos = 1; pos <= 4; pos++)); do
+    if [ "$pos" -eq "$sha256_pos" ]; then
+      algos+=("SHA-256")
+      row_target+=("$YQ_EMPTY_SHA256")
+      row_decoy+=("$(hex64 d)")
+    else
+      algos+=("${fillers[$filler_idx]}")
+      filler_idx=$((filler_idx + 1))
+      row_target+=("$(hex64 a)")
+      row_decoy+=("$(hex64 a)")
+    fi
+  done
+  mkdir -p "$dir"
+  : > "$dir/yq_linux_amd64"
+  printf '%s\n' "${algos[@]}" > "$dir/checksums_hashes_order"
+  {
+    printf 'yq_linux_386 %s\n' "${row_decoy[*]}"
+    printf 'yq_linux_amd64.tar.gz %s\n' "${row_decoy[*]}"
+    printf 'yq_linux_amd64 %s\n' "${row_target[*]}"
+  } > "$dir/checksums"
+}
+
+# run_verify <verzeichnis> [gepinnter-hash] – ruft den netzwerkfreien --verify-Zweig auf.
+# Der Pin ist ein Parameter (kein globaler Zugriff im Seam), damit der Repo-Pin des
+# Produktionspfads und der Fixture-Pin des Tests dieselbe Codebahn nehmen.
+# Netzwerk-Werkzeuge sind per PATH-Shadowing durch ein immer fehlschlagendes Stub ersetzt:
+# würde der Zweig doch etwas laden, sagt der Stub das laut. "Ohne Netzwerkzugriff" (AK5) ist
+# damit deterministisch belegt statt behauptet (Idiom analog dem gh-Shadowing weiter oben);
+# geshadowed wird nur wget/curl – awk/grep/sha256sum bleiben erreichbar.
+run_verify() {
+  local dir="$1" pinned="${2:-$YQ_EMPTY_SHA256}"
+  PATH="$YQ_NONETBIN:$PATH" bash "$INSTALL_YQ" --verify \
+    "$dir/yq_linux_amd64" "$dir/checksums" "$dir/checksums_hashes_order" "$pinned" 2>&1
+}
+
+YQTMP="$(mktemp -d)"
+
+YQ_NONETBIN="$YQTMP/nonetbin"
+mkdir -p "$YQ_NONETBIN"
+for yq_stub in wget curl; do
+  printf '#!/bin/sh\necho "NETZWERK-STUB: $0 wurde aufgerufen" >&2\nexit 99\n' > "$YQ_NONETBIN/$yq_stub"
+  chmod +x "$YQ_NONETBIN/$yq_stub"
+done
+
+# AK5 (Positiv): passender Hash → Erfolg, ohne Netzwerk, ohne Ausführbar-Bit.
+yq_fixture "$YQTMP/ok"
+yq_ok_out="$(run_verify "$YQTMP/ok")"; yq_rc=$?
+assert_exit 0 "$yq_rc" "#258 AK5: --verify gegen Fixture mit korrektem Hash → exit 0 (ohne Netzwerkzugriff)"
+printf '%s' "$yq_ok_out" | grep -qF 'verifiziert'
+assert_true "$?" "#258 AK5: Erfolgsfall meldet die Verifikation explizit"
+! printf '%s' "$yq_ok_out" | grep -qF 'NETZWERK-STUB'
+assert_true "$?" "#258 AK5: --verify ruft weder wget noch curl auf (Netzwerkfreiheit belegt, nicht behauptet)"
+[ ! -x "$YQTMP/ok/yq_linux_amd64" ]
+assert_true "$?" "#258 AK3: --verify setzt selbst im Erfolgsfall kein Ausführbar-Bit (Installation ist ein eigener Schritt)"
+
+# Spaltenherleitung mit einer ZWEITEN Order-Position: SHA-256 auf Zeile 1 (= Feld 2). Eine
+# hartkodierte Spaltennummer fällt erst durch diesen Gegenfall auf, weil die Default-Fixture
+# SHA-256 fix auf Zeile 3 legt – und genau diese Reihenfolge rotiert yq pro Release.
+yq_fixture "$YQTMP/algo-first" 1
+yq_first_out="$(run_verify "$YQTMP/algo-first")"; yq_rc=$?
+assert_exit 0 "$yq_rc" "#258 AK2: SHA-256 auf Order-Zeile 1 (= Feld 2) wird korrekt hergeleitet"
+printf '%s' "$yq_first_out" | grep -qF 'verifiziert'
+assert_true "$?" "#258 AK2: rotierte Spaltenordnung meldet Erfolg (keine feste Spaltennummer im Seam)"
+
+# AK6 (Negativ, eigener Testfall): genau EIN Defekt – die Binary ist korrupt/manipuliert,
+# `checksums` und Pin bleiben intakt. Damit kommt der Fehlschlag ausschließlich aus dem
+# Berechnung-gegen-Pin-Vergleich und die Meldung ist pfadspezifisch prüfbar (Lesson #214).
+yq_fixture "$YQTMP/mismatch"
+printf 'manipulierte binary' > "$YQTMP/mismatch/yq_linux_amd64"
+yq_bad_out="$(run_verify "$YQTMP/mismatch")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258 AK6: --verify gegen manipulierte Binary → exit ≠ 0 (fail-closed)"
+printf '%s' "$yq_bad_out" | grep -qF 'Checksum-Mismatch'
+assert_true "$?" "#258 AK6: Mismatch-Meldung benennt den Checksum-Mismatch"
+[ ! -x "$YQTMP/mismatch/yq_linux_amd64" ]
+assert_true "$?" "#258 AK3: Mismatch lässt die Binary nicht-ausführbar (kein chmod im Fehlerfall)"
+
+# AK7 (Negativ): der veröffentlichte Wert weicht vom Repo-Pin ab – genau das Szenario
+# "Release-Asset unter demselben Tag ersetzt", das eine Prüfung nur gegen die mitgeladene
+# checksums-Datei NICHT sehen könnte. Nur dieser eine Defekt ist gesetzt (Binary und
+# Order-Datei bleiben intakt), der Pfad ist also isoliert und trägt eine eigene Meldung.
+yq_fixture "$YQTMP/pin-drift"
+yq_pin_out="$(run_verify "$YQTMP/pin-drift" "$(hex64 e)")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258 AK7: veröffentlichter Hash ≠ Repo-Pin → exit ≠ 0 (fail-closed)"
+printf '%s' "$yq_pin_out" | grep -qF 'Pin-Abweichung'
+assert_true "$?" "#258 AK7: Meldung benennt die Abweichung vom gepinnten Hash (nicht als Checksum-Mismatch getarnt)"
+
+# Fehlerszenario: kein checksums-Eintrag für yq_linux_amd64 (Format-Drift eines Releases).
+yq_fixture "$YQTMP/no-entry"
+grep -v '^yq_linux_amd64 ' "$YQTMP/no-entry/checksums" > "$YQTMP/no-entry/checksums.new"
+mv "$YQTMP/no-entry/checksums.new" "$YQTMP/no-entry/checksums"
+yq_noentry_out="$(run_verify "$YQTMP/no-entry")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlender checksums-Eintrag → exit ≠ 0 (kein leiser Erfolg)"
+printf '%s' "$yq_noentry_out" | grep -qF 'keinen Eintrag'
+assert_true "$?" "#258: Meldung benennt den fehlenden checksums-Eintrag"
+
+# Fehlerszenario: keine SHA-256-Zeile in checksums_hashes_order (rotierende Spaltenordnung).
+# Anker ist das pfadspezifische Fragment, NICHT der bloße Algorithmusname "SHA-256": der steht
+# auch in der generischen Format-Drift-Meldung und in der Erfolgsmeldung – ein Test darauf
+# könnte nicht zwischen "eigener Guard greift" und "irgendein Fallback greift" unterscheiden
+# (Lesson #214, Review-Runde-1-Finding).
+yq_fixture "$YQTMP/no-algo"
+printf 'BLAKE2B-512\nSHA-384\nSHA-512\n' > "$YQTMP/no-algo/checksums_hashes_order"
+yq_noalgo_out="$(run_verify "$YQTMP/no-algo")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlende SHA-256-Zeile in checksums_hashes_order → exit ≠ 0"
+printf '%s' "$yq_noalgo_out" | grep -qF "keine 'SHA-256'-Zeile"
+assert_true "$?" "#258: Meldung benennt genau die fehlende SHA-256-Zeile (pfadspezifischer Anker)"
+
+# Fehlerszenario: Zielzeile vorhanden, aber die SHA-256-Spalte fehlt (verkürzte Zeile) –
+# ein leerer Erwartungswert darf nicht als „verifiziert" durchgehen.
+yq_fixture "$YQTMP/short-row"
+grep -v '^yq_linux_amd64 ' "$YQTMP/short-row/checksums" > "$YQTMP/short-row/checksums.new"
+printf 'yq_linux_amd64 %s\n' "$(hex64 a)" >> "$YQTMP/short-row/checksums.new"
+mv "$YQTMP/short-row/checksums.new" "$YQTMP/short-row/checksums"
+yq_short_out="$(run_verify "$YQTMP/short-row")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlende SHA-256-Spalte in der Zielzeile → exit ≠ 0"
+printf '%s' "$yq_short_out" | grep -qF 'Format-Drift'
+assert_true "$?" "#258: Meldung benennt die Format-Drift statt leise zu verifizieren"
+
+# Fehlerszenario: nicht lesbare Eingabedatei (abgebrochener Download).
+yq_fixture "$YQTMP/unreadable"
+rm -f "$YQTMP/unreadable/checksums"
+yq_unreadable_out="$(run_verify "$YQTMP/unreadable")"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: nicht lesbare checksums-Datei → exit ≠ 0 (fail-closed)"
+printf '%s' "$yq_unreadable_out" | grep -qF 'nicht lesbar'
+assert_true "$?" "#258: Meldung benennt die nicht lesbare Datei"
+
+# ── Argument-Dispatch: fail-closed statt fail-open in den Installationspfad ──
+# Alle folgenden Aufrufe laufen mit dem Netzwerk-Stub im PATH. Grund: fällt der Dispatch auf
+# eine einzelne `--verify`-Bedingung zurück, landet JEDER dieser Aufrufe im Download-Pfad und
+# überschriebe /usr/local/bin/yq. Mit dem Stub bricht so eine Regression am Download ab statt
+# die lokale yq-Installation zu ersetzen – und die pfadspezifische Meldung unterscheidet
+# "Dispatch hat abgelehnt" von "Stub hat abgebrochen" (Lesson #214).
+yq_dispatch() {
+  PATH="$YQ_NONETBIN:$PATH" bash "$INSTALL_YQ" "$@" 2>&1
+}
+
+yq_help_out="$(yq_dispatch --help)"; yq_rc=$?
+assert_exit 0 "$yq_rc" "#258: --help → exit 0 (Usage statt Installation)"
+printf '%s' "$yq_help_out" | grep -qF 'Verwendung:'
+assert_true "$?" "#258: --help gibt die Usage aus"
+! printf '%s' "$yq_help_out" | grep -qF 'NETZWERK-STUB'
+assert_true "$?" "#258: --help lädt nichts herunter (kein fail-open in den Installationspfad)"
+
+yq_typo_out="$(yq_dispatch --verfiy "$YQTMP/ok/yq_linux_amd64")"; yq_rc=$?
+assert_exit 2 "$yq_rc" "#258: unbekanntes Argument (Tippfehler --verfiy) → exit 2 statt Installation"
+printf '%s' "$yq_typo_out" | grep -qF 'Unbekanntes Argument'
+assert_true "$?" "#258: unbekanntes Argument wird als solches benannt (pfadspezifisch)"
+! printf '%s' "$yq_typo_out" | grep -qF 'NETZWERK-STUB'
+assert_true "$?" "#258: unbekanntes Argument löst keinen Download aus (fail-closed)"
+
+# Aufruf-Fehler: --verify ohne die vollständigen vier Argumente darf nicht als Erfolg durchgehen –
+# und benennt wie jeder andere Fehlerpfad, was fehlt (nicht nur nackte Usage).
+yq_argc_out="$(yq_dispatch --verify "$YQTMP/ok/yq_linux_amd64")"; yq_rc=$?
+assert_exit 2 "$yq_rc" "#258: --verify mit unvollständigen Argumenten → exit 2 (Aufruf-Fehler)"
+printf '%s' "$yq_argc_out" | grep -qF 'braucht vier Argumente'
+assert_true "$?" "#258: unvollständige --verify-Argumente werden pfadspezifisch benannt"
+
+# ── Plattform-Guard: der gepinnte Hash gilt für genau EIN Artefakt (yq_linux_amd64) ──
+# `uname` wird per PATH-Shadowing verstellt, damit der Guard auf JEDER Testmaschine (macOS wie
+# Linux-CI) deterministisch feuert – netzwerkfrei, weil er vor dem Download liegt. Der
+# wget/curl-Stub bleibt daneben im PATH: fehlt der Guard, bricht der Lauf am Stub ab, statt ein
+# funktionierendes /usr/local/bin/yq mit einem Fremdplattform-Binary zu überschreiben.
+yq_uname_stub() {
+  local dir="$1" os="$2" arch="$3"
+  mkdir -p "$dir"
+  cp "$YQ_NONETBIN/wget" "$dir/wget"
+  cp "$YQ_NONETBIN/curl" "$dir/curl"
+  printf '#!/bin/sh\ncase "$1" in\n  -s) echo %s ;;\n  -m) echo %s ;;\nesac\n' "$os" "$arch" > "$dir/uname"
+  chmod +x "$dir/uname"
+}
+
+yq_uname_stub "$YQTMP/darwin" Darwin arm64
+yq_os_out="$(PATH="$YQTMP/darwin:$PATH" bash "$INSTALL_YQ" 2>&1)"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: Nicht-Linux-System → Installation bricht ab (exit ≠ 0)"
+printf '%s' "$yq_os_out" | grep -qF 'Darwin'
+assert_true "$?" "#258: Abbruch nennt das gemeldete Betriebssystem (OS-Guard greift, nicht der Netzwerk-Stub)"
+! printf '%s' "$yq_os_out" | grep -qF 'NETZWERK-STUB'
+assert_true "$?" "#258: OS-Guard greift VOR dem Download (nichts wurde geladen, nichts überschrieben)"
+
+yq_uname_stub "$YQTMP/arm" Linux aarch64
+yq_arch_out="$(PATH="$YQTMP/arm:$PATH" bash "$INSTALL_YQ" 2>&1)"; yq_rc=$?
+assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: Linux auf falscher Architektur → Installation bricht ab (exit ≠ 0)"
+printf '%s' "$yq_arch_out" | grep -qF 'aarch64'
+assert_true "$?" "#258: Abbruch nennt die gemeldete Architektur (eigener Fehlerpfad, nicht der OS-Pfad)"
+! printf '%s' "$yq_arch_out" | grep -qF 'NETZWERK-STUB'
+assert_true "$?" "#258: Architektur-Guard greift VOR dem Download (nichts wurde geladen)"
+
+rm -rf "$YQTMP"
+
+echo ""
+echo "#258 Doku nennt den kanonischen yq-Bereitstellungsweg (Lesson #211/#176):"
+
+# Die Single-Source-Aussage stand bisher nur im Skript-Header – und Skript-Header werden nicht
+# in den Agenten-Kontext geladen. Ohne Regel in GELADENER Doku entsteht der nächste kopierte
+# wget-Block genauso wie der, der zu #258 geführt hat. Vorbild ist install-hooks.sh: dieselbe
+# Regel steht dort in CLAUDE.md UND OPERATING.md (ADR-042).
+for yq_doc in "$FACTORY_ROOT/CLAUDE.md" "$FACTORY_ROOT/docs/factory/OPERATING.md"; do
+  [ -r "$yq_doc" ]
+  assert_true "$?" "#258: $(basename "$yq_doc") ist lesbar (Vorbedingung des Doku-Checks)"
+  grep -qF 'scripts/install-yq.sh' "$yq_doc"
+  assert_true "$?" "#258: $(basename "$yq_doc") nennt 'scripts/install-yq.sh' als kanonischen yq-Bereitstellungsweg"
+done
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

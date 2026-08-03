@@ -150,6 +150,13 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   lehnt Commit-Messages ab, die in Wahrheit ein CLI-Flag sind (`--help`/`-h`, `commit-msg-check.sh`).
   In einem frischen Clone bzw. einem vor dieser Regel initialisierten Repo einmalig ausführen;
   die Hooks liegen im gemeinsamen `.git` und gelten damit für alle Worktrees.
+- **`yq` kommt in CI ausschließlich aus `bash scripts/install-yq.sh`** (kanonische Quelle, #258).
+  Das Skript pinnt Version **und** SHA-256 (`YQ_VERSION` + `YQ_SHA256` – ein Bump ändert genau
+  diese zwei Zeilen) und verifiziert fail-closed, bevor das Ausführbar-Bit fällt. Braucht ein
+  neuer Workflow-Job `yq`, ruft er den Seam auf – **kein** eigener `wget`/`curl`+`chmod`-Block,
+  auch nicht mit gepinnter URL. Grund für die Regel: genau dieser Block lag dreifach kopiert und
+  unverifiziert in CI, bis #258 ihn zusammengezogen hat. Gleiches Muster für weitere
+  Fremd-Binaries, die CI herunterlädt: gepinnter, verifizierter Seam statt Inline-Download.
 - Keine offenen Checkboxen in der Task-Datei → kein Done
 - **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
   oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff

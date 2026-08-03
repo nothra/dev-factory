@@ -242,6 +242,33 @@ Schlüssels allein nicht. Zusätzlich prüfen (oder als eigenes Issue benennen),
 Floor eine Fassade, die im Diff plausibel aussieht, aber den Bypass nur verschiebt statt
 schließt.
 
+### Existenz-Guard auf eine Security-Pin-Konstante beweist nicht ihre Verdrahtung an den Vergleichsaufruf (aus #258, Review-Runde-2-Finding)
+
+#258 führte einen zweiten, im Repo gepinnten Anker `YQ_SHA256` ein (gegen den der aus den
+Release-`checksums` gelesene Wert geprüft wird – Verteidigung gegen einen kompromittierten
+Publisher, der Binary **und** Checksum-Datei gleichzeitig austauscht). Der erste Self-Test prüfte
+nur, dass die Konstante mit korrektem Format existiert (`grep -qE '^YQ_SHA256="[0-9a-f]{64}"$'`),
+nicht, dass sie tatsächlich als Argument an den Vergleich (`verify_sha256`) übergeben wird. Ein
+Mutationstest auf `YQ_SHA256="000…0"` blieb grün. Der eigentlich gefährliche Fall lag noch tiefer:
+ein Refactor, der `verify_sha256` statt mit `"$YQ_SHA256"` mit dem gerade erst aus den
+`checksums` **gelesenen** Wert aufruft – dann wird `published == pinned` trivial wahr (beide
+Seiten sind derselbe Wert), der Supply-Chain-Anker ist lautlos ausgehebelt, und sowohl
+Self-Test als auch CI bleiben grün (ein ehrlicher Download passt ja zu seinem eigenen Hash).
+
+**Smell:** „Ich habe eine sicherheitsrelevante Pin-Konstante eingeführt und einen Test, der ihre
+Existenz/ihr Format prüft – prüft derselbe oder ein zweiter Test auch, dass sie an der
+**Vergleichs-/Verifikationsstelle tatsächlich als das erwartete Argument ankommt**, statt dort
+irgendein anderes Signal (insbesondere den gerade erst extern gelesenen, ungeprüften Wert)?"
+
+**Regel:** Für eine Pin-Konstante, die einen externen/untrusted Wert absichern soll, genügt ein
+Existenz-/Format-Guard nicht – ein zweiter Guard muss an der **echten Aufrufzeile** ankern (z. B.
+`grep -qE '^verify_sha256 .*"\$YQ_SHA256"$'`, nicht nur `grep -q YQ_SHA256`) und per Mutation
+belegen, dass ein Vertauschen der Vergleichsseiten (externer Wert statt Pin an beiden Seiten)
+den Guard rot macht. Spezialfall von „Existenz beweist nicht Verhalten/Verdrahtung" (#212) und
+verwandt mit „Floor auf einen Lookup-Key ist kein Floor auf die Zielseite der Indirektion" (#241,
+direkt oberhalb) – hier ist die „Zielseite" nicht eine weitere Config-Sektion, sondern die
+Argumentidentität am Vergleichsaufruf selbst.
+
 ### Notiz-vor-Merge bei Squash-Strategie (aus #114)
 
 Ein Skill-Schritt, der eine Notiz in eine versionierte Datei (Task-Datei, Changelog) schreibt
@@ -316,6 +343,32 @@ Block einschränkt. Ist die zu prüfende Zeile selbst die Endgrenze des Blocks (
 dessen `|| true`-Suffix geprüft werden soll), den Block bewusst **inklusive** Start- und Endzeile
 extrahieren (Variante des #255-Musters, das beide Grenzen exklusiv hält) – und diese Abweichung
 im Kommentar explizit benennen, sonst wirkt sie wie eine unreflektierte Kopie des Precedents.
+
+**Nachtrag 3 (aus #258, Review-Runde-3-Finding – viertes Rezidiv, diesmal ein
+Abwesenheits-/Regressions-Guard statt eines Präsenz-Guards):** Task #258 entfernte einen
+dreifach kopierten `wget`+`chmod`-Block und sicherte das mit einem Ein-Zeilen-Guard
+`grep -qE 'wget.*yq_linux_amd64|chmod \+x /usr/local/bin/yq'` ab – „keiner der Jobs hat das alte
+Muster wieder". Beide Alternativen waren fragil, aber auf unterschiedliche Art: Die erste konnte
+**nie** feuern, weil im entfernten Block `wget` und die URL auf **getrennten** Zeilen standen
+(`sudo wget -qO /usr/local/bin/yq \` + Zeilenumbruch + URL) – ein `grep -E` prüft zeilenweise.
+Es trug also einzig die zweite Alternative, und die verlangte exakt die Schreibweise
+`chmod +x /usr/local/bin/yq`. Per Mutation belegt: der entfernte Block wortgleich wieder
+eingesetzt, nur mit **gepinnter** URL und `chmod 0755` statt `chmod +x` → Suite blieb grün. Genau
+der Fall, den die im selben PR neu geschriebene Regel „kein eigener `wget`/`curl`+`chmod`-Block,
+auch nicht mit gepinnter URL" (CLAUDE.md §Guardrails) verbieten sollte, lief ungehindert durch.
+
+**Regel (Abwesenheits-Guards auf ein mehrzeiliges Anti-Muster):** Hier hilft die
+Block-Extraktion aus Nachtrag 2 **nicht**, weil kein gültiger Block mehr existiert, den man
+extrahieren könnte – geprüft wird gerade seine Abwesenheit. Der belastbare Anker ist stattdessen
+ein **datei-/repo-weiter Treffer auf das defining feature** des Anti-Musters (hier: die
+Download-URL-Domain `mikefarah/yq/releases`, die in jedem denkbaren Wiedereinschleppen auftaucht,
+unabhängig von Zeilenumbruch, `chmod`-Schreibweise oder Job), statt einer OR-Liste aus mehreren
+konkreten Fragment-Spellings. Eine OR-Liste aus Fragmenten wirkt vollständig, ist aber nur so
+stark wie ihre schwächste, oft nie erreichbare Alternative – und das fällt beim Schreiben nicht
+auf, weil der Guard gegen den *aktuellen* (bereinigten) Stand grün ist. Gegenprobe zwingend: das
+entfernte Anti-Muster testweise mit einer **plausiblen Variation** (andere Zeilenteilung, andere
+Flag-Schreibweise, gepinnte statt `latest`-URL) wieder einsetzen und prüfen, ob der Guard rot wird
+– nicht nur den Ist-Zustand grün laufen lassen.
 
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
