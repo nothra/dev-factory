@@ -485,6 +485,24 @@ Skill wiederholt das Turn-Limit: prüfen, ob der Änderungsumfang (hier: 3 neue 
 für ein Renderer-Feature) für einen einzelnen automatisierten `/refactor`-Lauf zu groß ist,
 statt endlos zu wiederholen.
 
+**Nachtrag (aus #264): Turn-Limit-Exhaustion auch OHNE Code-Diff, und der Orchestrator hält
+sich selbst nicht an die eigene Regel.** Derselbe automatisierte `/refactor`-Schritt riss in
+#264 erneut 3× das Turn-Limit – diesmal ohne jede Code-Änderung. Die Konklusion („keine
+Code-Änderung nötig", Checkliste geprüft, volle Testsuite grün) stand bereits nach dem ersten
+Versuch fest; allein die Verifikations-Overhead (volle Testsuite, Review-Rundenabgleich,
+Task-Datei-Prosa) reichte, um das Budget vor dem abschließenden Commit zu erschöpfen. Der
+Orchestrator (`run_skill()` in `scripts/run-pipeline.sh`) prüft zwischen den drei Retries
+– anders als die oben stehende Regel es verlangt – **nicht** auf `git status`/`git diff`; er
+retryt blind, wiederholt dieselbe (bereits fertige) Arbeit dreimal identisch und bricht die
+gesamte Pipeline ab. Ein Mensch musste den liegen gebliebenen, aber vollständig
+committierbaren Diff danach manuell finden und committen. `run_skill()` hat für
+`review`/`security-review` bereits einen Report-Guard (`report_verdict`, ADR-019 §4), der
+ein Turn-Limit nach bereits geschriebenem Report toleriert – für code-schreibende Skills
+fehlt das Äquivalent. Härtung als Issue #275 ausgelagert (Scope sprengt #264 selbst).
+**Für die Zwischenzeit:** vor jedem Retry-Abbruch eines automatisierten Skill-Schritts
+`git status` im Zielverzeichnis prüfen, bevor der Lauf als gescheitert gilt – ein
+committierbarer Zwischenstand ist kein Fehlschlag, nur ein fehlender letzter Schritt.
+
 ### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
 
 Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
@@ -824,7 +842,7 @@ Runden bündeln. Jede nachfolgende Runde, die ihren Kontext per `git diff origin
 irrtümlich erneut aufwerfen oder – schlimmer – bemerkt die Diskrepanz nicht und bewertet
 gegen einen Stand, der im Repo so nicht mehr existiert.
 
-### `PR_SHEPHERD`/`FACTORY_STAGE` in der aufrufenden Shell exportiert schlagen in jedes von der Testsuite erzeugte Wegwerf-Repo durch (aus #262, Task-Selbstfund; Härtung ausgelagert: #264)
+### `PR_SHEPHERD`/`FACTORY_STAGE` in der aufrufenden Shell exportiert schlagen in jedes von der Testsuite erzeugte Wegwerf-Repo durch (aus #262, Task-Selbstfund; Härtung umgesetzt in #264)
 
 `run-pipeline.sh` wurde für Task 262 als `PR_SHEPHERD=true bash scripts/run-pipeline.sh 262`
 gestartet – ein einzelner Kommando-Präfix, der die Variable nur für diesen einen Prozess setzt.
@@ -846,10 +864,15 @@ eine ähnliche Pipeline-Env-Var) exportiert?"
 **Regel:** Vor dem Einordnen eines solchen Fehlschlags als real: mit `unset PR_SHEPHERD
 FACTORY_STAGE` (bzw. `env -u`) gegenprüfen, ob er verschwindet. Verschwindet er, ist es ein
 Umgebungsproblem der aufrufenden Shell, keine Regression – dokumentieren (Diff-Scope, Vorher/
-Nachher-Vergleich, CI-Historie, Lesson #244), nicht blind nacharbeiten. Die eigentliche Härtung
-(der E2E-Block sollte `PR_SHEPHERD`/`FACTORY_STAGE` selbst neutralisieren statt sie aus der
-Umgebung zu erben) ist als eigenes Issue getrackt, nicht Teil der Task, die den Fehlschlag
-zuerst beobachtet.
+Nachher-Vergleich, CI-Historie, Lesson #244), nicht blind nacharbeiten.
+
+**Stand:** Die Härtung ist in #264 umgesetzt – jeder reale (non-`--dry-run`)
+`run-pipeline.sh`-Aufruf in `run-tests.sh` neutralisiert beide Variablen per
+`env -u PR_SHEPHERD -u FACTORY_STAGE` für den Kindprozess, abgesichert durch einen
+Verhaltenstest (Lauf unter exportierten Variablen) **und** einen Drift-Guard, der eine neue
+ungehärtete Aufrufstelle rot macht. Für `run-tests.sh` tritt das Symptom damit nicht mehr auf.
+Die Diagnose-Regel oben bleibt gültig: sie greift für **andere** Skripte mit eigenen
+Env-Schaltern und für jede Testsuite, die einen Kindprozess ohne solche Neutralisierung startet.
 
 ### Neuer pre-push.sh-Check, der lokalen Installationszustand voraussetzt, bricht bestehende Selbsttests in CI (aus #265, User-gemeldete CI-Regression)
 

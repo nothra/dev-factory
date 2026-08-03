@@ -80,6 +80,26 @@ denselben PR vergleichen. „Konsistent mit bestehendem Muster" ist nur dann ein
 eine Konstante wegzulassen, wenn diese Suche keine bereits existierende zentrale Konstante zutage
 fördert. Gilt für `/review` (Code-Qualität-Perspektive) ebenso wie für `/refactor`.
 
+### Fix für einen falschen WHY-Kommentar deckt nur die gemeldete Zeile ab, nicht die kopierten Geschwister (aus #264, Review-Runde-1-Finding, Rezidiv in Runde 3)
+
+Review-Runde 1 fand einen falschen WHY-Kommentar (behauptete eine Kausalkette – „Skript
+kehrt vor Phase X zurück" –, die im Code nachweislich nicht existiert) an zwei Stellen
+(`#101`, `#212 AK8`) und beide wurden korrigiert. Runde 3 fand **dieselbe falsche
+Kausalkette** an einer dritten, strukturell identischen Stelle (Dry-Run-Ausnahme-Kommentar +
+Spec-Prosa) wieder – copy-paste-verwandt zu den ersten beiden, aber beim Fixen in Runde 1
+übersehen, weil dort nur die explizit gemeldete Zeile korrigiert wurde.
+
+**Smell:** Ein Review-Finding korrigiert einen falschen WHY-Kommentar (falsche Kausalkette,
+falsche Kontrollfluss-Behauptung) an genau der gemeldeten Stelle – ohne zu prüfen, ob
+dieselbe Behauptung an weiteren, ähnlich aufgebauten Stellen im selben Diff/derselben Datei
+wortgleich oder sinngleich wiederkehrt.
+
+**Regel:** Beim Beheben eines falschen-WHY-Kommentar-Findings den zentralen Claim (Kern der
+Kausalkette, z. B. „kehrt vor X zurück") per `grep -n` über die betroffene Datei **und** alle
+im selben PR entstandenen Doku-/Spec-Stellen suchen, nicht nur die gemeldete Zeile fixen.
+Gleiche Sweep-Pflicht wie bei Magic Numbers (oben, #142) und Terminologie (#144) – nur auf
+Kommentar-Kausalketten statt Literale/Begriffe angewendet.
+
 ### Zähl-/Aufzählungs-nennender Modul-Header wird beim Hinzufügen einer Einheit zur Lüge (aus #207, Review-Finding W1)
 
 Der Datei-Header von `scripts/lib/create-issue.sh` lautete „Diese Datei … stellt **EINE** Funktion
