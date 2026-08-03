@@ -66,7 +66,7 @@ Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch 
 | Hook | Ruft auf | Zweck (Stand der Check-Skripte) |
 |------|----------|---------------------------------|
 | `pre-commit` | `scripts/checks/pre-commit.sh` | Merge-Konflikte, Debug-Statements, TODO-ohne-Ticket (Warnung), hardkodierte Credentials, Lint |
-| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Schutz gegen Push auf `main`/`master` |
+| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Git-Hooks-Installiert-Check (inkl. `core.hooksPath`, #265/#268), Schutz gegen Push auf `main`/`master` |
 | `commit-msg` | `scripts/checks/commit-msg-check.sh` | Flag-Guard: lehnt `--help`/`-h` als Commit-Message ab (#262) |
 
 - **Neue Projekte:** `scripts/init-factory.sh` ruft `install-hooks.sh` auf – die
@@ -76,7 +76,12 @@ Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch 
   Pro-Worktree-Installation nötig.
 - **`core.hooksPath`:** Ist die Option gesetzt (z. B. durch husky), bricht der Installer
   fail-closed ab, statt wirkungslos nach `.git/hooks` zu schreiben – dann bewusst entscheiden
-  (Option entfernen oder die Factory-Checks dort einbinden).
+  (Option entfernen oder die Factory-Checks dort einbinden). Das **wiederkehrende** Push-Gate
+  (`scripts/checks/hooks-installed-check.sh`, #268) prüft dieselbe Option zusätzlich bei jedem
+  Push – anders als der einmalige Installer kennt dieser Check keine „einbinden"-Alternative:
+  er liest ausschließlich `$GIT_COMMON_DIR/hooks` und bleibt bei gesetztem `core.hooksPath`
+  dauerhaft rot, bis die Option entfernt wird (kein Opt-out implementiert, s. ADR-042
+  §Consequences).
 
 ---
 

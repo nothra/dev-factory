@@ -153,6 +153,20 @@ lässt (idempotentes Skript statt vollständiger Bootstrap-Lauf).
   also nicht – der Preis dafür, dass ein repo-weiter Hook keine älteren Branches blockiert.
 - In Repos mit gesetztem `core.hooksPath` bleibt die Hook-Installation ein manueller
   Entscheidungsschritt (der Installer bricht dort ab).
+- Der wiederkehrende Push-Gate-Check `scripts/checks/hooks-installed-check.sh` (#265/#268)
+  prüft `core.hooksPath` ebenfalls fail-closed – anders als dieser einmalige Installer bietet
+  er **keine** „Factory-Checks im konfigurierten Pfad einbinden"-Alternative: er liest
+  ausschließlich `$GIT_COMMON_DIR/hooks` und bleibt bei gesetztem `core.hooksPath` dauerhaft
+  rot, solange kein Opt-out existiert. Ein Escape-Hatch für Adopter-Repos mit echtem
+  husky-Einsatz (z. B. eine `FACTORY_HOOKS_PATH_ACK`-Umgehung) ist bewusst nicht Teil von #268
+  (YAGNI ohne konkreten Bedarf) – getrackt als Issue **#278**.
+- `core.hooksPath=""` (Leerstring) verhält sich **nicht** wie „nicht gesetzt" (empirisch mit
+  git 2.50 verifiziert, #268): Git löst den Hook-Pfad dann auf das Arbeitsverzeichnis auf und
+  ruft `$GIT_COMMON_DIR/hooks` nicht mehr auf. Der `[ -n "$HOOKS_PATH_CONFIG" ]`-Guard in
+  diesem Skript (s. o., „Fail-closed bei gesetztem `core.hooksPath`") behandelt einen
+  Leerstring also fälschlich als „nicht gesetzt" – ein bestehender Blindspot, der außerhalb
+  des Scopes von #268 liegt (`hooks-installed-check.sh` behandelt den Leerstring bewusst
+  abweichend fail-closed, s. dort), getrackt als Issue **#279**.
 - Die Ausführung von `scripts/install-hooks.sh` in diesem bestehenden Repo bleibt ein
   manueller Schritt nach dem Merge (keine Automatisierung, siehe Spec) – ein potenzieller
   „vergessen, auszuführen"-Fehlerpunkt, der außerhalb dieses PRs liegt. Getrackt als Issue

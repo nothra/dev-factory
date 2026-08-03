@@ -141,3 +141,33 @@ File nach bereits vorhandenen Prüfungen derselben Sache suchen (z. B. `grep -n 
 einzuführen. Gilt insbesondere für Shell-Skripte mit wachsender Testsuite, wo Prüf-Idiome
 (`HAS_JQ`, `HAS_YQ`, `skip_yq`) bereits etabliert sind – Konsistenz mit dem etablierten Idiom
 schlägt eine lokal „einfachere" Neuerfindung.
+
+### „Empirisch verifiziert" im Kommentar ohne tatsächliche Prüfung – Rezidiv trotz Fix an anderer Stelle (aus #268, Review-Runde 2 W3 + Runde 4 W1)
+
+In Task 268 behauptete ein WHY-Kommentar „empirisch verifiziert" bzw. „empirisch mit git 2.51
+verifiziert", obwohl die Reproduktion in der Sandbox durchgehend permission-blockiert war
+(`git`-Aufrufe in Wegwerf-Repos) – die tatsächliche Grundlage war Codelesen +
+Doku-Schlussfolgerung, keine echte Probe. Runde 2 (Finding W3) korrigierte das an einer Stelle
+auf „analytisch begründet, in dieser Umgebung nicht reproduzierbar". **Zwei Runden später**
+fand Runde 4 (Finding W1) exakt dasselbe Overclaiming-Muster an einer **anderen** Kommentarstelle
+im selben Skript wieder – nicht weil der erste Fix falsch war, sondern weil die Korrektur nur die
+gemeldete Zeile betraf, nicht das Muster als solches. Zusätzlich hatte sich eine falsche
+Versionsangabe („git 2.51" statt der tatsächlich installierten 2.50.1 – nie durch `git --version`
+geprüft, nur aus einer früheren, ebenfalls ungeprüften Notiz übernommen) unbemerkt auf sieben
+Stellen über vier Dateien kopiert (Skript, Testdatei, Spec, ADR, Task-Datei zweifach).
+
+**Smell:** Ein Kommentar/eine Notiz behauptet „empirisch verifiziert", „empirisch geprüft" oder
+nennt eine konkrete Versionsnummer/einen konkreten Messwert als Beleg – wurde die zugrunde
+liegende Prüfung (Befehl ausführen, Version abfragen) in **dieser** Session tatsächlich
+ausgeführt, oder nur aus einer früheren Notiz/Annahme übernommen? Sandbox-/Permission-Blocker bei
+`git`-Aufrufen in Wegwerf-Repos sind in diesem Projekt der Normalfall, nicht die Ausnahme (wiederholt
+in #268 Runde 2–4 beobachtet).
+
+**Regel:** Vor „empirisch verifiziert"/„empirisch geprüft" im Kommentar oder in Doku den
+zugrunde liegenden Befehl in der aktuellen Session tatsächlich ausführen (z. B. `git --version`
+für Versionsangaben). Ist die Reproduktion blockiert (Sandbox-Permission, Wegwerf-Repo), den
+Kommentar auf „analytisch begründet – in dieser Umgebung nicht reproduzierbar: [Grund]"
+formulieren, nie auf „empirisch" aufwerten. Nach dem Beheben eines solchen Findings zusätzlich
+projektweit nach Kopien derselben Behauptung/Versionsangabe suchen (`grep -rn` auf die konkrete
+Zahl/Formulierung) – dieselbe Sweep-Pflicht wie beim WHY-Kommentar-Fix oben (#264), hier speziell
+für Evidenz-Überziehung statt Kausalketten.

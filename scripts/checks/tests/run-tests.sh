@@ -4110,7 +4110,14 @@ install_all_hooks() {
   done
 }
 
-rc_hooks() { FACTORY_DIR="$1" bash "$HI_CHECK" 2>&1; }
+# GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM=/dev/null isolieren gegen ambientes core.hooksPath
+# (z. B. `git config --global core.hooksPath ~/.githooks`, verbreitetes husky-/dotfiles-
+# Muster) – ohne Isolation liest `git config --get` in hooks-installed-check.sh auch
+# global/system mit, und die Erfolgs-Assertions würden auf einer Entwickler-Maschine mit
+# gesetztem globalem core.hooksPath fälschlich rot, obwohl der Code korrekt ist
+# (Review-Finding #268 Runde 3; dieselbe Klasse wie #262/#264: ambiente Umgebung leckt in
+# die Fixture).
+rc_hooks() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null FACTORY_DIR="$1" bash "$HI_CHECK" 2>&1; }
 
 # 1. Alle drei Hooks vorhanden + ausführbar → Erfolg, Push nicht blockiert.
 WT=$(hi_repo allok)
@@ -4156,7 +4163,7 @@ install_all_hooks "$WT"
 echo "x" > "$WT/x.txt"; git -C "$WT" add -A >/dev/null 2>&1
 git -C "$WT" commit -q -m "chore: init" >/dev/null 2>&1
 git -C "$WT" worktree add -q -b improvement/265-probe "$TMP_HI/worktreebase-wt" >/dev/null 2>&1
-out=$(FACTORY_DIR="$TMP_HI/worktreebase-wt" bash "$HI_CHECK" 2>&1); rc=$?
+out=$(rc_hooks "$TMP_HI/worktreebase-wt"); rc=$?
 assert_exit 0 "$rc" "#265 AK4: Check aus einem Worktree heraus findet die Hooks im gemeinsamen .git"
 
 # 5. Mehrere Hooks fehlen gleichzeitig → alle betroffenen Namen werden genannt.
@@ -4193,6 +4200,87 @@ rm -rf "$TMP_HI"
 # Struktur: der Check ist im Push-Gate (pre-push.sh) verdrahtet.
 grep -q 'hooks-installed-check.sh' "$CHECKS_DIR/pre-push.sh"
 assert_true "$?" "#265: pre-push.sh verdrahtet den Git-Hooks-Installiert-Check"
+
+echo ""
+echo "#268 hooks-installed-check.sh core.hooksPath (Fail-closed, ADR-042):"
+
+TMP_HI="$(mktemp -d)"
+
+# 1. core.hooksPath gesetzt, Reste im Standardpfad noch vorhanden+ausführbar (Kernszenario
+# des Issues) → Check darf trotzdem nicht grün melden, Git ruft diese Dateien nie auf.
+WT=$(hi_repo hookspath-with-residue)
+install_all_hooks "$WT"
+git -C "$WT" config core.hooksPath ".husky"
+out=$(rc_hooks "$WT"); rc=$?
+assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK2: core.hooksPath gesetzt + ausführbare Reste im Standardpfad → exit ≠ 0 (statt fälschlich exit 0)"
+printf '%s' "$out" | grep -qF 'core.hooksPath'
+assert_true "$?" "#268 AK2: Fehlermeldung nennt core.hooksPath als Ursache"
+
+# 2. core.hooksPath gesetzt, Hooks fehlen im Standardpfad vollständig → ebenfalls fail-closed
+# (die core.hooksPath-Prüfung greift unabhängig vom Dateizustand). Ohne install_all_hooks
+# würde bereits die bestehende Präsenzprüfung (spec-265) exit 1 liefern – erst das
+# pfadspezifische Signal + die Abwesenheit der Präsenz-Meldung belegen, dass wirklich der
+# neue core.hooksPath-Guard gegriffen hat (Review-Finding #268 Runde 1).
+WT=$(hi_repo hookspath-no-residue)
+git -C "$WT" config core.hooksPath ".husky"
+out=$(rc_hooks "$WT"); rc=$?
+assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK3: core.hooksPath gesetzt + Hooks fehlen im Standardpfad → exit ≠ 0"
+printf '%s' "$out" | grep -qF 'core.hooksPath'
+assert_true "$?" "#268 AK3: Fehlermeldung nennt core.hooksPath (pfadspezifisches Signal statt Zufallstreffer der Präsenzprüfung)"
+printf '%s' "$out" | grep -qF 'Fehlende oder nicht ausführbare Git-Hooks'
+assert_true "$([ $? -ne 0 ]; echo $?)" "#268 AK3: die alte Präsenz-Fehlermeldung erscheint NICHT (Guard hat Vorrang, wird vorher erreicht)"
+
+# 3. Fehlermeldung nennt Pfad, Scope/Herkunft und Remediation-Hinweis.
+WT=$(hi_repo hookspath-message)
+install_all_hooks "$WT"
+git -C "$WT" config core.hooksPath ".husky"
+out=$(rc_hooks "$WT")
+printf '%s' "$out" | grep -qF '.husky'
+assert_true "$?" "#268 AK4: Fehlermeldung nennt den konfigurierten Pfad (.husky)"
+printf '%s' "$out" | grep -qF 'file:'
+assert_true "$?" "#268 AK4: Fehlermeldung nennt die Herkunft/Scope (git config --show-origin)"
+printf '%s' "$out" | grep -qF 'git config --unset core.hooksPath'
+assert_true "$?" "#268 AK4: Fehlermeldung nennt den konkreten Remediation-Befehl (nicht nur tautologisch 'core.hooksPath')"
+
+# 4. Läuft aus einem Worktree heraus – core.hooksPath liegt im gemeinsamen Git-Verzeichnis,
+# der Check muss denselben effektiven Wert lesen wie install-hooks.sh (kein worktree-lokales
+# Abweichen).
+WT=$(hi_repo hookspath-worktree)
+install_all_hooks "$WT"
+git -C "$WT" config core.hooksPath ".husky"
+echo "x" > "$WT/x.txt"; git -C "$WT" add -A >/dev/null 2>&1
+git -C "$WT" commit -q -m "chore: init" >/dev/null 2>&1
+git -C "$WT" worktree add -q -b improvement/268-probe "$TMP_HI/hookspath-worktree-wt" >/dev/null 2>&1
+out=$(rc_hooks "$TMP_HI/hookspath-worktree-wt"); rc=$?
+assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK5: core.hooksPath aus einem Worktree heraus → derselbe effektive Wert, fail-closed"
+# Pfadspezifisches Signal nötig: schlägt `git worktree add` fehl (z. B. Fixture-Fehler),
+# existiert der Ziel-Worktree nicht und schon `cd "$ROOT"` scheitert im Skript – exit ≠ 0,
+# ohne dass core.hooksPath je gelesen wurde. Erst der '.husky'-Treffer belegt, dass der
+# Guard tatsächlich lief (Review-Finding #268 Runde 1).
+printf '%s' "$out" | grep -qF '.husky'
+assert_true "$?" "#268 AK5: Fehlermeldung nennt den aus dem gemeinsamen Git-Verzeichnis gelesenen Pfad (.husky) statt nur zufällig grün zu sein"
+
+# 5. Leerer core.hooksPath-Wert verhält sich NICHT wie „nicht gesetzt" (empirisch mit
+# git 2.50 verifiziert, siehe Skript-Header): Git löst den Hook-Pfad dann auf das
+# Arbeitsverzeichnis auf und ruft $GIT_COMMON_DIR/hooks nicht mehr auf. Muss daher
+# ebenfalls fail-closed sein – bewusste Abweichung vom ursprünglich angenommenen Vorbild
+# install-hooks.sh (Korrektur ggü. Review-Finding #268 Runde 1, spec-268 „Offene Fragen").
+WT=$(hi_repo hookspath-empty)
+install_all_hooks "$WT"
+git -C "$WT" config core.hooksPath ""
+out=$(rc_hooks "$WT"); rc=$?
+assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268: leerer core.hooksPath-Wert ist NICHT gleichbedeutend mit 'nicht gesetzt' → exit ≠ 0 (fail-closed)"
+printf '%s' "$out" | grep -qF 'core.hooksPath'
+assert_true "$?" "#268: Fehlermeldung nennt core.hooksPath auch im Leerstring-Fall"
+
+# 6. Gegenprobe: core.hooksPath NICHT gesetzt, Hooks vorhanden+ausführbar → unverändertes
+# Erfolgsverhalten (spec-265 AK1 bleibt bestehen).
+WT=$(hi_repo hookspath-unset)
+install_all_hooks "$WT"
+out=$(rc_hooks "$WT"); rc=$?
+assert_exit 0 "$rc" "#268: core.hooksPath nicht gesetzt → unverändert exit 0 (Gegenprobe, spec-265 AK1)"
+
+rm -rf "$TMP_HI"
 
 echo ""
 echo "#265 CI-Absicherung: factory-self-test-Job installiert Hooks vor der Self-Test-Suite:"
