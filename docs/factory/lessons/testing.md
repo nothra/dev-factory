@@ -426,6 +426,31 @@ bereits vorhandenen Fließtext vorher `grep -n '<Teil-Phrase>' <Zieldatei>` gege
 laufen lassen, um zu verifizieren, dass die volle Testphrase tatsächlich auf einer Zeile steht –
 nicht erst durch den ersten (roten) Testlauf herausfinden.
 
+**Viertes Vorkommnis, wieder „neuer Test bricht an bereits vorhandener Prosa" (aus #286,
+/test-Selbstfund):** Ein Testing-Persona-Audit ergänzte in `run-tests.sh` eine neue
+`grep -qF 'funktionaler Defekt mit reproduzierbarem Auslöser'`-Assertion gegen `review.md` –
+obwohl die Lesson zu diesem Zeitpunkt bereits existierte und im selben Task-286-Block mehrfach
+zitiert wurde. Die Phrase stand in `review.md` über einen Zeilenumbruch verteilt (`ein
+funktionaler Defekt mit\nreproduzierbarem Auslöser`), in `codify.md` dagegen zufällig auf einer
+Zeile – derselbe Assertion-Aufruf traf also je nach Zieldatei unterschiedlich. **Root-Cause der
+Wiederholung:** Die Lesson wurde beim Schreiben nicht konsultiert, weil der Reflex „ich prüfe
+nur, ob die Phrase im Inhalt vorkommt" keinen Bezug zu „Markdown-Zeilenumbruch" auslöste – die
+Lesson wird eher bei *Umformulierungen* erinnert, nicht beim *Hinzufügen eines schlichten neuen
+Inhalts-Checks*. **Fix, diesmal an der Testinfrastruktur statt an der Prosa:** Ein
+`flat_286() { tr '\n' ' ' < "$1"; }`-Helper macht alle Mehrwort-Content-Checks im Block
+zeilenumbruch-tolerant (Datei einmal flach einlesen, dann `printf '%s' "$flat" | grep -qF
+"$phrase"`), statt bei jedem Fund die Zieldatei umzuformulieren. Diese Umkehrung – die
+**Testinfrastruktur** robust gegen Umbrüche machen, statt jede betroffene Prosa-Zeile
+anzupassen – ist bei **mehreren** Content-Checks gegen dieselbe Doku-Familie oft die
+wartungsärmere Lösung.
+
+**Regel (Ergänzung):** Ein `grep -qF`/`grep -qi`-Mehrwort-Check gegen Markdown-Prosa lässt sich
+nicht zuverlässig durch „ich achte beim Schreiben auf Zeilenumbrüche" abschließend absichern
+(vier Vorkommnisse in vier verschiedenen Tasks belegen das). Sobald **mehr als ein** solcher
+Mehrwort-Content-Check gegen dieselbe Datei/Dateifamilie geschrieben wird, lohnt sich ein
+zeilenumbruch-tolerantes Lese-Helper-Pattern (Datei flach einlesen vor dem Matchen) gegenüber
+dem Reflex, jede einzelne Testphrase in der Zieldatei auf einer Zeile zu halten.
+
 ### „Kein Argument übergeben"-Test simuliert nicht automatisch Abwesenheit, wenn das Skript einen echten Repo-Datei-Default hat (aus #254, Review-Finding)
 
 Task 254 ergänzte Gate #254 AK6 („kein Override-File vorhanden → neue Checks übersprungen").

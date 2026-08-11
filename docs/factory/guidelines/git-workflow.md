@@ -154,11 +154,30 @@ vom Branch-Typ.
 
 **Zentraler Anlage-Weg (ADR-018): `scripts/lib/create-issue.sh`.** Jede automatisierte
 Issue-Anlage läuft durch den Seam `create_issue <title> <body> <art-label> [aspekt-csv]` –
-`start-work.sh` und `sync-issues.sh --create` nutzen ihn, ebenso legen die Skills
-`codify`/`review`/`security-review` Out-of-Scope-Funde autonom darüber an. Der Seam vergibt
-Art- + Aspekt-Labels einheitlich (fail-open aufs Label, gestufte Degradation) und gibt die
-Issue-Nummer auf stdout zurück. Kein eigenes `gh issue create` an neuen Stellen – immer den
-Seam sourcen. Die kanonische Label-Liste bleibt allein in diesem Abschnitt.
+`start-work.sh` und `sync-issues.sh --create` nutzen ihn; die Skills
+`codify`/`review`/`security-review` legen Out-of-Scope-Funde **oberhalb der Schwelle**
+(siehe unten) autonom darüber an. Der Seam vergibt Art- + Aspekt-Labels einheitlich
+(fail-open aufs Label, gestufte Degradation) und gibt die Issue-Nummer auf stdout zurück.
+Kein eigenes `gh issue create` an neuen Stellen – immer den Seam sourcen. Die kanonische
+Label-Liste bleibt allein in diesem Abschnitt.
+
+**Schwelle: Issue oder Sammeldatei (ADR-043, #286).** Nicht jeder Out-of-Scope-Fund
+rechtfertigt einen eigenen Pipeline-Lauf über sieben Skills. Die drei Skills klassifizieren
+jeden Fund gegen diese Tabelle:
+
+| Fund-Art | Ablage |
+|----------|--------|
+| Merge-Blocker im aktuellen PR | sofort beheben – weder Issue noch Sammeldatei |
+| Echtes Sicherheitsrisiko (ausnutzbar, Secret-/Auth-/Zahlungs-Pfad) | Issue über den Seam (Aspekt-Label `security`) |
+| Funktionaler Defekt mit reproduzierbarem Auslöser | Issue über den Seam |
+| Alles andere (Nitpick, Doku-Drift, hypothetischer Zustand, „unter zehn Zeilen") | Eintrag in [`docs/factory/kleinfunde.md`](../kleinfunde.md) |
+
+**Zweifelsregel:** Ist ein Fund nicht eindeutig zuzuordnen, gilt **„im Zweifel Issue"** – die
+Schwelle ist einseitig fail-safe zugunsten des Trackers, damit kein echter Sicherheitsfund in
+einer Textdatei verschwindet. Abgrenzungskriterium für die letzte Zeile: **„Ist der Auslöser
+in diesem Repo herstellbar?"** – eine Prämisse, die hier nicht existiert (z. B. eine Config,
+die in keinem Scope gesetzt ist), ist Sammeldatei-Eintrag, kein Issue. Das Eintrags-Schema für
+`kleinfunde.md` steht im Kopf dieser Datei, nicht hier.
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 

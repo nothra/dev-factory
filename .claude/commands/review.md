@@ -63,11 +63,16 @@ Schreibe Findings in `tasks/review-$ARGUMENTS.md`.
 APPROVED | NEEDS_REWORK
 ```
 
-## Out-of-Scope-Findings autonom als Issue anlegen (ADR-018)
+## Out-of-Scope-Findings: Schwelle klassifizieren (ADR-018/ADR-043)
 
 Ein Finding, das **außerhalb** des aktuellen Task-Scopes liegt (eigenständiges Refactoring,
-fehlende Tests an anderer Stelle, Härtung), gehört nicht in diesen PR, sondern in ein eigenes
-GitHub-Issue. Lege es autonom über den zentralen Seam an – statt es nur zu vermerken:
+fehlende Tests an anderer Stelle, Härtung), gehört nicht in diesen PR. Klassifiziere es zuerst
+gegen die Schwellen-Tabelle in `docs/factory/guidelines/git-workflow.md` → „Zentraler
+Anlage-Weg (ADR-018)": ein echtes Sicherheitsrisiko, ein funktionaler Defekt mit
+reproduzierbarem Auslöser oder ein Zweifelsfall (**im Zweifel Issue**) folgen Schritt A;
+alles andere (Nitpick, Doku-Drift, „unter zehn Zeilen") folgt Schritt B.
+
+**A – oberhalb der Schwelle:** autonom über den zentralen Seam anlegen:
 
 ```bash
 . scripts/lib/create-issue.sh
@@ -77,7 +82,13 @@ create_issue_idempotent "<Titel im Imperativ>" "<Kontext: Datei:Zeile, warum eig
 **Genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**
 (`security`/`tech-debt`/`test`) – Konvention kanonisch in
 `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels". Die Issue-Nummer erscheint auf
-stdout; im Review-Report referenzieren. Findings **im** Scope bleiben in `tasks/review-<id>.md`.
+stdout; im Review-Report referenzieren.
+
+**B – unterhalb der Schwelle:** Eintrag in
+[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,
+Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.
+
+Findings **im** Scope bleiben in `tasks/review-<id>.md`.
 
 > **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt
 > ableiten (nur Titel/Body dürfen Inhalt zitieren). Der `factory::`-Präfix ist der Pipeline

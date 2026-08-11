@@ -50,9 +50,14 @@ Kern-Kurzregel inline stehen. Passt kein Thema, eine neue `lessons/<thema>.md` a
 **Neuer Check (für hartnäckige, automatisierbare Fehler):**
 → Erstelle neuen Check in `scripts/checks/`
 
-**Folge-Arbeit, die den aktuellen Scope sprengt → autonom als GitHub-Issue anlegen (ADR-018):**
+**Folge-Arbeit, die den aktuellen Scope sprengt → Schwelle klassifizieren (ADR-018/ADR-043):**
 Stößt du auf ein Learning, das eigenen Aufwand braucht (Refactoring, fehlende Tests,
-Härtung), lege es über den zentralen Seam an – statt es nur im Report zu vermerken:
+Härtung), klassifiziere es zuerst gegen die Schwellen-Tabelle in
+`docs/factory/guidelines/git-workflow.md` → „Zentraler Anlage-Weg (ADR-018)": ein echtes
+Sicherheitsrisiko, ein funktionaler Defekt mit reproduzierbarem Auslöser oder ein Zweifelsfall
+(**im Zweifel Issue**) folgen Schritt A; alles andere folgt Schritt B.
+
+**A – oberhalb der Schwelle:** über den zentralen Seam anlegen:
 
 ```bash
 . scripts/lib/create-issue.sh
@@ -62,6 +67,10 @@ create_issue_idempotent "<Titel im Imperativ>" "<Kontext: warum, woraus>" enhanc
 Konvention (kanonisch in `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels"):
 **genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**
 (`security`/`tech-debt`/`test`). Die Issue-Nummer erscheint auf stdout; im Report verlinken.
+
+**B – unterhalb der Schwelle:** Eintrag in
+[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,
+Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.
 
 > **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt
 > ableiten (nur Titel/Body dürfen Inhalt zitieren). Der `factory::`-Präfix ist der Pipeline

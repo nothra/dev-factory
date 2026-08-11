@@ -7,6 +7,11 @@ Accepted
 > Seam bekommt eine opt-in-Idempotenz-Variante `create_issue_idempotent` daneben (offener
 > Titel-Treffer → keine Duplikat-Anlage bei Pipeline-Retries). `create_issue` selbst bleibt
 > unverändert.
+>
+> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (#286): §5 –
+> die autonome Anlage durch `codify`/`review`/`security-review` gilt nur noch oberhalb einer
+> Schwelle, darunter greift `docs/factory/kleinfunde.md`. `create_issue` selbst bleibt
+> unverändert.
 
 ## Datum
 2026-07-12
@@ -81,6 +86,13 @@ aus dem Arbeitsverzeichnis. Die Slug-Ableitung selbst zu konsolidieren ist ein e
 `codify`/`review`/`security-review` dürfen bei einem Fund `create_issue` **autonom** aufrufen
 und Art- + Aspekt-Labels mitgeben, statt nur eine Empfehlung in eine Datei zu schreiben. Die
 jeweilige Skill-Doku wird entsprechend angewiesen.
+
+> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (#286): Die
+> autonome Anlage gilt seit 2026-08 nicht mehr unbedingt, sondern nur noch **oberhalb einer
+> Schwelle** (Merge-Blocker/echtes Sicherheitsrisiko/reproduzierbarer Defekt). Darunter
+> entsteht ein Eintrag in `docs/factory/kleinfunde.md`. Die Schwellen-Tabelle steht in
+> `docs/factory/guidelines/git-workflow.md` → „Zentraler Anlage-Weg (ADR-018)", nicht hier.
+> `create_issue`/`create_issue_idempotent` selbst ändern sich nicht.
 
 ## Alternatives
 

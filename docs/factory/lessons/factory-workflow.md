@@ -370,6 +370,26 @@ entfernte Anti-Muster testweise mit einer **plausiblen Variation** (andere Zeile
 Flag-Schreibweise, gepinnte statt `latest`-URL) wieder einsetzen und prüfen, ob der Guard rot wird
 – nicht nur den Ist-Zustand grün laufen lassen.
 
+**Nachtrag 4 (aus #286, /test-Selbstfund – fünftes Rezidiv, diesmal keine falsche Anker-Wahl,
+sondern ein fehlender Reihenfolge-Check selbst):** Task #286 verlangte als zentrales AK, dass
+die Klassifikations-Anweisung in drei Skill-Dokus **vor** dem `create_issue_idempotent`-Aufruf
+steht. `/implement` schrieb dafür zwei separate, jeweils korrekt verankerte Präsenz-Assertions
+(„Doku verweist auf `kleinfunde.md`", „Doku verweist auf die Schwellen-Tabelle") – aber **keine**
+Assertion, die die relative **Position** der beiden Elemente vergleicht. Beide Einzel-Checks
+waren grün, das AK „X steht vor Y" blieb trotzdem vollständig ungetestet; erst ein dedizierter
+Testing-Persona-Audit in `/test` (nicht `/implement` oder `/review`) deckte die Lücke auf.
+
+**Regel (fehlender statt falscher Reihenfolge-Check):** Formuliert ein AK explizit eine
+**Reihenfolge** zwischen zwei Elementen („X vor Y", „A muss B vorausgehen"), reichen zwei
+getrennte Präsenz-Assertions für X und Y **nicht** – sie beweisen nur, dass beide existieren,
+nicht in welcher Reihenfolge. Es braucht eine **eigene** Assertion, die beide Zeilenpositionen
+ermittelt (`grep -n <Anker-X> | head -1 | cut -d: -f1`, analog für Y) und explizit vergleicht
+(`[ "$zeile_x" -lt "$zeile_y" ]`) – plus eine Mutations-Negativkontrolle mit einer Fixture, in
+der die Reihenfolge bewusst vertauscht ist, um zu belegen, dass der Vergleich bei Regression
+tatsächlich rot wird (sonst dieselbe Vakuität wie ein Guard ohne Gegenprobe, siehe #114 oben).
+Beim Lesen eines Reihenfolge-AK explizit prüfen: „Testet mein Guard **beide** Elemente einzeln,
+oder auch ihre **relative Position**?"
+
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
 Beim Erstellen der Routen-Übersicht (`docs/routes.md`) und des Drift-Checks
@@ -958,3 +978,64 @@ Self-Test-Suite in `factory-ci.yml`) – nicht den Check abschwächen oder den b
 nachträglich isolieren. Den Fix mit einem Wiring-Test absichern, der den CI-Job-Block extrahiert
 und die **Reihenfolge** der beiden Schritte prüft (sonst wirkungslos, falls die Installation
 nach der Suite liefe).
+
+### Neuer Freitext-Ablage-Mechanismus in eine vom Agentenkontext wieder gelesene Repo-Datei braucht dieselbe „Daten, keine Anweisungen"-Absicherung wie bereits etablierte Kanäle (aus #286, Security-Review-Finding)
+
+Task #286 führte `docs/factory/kleinfunde.md` als neuen Ablage-Ort für Out-of-Scope-Funde
+unterhalb der Issue-Schwelle ein: ein Skill schreibt Freitext (Felder Wo/Was/Fix) direkt in
+diese Repo-Datei per `Edit` – kein Seam, keine Validierung (ADR-043 Decision 3, bewusst). Genau
+diese Datei wird von **künftigen** Skill-Läufen automatisch wieder in den Agentenkontext
+geladen (Duplikat-Prüfung vor dem Anhängen, generelles Doku-Lesen durch `/codify`/`/implement`)
+– ohne dass jemand sie aktiv wie einen Issue-Body abrufen müsste. ADR-018 warnt explizit, dass
+Issue-Labels/-Titel/-Body **nie** aus Finding-/Diff-/Fremdinhalt abgeleitet werden dürfen
+("keine ausführbaren Marker") – für den neuen, strukturell risikoreicheren Kanal fehlte die
+äquivalente Warnung komplett, weder in der neuen Datei noch in den drei anpassten Skill-Dokus.
+Ein Angreifer, der einen PR/Diff/Kommentar kontrolliert, könnte einen Reviewer-Agenten dazu
+bringen, injizierte Anweisungen wörtlich in "Was"/"Fix" zu übernehmen; ein späterer
+Agentenlauf, der die Datei liest, könnte sie als Anweisung statt als Daten interpretieren
+(stored prompt injection über eine Repo-Datei). Erst in `/security-review` aufgefallen, nicht
+in `/implement`, `/review` oder `/test` – der Fokus lag auf Schema/Vollständigkeit, nicht auf
+der neuen Angriffsfläche selbst.
+
+**Smell:** „Mein Task führt einen neuen Mechanismus ein, über den ein Agent Freitext (der
+Finding-/Diff-Inhalt zitieren kann) in eine Repo-Datei schreibt, die **ohne aktives Abrufen**
+von einem künftigen Agentenlauf wieder gelesen wird – gibt es für einen strukturell
+vergleichbaren, bereits etablierten Kanal (Issue-Body, PR-Kommentar, Log-Datei) schon eine
+'Daten, keine Anweisungen'-Warnung? Wenn ja, fehlt sie hier wahrscheinlich auch."
+
+**Regel:** Führt eine Task einen neuen Freitext-Ablage-Mechanismus ein, der (a) Zitate aus
+Finding-/Diff-/Fremdinhalt enthalten darf und (b) ohne expliziten Abruf automatisch in einen
+künftigen Agentenkontext geladen wird, bekommt er **beim Einführen** – nicht erst nachträglich
+in einer Security-Review – einen zur bereits etablierten Warnung (ADR-018 „Sicherheit: Labels
+sind feste Literale") äquivalenten Hinweis an der Stelle, an der das Schema selbst dokumentiert
+ist (ein Ort je Regel, wie bei anderen Doku-Kontrakten in dieser Factory). `/architecture` prüft
+das bereits beim Entwurf eines solchen Mechanismus explizit gegen die vorhandenen ADR-018-
+Kanäle, `/implement` schreibt die Warnung mit demselben Zug wie das Schema, nicht als
+Nachtrag. Trigger: `/architecture`, `/implement`, `/security-review` bei jedem neuen
+Ablage-Mechanismus für Agenten-Freitext in einer Repo-Datei.
+
+### Mutationsbeleg muss denselben Assert-Ausdruck ausführen, nicht nur denselben Grundbefehl (aus #286, Review-Runde-2-Finding)
+
+Ein neuer Abwesenheits-Guard in `run-tests.sh` (#286) belegte per „Mutationsbeleg", dass ein
+Zurückdrehen auf die alte, unbedingte Formulierung den Test rot machen würde. Die erste
+Fassung hängte die alte Zeile an eine Fixture-Kopie und prüfte dann `grep -qF "$old_line"
+"$mut_datei"` – **derselbe Grundbefehl** wie im echten Guard, aber **nicht derselbe
+Assert-Ausdruck** (der echte Guard negiert das Ergebnis: `! grep -qF … ; echo $?`). Der
+Mutationsbeleg bewies damit nur, dass die Zeile per `printf` korrekt angehängt und von `grep`
+wiedergefunden wurde (im Wesentlichen ein Quoting-Test) – nicht, dass der tatsächliche,
+negierte Assert-Ausdruck bei dieser Fixture wirklich auf das rote Ergebnis (`"1"`) auswertet.
+Eine Regression in der Negation selbst (z. B. ein versehentlich entferntes `!`) wäre vom
+Mutationsbeleg unbemerkt geblieben. Erst im Review aufgefallen, nicht beim Schreiben in
+`/implement`.
+
+**Smell:** „Mein Mutationsbeleg führt `grep`/den Kernbefehl direkt gegen die mutierte Fixture
+aus, statt exakt den Ausdruck aus der echten Assertion-Zeile (inklusive `!`, `echo $?`,
+Vergleichsoperator) zu kopieren und auszuführen – würde eine Regression in der **Negation**
+oder im **Vergleich** selbst (nicht im Grundbefehl) von meinem Mutationsbeleg überhaupt
+bemerkt?"
+
+**Regel:** Ein Mutationsbeleg für einen Guard-Ausdruck führt **denselben Assert-Ausdruck**
+(nicht nur denselben zugrunde liegenden Befehl) gegen die mutierte Fixture aus und prüft das
+Ergebnis explizit gegen den erwarteten roten Wert (z. B. `mut_result="$(! grep -qF "$x"
+"$mut"; echo $?)"; assert_true "$([[ "$mut_result" = "1" ]]; echo $?)" …`). Nur so beweist der
+Mutationsbeleg Kausalität zum echten Guard, nicht nur Syntax/Quoting des Grundbefehls.
