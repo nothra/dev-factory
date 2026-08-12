@@ -1,15 +1,24 @@
 # dm Development Factory – Async-Trigger (ADR-008, Option A: Scheduled-Poll).
 #
-# Läuft als GitHub Actions Scheduled Workflow. Sucht Issues mit Label
+# Läuft ausschließlich auf manuelles `workflow_dispatch`. Sucht Issues mit Label
 # `factory::run` und startet fail-closed hinter dem Budget-Guard die
 # Factory-Pipeline (scripts/factory-poll.sh → scripts/run-pipeline.sh).
 #
-# concurrency = Concurrency=1 über Läufe hinweg: zwei geplante Läufe
+# Der halbstündliche `schedule`-Trigger ist stillgelegt (#284): Der Auto-Trigger ist
+# nicht scharfgeschaltet (kein ANTHROPIC_API_KEY im Repo, nie ein factory::run-Issue),
+# der Poll installierte also 48× am Tag Software mit Repo-Schreibrechten, um
+# festzustellen, dass es nichts zu tun gibt. Wiedereintragen ist ein Aktivierungs-
+# schritt der Checkliste unten (OPERATING.md §0.4), kein Default.
+#
+# concurrency = Concurrency=1 über Läufe hinweg: zwei Läufe
 # überlappen nie (zweite Hälfte der Idempotenz; erste ist der In-Skript-Check).
 #
 # Einrichtung (einmalig, projektspezifisch):
 #   - Repository-Secret ANTHROPIC_API_KEY (oder ANTHROPIC_BASE_URL für ein Gateway, #17)
 #   - Labels anlegen: factory::run / ::running / ::done / ::interrupted / ::failed
+#   - `schedule`-Trigger wieder eintragen (unten unter `on:`) – erst dann läuft der
+#     Poll wieder von selbst; Vorbedingung ist die gepinnte claude-CLI (#290).
+#     Dieser Punkt kommt zuletzt: er schaltet die Automatik scharf (OPERATING.md §0.4)
 #   - optional Repository-Variable FACTORY_MAX_RUNS_PER_DAY (Default 5),
 #     FACTORY_RUN_TIMEOUT (Stale-Reaper, Default 3600s)
 #   - Der eingebaute GITHUB_TOKEN darf Issues/Labels schreiben und Commits pushen
@@ -19,9 +28,6 @@
 name: Factory Poll
 
 on:
-  schedule:
-    # Alle 30 Minuten. Cron-Zeiten sind UTC. Anpassbar an das Team-Zeitfenster.
-    - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 # Nur Issues/Labels schreiben + Repo-Commits pushen – kein weiterer Scope.
@@ -49,7 +55,9 @@ jobs:
       - uses: actions/checkout@v4
       # yq kommt über den zentralen Seam: gepinnte Version + SHA-256-Verifikation gegen die
       # Release-Checksums, statt ein `latest`-Asset ungeprüft auszuführen (#258). Dieser Job
-      # hält ANTHROPIC_API_KEY – ein manipuliertes Asset liefe hier mit Secret-Zugriff.
+      # läuft mit `contents: write` + `issues: write` – ein manipuliertes Asset hätte hier
+      # Schreibzugriff auf Repo und Issues. (Das Secret ANTHROPIC_API_KEY existiert im Repo
+      # nicht; bis es gesetzt wird, läuft der Job ohne dieses Secret – #284/#290.)
       - name: Runtime bereitstellen (claude-CLI + yq)
         run: |
           npm install -g @anthropic-ai/claude-code

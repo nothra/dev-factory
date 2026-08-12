@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # factory-poll.sh – Async-Trigger (ADR-008, Option A: Scheduled-Poll).
 #
-# Läuft in einem GitHub Actions Scheduled Workflow. Sucht Issues mit Label
+# Läuft im GitHub-Actions-Workflow `factory-poll.yml` – seit #284 nur auf manuelles
+# `workflow_dispatch`, der halbstündliche `schedule` ist stillgelegt (Wiedereintragen ist
+# ein Aktivierungsschritt, OPERATING.md §0.4). Sucht Issues mit Label
 # `factory::run` und startet für das älteste die Factory-Pipeline – fail-closed
 # hinter einem dreiteiligen Budget-Guard, mit Label-State-Maschine gegen
 # Doppel-Trigger.

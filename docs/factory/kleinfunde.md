@@ -82,6 +82,21 @@
   `:4164`; das ist eine `assert_true`-Zeile – der Fixture-Commit steht bei **`:4170`**
   (Drift seit #276).
 
+### Verwaister Issue-Body-Entwurf `.issue-npm-pin.md` im Repo-Wurzelverzeichnis
+
+- **Wo:** [`.issue-npm-pin.md`](../../.issue-npm-pin.md) – 42 Zeilen, getrackt
+  (`git ls-files` listet die Datei); eingecheckt mit `baf55e4` („chore: yq checksum
+  verifikation (#258) (#277)").
+- **Was:** Die Datei ist der Entwurf eines Issue-Bodys („unverifizierte claude-CLI-Installation
+  in `factory-poll.yml`"), der als Arbeitsartefakt im Repo liegen geblieben ist. Inhaltlich ist
+  ihr Anliegen inzwischen Issue #290; die Datei ist damit eine zweite, nicht gepflegte Quelle
+  für dieselbe Aussage – der Punkt-Präfix versteckt sie zusätzlich in `ls`.
+- **Fix:** `git rm .issue-npm-pin.md`. Eine Zeile. Vorher kurz gegenprüfen, dass nichts auf sie
+  verweist (`grep -rn 'issue-npm-pin'`) – heute keine Referenz aus Code oder Workflow (Doku wie
+  dieser Eintrag oder eine Task-/Review-Datei nennt die Datei erwartungsgemäß).
+- **Herkunft:** `/review` zu #284 (dort schon in Spec/Task als Out-of-Scope-Fund notiert).
+  Fundstelle verifiziert am 2026-08-12.
+
 ### ADR-009 §2 beschreibt ein nicht existierendes Runtime-Image
 
 - **Wo:** [`docs/adr/009-factory-configuration.md:69`](../adr/009-factory-configuration.md)

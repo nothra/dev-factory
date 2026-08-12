@@ -31,7 +31,7 @@ konkrete Plattform-Umsetzung wechselt:
 | Aspekt | Vorher (GitLab) | Nachher (GitHub) |
 |--------|-----------------|------------------|
 | CI | `.gitlab-ci.yml` | `.github/workflows/factory-ci.yml` |
-| Async-Trigger | Scheduled Pipeline + `resource_group` | `.github/workflows/factory-poll.yml` (`schedule` + `concurrency`) |
+| Async-Trigger | Scheduled Pipeline + `resource_group` | `.github/workflows/factory-poll.yml` (`schedule` + `concurrency`; `schedule` seit #284 stillgelegt, s. [ADR-008 Update 2026-08-12](008-async-trigger-mechanism.md#status)) |
 | CLI (PR/Issues/Labels) | `glab` | `gh` |
 | CI-Runtime | Prebuilt-Image (kaniko + Registry) | `ubuntu-latest` (yq/claude zur Laufzeit geholt) |
 | PR-Update | `glab mr rebase` | `gh pr update-branch` |

@@ -390,6 +390,28 @@ tatsächlich rot wird (sonst dieselbe Vakuität wie ein Guard ohne Gegenprobe, s
 Beim Lesen eines Reihenfolge-AK explizit prüfen: „Testet mein Guard **beide** Elemente einzeln,
 oder auch ihre **relative Position**?"
 
+**Nachtrag 5 (aus #284, Review-Runde-1-Finding – sechstes Rezidiv, ausgelöst durch den eigenen
+Doku-Nachzug im selben PR):** Task #284 fügte im selben PR sowohl einen neuen Fragment-Grep-Guard
+hinzu (dateiweit auf `contents: write`/`issues: write`) als auch einen erklärenden WHY-Kommentar
+direkt im gehärteten Workflow, der exakt dieselbe Zeichenfolge als Prosa nannte. Ab diesem Moment
+war der Guard nicht mehr durch den echten `permissions:`-Block, sondern durch den eigenen,
+gerade erst verfassten Kommentar erfüllbar – ein gelöschter oder auf `contents: read`
+abgeschwächter Block hätte die Suite trotzdem grün gelassen. Anders als bei den bisherigen
+Rezidiven (Fremd-Kommentar, CI-Kommentar, Multi-Zeilen-Konstrukt, OR-Fragment, fehlender
+Reihenfolge-Check) ist die Prosa-Quelle hier keine vorbestehende Zeile, sondern eine
+**Doku-Ergänzung, die derselbe PR/Implementierungsschritt gerade erst einführt** – die übliche
+„gegen den Ist-Stand rot, gegen die Fassung grün"-Verifikation hätte das nicht gefangen, weil
+Guard und Kommentar gleichzeitig neu entstehen.
+
+**Regel:** Fügt ein PR im selben Zug einen Fragment-Grep-Guard **und** einen die geguardete
+Zeichenfolge wörtlich nennenden Kommentar/Doku-Satz hinzu, gilt die Block-Extraktions-Pflicht aus
+Nachtrag 2 zusätzlich auch dann, wenn heute (noch) keine externe Prosa-Kollision sichtbar ist –
+der Kommentar, der den Guard erst erklärt, ist selbst die nächstliegende Kollisionsquelle.
+Faustregel: Jeder neue Guard, der eine Zeichenfolge aus einem strukturierten Block (YAML-Key,
+Env-Var, Permission) prüft, bekommt einen Block-Anker (`awk`-Block-Extraktion), sobald im selben
+PR ein WHY-Kommentar in der Nähe entsteht, der dieselbe Zeichenfolge zitiert – unabhängig davon,
+ob ein Test das aktuell schon nachweist.
+
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
 Beim Erstellen der Routen-Übersicht (`docs/routes.md`) und des Drift-Checks

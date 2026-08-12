@@ -449,9 +449,157 @@ echo "Stufe-2 Async-Trigger (#10):"
 POLL_YML="$FACTORY_ROOT/.github/workflows/factory-poll.yml"
 assert_true "$([[ -f "$FACTORY_ROOT/scripts/factory-poll.sh" ]]; echo $?)" "scripts/factory-poll.sh vorhanden"
 assert_true "$([[ -f "$POLL_YML" ]]; echo $?)" ".github/workflows/factory-poll.yml vorhanden"
-grep -q 'factory-poll:' "$POLL_YML"; assert_true "$?" "factory-poll-Job in factory-poll.yml"
-grep -q 'group: factory-runtime' "$POLL_YML"; assert_true "$?" "factory-poll hat concurrency-group (Concurrency=1, Idempotenz)"
-grep -q 'schedule:' "$POLL_YML"; assert_true "$?" "factory-poll nur als Scheduled Workflow"
+
+# ─── #284: der Schedule ist stillgelegt, workflow_dispatch bleibt ────────────
+# Der Auto-Trigger ist nicht scharfgeschaltet (kein ANTHROPIC_API_KEY, nie ein
+# factory::run-Issue) – ein halbstündlicher Lauf installierte nur ungepinnte
+# Software mit Repo-Schreibrechten, um festzustellen, dass nichts zu tun ist.
+# Guards deshalb in der Gegenrichtung zum Vorzustand (früher: "schedule: muss da sein").
+
+# poll_yaml_block <workflow-datei> <top-level-key> – gibt den Block unter dem Top-Level-Key
+# ohne Kommentare aus; Inline-Inhalt der Key-Zeile selbst bleibt erhalten (Flow-Notation
+# wie `on: {schedule: [...]}` ist damit sichtbar).
+# Kommentare fallen IN derselben awk-Passage weg, damit eine Prosa-Erwähnung von
+# `schedule` oder `contents: write` in einem Kommentar keinen Guard beeinflusst
+# (Lesson #114: Anker ist die YAML-Struktur, nie eine Erwähnung). Bewusst ein Prozess
+# statt `sed | awk`: awk beendet am nächsten Top-Level-Key, das SIGPIPE eines Vorgängers
+# würde unter `set -o pipefail` als Fehlschlag durchschlagen. Nicht lesbare Datei → exit 1
+# (fail-closed, Lesson #214), nicht stiller leerer Block.
+poll_yaml_block() {
+  [ -r "$1" ] || return 1
+  awk -v key="^$2:" '
+    { sub(/#.*/, "") }
+    $0 ~ key { f=1; sub(/^[A-Za-z0-9_-]+:/, ""); if ($0 ~ /[^[:space:]]/) print; next }
+    f && /^[A-Za-z0-9_-]+:/ { exit }
+    f' "$1"
+}
+
+# Block-Anker statt dateiweiter Fragment-Greps (Review-Runde-2-Nitpick #284): derselbe
+# Kommentar-Nachzug, der die AK3-Assertion in Runde 1 prosa-erfüllbar gemacht hätte
+# (Lesson #114), könnte sonst auch hier greifen – jetzt, wo poll_yaml_block existiert,
+# kostet das Ankern eine Zeile.
+poll_yaml_block "$POLL_YML" jobs | grep -qxF -- '  factory-poll:'
+assert_true "$?" "factory-poll-Job in factory-poll.yml"
+poll_yaml_block "$POLL_YML" concurrency | grep -qxF -- '  group: factory-runtime'
+assert_true "$?" "factory-poll hat concurrency-group (Concurrency=1, Idempotenz)"
+
+# poll_trigger_guard <workflow-datei> – 0, wenn der on:-Block KEINEN schedule-/cron-
+# Trigger enthält; non-zero bei Fund, leerem on:-Block oder unlesbarer Datei.
+# Gesucht wird das Wort, nicht `schedule:` – so greift der Guard auch bei Flow-Notation
+# (`on: {schedule: [...]}`) und gequotetem Key (`"schedule":`); Prosa kann nicht treffen,
+# weil poll_yaml_block die Kommentare vorher entfernt hat.
+# grep liest per Here-String statt aus einer Pipe: bei einem Treffer beendet `grep -q`
+# sofort, ein schreibender Vorgänger liefe unter `pipefail` in ein SIGPIPE – und die
+# vorangestellte Negation machte daraus ausgerechnet im Fund-Fall ein grünes Ergebnis.
+poll_trigger_guard() {
+  local on_block
+  on_block="$(poll_yaml_block "$1" on)" || return 1
+  [ -n "$on_block" ] || return 1
+  ! grep -qE '(^|[^[:alnum:]_-])(schedule|cron)([^[:alnum:]_-]|$)' <<<"$on_block"
+}
+
+# poll_dispatch_guard <workflow-datei> – 0, wenn der on:-Block workflow_dispatch trägt.
+# Kein expliziter [ -n "$on_block" ]-Guard wie bei poll_trigger_guard nötig: `grep` auf
+# einen leeren Block scheitert ohnehin non-zero, das Verhalten ist identisch.
+poll_dispatch_guard() {
+  local on_block
+  on_block="$(poll_yaml_block "$1" on)" || return 1
+  grep -q 'workflow_dispatch' <<<"$on_block"
+}
+
+# poll_permission_guard <workflow-datei> <permissions-zeile-OHNE-Einrückung> – 0, wenn die
+# Zeile (mit der zweispaltigen Einrückung des Blocks ergänzt) wörtlich im permissions:-Block
+# steht. Dateiweites Suchen wäre hier wertlos: der WHY-Kommentar am Runtime-Step nennt
+# „contents: write + issues: write" als Prosa und erfüllte einen `grep -q` auch dann, wenn
+# der echte Block fehlt oder auf `contents: read` abgeschwächt ist (Lesson #114: Kommando ≠
+# Prosa-Erwähnung). Wert als Daten behandeln (`-qxF --`).
+poll_permission_guard() {
+  local permissions_block
+  permissions_block="$(poll_yaml_block "$1" permissions)" || return 1
+  grep -qxF -- "  $2" <<<"$permissions_block"
+}
+
+poll_trigger_guard "$POLL_YML"
+assert_true "$?" "#284 AK1: on:-Block von factory-poll.yml trägt keinen schedule:/cron-Trigger (Schedule stillgelegt)"
+
+poll_dispatch_guard "$POLL_YML"
+assert_true "$?" "#284 AK2: workflow_dispatch bleibt im on:-Block (manuell auslösbar)"
+
+# AK3: die Bausteine, die beim Scharfschalten unverändert wiederverwendet werden.
+# (factory-poll-Job und concurrency-group prüfen die zwei Assertions oben.)
+poll_permission_guard "$POLL_YML" 'contents: write'
+assert_true "$?" "#284 AK3: permissions-Block trägt contents: write unverändert"
+poll_permission_guard "$POLL_YML" 'issues: write'
+assert_true "$?" "#284 AK3: permissions-Block trägt issues: write unverändert"
+grep -qF 'bash scripts/factory-poll.sh' "$POLL_YML"; assert_true "$?" "#284 AK3: Poll-Step ruft weiterhin scripts/factory-poll.sh auf"
+
+# AK5/AK6 – Mutationsbelege: derselbe Guard-Ausdruck gegen mutierte Kopien, damit
+# belegt ist, dass er zwischen echtem Trigger und Prosa unterscheidet und nicht nur
+# zufällig grün ist (Lesson #286: Beleg muss denselben Assert-Ausdruck ausführen).
+# Mutation per awk-Einfügung IN den bestehenden on:-Block – ein angehängtes zweites
+# `on:` wäre ein Duplicate-Key-Dokument und würde nur zufällig treffen (Lesson #255).
+TMP_POLL_GUARD="$(mktemp -d)"
+
+# Je Mutant unten steht neben dem rot-erwarteten Beleg eine grüne Positivkontrolle auf ein
+# ANDERES Signal derselben Datei (Review-Runde-2-Nitpick #284, Lesson #214): sonst teilen sich
+# alle `! poll_*_guard "<mutant>"`-Belege ihren Fail-Pfad mit AK6 ("Datei nicht lesbar") – bliebe
+# eine Mutanten-Datei aus (mktemp/Redirect schlägt fehl), wäre der Beleg grün, ohne dass die
+# Mutation je geprüft wurde. Die Positivkontrolle belegt: Datei existiert, ist parsbar, und nur
+# das mutierte Feld weicht ab.
+
+awk '/^on:/{print; print "  schedule:"; print "    - cron: \"*/30 * * * *\""; next} 1' \
+  "$POLL_YML" > "$TMP_POLL_GUARD/mit-schedule.yml"
+! poll_trigger_guard "$TMP_POLL_GUARD/mit-schedule.yml"
+assert_true "$?" "#284 AK5: wiedereingetragener schedule:+cron-Trigger macht den Guard rot (Mutationsbeleg)"
+poll_dispatch_guard "$TMP_POLL_GUARD/mit-schedule.yml"
+assert_true "$?" "#284 AK5: Positivkontrolle mit-schedule.yml – workflow_dispatch bleibt unberührt"
+
+awk '/^on:/{print; print "  # schedule: erst wieder eintragen, wenn cron: gewollt ist"; next} 1' \
+  "$POLL_YML" > "$TMP_POLL_GUARD/nur-kommentar.yml"
+poll_trigger_guard "$TMP_POLL_GUARD/nur-kommentar.yml"
+assert_true "$?" "#284 AK5: Kommentarzeile mit schedule/cron lässt den Guard grün (Struktur-, kein Prosa-Anker)"
+
+# Wiedereintrag in Flow-Notation: dokumentiert ist Block-Notation, treffen muss der Guard
+# trotzdem – sonst bewacht er nur die Schreibweise, die er erwartet.
+awk '/^on:/{print "on: {schedule: [{cron: \"*/30 * * * *\"}]}"; next} /^  workflow_dispatch/{next} 1' \
+  "$POLL_YML" > "$TMP_POLL_GUARD/flow-notation.yml"
+! poll_trigger_guard "$TMP_POLL_GUARD/flow-notation.yml"
+assert_true "$?" "#284 AK5: schedule-Wiedereintrag in Flow-Notation macht den Guard rot (Mutationsbeleg)"
+poll_permission_guard "$TMP_POLL_GUARD/flow-notation.yml" 'contents: write'
+assert_true "$?" "#284 AK5: Positivkontrolle flow-notation.yml – permissions-Block bleibt unberührt"
+
+! poll_trigger_guard "$TMP_POLL_GUARD/gibt-es-nicht.yml"
+assert_true "$?" "#284 AK6: nicht lesbare factory-poll.yml lässt den Guard fehlschlagen (fail-closed)"
+
+# F2: der on:-Block darf beim Stilllegen nicht leer werden – ohne workflow_dispatch
+# wäre der Workflow gar nicht mehr auslösbar.
+awk '!/^  workflow_dispatch/' "$POLL_YML" > "$TMP_POLL_GUARD/ohne-dispatch.yml"
+! poll_dispatch_guard "$TMP_POLL_GUARD/ohne-dispatch.yml"
+assert_true "$?" "#284 F2: entferntes workflow_dispatch macht den Dispatch-Guard rot (Mutationsbeleg)"
+poll_permission_guard "$TMP_POLL_GUARD/ohne-dispatch.yml" 'contents: write'
+assert_true "$?" "#284 F2: Positivkontrolle ohne-dispatch.yml – permissions-Block bleibt unberührt"
+
+# AK3-Mutanten: der WHY-Kommentar am Runtime-Step bleibt in beiden Kopien stehen und nennt
+# „contents: write + issues: write" – ein dateiweiter grep wäre hier grün geblieben.
+awk '!/^  (contents|issues): write$/' "$POLL_YML" > "$TMP_POLL_GUARD/ohne-permissions.yml"
+! poll_permission_guard "$TMP_POLL_GUARD/ohne-permissions.yml" 'contents: write'
+assert_true "$?" "#284 AK3: gelöschter permissions-Block macht den Guard rot (Mutationsbeleg)"
+! poll_permission_guard "$TMP_POLL_GUARD/ohne-permissions.yml" 'issues: write'
+assert_true "$?" "#284 AK3: gelöschtes issues: write macht den Guard rot (Mutationsbeleg)"
+poll_dispatch_guard "$TMP_POLL_GUARD/ohne-permissions.yml"
+assert_true "$?" "#284 AK3: Positivkontrolle ohne-permissions.yml – workflow_dispatch bleibt unberührt"
+
+awk '{ sub(/^  contents: write$/, "  contents: read"); print }' \
+  "$POLL_YML" > "$TMP_POLL_GUARD/contents-read.yml"
+! poll_permission_guard "$TMP_POLL_GUARD/contents-read.yml" 'contents: write'
+assert_true "$?" "#284 AK3: auf contents: read abgeschwächte permission macht den Guard rot (Mutationsbeleg)"
+poll_permission_guard "$TMP_POLL_GUARD/contents-read.yml" 'issues: write'
+assert_true "$?" "#284 AK3: Positivkontrolle contents-read.yml – issues: write bleibt unberührt"
+
+! poll_permission_guard "$TMP_POLL_GUARD/gibt-es-nicht.yml" 'contents: write'
+assert_true "$?" "#284 AK6: nicht lesbare Datei lässt auch den permissions-Guard fehlschlagen (fail-closed)"
+
+rm -rf "$TMP_POLL_GUARD"
 
 # Verhalten: Guard-Pfade gegen gemocktes gh (kein echtes GitHub nötig).
 # Output erst in Variable fangen (grep -q + pipefail → sonst SIGPIPE-Falschrot).

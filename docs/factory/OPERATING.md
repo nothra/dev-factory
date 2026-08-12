@@ -131,9 +131,18 @@ Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 - Repo-Secret `ANTHROPIC_API_KEY` (oder `ANTHROPIC_BASE_URL`).
 - Labels existieren bereits (`factory::run/running/done/failed/interrupted`).
 - Optional Repo-**Variablen**: `FACTORY_MAX_RUNS_PER_DAY` (Default 5), `FACTORY_RUN_TIMEOUT` (Default 3600s).
+- **claude-CLI gepinnt und verifiziert installieren** – Vorbedingung, nicht optional: der Step
+  „Runtime bereitstellen" holt sie heute ungepinnt per `npm install -g` in einen Job mit
+  `contents: write` + `issues: write`. Seam analog `install-yq.sh` → Issue
+  [#290](https://github.com/nothra/tch-gastro-services/issues/290).
 - Steuerung erfolgt **ausschließlich** über das Label `factory::run` am Issue (bewusst per Hand).
+- **`schedule`-Trigger in `.github/workflows/factory-poll.yml` wieder eintragen** – er ist seit
+  #284 entfernt (siehe unten); ohne ihn läuft der Poll nur auf manuelles `workflow_dispatch`.
+  Dieser Punkt kommt **zuletzt**: er schaltet die Automatik scharf.
 
-> Default **aus**. Ohne `factory::run`-Label und ohne API-Key passiert nichts.
+> Default **aus**. Ohne `factory::run`-Label und ohne API-Key passiert nichts – und seit #284
+> zusätzlich ohne `schedule`-Trigger: Der Poll passiert nicht mehr von selbst, bleibt aber per
+> `workflow_dispatch` auf Knopfdruck verfügbar (ADR-008, Update 2026-08-12).
 
 ### 0.5 Optional: Telemetrie (Token/Kosten)
 
@@ -218,9 +227,14 @@ PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
 ### 1.3 Vollautomatisch, unbeaufsichtigt in CI
 
 Für Issues, die ganz ohne lokale Session laufen sollen: das Issue mit **`factory::run`** labeln.
-`factory-poll` (Scheduled Workflow, ADR-008) nimmt das älteste solche Issue und fährt
+`factory-poll` (ADR-008) nimmt das älteste solche Issue und fährt
 `run-pipeline.sh` selbst – **fail-closed hinter dem Budget-Guard** (Label-Eintrittstür +
 Concurrency=1 + Tageskappe). Voraussetzung: Async-Trigger scharfgeschaltet ([0.4](#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci)).
+
+> **Stand heute:** Der Poll läuft **nicht** von selbst – der `schedule`-Trigger ist seit #284
+> entfernt, `workflow_dispatch` ist der einzige Auslöser. Ein gelabeltes Issue wird also erst
+> abgearbeitet, wenn der Workflow von Hand gestartet oder der Schedule per [0.4](#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci)
+> wieder eingetragen wird.
 
 > Auch hier gilt 1.1: Ohne lokale `/requirements`-Sitzung ist der **Issue-Text die Spec**. Der
 > unbeaufsichtigte Pfad ist nur so gut wie die Anforderung im Issue – gut spezifizieren oder vorher

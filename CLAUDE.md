@@ -81,10 +81,12 @@ Verhalten der deployten Umgebung – CI-grün ≠ Produktion-grün. Check via
 `FACTORY_HEALTHCHECK_CMD` (beliebiger Smoke-Test, Vorrang) oder `FACTORY_HEALTHCHECK_URL`.
 Fehler → `POST_MERGE_FAIL`-Interrupt (ADR-007).
 
-**Async-Start (optional, ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`, nur in
-Scheduled Pipelines) startet die Pipeline für Issues mit Label `factory::run` – fail-closed
-hinter einem Budget-Guard (Label-Eintrittstür + Concurrency=1 + Tageskappe). Default aus;
-Aktivierung = Schedule + Labels + Auth-Variable (Spur B).
+**Async-Start (optional, ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`) startet
+die Pipeline für Issues mit Label `factory::run` – fail-closed hinter einem Budget-Guard
+(Label-Eintrittstür + Concurrency=1 + Tageskappe). Default aus; Aktivierung = Schedule + Labels
++ Auth-Variable (Spur B). Der `schedule`-Trigger ist seit #284 **stillgelegt** – der Workflow
+läuft nur auf manuelles `workflow_dispatch`; das Wiedereintragen ist Teil der
+Scharfschalt-Checkliste (`docs/factory/OPERATING.md` §0.4).
 
 Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Output in Dateien.
 

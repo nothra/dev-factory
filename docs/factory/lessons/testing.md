@@ -552,3 +552,31 @@ Server-Sortierung ändert), **bevor** der eigentliche Zielfall (z. B. ein *fehlg
 Kassieren, ein StatusToggle) ausgeführt wird. Ohne diesen vorgeschalteten Divergenz-Schritt ist der
 Test bestenfalls ein Wiring-Test, kein Freeze-Beweis – Spezialfall von #214 („grün aus dem
 falschen Grund"), hier auf Zustands-Freeze statt auf Fail-Pfad-Isolation zugeschnitten.
+
+### Positivkontrolle für einen Mutations-Fixture darf nicht denselben Fail-closed-Pfad eines anderen Guards teilen (aus #284, Review-Runde-2-Nitpick + /test-Selbstfund)
+
+Task #284s Guard-Familie (`poll_trigger_guard`/`poll_dispatch_guard`/`poll_permission_guard`)
+belegt Regressionen über `! poll_*_guard "$mutant.yml"`. Review-Runde 2 merkte an: dieser
+Fail-Pfad ist identisch mit dem Fail-closed-Fall „Datei nicht lesbar" (AK6) – bliebe die
+Mutanten-Datei aus (`mktemp` schlägt fehl, Redirect geht ins Leere), würden alle Belege grün,
+ohne etwas geprüft zu haben (Lesson #214-Klasse). Der Fix: je Mutant eine **Positivkontrolle** –
+ein anderer Guard soll gegen dieselbe Datei grün bleiben und damit Existenz + Parsbarkeit
+belegen. Der erste Versuch griff dafür auf einen **bereits vorhandenen** Mutanten zurück
+(`ohne-dispatch.yml`, gebaut um `poll_dispatch_guard` rot zu machen) und ließ `poll_trigger_guard`
+als Kontrolle darauf grün laufen – lief aber tatsächlich rot: `ohne-dispatch.yml` hat einen
+**leeren** `on:`-Block (Konstruktionsmerkmal, um `workflow_dispatch` fehlen zu lassen), und ein
+leerer `on:`-Block ist selbst eine Fail-closed-Vorbedingung von `poll_trigger_guard`
+(`[ -n "$on_block" ]`). Die Positivkontrolle für den einen Guard verletzte eine stille
+Vorbedingung eines anderen.
+
+**Smell:** „Ich baue eine Positivkontrolle, indem ich einen bereits vorhandenen Mutanten (gebaut,
+um EINEN Guard rot zu machen) für einen ANDEREN Guard als ‚sollte grün bleiben' wiederverwende –
+verletzt dieser Mutant eine eigene Fail-closed-Vorbedingung des zweiten Guards?"
+
+**Regel:** Eine Positivkontrolle beweist Datei-Existenz und Parsbarkeit nur, wenn sie einen
+Mutanten wählt, der ausschließlich das eine Zielsignal des jeweils **anderen** Ziel-Guards
+verändert und alle Vorbedingungen des Kontroll-Guards intakt lässt – nicht reflexhaft den
+nächstliegenden vorhandenen Mutanten wiederverwenden. Die Kontrolle tatsächlich laufen lassen und
+beobachten, ob sie wirklich grün wird: RED-vor-GREEN gilt auch für Positivkontrollen, nicht nur
+für Negativtests. Ergänzt #214 („Negativtest auf Zielpfad isolieren") – hier ist es der
+**grüne** Kontroll-Pfad, der isoliert werden muss.

@@ -71,6 +71,16 @@ printf '%s' "$out" | grep -q muster
 
 **Bit uns:** Test-Suite-Fälle (#23, #24 – Vorrang-/Guard-Checks wurden fälschlich rot).
 
+**Verschärfung bei Negation (aus #284):** Wird das Pipe-Ergebnis zusätzlich negiert
+(`! producer | grep -q muster`, etwa um „Muster NICHT gefunden" zu prüfen), kippt die
+SIGPIPE-Falle von Falschrot in **Falschgrün**: Im Fund-Fall liefert die Pipe unter `pipefail`
+exit 141 (SIGPIPE des Producers), die vorangestellte Negation macht daraus 0 – der Guard meldet
+„nicht gefunden", obwohl das Muster da war. Betroffen ist damit ausgerechnet der Fall, den der
+Guard fangen soll; ein still versagender Guard ohne sichtbaren Fehlschlag. Fix bleibt identisch:
+Producer-Output zuerst einfangen (Variable/Here-String), dann greppen – keine Pipe, die ein
+SIGPIPE erzeugen kann. In #284 bewusst so konstruiert (Here-String statt Pipe für
+`poll_trigger_guard`), bevor die Falle zuschlagen konnte.
+
 ---
 
 ## 4. `"${arr[@]}"` bei leerem Array unter `set -u` → „unbound variable" (bash < 4.4 / macOS 3.2)
