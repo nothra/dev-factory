@@ -49,12 +49,30 @@ obwohl „alles committed" aussieht. Das Repo hat bereits eine `pnpm-workspace.y
 **Regel:** In diesem Projekt (pnpm@11) gehören `overrides` und andere pnpm-Settings in
 **`pnpm-workspace.yaml`** (Top-Level-Key `overrides:`), nicht in ein `pnpm`-Feld der
 `package.json`. Bei Security-Overrides die **konditionale** Selektor-Form nutzen
-(`"postcss@<8.5.10": ">=8.5.10"`), damit spätere legitime Parent-Upgrades nicht blockiert werden,
+(`"postcss@<8.5.23": "^8.5.23"`), damit spätere legitime Parent-Upgrades nicht blockiert werden,
 und den Grund + GHSA + Entfern-Kriterium als Kommentar danebenschreiben. **Nachweis ist Pflicht**,
-weil die Fehl-Platzierung still durchgeht: nach `pnpm install` mit `pnpm audit` **und** `pnpm why
-<paket>` belegen, dass die verwundbare Version wirklich aus dem Baum ist – nicht auf die Abwesenheit
-einer Fehlermeldung vertrauen. Overrides sind „sticky": Sobald die Parents die Patches selbst
-mitbringen, werden sie zu No-ops und sollten entfernt werden (Follow-up-Issue #169).
+weil die Fehl-Platzierung still durchgeht: nach `pnpm install` die im **Lockfile aufgelöste**
+Version belegen (`pnpm why <paket>` bzw. Lockfile-Prüfung) – ergänzend die Dependabot-API, aber
+**nicht** `pnpm audit`: das ist in dieser Umgebung wegen des Gzip-Decoding-Bugs nicht belastbar
+(eigener Eintrag unten, #228). Nicht auf die Abwesenheit einer Fehlermeldung vertrauen.
+
+**Ziel-Range immer als Caret innerhalb derselben Major-Linie** (`^1.1.18`, nicht `>=1.1.18`, aus
+#291): Ein offenes `>=` lässt pnpm auf die neueste Major springen und schiebt damit einen
+Major-Bump in einen Baum, der ihn nicht angefordert hat – `">=2.1.4"` hob die von `minimatch@3`
+erwartete `brace-expansion@1.1.15` über die Major-Grenze auf 2.x, und der Alt-Eintrag
+`"uuid@<11.1.1": ">=11.1.1"` löst bis heute auf **14.0.1** auf, obwohl `exceljs` `^8.3.2`
+deklariert. Trägt ein Paket Advisories in zwei Major-Linien, brauchen die Selektoren **disjunkte**
+Grenzen (`brace-expansion@<1.1.18` **und** `brace-expansion@>=2.0.0 <2.1.4`) – ohne die untere
+Schranke greift der 2er-Selektor auch auf 1.1.x.
+
+**Overrides sind „sticky", aber nicht automatisch No-ops, sobald die Parents nachziehen** – die
+Vermutung ist zu messen, nicht anzunehmen (aus #291, das den Follow-up #169 erledigt): `esbuild@<0.25.0`
+sah wie ein No-op aus, ist aber keiner (ohne den Eintrag kommt `esbuild@0.18.20` zurück, durch
+Entfernen + Neuinstallation belegt); `nanoid@<3.3.17` dagegen ist einer, weil sein einziger
+Konsument `postcss@8.5.26` selbst `^3.3.17` deklariert. Methode für beide Fälle: Eintrag entfernen,
+neu auflösen, aufgelöste Version prüfen. Und das Entfern-Kriterium nur dort in den Kommentar
+schreiben, wo es erreichbar ist – `next` pinnt `postcss` **exakt** auf `8.4.31`, dieser Override
+wird also dauerhaft gebraucht.
 
 ### Turbopack/Vercel: Node-Libs mit Laufzeit-`fs.readFileSync(__dirname + …)` externalisieren (aus #193)
 

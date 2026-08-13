@@ -115,3 +115,46 @@
   streichen.
 - **Herkunft:** #283 (`/review` zu #258, Runde 3), geschlossen am 2026-08-06. Fundstellen
   verifiziert am 2026-08-06.
+
+### Alt-Overrides `esbuild`/`uuid` tragen offene `>=`-Ziel-Ranges
+
+- **Wo:** [`pnpm-workspace.yaml:66-67`](../../pnpm-workspace.yaml) –
+  `"esbuild@<0.25.0": ">=0.25.0"` und `"uuid@<11.1.1": ">=11.1.1"`.
+- **Was:** Beide verletzen die mit #291 in derselben Datei (`:15-18`) aufgestellte Regel
+  „Ziel-Range immer als Caret innerhalb derselben Major-Linie". Wirkung ist messbar: `uuid`
+  löst auf **14.0.1** auf, während `exceljs@4.4.0` `uuid: ^8.3.2` deklariert – drei Major-Linien
+  über dem Floor 11.1.1. Ein offenes `>=` lässt pnpm auf die neueste Major springen; genau
+  dieser Mechanismus hätte in #291 auch `brace-expansion@1.x` auf 2.x gehoben.
+- **Warum es zählt:** latentes Bruchrisiko im Bericht-Renderer (`exceljs` läuft auf einer
+  `uuid`-Major, die es nicht deklariert) – heute unauffällig, weil Tests, Typecheck und Build
+  mit 14.0.1 grün sind, also kein reproduzierbarer Defekt und deshalb kein Issue.
+- **Fix:** Ziel-Ranges auf `"^0.25.0"` bzw. `"^11.1.1"` umstellen (zwei Zeilen) und einmal
+  `install` + Gates laufen lassen, weil sich dabei die aufgelösten Versionen von `esbuild` und
+  `uuid` ändern. Deshalb nicht in #291 mitgenommen: dessen Spec schließt Änderungen an
+  `pnpm-workspace.yaml` über die alert-behafteten Einträge hinaus aus.
+- **Herkunft:** #291 (`/review`, Runde 1). Fundstelle verifiziert am 2026-08-13.
+
+### Override-Selektoren ohne untere Schranke greifen auf ältere Major-Linien über
+
+- **Wo:** [`pnpm-workspace.yaml:60,63-65`](../../pnpm-workspace.yaml) – `"postcss@<8.5.23"`,
+  `"sharp@<0.35.0"`, `"undici@<7.29.0"`, `"js-yaml@<4.3.1"`.
+- **Was:** Vier der sechs #291-Selektoren sind nach unten offen und passen damit auch auf
+  ältere Major-Linien desselben Pakets: `js-yaml@<4.3.1` matcht `js-yaml@3.14.x`,
+  `undici@<7.29.0` matcht `undici@5/6`, `postcss@<8.5.23` matcht `postcss@7`. Zieht künftig ein
+  Paket eine solche Kopie in den Baum, hebt der Override sie über die Major-Grenze – der
+  Caret-Ziel-Range (`^4.3.1`) verhindert das **nicht**, er begrenzt nur nach oben. Exakt dieser
+  Mechanismus ist in #291 bei `brace-expansion` empirisch eingetreten und wurde dort mit einem
+  disjunkten Selektor (`>=2.0.0 <2.1.4`) behoben – die vier übrigen blieben unbegrenzt, weil im
+  aktuellen Baum keine ältere Major-Kopie existiert (am 2026-08-13 im Lockfile geprüft:
+  je genau eine aufgelöste Kopie, alle in der Ziel-Major).
+- **Warum es zählt:** kein Sicherheitsrisiko und heute kein Defekt – der Auslöser (ältere
+  Major-Kopie im Baum) ist in diesem Repo derzeit nicht herstellbar, deshalb kein Issue. Bei
+  `js-yaml` wäre die Folge aber hart: 4.x hat `safeLoad`/`safeDump` entfernt, ein
+  zwangs-gehobenes 3.x-Dev-Tool bräche zur Laufzeit.
+- **Fix:** untere Schranke ergänzen, analog zum `brace-expansion@2.x`-Eintrag – z. B.
+  `"js-yaml@>=4.0.0 <4.3.1"`, `"undici@>=7.0.0 <7.29.0"` (vier Zeilen). Die Vulnerable-Ranges
+  der Advisories nennen die Untergrenze bereits (`>= 7.0.0, < 7.29.0` bzw. `>= 4.0.0, < 4.3.1`);
+  bei `postcss`/`sharp` ist sie aus den Advisory-Daten abzuleiten. Danach einmal `install` +
+  Gates, obwohl sich am aufgelösten Baum nichts ändern sollte.
+- **Herkunft:** #291 (`/security-review`). Fundstelle und Lockfile-Auflösung verifiziert am
+  2026-08-13.

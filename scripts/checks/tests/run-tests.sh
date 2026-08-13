@@ -5021,6 +5021,188 @@ ADR043="$FACTORY_ROOT/docs/adr/043-schwelle-fuer-autonome-issue-anlage.md"
 adr043_status_line="$(awk '/^## Status/{found=1; next} found && NF {print; exit}' "$ADR043")"
 assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-043 Status ist auf 'Accepted' geflippt"
 
+# ─── #291: Dependency-Security-Floors (Dependabot-Alerts) ────────────────────
+# Die Alerts aus #291 sind über einen next-Bump plus konditionale Overrides in
+# pnpm-workspace.yaml geschlossen. Ohne Guard rutscht eine dieser Auflösungen bei der
+# nächsten Lockfile-Erneuerung lautlos wieder unter ihren Patch-Floor zurück. Geprüft wird
+# deshalb die im Lockfile AUFGELÖSTE Version (Spec-291: ein Override wirkt erst, wenn er im
+# Lockfile ankommt), nicht die Deklaration in package.json.
+echo "#291 Dependency-Security-Floors (aufgelöste Lockfile-Versionen):"
+
+LOCKFILE_291="$FACTORY_ROOT/pnpm-lock.yaml"
+PKG_JSON_291="$FACTORY_ROOT/package.json"
+WORKSPACE_YAML_291="$FACTORY_ROOT/pnpm-workspace.yaml"
+
+# Fail-closed: ohne lesbare Quellen ist keine Aussage möglich – ein stiller Leer-Durchlauf
+# wäre grün aus dem falschen Grund (Lesson testing.md, #214).
+assert_true "$([ -r "$LOCKFILE_291" ] && [ -r "$PKG_JSON_291" ] && [ -r "$WORKSPACE_YAML_291" ]; echo $?)" \
+  "#291: pnpm-lock.yaml, package.json und pnpm-workspace.yaml sind lesbar (Voraussetzung der Floor-Prüfung)"
+
+# lock_versions_291 <paket> <major> <lockfile> – alle aufgelösten Versionen des Pakets
+# innerhalb EINER Major-Linie, aufsteigend sortiert, eine je Zeile. Die Major-Linie gehört zum
+# Schlüssel, weil derselbe Paketname mehrfach mit unterschiedlichen Floors im Baum liegt
+# (brace-expansion 1.x und 2.x tragen verschiedene Advisories). Peer-Suffixe wie
+# "(react@19.2.4)" und der abschließende Doppelpunkt werden abgeschnitten.
+lock_versions_291() {
+  grep -E "^  $1@$2\." "$3" | sed -E "s/^  $1@//; s/[(:].*$//" | sort -u -V
+}
+
+# version_below_291 <version> <floor> – 0, wenn version echt kleiner als floor ist.
+version_below_291() {
+  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
+}
+
+# versions_below_floor_291 <paket> <major> <floor> <lockfile> – gibt die aufgelösten
+# Versionen unterhalb des Floors aus (leer = sauber). Kein Fund bei komplett fehlendem Paket
+# ist korrekt: dann existiert auch keine verwundbare Kopie mehr.
+versions_below_floor_291() {
+  local v below=""
+  while read -r v; do
+    [ -n "$v" ] || continue
+    version_below_291 "$v" "$3" && below="$below $v"
+  done <<< "$(lock_versions_291 "$1" "$2" "$4")"
+  printf '%s' "$below"
+}
+
+# Format: "<paket>|<major>|<floor>|<herkunft im Baum>"
+floor_cases_291=(
+  "postcss|8|8.5.23|runtime, via next"
+  "nanoid|3|3.3.17|runtime, via postcss"
+  "brace-expansion|1|1.1.18|runtime, via minimatch@3"
+  "brace-expansion|2|2.1.4|runtime, via minimatch@5"
+  "sharp|0|0.35.0|runtime, via next (Bildoptimierung)"
+  "undici|7|7.29.0|development, via jsdom"
+  "js-yaml|4|4.3.1|development, via eslint"
+)
+
+for case_291 in "${floor_cases_291[@]}"; do
+  IFS='|' read -r pkg_291 major_291 floor_291 herkunft_291 <<< "$case_291"
+  below_291="$(versions_below_floor_291 "$pkg_291" "$major_291" "$floor_291" "$LOCKFILE_291")"
+  assert_true "$([ -z "$below_291" ]; echo $?)" \
+    "#291 AK3/AK4/AK6: keine aufgelöste ${pkg_291}@${major_291}.x-Kopie unter ${floor_291} (${herkunft_291})${below_291:+ – gefunden:${below_291}}"
+done
+
+# Mutationsbeleg für den Floor-Vergleich: dieselbe Extraktions-/Vergleichskette gegen eine
+# Fixture mit einer bewusst zu alten Kopie MUSS anschlagen. Ohne diesen Beleg wiese ein
+# tippfehlerhaftes Extraktionsmuster (das nie etwas findet) sieben grüne, vakuose Tests aus.
+mut_lock_291="$(mktemp)"
+printf '  postcss@8.5.16:\n  postcss@8.5.23:\n' > "$mut_lock_291"
+mut_below_291="$(versions_below_floor_291 postcss 8 8.5.23 "$mut_lock_291")"
+assert_true "$([ "$mut_below_291" = " 8.5.16" ]; echo $?)" \
+  "#291 Mutationsbeleg: Floor-Kette meldet auf einer Fixture mit postcss@8.5.16 genau diese Version (ist: '${mut_below_291}')"
+rm -f "$mut_lock_291"
+
+# AK-1/AK-2: next exakt gepinnt, oberhalb des Floors, und eslint-config-next im Lockstep.
+# pkg_pin_291 <paket> <package.json> – die deklarierte Version, ohne Range-Präfix zu raten.
+pkg_pin_291() {
+  grep -oE "\"$1\": \"[^\"]+\"" "$2" | head -1 | sed -E 's/^[^:]*: "//; s/"$//'
+}
+
+next_pin_291="$(pkg_pin_291 next "$PKG_JSON_291")"
+eslint_next_pin_291="$(pkg_pin_291 eslint-config-next "$PKG_JSON_291")"
+
+# Exakter Pin zuerst prüfen: gegen "^16.2.12" wäre der nachfolgende Floor-Vergleich bedeutungslos.
+assert_true "$(printf '%s' "$next_pin_291" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; echo $?)" \
+  "#291 AK1: package.json pinnt next exakt, ohne ^/~ (ist: '${next_pin_291}')"
+assert_true "$([ -n "$next_pin_291" ] && ! version_below_291 "$next_pin_291" "16.2.12"; echo $?)" \
+  "#291 AK1: package.json pinnt next auf >= 16.2.12 (ist: '${next_pin_291}')"
+assert_true "$([ -n "$eslint_next_pin_291" ] && [ "$eslint_next_pin_291" = "$next_pin_291" ]; echo $?)" \
+  "#291 AK2: eslint-config-next trägt dieselbe Version wie next (ist: '${eslint_next_pin_291}')"
+
+# Der Pin allein genügt nicht (AK-1 verlangt dieselbe Version im Lockfile): genau eine
+# aufgelöste next-Version, und die deckungsgleich mit der Deklaration.
+lock_next_291="$(lock_versions_291 next "${next_pin_291%%.*}" "$LOCKFILE_291")"
+assert_true "$([ -n "$lock_next_291" ] && [ "$lock_next_291" = "$next_pin_291" ]; echo $?)" \
+  "#291 AK1: pnpm-lock.yaml löst next auf genau die deklarierte Version auf (ist: '$(printf '%s' "$lock_next_291" | tr '\n' ' ')')"
+
+# AK-5: jeder Override ist konditional, trägt also eine obere Schranke (@<floor bzw.
+# @>=x <floor) – ein unbedingter Eintrag würde auch spätere legitime Upgrades der Parents
+# festnageln (Muster aus #167).
+# override_keys_291 <workspace-yaml> – alle Eintragszeilen des overrides:-Blocks. Bewusst
+# NICHT auf /^  "/ verengt: YAML erlaubt unquotierte Schlüssel und Prettier ergänzt keine
+# Quotes, ein solcher Eintrag fiele sonst aus der Extraktion und liefe damit lautlos an der
+# Konditionalitäts-Prüfung vorbei, statt als Verstoß gemeldet zu werden.
+override_keys_291() {
+  awk '/^overrides:/{f=1; next} /^[^[:space:]#]/{f=0} f && /^  [^ #]/ {print}' "$1"
+}
+
+# unconditional_overrides_291 <eintragszeilen> – die Einträge OHNE obere Schranke im Selektor.
+# `"?` und `[^:"]` decken quotierte wie unquotierte Schlüssel ab; die Zeichenklasse endet am
+# Doppelpunkt, damit die Ziel-Range rechts davon den Selektor nicht scheinbar konditional macht.
+unconditional_overrides_291() {
+  printf '%s\n' "$1" | grep -vE '^  "?[^:"]*@[^:"]*<[0-9]' || true
+}
+
+overrides_keys_291="$(override_keys_291 "$WORKSPACE_YAML_291")"
+assert_true "$([ -n "$overrides_keys_291" ]; echo $?)" \
+  "#291 AK5: overrides:-Block in pnpm-workspace.yaml ist auslesbar und nicht leer"
+unconditional_291="$(unconditional_overrides_291 "$overrides_keys_291")"
+assert_true "$([ -z "$unconditional_291" ]; echo $?)" \
+  "#291 AK5: alle overrides-Einträge sind konditional (obere Schranke im Selektor)${unconditional_291:+ – unbedingt: $(printf '%s' "$unconditional_291" | tr -d ' ')}"
+
+# Negativ-Kontrolle zum Konditionalitäts-Guard: derselbe Ausdruck MUSS einen unbedingten
+# Eintrag melden. Ohne sie wäre nicht unterscheidbar, ob der Guard prüft oder das Muster nur
+# auf jede Zeile passt (Lesson testing.md: Mutationsbeleg mit demselben Assert-Ausdruck).
+mut_ovr_291='  "postcss": "^8.5.23"'
+assert_true "$([ -n "$(unconditional_overrides_291 "$mut_ovr_291")" ]; echo $?)" \
+  "#291 Mutationsbeleg AK5: derselbe Ausdruck meldet einen unbedingten Eintrag ('postcss' ohne @<floor) als Verstoß"
+
+# Blindfleck-Kontrolle für den unquotierten Fall, in beide Richtungen: die Extraktion muss
+# beide Zeilen sehen, und der Konditionalitäts-Ausdruck darf davon GENAU den unbedingten
+# Eintrag melden – sonst wäre nicht unterscheidbar, ob er unquotierte Schlüssel prüft oder
+# pauschal durchwinkt bzw. pauschal meldet (Lesson testing.md, Diskriminierungs-Kontrolle).
+mut_ws_291="$(mktemp)"
+printf 'overrides:\n  nanoid@<3.3.17: "^3.3.17"\n  nanoid: "^3.3.17"\n' > "$mut_ws_291"
+mut_keys_291="$(override_keys_291 "$mut_ws_291")"
+assert_true "$([ "$(printf '%s\n' "$mut_keys_291" | grep -c .)" = "2" ]; echo $?)" \
+  "#291 Mutationsbeleg AK5: die Extraktion sieht auch UNQUOTIERTE Override-Schlüssel (2 Einträge erwartet)"
+assert_true "$([ "$(unconditional_overrides_291 "$mut_keys_291")" = '  nanoid: "^3.3.17"' ]; echo $?)" \
+  "#291 Mutationsbeleg AK5: derselbe Ausdruck meldet vom unquotierten Paar nur den unbedingten Eintrag"
+rm -f "$mut_ws_291"
+
+# AK-5 zweite Hälfte: die Ziel-Range bleibt in derselben Major-Linie (Caret), sonst hebt pnpm
+# über die Major-Grenze – in #291 empirisch passiert, als ">=2.1.4" die von minimatch@3
+# erwartete brace-expansion@1.1.15 auf 2.x zog.
+assert_true "$(grep -qxF -- '  "brace-expansion@<1.1.18": "^1.1.18"' "$WORKSPACE_YAML_291"; echo $?)" \
+  "#291 AK5: brace-expansion@1.x-Override hebt innerhalb der 1er-Linie (^1.1.18)"
+assert_true "$(grep -qxF -- '  "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"' "$WORKSPACE_YAML_291"; echo $?)" \
+  "#291 AK5: brace-expansion@2.x-Override ist nach unten begrenzt (>=2.0.0) und greift nicht auf 1.x über"
+
+# Caret-Regel projektweit für ALLE neuen #291-Einträge, nicht nur brace-expansion – sharp/
+# undici/js-yaml tragen dieselbe Ziel-Range-Form und dürfen bei einem künftigen Umstellen auf
+# ">=" nicht unbemerkt durchrutschen. Die Alt-Einträge esbuild/uuid behalten bewusst die offene
+# Form (Kleinfund docs/factory/kleinfunde.md) und sind darum explizit ausgenommen.
+# caret_violations_291 <eintragszeilen> – Einträge (außer esbuild/uuid), deren Ziel-Range
+# NICHT als Caret geschrieben ist.
+caret_violations_291() {
+  printf '%s\n' "$1" | grep -vE '^  "?(esbuild|uuid)@' | grep -vE ': "\^[0-9]' || true
+}
+
+caret_violations_291="$(caret_violations_291 "$overrides_keys_291")"
+assert_true "$([ -z "$caret_violations_291" ]; echo $?)" \
+  "#291 AK5: alle Ziel-Ranges außer esbuild/uuid sind Caret-gebunden${caret_violations_291:+ – offen:${caret_violations_291}}"
+
+# Diskriminierungs-Kontrolle: der Guard muss einen echten Verstoß melden UND die esbuild-
+# Ausnahme unauffällig lassen – sonst wäre nicht unterscheidbar, ob er wirklich prüft oder
+# die Ausnahmeliste einfach alles durchwinkt (Lesson testing.md, #286).
+mut_caret_291='  "foo@<1.0.0": ">=1.0.0"
+  "esbuild@<0.25.0": ">=0.25.0"'
+mut_caret_viol_291="$(caret_violations_291 "$mut_caret_291")"
+assert_true "$([ "$mut_caret_viol_291" = '  "foo@<1.0.0": ">=1.0.0"' ]; echo $?)" \
+  "#291 Mutationsbeleg AK5: Caret-Guard meldet nur den nicht ausgenommenen Verstoß, esbuild-Ausnahme bleibt unauffällig (ist: '${mut_caret_viol_291}')"
+
+# AK-7 (#169): der postcss-Eintrag ist ANGEHOBEN (8.5.10 → 8.5.23), nicht dupliziert – genau
+# ein postcss-Override, und zwar auf dem aktuellen Floor. Der esbuild-Eintrag BLEIBT: er ist
+# nachweislich kein No-op (ohne ihn löst der Baum esbuild@0.18.20 auf, in #291 durch Entfernen
+# + Neuinstallation verifiziert), und der No-op-Verdacht aus #169 ist damit widerlegt.
+postcss_ovr_count_291="$(printf '%s\n' "$overrides_keys_291" | grep -cE '^  "?postcss@' || true)"
+assert_true "$([ "$postcss_ovr_count_291" = "1" ]; echo $?)" \
+  "#291 AK7: genau ein postcss-Override in pnpm-workspace.yaml, kein zweiter Floor daneben (ist: $postcss_ovr_count_291)"
+assert_true "$(grep -qxF -- '  "postcss@<8.5.23": "^8.5.23"' "$WORKSPACE_YAML_291"; echo $?)" \
+  "#291 AK7: der bestehende postcss-Override ist auf 8.5.23 angehoben (nicht mehr <8.5.10)"
+assert_true "$(grep -qE '^  "esbuild@<0\.25\.0"' "$WORKSPACE_YAML_291"; echo $?)" \
+  "#291 AK7: esbuild-Override bleibt erhalten (kein No-op – ohne ihn kommt esbuild@0.18.20 zurück)"
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"
