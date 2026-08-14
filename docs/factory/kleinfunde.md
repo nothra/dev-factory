@@ -158,3 +158,23 @@
   Gates, obwohl sich am aufgelösten Baum nichts ändern sollte.
 - **Herkunft:** #291 (`/security-review`). Fundstelle und Lockfile-Auflösung verifiziert am
   2026-08-13.
+
+### `start-work.sh` erkennt einen wiederverwendeten Worktree nicht hinter einem Pfad-Symlink
+
+- **Wo:** [`scripts/start-work.sh:208`](../../scripts/start-work.sh) –
+  `if git -C "$FACTORY_DIR" worktree list --porcelain | grep -qxF "worktree $WORKDIR"; then`
+- **Was:** `git worktree list --porcelain` meldet den **aufgelösten** Pfad, `$WORKDIR` ist der
+  unaufgelöste. Enthält der Worktree-Pfad irgendwo einen Symlink – auf macOS bereits bei jedem
+  `mktemp -d` unter `/var/folders` → `/private/var/folders` –, matcht der exakte Vergleich nie
+  und es feuert stattdessen der Nachbar-Zweig `:210` („Pfad existiert bereits (kein Worktree)").
+- **Warum es zählt:** kein funktionaler Defekt – `:209` und `:211` sind beide reine `echo`-Zweige
+  ohne Folgeaktion, der Ablauf fällt in beiden Fällen identisch in den Kopier- und
+  `pnpm install`-Block durch. Der Schaden ist ausschließlich eine irreführende Meldung
+  („kein Worktree", obwohl es einer ist). Auslöser reproduzierbar, Wirkung nur Ausgabe →
+  Sammeldatei statt Issue.
+- **Fix:** vor dem Vergleich auflösen, z. B. `grep -qxF "worktree $(cd "$WORKDIR" 2>/dev/null &&
+  pwd -P || printf '%s' "$WORKDIR")"`. Unter zehn Zeilen; ein Testfall im #74-Block wäre
+  mitzunehmen (die dortigen Fixtures liegen unter `mktemp -d`, treffen den Fall also bereits).
+- **Herkunft:** #74 (Ursprung), aufgefallen in #236 (`/implement`-Selbstfund), klassifiziert in
+  `/review` #236 Runde 2. Fundstelle verifiziert am 2026-08-14 (die Task-Notiz zu #236 nannte
+  `:206` – das ist eine Leerzeile, der Anker war um zwei Zeilen verschoben).

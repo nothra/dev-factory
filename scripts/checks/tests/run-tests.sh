@@ -47,6 +47,44 @@ assert_true() {
   fi
 }
 
+# flat_286 <datei> – Datei-Inhalt lesen, Zeilenumbrüche durch Leerzeichen ersetzt.
+# Mehrwort-Content-Checks gegen Markdown-Prosa prüfen eine Aussage, keine Kommando-/Aufrufzeile –
+# ein harmloser Umbruch mitten im Satz macht einen reinen `grep -qF`-Mehrwort-Anker sonst lautlos
+# rot (Präsenz-Guard) bzw. lautlos grün (Abwesenheits-Guard). Lesson factory-workflow.md
+# ("grep -qF-Fixed-String-Regressionstest gegen Markdown-Prosa", #240/#249/#286): ab zwei
+# Mehrwort-Checks gegen dieselbe Datei lohnt der Helper mehr als Zeilen-für-Zeile-Vorsicht.
+# Der Namenssuffix stammt aus dem #286-Block, in dem der Helper entstand; er steht hier oben,
+# weil ihn inzwischen mehrere Blöcke nutzen (#236, #286).
+# Das zweite `tr` fasst Leerzeichen-Folgen zusammen: der dominante Markdown-Stil dieser Doku
+# rückt Folgezeilen um zwei Leerzeichen ein, sonst wäre die Umbruch-Toleranz genau bei
+# eingerückten Fortsetzungen wieder wirkungslos. Preis: Phrasen mit MEHREREN aufeinander
+# folgenden Leerzeichen sind über diesen Lesepfad nicht ankerbar.
+flat_286() { tr '\n' ' ' < "$1" | tr -s ' '; }
+
+# assert_contains_286 <geflachter-inhalt> <phrase> <beschreibung>
+# Verdichtet das wiederkehrende "enthält der geflachte Inhalt die Phrase?" auf einen Aufruf.
+assert_contains_286() {
+  printf '%s' "$1" | grep -qF "$2"
+  assert_true "$?" "$3"
+}
+
+# assert_absent <haystack> <phrase> <beschreibung>
+# Spiegel zu assert_contains_286: die Phrase darf NICHT vorkommen. Kapselt die Subtilität, dass
+# `$?` beim Expandieren der Command Substitution aus dem Elternkontext geerbt wird – ausgeschrieben
+# (`assert_true "$([ $? -ne 0 ]; echo $?)"`) ist das korrekt, aber an jeder Aufrufstelle neu zu
+# entziffern.
+assert_absent() {
+  printf '%s' "$1" | grep -qF "$2"
+  assert_true "$([ $? -ne 0 ]; echo $?)" "$3"
+}
+
+# ls_mode_matches <datei> <modus-präfix, z. B. '-rw-------'>
+# Modus-Vergleich über `ls -l` (die `stat`-Flags sind zwischen BSD und GNU unvereinbar).
+# Präfix-Match, weil macOS bei ACLs/xattrs ein '+'/'@' an die Modus-Spalte anhängt.
+ls_mode_matches() {
+  case "$(ls -l "$1" 2>/dev/null)" in "$2"*) return 0 ;; *) return 1 ;; esac
+}
+
 # yq ist Prerequisite für run-pipeline.sh (ADR-009 A: verbindlich, kein Fallback) –
 # ABER die Test-Suite bleibt yq-frei lauffähig: Struktur-Checks (grep) laufen immer,
 # yq-abhängige Resolution-/Config-Wert-Checks (und Tests, die run-pipeline.sh starten)
@@ -1919,6 +1957,334 @@ asp_err=$( cd "$REPO_SW" && PATH="$TMP_SW/bin:$PATH" FACTORY_DIR="$REPO_SW" FACT
 assert_exit 1 "$asp_rc" "#82: start-work --labels ohne Wert → exit 1 (kein wortloser set-e-Abbruch)"
 printf '%s' "$asp_err" | grep -q -- '--labels erwartet einen Wert'
 assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
+
+# ─── #236: .env.local in den neuen Worktree spiegeln ─────────────────────────
+# Die Datei ist gitignored und wandert beim 'worktree add' nicht mit, alle DEV-Skripte
+# laden sie aber per 'dotenv -e .env.local' (#228). Fixtures von oben werden bewusst
+# wiederverwendet (gh-Stub, Wegwerf-Repo REPO_SW/REPO_IP, FACTORY_WT_SKIP_INSTALL=1).
+echo ""
+echo "#236 .env.local-Spiegelung in neue Worktrees:"
+
+# run_start_work <worktree-basis> <task-id> <desc> [extra-env]
+# start-work.sh im Worktree-Default gegen REPO_SW; gibt stdout+stderr zurück, damit die
+# Output-Kriterien (Kopier-/Überspringen-Meldung, db:seed-Hinweis) prüfbar sind.
+run_start_work() {
+  # "${@:4}" statt ${4:-}: das gewollte Word-Splitting bleibt, die zusätzliche (ungewollte)
+  # Pathname-Expansion des Werts entfällt.
+  ( cd "$REPO_SW" && env "${@:4}" PATH="$TMP_SW/bin:$PATH" \
+      FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
+      FACTORY_WORKTREE_BASE="$1" FACTORY_WT_SKIP_INSTALL=1 \
+      bash "$SW" "$2" "$3" ) 2>&1
+}
+
+# AK2/AK7: bewusst VOR dem Anlegen der Quelle – so ist „Quelle fehlt" echt und nicht
+# nur ein Nebeneffekt einer späteren Testreihenfolge.
+WT_NOENV="$TMP_SW/wt-236-noenv/feature-780-demo-noenv"
+OUT_NOENV=$(run_start_work "$TMP_SW/wt-236-noenv" 780 demo-noenv); RC_NOENV=$?
+assert_exit 0 "$RC_NOENV" "#236 AK2: fehlende .env.local im Quellbaum (\$FACTORY_DIR) → start-work endet mit exit 0"
+# Existenz-Anker vor jeder Abwesenheits-Prüfung: „keine Datei unter <pfad>" ist auch dann wahr,
+# wenn es <pfad> gar nicht gibt – ein Tippfehler oder ein geändertes Slug-Schema in start-work.sh
+# (WORKDIR="$WT_BASE/${BRANCH_NAME//\//-}") entwertete die Assertion sonst lautlos.
+assert_true "$([ -d "$WT_NOENV" ]; echo $?)" \
+  "#236 AK2: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+[ ! -e "$WT_NOENV/.env.local" ]
+assert_true "$?" "#236 AK2: ohne Quelle entsteht keine .env.local im Worktree"
+assert_absent "$OUT_NOENV" 'pnpm db:seed' "#236 AK7: ohne Kopie kein db:seed-Hinweis im Abschluss-Output"
+
+# Quelle im Quellbaum ($FACTORY_DIR, in dieser Fixture zugleich der Haupt-Baum):
+# Modus 600 (AK5) + eindeutiger Inhalt (AK1 prüft byte-identisch).
+printf 'DATABASE_URL=postgres://demo\nSEED_ADMIN_EMAIL=a@b\n' > "$REPO_SW/.env.local"
+chmod 600 "$REPO_SW/.env.local"
+
+OUT_COPY=$(run_start_work "$TMP_SW/wt-236-env" 781 demo-env)
+WT_ENV="$TMP_SW/wt-236-env/feature-781-demo-env/.env.local"
+cmp -s "$REPO_SW/.env.local" "$WT_ENV"
+assert_true "$?" "#236 AK1: .env.local liegt byte-identisch im neuen Worktree"
+printf '%s' "$OUT_COPY" | grep -qF '.env.local kopiert (Quelle:'
+assert_true "$?" "#236 AK1: der Output nennt das Kopieren der .env.local"
+assert_true "$(ls_mode_matches "$WT_ENV" '-rw-------'; echo $?)" \
+  "#236 AK5: die Kopie behält Modus 600"
+printf '%s' "$OUT_COPY" | grep -qF 'pnpm db:seed'
+assert_true "$?" "#236 AK6: nach der Kopie nennt der Abschluss-Output pnpm db:seed"
+# AK6 fordert Direktive UND Begründung („die geteilte lokale DB kennt die SEED_ADMIN_*-Daten
+# evtl. noch nicht"). Ohne eigene Assertion ließe sich die Begründungszeile ersatzlos löschen,
+# ohne dass die Suite es merkt (Lesson #117: je separierbaren AK-Teil eine eigene Assertion).
+printf '%s' "$OUT_COPY" | grep -qF 'SEED_ADMIN_*-Daten evtl. noch nicht'
+assert_true "$?" "#236 AK6: der db:seed-Hinweis nennt auch seine Begründung (SEED_ADMIN_*-Daten)"
+
+# Diskriminierung für 'cp -p': bei einer 600er-Quelle liefert auch ein 'cp' OHNE -p am Ziel 600
+# (die umask kann nur Bits entfernen) – erst eine 664er-Quelle trennt die beiden Varianten.
+# Das 'umask 022' macht die Trennung umgebungsunabhängig: unter einer laxen umask (002/000)
+# legte auch die -p-lose Variante 664 an und der Test bliebe grün, obwohl '-p' entfernt wurde.
+chmod 664 "$REPO_SW/.env.local"
+( umask 022; run_start_work "$TMP_SW/wt-236-mode" 786 demo-envmode >/dev/null )
+assert_true "$(ls_mode_matches "$TMP_SW/wt-236-mode/feature-786-demo-envmode/.env.local" '-rw-rw-r--'; echo $?)" \
+  "#236 AK5: cp -p überträgt den Quellmodus (664 bleibt 664, wird nicht umask-reduziert)"
+chmod 600 "$REPO_SW/.env.local"
+
+# AK3: derselbe Branch/dieselbe Basis erneut → Worktree wird wiederverwendet, die dort
+# abweichende Datei bleibt unangetastet (fail-safe: nie fremde Konfiguration zerstören).
+# Referenzdatei statt String-Vergleich: 'cmp -s' belegt „unverändert" byte-genau, eine Command
+# Substitution schluckte den Trailing-Newline (wie AK1 oben).
+printf 'LOKAL_ANGEPASST=1\n' | tee "$WT_ENV" > "$TMP_SW/env-lokal-referenz"
+OUT_KEEP=$(run_start_work "$TMP_SW/wt-236-env" 781 demo-env)
+cmp -s "$TMP_SW/env-lokal-referenz" "$WT_ENV"
+assert_true "$?" "#236 AK3: vorhandene .env.local im Worktree bleibt byte-identisch erhalten"
+printf '%s' "$OUT_KEEP" | grep -qF '.env.local existiert im Worktree bereits'
+assert_true "$?" "#236 AK3: der Output weist auf das Überspringen hin"
+# Pfadgenau auf das Spec-Fehlerszenario „wiederverwendeter Worktree": der zweite Lauf legt nichts
+# neu an, sondern nimmt einen der beiden Wiederverwendungs-Zweige (start-work.sh:208/210).
+# Bewusst NICHT auf „Worktree existiert bereits" festgenagelt: welcher der beiden greift, hängt an
+# einem exakten String-Vergleich gegen `git worktree list --porcelain`, und git meldet dort den
+# AUFGELÖSTEN Pfad. Unter einem symlink-behafteten Pfad (macOS: mktemp -d unter /var/folders →
+# /private/var/folders) greift deshalb der Nachbar-Zweig. Vorbestehende Fragilität aus #74,
+# außerhalb dieses Scopes (Task-Notiz #236).
+printf '%s' "$OUT_KEEP" | grep -qF 'wird wiederverwendet'
+assert_true "$?" "#236 AK3: der zweite Lauf verwendet den vorhandenen Worktree wieder"
+assert_absent "$OUT_KEEP" 'Worktree + Branch angelegt' "#236 AK3: der zweite Lauf legt keinen Worktree neu an"
+# Diskriminierung beider Assertions: der ERSTE Lauf gegen dieselbe Basis meldet genau umgekehrt.
+# Ohne ihn blieben sie auch bei einem Output-Umbau grün, der beide Meldungen entfernt.
+printf '%s' "$OUT_COPY" | grep -qF 'Worktree + Branch angelegt'
+assert_true "$?" "#236 AK3: Diskriminierung – der erste Lauf meldet die Neuanlage"
+assert_absent "$OUT_COPY" 'wird wiederverwendet' "#236 AK3: Diskriminierung – der erste Lauf meldet keine Wiederverwendung"
+
+# Der Ziel-Guard prüft '-e ODER -L': ein DEFEKTER Symlink ist für -e unsichtbar, ist aber
+# vorhandene lokale Konfiguration. Ohne die -L-Alternative ersetzte cp ihn und zerstörte genau
+# das, was AK3 schützt (Lesson #258: OR-Fragment mit nie feuernder Alternative).
+run_start_work "$TMP_SW/wt-236-symtgt" 787 demo-symtgt >/dev/null
+WT_SYMTGT="$TMP_SW/wt-236-symtgt/feature-787-demo-symtgt/.env.local"
+rm -f "$WT_SYMTGT"
+# Eigener Sentinel je Test (nicht mit dem Quell-Symlink-Fall weiter unten geteilt): entstünde die
+# geteilte Datei durch eine Regression doch, prüfte der andere Test in Wahrheit einen INTAKTEN
+# Symlink und würde mit irreführender Ursache rot.
+ln -s "$TMP_SW/existiert-nicht-ziel" "$WT_SYMTGT"
+OUT_SYMTGT=$(run_start_work "$TMP_SW/wt-236-symtgt" 787 demo-symtgt)
+{ [ -L "$WT_SYMTGT" ] && [ ! -e "$WT_SYMTGT" ]; }
+assert_true "$?" "#236 AK3: defekter Ziel-Symlink bleibt Symlink (wird nicht durch die Kopie ersetzt)"
+printf '%s' "$OUT_SYMTGT" | grep -qF '.env.local existiert im Worktree bereits'
+assert_true "$?" "#236 AK3: defekter Ziel-Symlink erzeugt die Überspringen-Meldung"
+rm -f "$WT_SYMTGT"
+
+# AK4: Opt-out. Diskriminierung ist durch AK1 oben belegt – dieselbe Quelle wird dort
+# kopiert, hier nicht.
+WT_SKIP="$TMP_SW/wt-236-skipenv/feature-782-demo-skipenv"
+OUT_SKIP=$(run_start_work "$TMP_SW/wt-236-skipenv" 782 demo-skipenv "FACTORY_WT_SKIP_ENV=1")
+# „Der Lauf ist wirklich durchgelaufen"-Anker: ohne ihn wären die Abwesenheits-Assertions auch
+# dann grün, wenn start-work vor dem Kopier-Schritt abgebrochen wäre (Lesson #214).
+printf '%s' "$OUT_SKIP" | grep -q 'Bereit!'
+assert_true "$?" "#236 AK4: der Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
+assert_true "$([ -d "$WT_SKIP" ]; echo $?)" \
+  "#236 AK4: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+[ ! -e "$WT_SKIP/.env.local" ]
+assert_true "$?" "#236 AK4: FACTORY_WT_SKIP_ENV=1 kopiert die .env.local nicht"
+assert_absent "$OUT_SKIP" 'pnpm db:seed' "#236 AK4: Opt-out erzeugt auch keinen db:seed-Hinweis"
+
+# Fehlerszenario: Quelle ist ein Verzeichnis → der reguläre Datei-Test (-f) greift nicht,
+# behandelt wird der Fall wie „Quelle fehlt" (kein Sonderfall-Handling).
+mv "$REPO_SW/.env.local" "$TMP_SW/env-backup"
+mkdir "$REPO_SW/.env.local"
+WT_ENVDIR="$TMP_SW/wt-236-envdir/feature-784-demo-envdir"
+run_start_work "$TMP_SW/wt-236-envdir" 784 demo-envdir >/dev/null
+assert_exit 0 "$?" "#236 Fehlerfall: Verzeichnis als Quelle → exit 0 (wie fehlende Quelle)"
+assert_true "$([ -d "$WT_ENVDIR" ]; echo $?)" \
+  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+[ ! -e "$WT_ENVDIR/.env.local" ]
+assert_true "$?" "#236 Fehlerfall: Verzeichnis als Quelle wird nicht kopiert"
+rmdir "$REPO_SW/.env.local"
+mv "$TMP_SW/env-backup" "$REPO_SW/.env.local"
+
+# Quelle ist ein Symlink AUF EINE DATEI: '-f' dereferenziert, und 'cp -p' folgt dem Link (kein
+# -P/-d) → im Worktree entsteht eine vollwertige Datei-Kopie. Das ist gewolltes Verhalten (Spec:
+# „regulärer Datei-Test als Vorbedingung"), hier gepinnt, damit ein späterer Wechsel auf 'cp -a'
+# o. Ä. auffällt. NUR ein defekter Symlink fällt durch '-f' (Fall darunter).
+mv "$REPO_SW/.env.local" "$TMP_SW/env-real"
+ln -s "$TMP_SW/env-real" "$REPO_SW/.env.local"
+WT_SYMSRC="$TMP_SW/wt-236-symsrc/feature-788-demo-symsrc/.env.local"
+run_start_work "$TMP_SW/wt-236-symsrc" 788 demo-symsrc >/dev/null
+{ [ -f "$WT_SYMSRC" ] && [ ! -L "$WT_SYMSRC" ] && cmp -s "$TMP_SW/env-real" "$WT_SYMSRC"; }
+assert_true "$?" "#236: Symlink als Quelle wird als echte Datei-Kopie materialisiert (kein Symlink im Worktree)"
+
+# Quelle ist ein DEFEKTER Symlink → fällt durch '-f' und wird wie „Quelle fehlt" behandelt.
+rm "$REPO_SW/.env.local"
+ln -s "$TMP_SW/existiert-nicht-quelle" "$REPO_SW/.env.local"
+WT_SYMDEAD="$TMP_SW/wt-236-symdead/feature-789-demo-symdead"
+run_start_work "$TMP_SW/wt-236-symdead" 789 demo-symdead >/dev/null
+assert_exit 0 "$?" "#236 Fehlerfall: defekter Symlink als Quelle → exit 0 (wie fehlende Quelle)"
+assert_true "$([ -d "$WT_SYMDEAD" ]; echo $?)" \
+  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+[ ! -e "$WT_SYMDEAD/.env.local" ]
+assert_true "$?" "#236 Fehlerfall: defekter Symlink als Quelle wird nicht kopiert"
+rm "$REPO_SW/.env.local"
+mv "$TMP_SW/env-real" "$REPO_SW/.env.local"
+
+# Fehlerszenario: Kopieren schlägt fehl (Quelle nicht lesbar) → Warnung, KEIN Abbruch;
+# unter 'set -euo pipefail' darf start-work nicht wortlos enden. Als root ist chmod 000
+# wirkungslos (Lesetest würde gelingen) → dann lautes Skip statt falsch-grün.
+if [ "$(id -u)" != "0" ]; then
+  chmod 000 "$REPO_SW/.env.local"
+  OUT_FAIL=$(run_start_work "$TMP_SW/wt-236-envfail" 785 demo-envfail); RC_FAIL=$?
+  chmod 600 "$REPO_SW/.env.local"
+  assert_exit 0 "$RC_FAIL" "#236 Fehlerfall: unlesbare Quelle → start-work läuft weiter (exit 0)"
+  printf '%s' "$OUT_FAIL" | grep -qF '.env.local konnte nicht kopiert werden'
+  assert_true "$?" "#236 Fehlerfall: unlesbare Quelle erzeugt eine Warnung"
+  printf '%s' "$OUT_FAIL" | grep -q 'Bereit!'
+  assert_true "$?" "#236 Fehlerfall: der Abschluss-Output wird trotz Kopier-Fehler erreicht"
+  assert_absent "$OUT_FAIL" 'pnpm db:seed' "#236 Fehlerfall: fehlgeschlagene Kopie erzeugt keinen db:seed-Hinweis"
+else
+  echo "  • #236 Fehlerfall unlesbare Quelle – übersprungen (Suite läuft als root)"
+fi
+
+# Fehlerszenario: 'cp' scheitert, NACHDEM das Ziel entstanden ist – Abbruch mitten im Schreiben
+# (ENOSPC/EIO) oder nur das '-p' (chmod/utimes) misslingt (exFAT/SMB). Ohne Aufräumen bliebe ein
+# Rest liegen, den der AK3-Guard („existiert bereits – wird nicht überschrieben") bei JEDEM
+# Folgelauf konservierte: der kaputte Zustand wäre permanent, Symptom wieder CredentialsSignin
+# (#228). Der bereits unlesbar getestete Fall deckt das nicht ab – dort scheitert cp am open()
+# der Quelle, das Ziel entsteht nie. Ein echtes cp lässt sich nicht zum Teilabbruch zwingen;
+# der PATH-Stub (dieselbe Mechanik wie der gh-Stub dieses Blocks) stellt genau diesen Zustand her.
+cat > "$TMP_SW/bin/cp" << 'CPSTUB'
+#!/usr/bin/env bash
+printf 'HALB_KOPIERT=' > "${@: -1}"   # Ziel angelegt, Inhalt unvollständig
+exit 1
+CPSTUB
+chmod +x "$TMP_SW/bin/cp"
+WT_PARTIAL="$TMP_SW/wt-236-envpartial/feature-790-demo-envpartial"
+OUT_PARTIAL=$(run_start_work "$TMP_SW/wt-236-envpartial" 790 demo-envpartial); RC_PARTIAL=$?
+rm -f "$TMP_SW/bin/cp"
+assert_exit 0 "$RC_PARTIAL" "#236 Fehlerfall: cp-Teilabbruch → start-work läuft weiter (exit 0)"
+assert_true "$([ -d "$WT_PARTIAL" ]; echo $?)" \
+  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+printf '%s' "$OUT_PARTIAL" | grep -qF '.env.local konnte nicht kopiert werden'
+assert_true "$?" "#236 Fehlerfall: cp-Teilabbruch erzeugt eine Warnung"
+[ ! -e "$WT_PARTIAL/.env.local" ]
+assert_true "$?" "#236 Fehlerfall: der halb kopierte Rest wird entfernt, nicht liegengelassen"
+# Diskriminierung: derselbe Worktree, diesmal mit echtem cp – der Zustand ist reparierbar und
+# nicht durch den AK3-Guard eingefroren. Ohne das Aufräumen oben bliebe hier der Rest stehen.
+run_start_work "$TMP_SW/wt-236-envpartial" 790 demo-envpartial >/dev/null
+cmp -s "$REPO_SW/.env.local" "$WT_PARTIAL/.env.local"
+assert_true "$?" "#236 Fehlerfall: der Folgelauf kopiert vollständig (Teilabbruch ist nicht permanent)"
+
+# Fehlerszenario: am Worktree-Pfad liegt eine REGULÄRE DATEI. start-work nimmt dann den
+# Wiederverwendungs-Zweig (:210) und läuft weiter – der Kopier-Block darf diesen Ablauf nicht
+# verkürzen. Ohne den '-d'-Guard scheitern dort cp UND rm mit ENOTDIR ('rm -f' unterdrückt nur
+# ENOENT); die rm-Zeile steht in keiner Bedingung, also bricht 'set -e' den Lauf WORTLOS ab –
+# ohne Warnung und ohne die Schritte 3–5, die vor diesem PR noch erreicht wurden.
+# Referenzpunkt ist bewusst „Schritt 3 wird erreicht", nicht 'Bereit!': dass Schritt 3 an
+# seinem eigenen 'mkdir -p' scheitert, ist vorbestehendes #74-Verhalten (der :210-Zweig kennt
+# keinen Nicht-Verzeichnis-Pfad) und außerhalb dieses Scopes – gemessen wird nur, dass der
+# Kopier-Block den Abbruchpunkt nicht nach vorne zieht.
+WT_NOTDIR_BASE="$TMP_SW/wt-236-notdir"
+mkdir -p "$WT_NOTDIR_BASE"
+: > "$WT_NOTDIR_BASE/feature-791-demo-notdir"
+OUT_NOTDIR=$(run_start_work "$WT_NOTDIR_BASE" 791 demo-notdir)
+# Existenz-Anker: der Pfad ist wirklich eine reguläre Datei – ein geändertes Slug-Schema in
+# start-work.sh entwertete den ganzen Testfall sonst lautlos (er liefe gegen einen freien Pfad).
+assert_true "$([ -f "$WT_NOTDIR_BASE/feature-791-demo-notdir" ]; echo $?)" \
+  "#236 Fehlerfall: am Worktree-Pfad liegt eine reguläre Datei (Anker für den Nicht-Verzeichnis-Fall)"
+printf '%s' "$OUT_NOTDIR" | grep -qF 'wird wiederverwendet'
+assert_true "$?" "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad nimmt den Wiederverwendungs-Zweig"
+printf '%s' "$OUT_NOTDIR" | grep -qF '3/5  Task-Datei anlegen'
+assert_true "$?" "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad bricht den Lauf nicht im Kopier-Block ab"
+assert_absent "$OUT_NOTDIR" '.env.local in den Worktree spiegeln' \
+  "#236 Fehlerfall: der Kopier-Block wird bei einem Nicht-Verzeichnis gar nicht erst betreten"
+# Bewusst auf die Kommando-Präfixe der beiden Aufrufe des Blocks verankert und NICHT auf den
+# Fehlertext 'Not a directory': den erzeugt in Schritt 3 auch das vorbestehende
+# 'mkdir -p "$WORKDIR/tasks"' – eine Assertion darauf wäre aus dem falschen Grund rot.
+assert_absent "$OUT_NOTDIR" 'cp: ' \
+  "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad erzeugt keine rohe cp-Fehlerzeile"
+assert_absent "$OUT_NOTDIR" 'rm: ' \
+  "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad erzeugt keine rohe rm-Fehlerzeile"
+
+# Fehlerszenario: das Aufräumen selbst scheitert (nicht nur das cp). Ein schreibgeschütztes
+# Zielverzeichnis, ein Fremd-'rm' auf PATH – der Grund ist egal, die Zeile darf den Lauf nie
+# beenden. start-work.sh ruft 'rm' an genau EINER Stelle auf (der Aufräumzeile), der PATH-Stub
+# trifft also präzise sie und nichts sonst. Die Kombination aus beiden Stubs ist nötig: ohne
+# den cp-Stub wird die Aufräumzeile gar nicht erreicht.
+cat > "$TMP_SW/bin/cp" << 'CPSTUB'
+#!/usr/bin/env bash
+printf 'HALB_KOPIERT=' > "${@: -1}"
+exit 1
+CPSTUB
+cat > "$TMP_SW/bin/rm" << 'RMSTUB'
+#!/usr/bin/env bash
+exit 1
+RMSTUB
+chmod +x "$TMP_SW/bin/cp" "$TMP_SW/bin/rm"
+OUT_RMFAIL=$(run_start_work "$TMP_SW/wt-236-rmfail" 792 demo-rmfail); RC_RMFAIL=$?
+rm -f "$TMP_SW/bin/cp" "$TMP_SW/bin/rm"
+assert_exit 0 "$RC_RMFAIL" "#236 Fehlerfall: fehlgeschlagenes Aufräumen → start-work läuft weiter (exit 0)"
+printf '%s' "$OUT_RMFAIL" | grep -qF '.env.local konnte nicht kopiert werden'
+assert_true "$?" "#236 Fehlerfall: fehlgeschlagenes Aufräumen erzeugt trotzdem die Warnung"
+printf '%s' "$OUT_RMFAIL" | grep -q 'Bereit!'
+assert_true "$?" "#236 Fehlerfall: der Abschluss-Output wird trotz fehlgeschlagenem Aufräumen erreicht"
+
+# AK8: In-Place-Modus – der Arbeitsbaum IST der Haupt-Baum, es gibt nichts zu kopieren.
+printf 'DATABASE_URL=postgres://demo\n' > "$REPO_IP/.env.local"
+OUT_IP=$( cd "$REPO_IP" && PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_IP" FACTORY_REPO="acme/demo" FACTORY_NO_WORKTREE=1 \
+    bash "$SW" 783 demo-ip 2>&1 )
+# „Der Lauf ist wirklich durchgelaufen"-Anker vor den Abwesenheits-Assertions (Lesson #214):
+# der In-Place-Zweig macht zusätzlich checkout/rebase gegen das Bare-Remote und könnte davor enden.
+printf '%s' "$OUT_IP" | grep -q 'Bereit!'
+assert_true "$?" "#236 AK8: der In-Place-Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
+assert_absent "$OUT_IP" '.env.local kopiert (Quelle:' "#236 AK8: In-Place-Modus führt keine Kopieraktion aus"
+assert_absent "$OUT_IP" 'pnpm db:seed' "#236 AK8: In-Place-Modus gibt keinen db:seed-Hinweis"
+
+# Reihenfolge „Kopie VOR pnpm install" (Spec-Hinweis: die Datei soll auch bei fehlgeschlagener
+# Installation daliegen). Alle Läufe oben setzen FACTORY_WT_SKIP_INSTALL=1 und decken sie nicht
+# ab → Positionsvergleich der beiden echten Aufrufzeilen (Lesson „Reihenfolge-/Präsenz-Guards":
+# Anker ist die exakte Kommandozeile, nie ein Fragment), fail-closed bei fehlendem Anker.
+sw_cp_line=$(grep -nF 'cp -p "$FACTORY_DIR/.env.local" "$WORKDIR/.env.local"' "$SW" | head -1 | cut -d: -f1)
+sw_inst_line=$(grep -nF 'pnpm install --frozen-lockfile' "$SW" | head -1 | cut -d: -f1)
+{ [ -n "$sw_cp_line" ] && [ -n "$sw_inst_line" ] && [ "$sw_cp_line" -lt "$sw_inst_line" ]; }
+assert_true "$?" "#236: der .env.local-Kopierschritt steht vor dem 'pnpm install' im Worktree"
+
+# AK9: Doku-Drift im selben PR nachgezogen. Die Mehrwort-Prosa-Anker laufen über flat_286()
+# (Definition am Dateikopf): ein Doku-Reflow bräche einen zeilengebundenen `grep -qF`-Anker
+# sonst lautlos – den Präsenz-Guard rot, den Abwesenheits-Guard grün (Lesson #240/#249/#286).
+sw_header=$(awk '/^set -euo pipefail/{exit} {print}' "$SW")
+# Die Extraktion selbst belegen (#255, hier in Fail-open-Richtung): ändert sich der Sentinel
+# (z. B. 'set -Eeuo pipefail'), liefert awk die GANZE Datei – der Guard darunter fände
+# FACTORY_WT_SKIP_ENV dann im Produktionscode (:228) und bliebe grün, obwohl der Kopf-Kommentar,
+# also der Prüfgegenstand von AK9(d), gelöscht sein kann.
+{ [ "$(printf '%s\n' "$sw_header" | wc -l)" -lt "$(wc -l < "$SW")" ]; }
+assert_true "$?" "#236 AK9(d): die Kopf-Extraktion bricht am Sentinel ab (kein Fail-open auf die ganze Datei)"
+# Auf die Kommentarform ankern, nicht auf das nackte Wort: der Prüfgegenstand ist die
+# Schalter-Zeile im Kopf, nicht irgendeine Erwähnung.
+printf '%s\n' "$sw_header" | grep -q '^#   FACTORY_WT_SKIP_ENV=1'
+assert_true "$?" "#236 AK9(d): start-work.sh nennt FACTORY_WT_SKIP_ENV im Kopf-Kommentar"
+
+# AK9(c) fordert die Env-Schalter-LISTE, nicht eine beliebige Erwähnung → Mehrwort-Anker über
+# flat_286 gegen $GITWF (bereits oben definiert), symmetrisch zur Isolation in AK9(d).
+assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`' \
+  "#236 AK9(c): git-workflow.md listet FACTORY_WT_SKIP_ENV in der Env-Schalter-Liste"
+
+# Die beiden Positiv-Kontrollen laufen über denselben Lesepfad wie die Guards (flat_286), nicht
+# über ein handgeschriebenes printf gegen den nackten grep. Ihre Fixtures geben den Alt-Wortlaut
+# aus `git show origin/main:<datei>` wieder – dort stand die Lesson-Stelle UMBROCHEN (nur mit
+# flat_286 treffbar), die PROJECT-CONTEXT-Zeile dagegen EINZEILIG. Die zweite Kontrolle belegt
+# deshalb ehrlich nur Quoting und Fixed-String-Treffer, nicht die Umbruch-Toleranz.
+ALT_DOC="$TMP_SW/alt-wortlaut.md"
+
+lesson_flat_236="$(flat_286 "$FACTORY_ROOT/docs/factory/lessons/factory-workflow.md")"
+assert_contains_286 "$lesson_flat_236" 'seit #236 automatisch' \
+  "#236 AK9(a): Lesson beschreibt den Kopier-Schritt als automatisiert"
+# Abwesenheits-Anker MIT Issue-Nummer: „als eigener Task ausgelagert" allein ist die etablierte
+# Repo-Wendung für vertagte Arbeit – ein künftiges, völlig unabhängiges /codify-Learning mit
+# derselben Formulierung machte den Guard sonst rot und blockierte einen Fremd-PR.
+assert_absent "$lesson_flat_236" 'als eigener Task ausgelagert: [#236]' \
+  "#236 AK9(a): Lesson nennt #236 nicht mehr als offenen Follow-up"
+printf 'ist als eigener Task ausgelagert:\n[#236](https://github.com/nothra/tch-gastro-services/issues/236).\n' > "$ALT_DOC"
+assert_contains_286 "$(flat_286 "$ALT_DOC")" 'als eigener Task ausgelagert: [#236]' \
+  "#236 AK9(a): Positiv-Kontrolle – das Abwesenheits-Muster matcht den alten, über zwei Zeilen umbrochenen Wortlaut"
+
+pc_flat_236="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
+assert_contains_286 "$pc_flat_236" 'Root-Cause-Fix in #236 umgesetzt' \
+  "#236 AK9(b): PROJECT-CONTEXT-Index weist #236 als umgesetzt aus"
+assert_absent "$pc_flat_236" 'Root-Cause-Fix ausgelagert: #236' \
+  "#236 AK9(b): PROJECT-CONTEXT-Index nennt #236 nicht mehr als ausgelagert"
+printf -- '- Neuer Worktree hat kein `.env.local` … (aus #228, /implement-Selbstfund; Root-Cause-Fix ausgelagert: #236) → `/implement`\n' > "$ALT_DOC"
+assert_contains_286 "$(flat_286 "$ALT_DOC")" 'Root-Cause-Fix ausgelagert: #236' \
+  "#236 AK9(b): Positiv-Kontrolle – das Abwesenheits-Muster matcht den alten (einzeiligen) Wortlaut"
 
 rm -rf "$TMP_SW"
 
@@ -4832,21 +5198,9 @@ done
 echo ""
 echo "Task 286: Schwellen-Tabelle + Sammeldatei statt unbedingter Issue-Anlage:"
 
-# Mehrwort-Content-Checks unten prüfen Prosa-Aussagen, keine Kommando-/Aufruf-Zeilen – ein
-# harmloser Markdown-Zeilenumbruch mitten im Satz würde einen reinen `grep -qF`-Mehrwort-Anker
-# sonst lautlos rot machen (Lesson factory-workflow.md: "grep -qF-Fixed-String-Regressionstest
-# gegen Markdown-Prosa"). Zeilenumbrüche vor dem Matchen durch Leerzeichen ersetzen, damit der
-# Test die Aussage prüft, nicht die aktuelle Zeilenbreite.
-flat_286() { tr '\n' ' ' < "$1"; }
-
-# Wiederkehrendes Muster "enthält geflachten Inhalt die Phrase?" auf einen Aufruf verdichtet
-# (Refactor: eliminiert ~17 wortgleiche Zwei-Zeiler-Wiederholungen im Block, kein neues
-# Verhalten – Kommando und Assert-Nachricht bleiben Zeile für Zeile identisch).
-assert_contains_286() {
-  printf '%s' "$1" | grep -qF "$2"
-  assert_true "$?" "$3"
-}
-
+# Die Mehrwort-Content-Checks unten laufen über flat_286()/assert_contains_286() (Definition
+# bei den übrigen Assert-Helpern am Dateikopf): Prosa-Aussagen werden zeilenumbruch-tolerant
+# geprüft, nicht gegen die aktuelle Zeilenbreite.
 KLEINFUNDE="$FACTORY_ROOT/docs/factory/kleinfunde.md"
 
 # (0) Verweis-Ziel existiert: sonst zeigen die Skill-Verweise auf kleinfunde.md ins Leere,

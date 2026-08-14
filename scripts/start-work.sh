@@ -22,6 +22,7 @@
 #   FACTORY_NO_WORKTREE=1     altes In-Place-Verhalten (Branch im aktuellen Baum)
 #   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
 #   FACTORY_WT_SKIP_INSTALL=1 kein 'pnpm install' im neuen Worktree
+#   FACTORY_WT_SKIP_ENV=1     kein Kopieren der '.env.local' in den neuen Worktree
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 #   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
 #                             (Default aus dem Branch-Typ abgeleitet)
@@ -114,6 +115,12 @@ ISSUE_LABEL="${FACTORY_ISSUE_LABEL:-$ISSUE_LABEL}"
 
 # Worktree-Default (Kern-Vorkehrung, #74). Ausschalten via FACTORY_NO_WORKTREE=1.
 if [ "${FACTORY_NO_WORKTREE:-0}" = "1" ]; then WORKTREE_MODE=false; else WORKTREE_MODE=true; fi
+
+# Wurde eine .env.local in den Worktree kopiert? Steuert den db:seed-Hinweis im Abschluss
+# (#236). Vorbelegt, weil kein Zweig die Zuweisung garantiert erreicht: weder der In-Place-Modus
+# noch Opt-out, fehlende Quelle, vorhandene Zieldatei oder ein fehlgeschlagenes cp kommen dort
+# vorbei – unter set -u wäre der Abschluss-Output sonst ein harter Abbruch.
+ENV_COPIED=false
 
 # ─── Uncommitted Changes prüfen (nur In-Place-Modus) ──────────────────────────
 # Der Worktree-Modus fasst den aktuellen Baum nicht an (kein checkout/rebase dort)
@@ -208,6 +215,42 @@ if [ "$WORKTREE_MODE" = true ]; then
   else
     git -C "$FACTORY_DIR" worktree add -b "$BRANCH_NAME" "$WORKDIR" "$BASE_REF"
     echo -e "  ${GREEN}✓${NC} Worktree + Branch angelegt"
+  fi
+
+  # .env.local mitspiegeln (#236): die Datei ist gitignored und wandert beim 'worktree add'
+  # nicht mit, alle DEV-Skripte laden ihre Konfiguration aber daraus (dotenv -e .env.local).
+  # Ohne sie scheitert der erste 'pnpm test:e2e' im frischen Worktree mit einem irreführenden
+  # CredentialsSignin (#228). Vor dem pnpm install, damit die Datei auch bei fehlgeschlagener
+  # Installation da ist. Fail-safe: eine vorhandene Zieldatei wird nie überschrieben.
+  # '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der
+  # Wiederverwendungs-Zweig und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte
+  # dann aber mit ENOTDIR. Ohne diesen Guard wäre der Kopier-Block der neue (frühere)
+  # Abbruchpunkt des Skripts; so bleibt er wirkungslos statt schädlich.
+  if [ "${FACTORY_WT_SKIP_ENV:-0}" != "1" ] && [ -d "$WORKDIR" ] && [ -f "$FACTORY_DIR/.env.local" ]; then
+    # Opt-out-Hinweis in der Ankündigungszeile (wie im pnpm-Block unten), nicht in der
+    # Erfolgsmeldung – so ist er auch sichtbar, wenn der Kopiervorgang selbst übersprungen
+    # wird (vorhandene Zieldatei) oder fehlschlägt.
+    echo -e "  ${YELLOW}→${NC} .env.local in den Worktree spiegeln (FACTORY_WT_SKIP_ENV=1 überspringt)..."
+    # -e ODER -L: auch ein (defekter) Symlink zählt als vorhandene lokale Konfiguration.
+    if [ -e "$WORKDIR/.env.local" ] || [ -L "$WORKDIR/.env.local" ]; then
+      echo -e "  ${YELLOW}⚠  .env.local existiert im Worktree bereits – wird nicht überschrieben${NC}"
+    elif cp -p "$FACTORY_DIR/.env.local" "$WORKDIR/.env.local"; then
+      # cp -p erhält den Modus – eine 600er-Quelle wird durch das Kopieren nicht breiter lesbar.
+      # Quelle ist FACTORY_DIR (der Baum, in dem dieses Skript liegt) – beim üblichen Aufruf aus
+      # einem bestehenden Worktree ist das eben dieser, nicht zwingend der Haupt-Baum.
+      echo -e "  ${GREEN}✓${NC} .env.local kopiert (Quelle: ${FACTORY_DIR})"
+      ENV_COPIED=true
+    else
+      # Selbst erzeugten Rest wegräumen: scheitert cp erst NACH dem Anlegen des Ziels (Abbruch
+      # mitten im Schreiben, oder nur das -p misslingt), bliebe eine unvollständige Datei liegen –
+      # und der Guard oben konservierte sie bei jedem Folgelauf dauerhaft. Sicher, weil der
+      # -e/-L-Guard eine vorbestehende Zieldatei bereits ausgeschlossen hat.
+      # '|| true': das Aufräumen ist Kür, kein Muss – scheitert es (schreibgeschütztes
+      # Zielverzeichnis o. Ä.), bleibt es bei der Warnung. Ohne die Absicherung beendete
+      # 'set -e' den Lauf hier wortlos, genau das verbietet Fehlerszenario 1 der Spec.
+      rm -f "$WORKDIR/.env.local" 2>/dev/null || true
+      echo -e "  ${YELLOW}⚠  .env.local konnte nicht kopiert werden – im Worktree manuell nachziehen${NC}"
+    fi
   fi
 
   # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.
@@ -362,6 +405,14 @@ fi
 echo "  1. Task-Datei mit Beschreibung und Akzeptanzkriterien befüllen"
 echo "     (oder: /requirements ${TASK_ID} in Claude Code)"
 echo "  2. Implementieren starten: /implement ${TASK_ID} in Claude Code"
+if [ "$ENV_COPIED" = true ]; then
+  # Bewusst als Zusatz UNTER Schritt 2 statt als eigener Schritt 3: der Hinweis muss vor dem
+  # ersten 'pnpm test:e2e' greifen, und das findet innerhalb von Schritt 2 statt. Die lokale
+  # DEV-DB ist über alle Worktrees geteilt und kennt die gerade kopierten SEED_ADMIN_*-
+  # Zugangsdaten evtl. noch nicht → sonst E2E-Login mit CredentialsSignin (#228).
+  echo "     Vor dem ersten 'pnpm test:e2e': pnpm db:seed"
+  echo "     (.env.local wurde kopiert – die geteilte lokale DB kennt die SEED_ADMIN_*-Daten evtl. noch nicht)"
+fi
 echo ""
 echo -e "${YELLOW}⚡ Tipp: Starte für Task ${TASK_ID} eine neue Claude-Session in diesem Worktree.${NC}"
 echo "   Eigener Arbeitsbaum = parallele Sessions kollidieren nicht (kein geteilter HEAD)."

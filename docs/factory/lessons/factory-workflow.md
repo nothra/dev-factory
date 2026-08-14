@@ -735,24 +735,28 @@ laufen statt gegen eine Temp-Kopie.
 
 `start-work.sh` legt jede Task standardmäßig in einem **eigenen** Worktree an (Geschwister-
 Ordner `…​.worktrees/<branch>`, siehe `git-workflow.md` → „Parallele Sessions"). `.env.local`
-ist gitignored und wird dabei **nicht** kopiert. Die lokale Postgres-DB läuft dagegen meist
-schon als **gemeinsamer** Docker-Container über alle Worktrees hinweg (fester Host-Port,
-zwei Wochen alt in #228). Ein `pnpm test:e2e e2e/auth.spec.ts` im frischen Worktree scheitert
-dadurch beim Login mit `CredentialsSignin` – nicht weil der Login-Code kaputt ist, sondern weil
-für die (nach dem manuellen `.env.local`-Kopieren) geladenen `SEED_ADMIN_*`-Zugangsdaten schlicht
-**noch kein Konto in der DB existiert**. In #228 sah das zunächst wie eine echte Regression durch
-den next-auth-Versions-Bump aus, war aber ein reines Umgebungs-Setup-Problem.
+ist gitignored und wurde damals dabei **nicht** mitkopiert (heute automatisiert, siehe Regel
+unten). Die lokale Postgres-DB läuft dagegen meist schon als **gemeinsamer** Docker-Container
+über alle Worktrees hinweg (fester Host-Port, zwei Wochen alt in #228). Ein
+`pnpm test:e2e e2e/auth.spec.ts` im frischen Worktree scheitert dadurch beim Login mit
+`CredentialsSignin` – nicht weil der Login-Code kaputt ist, sondern weil für die aus der (damals
+von Hand nachkopierten, heute automatisch gespiegelten) `.env.local` geladenen
+`SEED_ADMIN_*`-Zugangsdaten schlicht **noch kein Konto in der DB existiert**. In #228 sah das
+zunächst wie eine echte Regression durch den next-auth-Versions-Bump aus, war aber ein reines
+Umgebungs-Setup-Problem.
 
 **Smell:** „Login-E2E-Test schlägt im frisch angelegten Worktree mit `CredentialsSignin` fehl,
 obwohl der Code unverändert ist (oder nur eine Dependency gebumpt wurde)?" → zuerst Umgebung
 prüfen, nicht den Code verdächtigen.
 
-**Regel:** Vor dem ersten `pnpm test:e2e` in einem neuen Worktree: (1) `.env.local` aus dem
-Haupt-Worktree kopieren, falls nicht vorhanden; (2) `pnpm db:seed` laufen lassen (idempotent,
-legt das Admin-Konto an/aktualisiert es für die geladenen `SEED_ADMIN_*`-Werte) – **bevor** ein
-E2E-Fehlschlag vorschnell dem gerade bearbeiteten Task-Diff zugeschrieben wird. Root-Cause-Fix
-(Automatisierung in `start-work.sh`) ist als eigener Task ausgelagert:
-[#236](https://github.com/nothra/tch-gastro-services/issues/236).
+**Regel:** Vor dem ersten `pnpm test:e2e` in einem neuen Worktree `pnpm db:seed` laufen lassen
+(idempotent, legt das Admin-Konto an/aktualisiert es für die geladenen `SEED_ADMIN_*`-Werte) –
+**bevor** ein E2E-Fehlschlag vorschnell dem gerade bearbeiteten Task-Diff zugeschrieben wird.
+Das Kopieren der `.env.local` – früher der manuelle Schritt davor – ist **nicht** mehr nötig:
+`start-work.sh` erledigt es seit #236 automatisch beim Anlegen des Worktrees und weist im
+Abschluss-Output auf den noch nötigen `db:seed`-Lauf hin. Kopiert wird aus dem Baum, in dem das
+Skript liegt (`$FACTORY_DIR` – üblicherweise, aber nicht zwingend der Haupt-Baum); eine im Ziel
+vorhandene Datei wird nie überschrieben, Opt-out ist `FACTORY_WT_SKIP_ENV=1`.
 
 ### Neuer Interrupt-Typ → kanonische OPERATING.md-Interrupt-Tabelle mitpflegen (aus #212, Review-Finding)
 

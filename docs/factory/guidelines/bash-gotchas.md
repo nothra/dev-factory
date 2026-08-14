@@ -314,6 +314,41 @@ grün geblieben, weil der nachfolgende Commit den Index wieder mit HEAD in Decku
 
 ---
 
+## 11. Die eigene Aufräumzeile im Fehlerpfad braucht selbst eine `set -e`-Absicherung
+
+Ein Fehlerpfad, der bei einem gescheiterten Befehl (z. B. `cp`) den eigenen Teilzustand wieder
+entfernt (`rm -f datei`), steht oft als **unbedingte** Zeile im `elif`/`else`-Zweig – sie läuft
+also außerhalb der Bedingung, die den ursprünglichen Fehler bereits abgefangen hat. Scheitert
+genau diese Aufräumzeile selbst (`ENOTDIR`, `EACCES`, schreibgeschütztes Zielverzeichnis), bricht
+`set -e` das ganze Skript an dieser Stelle **wortlos** ab – exakt der stille Abbruch, den die
+Fehlerbehandlung eigentlich verhindern sollte.
+
+```bash
+# FALSCH – rm selbst kann fehlschlagen und bricht unter set -e wortlos ab:
+if cp -p "$src" "$dst"; then
+  ENV_COPIED=true
+else
+  echo "⚠️  Kopieren fehlgeschlagen"
+  rm -f "$dst"                      # scheitert dieser Befehl, endet das Skript hier – ohne Meldung
+fi
+
+# RICHTIG – Aufräumzeile trägt eine eigene Absicherung:
+rm -f "$dst" 2>/dev/null || true
+```
+
+**Faustregel:** Jeder Befehl in einem Fehlerbehandlungs-Block braucht seine eigene Absicherung
+gegen `set -e` – auch (gerade) der Befehl, der selbst zur Fehlerbehandlung gehört. „Das ist doch
+schon der Fehlerpfad" ist kein Freibrief; der Fehlerpfad ist Code wie jeder andere und kann
+selbst scheitern.
+
+**Bit uns:** #236 – Review-Runde 3 fand die Lücke, Runde 4 fixte sie über zwei sich ergänzende
+Wege: `rm -f … 2>/dev/null || true` (deckt jeden `rm`-Fehler ab) **und** eine
+Nicht-Verzeichnis-Guard-Bedingung am Blockeintritt (deckt den konkret reproduzierten
+`ENOTDIR`-Fall, verhindert zugleich, dass der Kopier-Block zum neuen, früheren Abbruchpunkt
+des Skripts wird).
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit
