@@ -157,3 +157,32 @@ Ein unbeaufsichtigter Lauf kann nicht beliebig auf server-seitige CI warten;
 - „Merge-ready zählt als Erfolg" heißt: der finale server-seitige Merge kann noch
   scheitern (rote CI nach Übergabe). Das ist bewusst außerhalb des Pipeline-Laufs und
   wird von `/post-merge-verify` (ADR-007) abgedeckt.
+
+## Nachtrag (2026-08-15, #298): PR MERGED zählt unabhängig von der Unpushed-Prüfung als Erfolg
+
+**Kontext.** Punkt 1 der Entscheidung beschreibt unbedingt: „Beide Modi: Working Tree
+sauber **und** keine ungepushten Commits" – erst **zusätzlich** kommt bei
+`PR_SHEPHERD=true` der PR-Zustand hinzu, wobei „PR gemergt" laut Text bereits als
+Erfolg zählt (AK6 in `scripts/lib/verify-final-state.sh`). Die Implementierung prüfte
+den Unpushed-Zustand aber **immer vor** dem PR-Zustand. Da dieses Repo „Automatically
+delete head branches" aktiv hat (`git-workflow.md`), existiert `origin/<branch>` nach
+jedem gemergten (Squash-)PR nicht mehr – `unpushed` wird dadurch `NO_UPSTREAM`
+(nicht-numerisch, fail-closed), und die Funktion bricht ab, **bevor** der
+MERGED-Kurzschluss je greift. AK6 war damit für den in diesem Repo üblichen Fall
+(Squash-Merge + Branch-Auto-Delete) faktisch unerreichbar. Beobachtet in Issue #298
+(Task #182, PR #296: vollständig erfolgreicher, gemergter Pipeline-Lauf endete dennoch
+mit `exit 1` und Fehlalarm-Interrupt).
+
+**Entscheidung.** Kein neuer Design-Fork – Option A (deterministische Verifikation
+via `git`/`gh`, fail-closed) bleibt unverändert die gewählte Architektur. Punkt 1 ist
+im Wortlaut zu präzisieren: Die „keine ungepushten Commits"-Invariante gilt
+**unbedingt** nur bei `PR_SHEPHERD=false`. Bei `PR_SHEPHERD=true` gilt sie **nur so
+lange, wie `pr_state` nicht `MERGED` ist** – ein gemergter PR zählt unabhängig vom
+Unpushed-Zustand sofort als Erfolg (der Working-Tree-Check aus Punkt 1 bleibt davon
+unberührt und weiterhin vorgeschaltet). Details und vollständige Akzeptanzkriterien:
+`docs/specs/spec-298-verify-final-state-merged-vor-unpushed.md`.
+
+**Betroffene Artefakte (Ergänzung):** `scripts/lib/verify-final-state.sh`
+(`evaluate_final_state()` – MERGED-Kurzschluss vor die Unpushed-Prüfung gezogen),
+`scripts/checks/tests/run-tests.sh` (#212-Block: neue Testfälle für
+MERGED+`NO_UPSTREAM` sowie Regressions-Guard für Nicht-MERGED+`NO_UPSTREAM`).

@@ -1119,3 +1119,32 @@ Einträge mit `Datei:Zeile`-Ankern, die im selben PR angelegt wurden**: vor dem 
 neu geschriebenen Kleinfund-Eintrag gegen den **aktuellen** Stand der zitierten Datei
 gegenprüfen (`sed -n '<n>,<m>p' <datei>` liest tatsächlich die behauptete Zeile?), nicht nur beim
 Anlegen einmalig verifizieren und dann als erledigt betrachten.
+
+### Fork-Subagent für eine Review-Runde: eigene Turns nach dem Spawn können in seinen Kontext bluten (aus #298, Selbstfund während `/review`)
+
+Ein per `Agent(subagent_type: "fork")` gestarteter Review-Runden-Agent erbt den vollen
+Konversationskontext **zum Zeitpunkt seiner tatsächlichen Ausführung**, nicht zum
+Spawn-Zeitpunkt – der Fork läuft asynchron im Hintergrund und wird erst später vom Scheduler
+tatsächlich abgearbeitet. In dieser Task wurde nach dem Spawn von Review-Runde 1 zusätzlicher
+eigener Text erzeugt (`ScheduleWakeup`-Begründungen wie „Ich warte auf Runde 1, bevor ich Runde
+2 starte"), während der Fork noch nicht gelaufen war. Als der Fork dann tatsächlich ausgeführt
+wurde, lieferte er als „Ergebnis" nur eine Paraphrase genau dieses Wartetexts zurück – keine
+einzige tatsächliche Review-Finding. Der ursprüngliche Auftrag (Logik/Korrektheit-Review gegen
+spec-298) wurde komplett übersprungen; sichtbar wurde das erst, weil die kurze
+`<result>`-Zusammenfassung der Notification verdächtig nach Statusmeldung statt nach Findings
+klang.
+
+**Smell:** Die `<result>`-Zusammenfassung eines Fork-Agenten liest sich wie eine
+Fortsetzungs-/Warte-Ankündigung („… läuft im Hintergrund", „ich warte auf …") statt wie das
+angeforderte Arbeitsergebnis (Findings, Diff, Report) – das ist ein Hinweis, dass der Fork
+eigenen Kontext des Aufrufers nachgeplappert hat, statt seinen Auftrag auszuführen.
+
+**Regel:** Nach dem Spawn eines Fork-Agenten für eine klar abgegrenzte Teilaufgabe (z. B. eine
+Review-Runde) keine eigenen Turns mit narrativem „ich warte jetzt…"-Text erzeugen, bevor der
+Fork fertig ist, wenn vermeidbar – jeder solche Turn ist ein weiterer Kontext-Schnappschuss, den
+der Fork potenziell als eigenen sieht. Lässt sich das Warten nicht vermeiden (z. B. via
+`ScheduleWakeup`), das Ergebnis nach Abschluss **nicht** nur über die kurze
+`<result>`-Zusammenfassung der Notification annehmen, sondern bei Zweifel per `TaskOutput`
+gegenprüfen. Liefert der Fork erkennbar keine echten Findings (siehe Smell oben), sofort per
+`SendMessage` mit einer expliziten Anweisung resumen, die den ursprünglichen Auftrag wiederholt
+und ausdrücklich anweist, jeglichen Text über Scheduling/Warten zu ignorieren.

@@ -178,3 +178,25 @@
 - **Herkunft:** #74 (Ursprung), aufgefallen in #236 (`/implement`-Selbstfund), klassifiziert in
   `/review` #236 Runde 2. Fundstelle verifiziert am 2026-08-14 (die Task-Notiz zu #236 nannte
   `:206` – das ist eine Leerzeile, der Anker war um zwei Zeilen verschoben).
+
+### `/review`-Skilltext und `review-agent.md`-Persona widersprechen sich zur Agenten-Anzahl
+
+- **Wo:** [`.claude/commands/review.md:3`](../../.claude/commands/review.md) („Spawne drei
+  spezialisierte Review-Sub-Agenten sequenziell") vs.
+  [`docs/factory/agents/review-agent.md:5`](agents/review-agent.md) („Du bist ein erfahrener
+  Code-Reviewer der drei Perspektiven einnimmt", Singular).
+- **Was:** Der Skilltext verlangt drei separat gespawnte Sub-Agenten, die Persona-Doku
+  beschreibt einen einzelnen Reviewer, der drei Perspektiven nacheinander selbst einnimmt. Bei
+  Task #298 führte das zu unnötiger Orchestrierungs-Arbeit: ein für Runde 1 gespawnter
+  Fork-Agent kombinierte nach einem Resume eigenständig alle drei Perspektiven in einem
+  Durchlauf (inkl. Schreiben von `tasks/review-<id>.md` und Commit) – inhaltlich nicht falsch,
+  aber weder die eine noch die andere Doku-Fassung wörtlich befolgend.
+- **Warum es zählt:** kein funktionaler Defekt am Produkt, nur eine Ambiguität in den
+  Skill-/Agenten-Dokumenten selbst, die zu Nacharbeit beim Orchestrieren führt, aber niemanden
+  blockiert.
+- **Fix:** Eine der beiden Fassungen an die andere angleichen – entweder `review.md` auf „Nimm
+  nacheinander drei Perspektiven ein" umschreiben (spart tatsächlich Spawns), oder
+  `review-agent.md` auf „einer von drei parallel/sequenziell gespawnten Sub-Agenten" umstellen.
+  Beide sind reine Prosa-Änderungen, aber `.claude/**`-Änderungen laufen über den
+  Patch-Workflow (aus #91) – daher hier vermerkt statt direkt gepatcht.
+- **Herkunft:** `/codify` zu #298. Fundstellen verifiziert am 2026-08-15.

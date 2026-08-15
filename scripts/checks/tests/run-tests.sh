@@ -3808,6 +3808,30 @@ efs clean 0 true "" "" "";    assert_exit 1 "$?" "#212 F1: gh ohne verwertbaren 
 printf '%s' "$(efs_msg clean 0 true '' '' '')" | grep -q 'PR-Zustand nicht verifizierbar'
 assert_true "$?" "#212 F1: meldet 'PR-Zustand nicht verifizierbar'"
 
+# #298: MERGED zählt unabhängig vom Unpushed-Status sofort als Erfolg (Branch-Auto-Delete
+# nach Squash-Merge macht origin/<branch> weg → unpushed ist NO_UPSTREAM/nicht-numerisch,
+# soll den MERGED-Kurzschluss aber nicht verhindern).
+efs clean NO_UPSTREAM true MERGED false none; assert_exit 0 "$?" "#298 AK: MERGED + unpushed=NO_UPSTREAM → verifiziert (exit 0)"
+efs clean 3 true MERGED false none; assert_exit 0 "$?" "#298 AK: MERGED + unpushed=3 → ebenfalls verifiziert (exit 0)"
+# Regressions-Guard: Tree-Check bleibt VOR dem MERGED-Kurzschluss
+efs dirty 0 true MERGED false none; assert_exit 1 "$?" "#298 Regressions-Guard: dirty + MERGED → weiterhin 'Working Tree nicht sauber'"
+printf '%s' "$(efs_msg dirty 0 true MERGED false none)" | grep -q 'Working Tree nicht sauber'
+assert_true "$?" "#298 Regressions-Guard: meldet 'Working Tree nicht sauber' trotz MERGED"
+# Regressions-Guard: nicht-MERGED + nicht-numerisch unpushed bleibt fail-closed
+efs clean NO_UPSTREAM true OPEN false none; assert_exit 1 "$?" "#298 Regressions-Guard: OPEN + unpushed nicht-numerisch → weiterhin fail-closed"
+printf '%s' "$(efs_msg clean NO_UPSTREAM true OPEN false none)" | grep -q 'Push-Zustand nicht verifizierbar'
+assert_true "$?" "#298 Regressions-Guard: meldet 'Push-Zustand nicht verifizierbar'"
+# spec-298 Fehlerszenario 2: geschlossener, NICHT gemergter PR + kein Upstream (Branch dennoch
+# server-seitig gelöscht) → bleibt fail-closed, kein stiller Erfolg für abgelehnte PRs.
+efs clean NO_UPSTREAM true CLOSED false none; assert_exit 1 "$?" "#298 Fehlerszenario 2: CLOSED + unpushed=NO_UPSTREAM → weiterhin fail-closed"
+printf '%s' "$(efs_msg clean NO_UPSTREAM true CLOSED false none)" | grep -q 'Push-Zustand nicht verifizierbar'
+assert_true "$?" "#298 Fehlerszenario 2: meldet 'Push-Zustand nicht verifizierbar'"
+# spec-298 Fehlerszenario 1: pr_state leer (gh-Fehler, F1) UND unpushed gleichzeitig
+# nicht-numerisch → Unpushed-Check greift zuerst (pr_state ist nicht MERGED), Meldung bleibt F2.
+efs clean NO_UPSTREAM true "" "" ""; assert_exit 1 "$?" "#298 Fehlerszenario 1: leerer pr_state + unpushed nicht-numerisch → weiterhin fail-closed"
+printf '%s' "$(efs_msg clean NO_UPSTREAM true '' '' '')" | grep -q 'Push-Zustand nicht verifizierbar'
+assert_true "$?" "#298 Fehlerszenario 1: meldet 'Push-Zustand nicht verifizierbar' (nicht 'PR-Zustand')"
+
 echo ""
 echo "#212 verify_final_state (I/O über echtes git + gestubbtes gh):"
 
@@ -3870,6 +3894,13 @@ assert_exit 1 "$?" "#212 I/O AK3: Draft-PR → nicht verifiziert (exit 1)"
 failgh
 ( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
 assert_exit 1 "$?" "#212 I/O F1: gh-Aufruf scheitert → fail-closed (exit 1)"
+
+# #298 I/O: origin/<branch> gelöscht (Branch-Auto-Delete nach Squash-Merge) + PR MERGED
+# → unpushed ist nicht verwertbar (NO_UPSTREAM), MERGED-Kurzschluss muss trotzdem greifen.
+git -C "$VFS_REPO" push -q origin --delete "$VFS_BR"
+mkgh false MERGED false
+( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
+assert_exit 0 "$?" "#298 I/O: origin/<branch> gelöscht + MERGED → verifiziert (exit 0)"
 rm -rf "$VFS_REPO" "$VFS_ORIGIN"
 
 echo ""
