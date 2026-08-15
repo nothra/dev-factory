@@ -171,3 +171,29 @@ formulieren, nie auf „empirisch" aufwerten. Nach dem Beheben eines solchen Fin
 projektweit nach Kopien derselben Behauptung/Versionsangabe suchen (`grep -rn` auf die konkrete
 Zahl/Formulierung) – dieselbe Sweep-Pflicht wie beim WHY-Kommentar-Fix oben (#264), hier speziell
 für Evidenz-Überziehung statt Kausalketten.
+
+### JSDoc auf einem geteilten Options-Interface, die einen konkreten Produktionswert nennt, driftet beim zweiten Konsumenten (aus #182, Review-Runde 1 W2 + Runde 2 Nitpick 1)
+
+`RateLimiterOptions` in `lib/rate-limit.ts` wurde ursprünglich nur von einem Singleton
+(`healthRateLimiter`, `limit: 30`) genutzt; das JSDoc auf dem `limit`-Feld nannte entsprechend
+„(Produktion: 30)". Task #182 fügte einen zweiten Konsumenten mit abweichendem Wert hinzu
+(`selfServiceVerzehrRateLimiter`, `limit: 60`) – das Feld-JSDoc wurde dabei nicht angepasst und
+war ab da schlicht falsch für die Hälfte der Instanzen. Review-Runde 1 (W2) korrigierte das
+`limit`-Feld auf einen Verweis statt eines Werts. Genau dieselbe Drift lag zeitgleich am
+Nachbarfeld `windowMs` (ebenfalls „(Produktion: 60_000)") vor, obwohl beide Felder derselben
+Options-Struktur angehören und vom selben Commit betroffen waren – erst Review-Runde 2 (Nitpick 1)
+fiel das zweite Feld auf, weil der erste Fix nur die gemeldete Zeile behandelte, nicht das Muster
+auf dem ganzen Interface.
+
+**Smell:** „Ich instanziiere ein geteiltes Options-/Config-Interface ein zweites Mal mit einem
+anderen konkreten Wert für ein Feld X – nennt das JSDoc von X (oder eines **Nachbarfelds
+derselben Struktur**) bereits einen konkreten Produktionswert aus der ersten Instanziierung?"
+
+**Regel:** JSDoc auf einem Feld eines wiederverwendbaren Options-/Config-Interfaces beschreibt
+die **Bedeutung** des Felds, nie einen konkreten Wert – sobald absehbar ist (oder gerade passiert),
+dass eine zweite Instanziierung einen anderen Wert nutzt. Verweis auf die Stelle, an der die
+tatsächlichen Werte stehen (z. B. „die produktiven Werte stehen an den Singletons unten"), statt
+eines Literals im Kommentar. Beim Beheben eines gemeldeten Falls **alle Felder derselben
+Interface-Definition** auf denselben Drift-Typ prüfen, nicht nur das gemeldete – Spezialfall der
+Sweep-Pflicht aus #264 (falscher WHY-Kommentar an kopierten Geschwisterstellen), hier auf
+Nachbarfelder statt kopierte Dateien angewendet.
