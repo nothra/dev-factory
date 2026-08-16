@@ -165,3 +165,32 @@ gunzip -c /tmp/audit.bin 2>/dev/null || cat /tmp/audit.bin
 Lockfile-Ersatzkriterium und über den einzelnen Task hinaus für jeden `/security-review`
 nutzbar, der eine Dependency-Version gegen bekannte CVEs verifizieren muss.
 
+### `pnpm audit` zeigt bei Paketen mit mehreren parallel gepflegten Major-Linien nur eine Range-Gruppe – Treffer gegen die volle GHSA-Liste verifizieren (aus #231, /security-review-Selbstfund)
+
+Anders als in #228 lief `pnpm audit` hier durch (kein Gzip-Fehler) und meldete 2 „High"-Findings
+für `brace-expansion` mit „Vulnerable versions >=4.0.0 <5.0.8/5.0.9" – obwohl `pnpm why
+brace-expansion` klar `1.1.18` als aufgelöste Version zeigte. Ursache: `brace-expansion`
+pflegt mehrere Major-Linien parallel (`1.x`/`2.x`/`3.x`/`4.x`-`5.x`, je mit eigenem
+`maintenance-vN`-Dist-Tag), und **beide** gemeldeten GHSAs (GHSA-mh99-v99m-4gvg,
+GHSA-rgw5-rvv9-x895) haben in Wahrheit **vier** Vulnerable-Range-Einträge (einen je
+Major-Linie) – `pnpm audit`s Terminal-Ausgabe zeigte aber nur die `4.x`/`5.x`-Gruppe, nicht die
+für die aufgelöste `1.x`-Linie zutreffende. Erst der Abgleich gegen die volle
+GHSA-Advisory-Liste (`curl -s https://api.github.com/advisories/<GHSA-ID>` → Feld
+`vulnerabilities[]`, alle Einträge, nicht nur den ersten) zeigte: `1.1.18` ist für **beide**
+CVEs bereits gepatcht (Patch-Grenzen `1.1.17` bzw. `1.1.18`) – ein reines
+Anzeige-Artefakt, keine echte Schwachstelle.
+
+**Smell:** „`pnpm audit` meldet eine Vulnerable-Range, die zur per `pnpm why <paket>`
+aufgelösten Version nicht passt (Major-Sprung zwischen gemeldeter Range und Ist-Version)?" →
+Verdacht auf ein Paket mit mehreren parallel gepflegten Major-Linien; die Terminal-Ausgabe
+zeigt dann ggf. nur eine von mehreren Range-Gruppen.
+
+**Regel:** Bei jedem `pnpm audit`-Finding **zuerst** `pnpm why <paket>` gegen die gemeldete
+Vulnerable-Range abgleichen. Liegt die aufgelöste Version außerhalb der in `pnpm audit`
+gezeigten Range-Gruppe (z. B. andere Major-Linie), nicht vorschnell „nicht betroffen"
+annehmen, sondern die **volle** GHSA-Advisory-Liste abfragen (`curl -s
+https://api.github.com/advisories/<GHSA-ID>`, Feld `vulnerabilities[]` komplett auswerten,
+nicht nur den ersten Eintrag) und die aufgelöste Version gegen **jeden** dort gelisteten
+`vulnerable_version_range`/`first_patched_version` prüfen – erst danach als False Positive
+oder echtes Finding einordnen.
+
