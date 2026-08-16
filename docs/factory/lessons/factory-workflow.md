@@ -1148,3 +1148,22 @@ der Fork potenziell als eigenen sieht. Lässt sich das Warten nicht vermeiden (z
 gegenprüfen. Liefert der Fork erkennbar keine echten Findings (siehe Smell oben), sofort per
 `SendMessage` mit einer expliziten Anweisung resumen, die den ursprünglichen Auftrag wiederholt
 und ausdrücklich anweist, jeglichen Text über Scheduling/Warten zu ignorieren.
+
+### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus #233)
+
+Ein Akzeptanzkriterium der Form „WHEN der PR zum Merge freigegeben wird THEN ist der manuelle
+Nachlauf-Schritt **in der PR-Beschreibung** benannt" zielt auf ein GitHub-Artefakt außerhalb
+des Repo-Inhalts – nicht auf eine Task-/Spec-Datei. Der von `start-work.sh` angelegte
+Draft-PR-Body enthält aber nur `Closes #<id>` + Task-Titel; er wird durch keinen
+`/implement`/`/test`/`/security-review`-Schritt automatisch nachgezogen, weil diese Skills nur
+Repo-Dateien committen (`factory-commit.sh`). Das Ergebnis: Die Task-Datei kann diese eine
+Checkbox lange als `[ ]` führen, ohne dass irgendein Gate das bemerkt – erst die Logik-Runde
+von `/review` (Prüfung via `gh pr view --json body`) deckte es als kritisches Finding auf.
+
+**Regel:** Enthält die Spec ein AK, das Inhalt **in der PR-Beschreibung selbst** fordert (nicht
+in einer versionierten Datei), diesen Inhalt per `gh pr edit <nr> --body "..."` explizit
+nachziehen – spätestens vor `/review`, damit die Logik-Runde es nicht als Blocker zurückwirft.
+Diese Korrektur ist reine PR-Metadaten-Pflege (kein Code-/Dokuänderung im Branch) und
+rechtfertigt für sich allein **keinen** vollen `/implement`-Rücksprung, wenn sie sofort
+nachgezogen wird – sie sollte aber nicht erst `/pr-shepherd` überlassen werden, da dessen
+Merge-Freigabe sonst auf einer unvollständigen Task-Datei aufsetzt.

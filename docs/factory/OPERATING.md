@@ -79,7 +79,7 @@ Diese Schritte sind einmalig. Danach greift die Automatik.
 
 | Werkzeug | Zweck | Prüfen |
 |----------|-------|--------|
-| Node ≥ 20 + `pnpm` | Build/Test/DB-Scripts | `node -v`, `pnpm -v` |
+| Node ≥ 24 + `pnpm` | Build/Test/DB-Scripts | `node -v`, `pnpm -v` |
 | `gh` (authentifiziert) | Issues, PRs, Auto-Merge | `gh auth status` |
 | `yq` | Config-Merge in `run-pipeline.sh` (Prerequisite) | `yq --version` |
 | `claude` CLI (authentifiziert) | Skills, Stage-3-Pipeline | `claude --version` |

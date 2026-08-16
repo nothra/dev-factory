@@ -111,7 +111,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - name: Abhängigkeiten installieren
         run: pnpm install --frozen-lockfile
@@ -136,7 +136,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - name: Abhängigkeiten installieren
         run: pnpm install --frozen-lockfile
