@@ -281,12 +281,28 @@ Gemergte Branches werden weitgehend automatisch entfernt – dreistufig:
 
 ## Eine Task = Eine Session
 
-Jede neue Task in einer neuen Claude-Session starten.
+**Zwei unabhängige Maßnahmen, nicht dieselbe:**
+- **Eigener Worktree je Task ist Pflicht** – strukturelle Git-Sicherheit gegen Session-
+  Kollisionen (technisch erzwungen, siehe „Parallele Sessions: eigener Worktree" unten).
+- **Neue Claude-Session je Task ist Empfehlung** – Kontext-Hygiene, keine
+  Git-Sicherheitsmaßnahme. Dafür existiert **kein technisches Gate**: kein Hook, kein Check in
+  `scripts/checks/`, kein Test verhindert eine Fortsetzung in derselben Session. Die Skills
+  brauchen bewusst kein Gesprächsgedächtnis (Output in Dateien) – eine Fortsetzung funktioniert
+  technisch, kostet aber Fokus und Token, nicht Korrektheit.
+
+Trotzdem gilt die **dringende Empfehlung**: Jede neue Task in einer neuen Claude-Session starten.
 
 **Warum:**
 - Kleiner Kontext → KI bleibt fokussiert auf die aktuelle Task
 - Kein Übersprechen von Entscheidungen oder Fehlern aus vorherigen Tasks
 - Weniger Token-Verbrauch, da kein irrelevanter Verlauf mitgeschleppt wird
+
+**Zulässige Ausnahme:** `start-work.sh` und das anschließende `/requirements` (ggf.
+`/architecture`) dürfen in derselben, noch task-freien Session laufen – die Anforderung wird
+hier interaktiv geschärft, bevor die eigentliche Implementierungs-Task beginnt.
+
+**Grenze:** Nach Abschluss einer Task **nicht** die nächste Task in derselben Session
+beginnen – dort gilt die Empfehlung uneingeschränkt.
 
 **Wie:**
 ```bash

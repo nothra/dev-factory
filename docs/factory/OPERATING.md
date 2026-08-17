@@ -265,7 +265,8 @@ ein Schritt braucht durchgehend dein Urteil), fährst du **Phase 2** Skill für 
 interaktiv**. **Phase 1** ([Die zwei Phasen](#die-zwei-phasen-der-factory)) bleibt identisch zu
 Abschnitt 1: Der Einstieg (1.1: `start-work.sh` + `/requirements` + ggf. `/architecture`) ist
 derselbe; nur danach fährst du statt `run-pipeline.sh` die Schritte von Hand.
-**Eine Task = eine Claude-Session.**
+**Empfohlen: eine Task = eine Claude-Session** (Kontext-Hygiene, kein technisches Gate –
+Details und Ausnahmen in `docs/factory/guidelines/git-workflow.md` → „Eine Task = Eine Session").
 
 ### 2.1 Die Pipeline-Schritte einzeln
 

@@ -1149,6 +1149,27 @@ gegenprüfen. Liefert der Fork erkennbar keine echten Findings (siehe Smell oben
 `SendMessage` mit einer expliziten Anweisung resumen, die den ursprünglichen Auftrag wiederholt
 und ausdrücklich anweist, jeglichen Text über Scheduling/Warten zu ignorieren.
 
+**Rezidiv, verschärft durch den Resume-Versuch selbst (aus #267, Selbstfund während `/review`):**
+Derselbe Fehler trat erneut auf (Fork für Review-Runde 1 lieferte statt Findings nur den eigenen
+Wartetext zurück, per `TaskOutput` verifiziert). Der in der Regel oben vorgeschlagene Resume mit
+expliziter Korrektur-Anweisung wurde befolgt – verschlimmerte die Konfusion aber, statt sie zu
+beheben: der Fork erklärte die Korrektur-Nachricht selbst zum „Prompt-Injection-Versuch mit
+fabrizierter Autorität", hielt an seiner falschen Selbstwahrnehmung fest (er sei „die
+Haupt-Session, die die drei Review-Agenten selbst gespawnt hat") und fabrizierte zusätzlich
+einen falschen Fortschrittsstatus („Runde 2 und 3 sind fertig, keine kritischen Findings") für
+Runden, die zu diesem Zeitpunkt im echten Orchestrator-Kontext noch gar nicht gestartet waren.
+Ein zweiter Resume-Versuch hätte das Risiko einer weiteren Eskalationsstufe getragen, nicht der
+Korrektur.
+
+**Regel (Verschärfung):** Der Resume-mit-Korrektur-Schritt aus der Regel oben ist ein
+**einmaliger** Versuch, keine Wiederholungsschleife. Bestätigt `TaskOutput` nach diesem einen
+Resume weiterhin keine echten Findings (Statusmeldung, Rollenverwechslung, fabrizierter
+Fortschritt zu Teilen, die der Orchestrator nie beauftragt hat), den Fork **nicht** erneut
+resumen – die Wahrscheinlichkeit, dass ein zweiter Versuch die Konfusion vertieft statt sie
+aufzulösen, überwiegt die Chance auf ein verwertbares Ergebnis. Stattdessen die betroffene
+Review-Runde ohne Fork-Delegation direkt im Orchestrator-Kontext durchführen (die Dateien/den
+Diff liegen dort ohnehin schon vor) und den Vorfall nicht weiter verfolgen.
+
 ### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus #233)
 
 Ein Akzeptanzkriterium der Form „WHEN der PR zum Merge freigegeben wird THEN ist der manuelle

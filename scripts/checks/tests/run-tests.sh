@@ -2286,6 +2286,31 @@ printf -- '- Neuer Worktree hat kein `.env.local` … (aus #228, /implement-Selb
 assert_contains_286 "$(flat_286 "$ALT_DOC")" 'Root-Cause-Fix ausgelagert: #236' \
   "#236 AK9(b): Positiv-Kontrolle – das Abwesenheits-Muster matcht den alten (einzeiligen) Wortlaut"
 
+# ─── #267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
+# Läuft hier (vor dem TMP_SW-Aufräumen unten), weil AK5 die gh-Stub/REPO_SW-Fixtures aus dem
+# #74/#236-Block braucht. Die Session-Empfehlung wird nicht mehr mit „kein geteilter HEAD"
+# begründet – zwei getrennte Aussagen im Abschluss-Output.
+echo ""
+echo "#267 AK5: start-work.sh Abschluss-Output trennt Worktree-Fakt und Session-Empfehlung:"
+
+OUT_267=$(run_start_work "$TMP_SW/wt-267" 792 demo-267)
+assert_contains_286 "$OUT_267" "kein geteilter HEAD" \
+  "AK5: der Worktree-Fakt (kein geteilter HEAD) steht weiterhin im Output"
+assert_contains_286 "$OUT_267" "Empfehlung (keine Pflicht)" \
+  "AK5: die Session-Empfehlung ist explizit als 'keine Pflicht' markiert"
+
+# Getrennte Aussagen: keine einzelne Zeile nennt HEAD-Teilen UND Claude-Session zugleich.
+head_session_same_line_267=$(printf '%s\n' "$OUT_267" | grep -F "kein geteilter HEAD" | grep -c "Claude-Session")
+assert_true "$([ "$head_session_same_line_267" -eq 0 ]; echo $?)" \
+  "AK5: die HEAD-Begründung und die Session-Empfehlung stehen NICHT in derselben Zeile"
+
+# Mutation: die ALTE, kombinierte Formulierung hätte HEAD-Begründung und Session-Empfehlung in
+# derselben Zeile – belegt per Fixture-String, dass der obige Guard eine Regression erkennen würde.
+OLD_LINE_267="Eigener Arbeitsbaum = parallele Sessions kollidieren nicht (kein geteilter HEAD), starte eine neue Claude-Session."
+old_same_line_267=$(printf '%s\n' "$OLD_LINE_267" | grep -F "kein geteilter HEAD" | grep -c "Claude-Session")
+assert_true "$([ "$old_same_line_267" -gt 0 ]; echo $?)" \
+  "AK5 (Mutation): die alte, kombinierte Formulierung hätte den Trennungs-Guard reißen lassen"
+
 rm -rf "$TMP_SW"
 
 # ─── #66: Deploy-Gate liest Secrets über env:, nicht inline im run: ──────────
@@ -5587,6 +5612,82 @@ assert_true "$(grep -qxF -- '  "postcss@<8.5.23": "^8.5.23"' "$WORKSPACE_YAML_29
   "#291 AK7: der bestehende postcss-Override ist auf 8.5.23 angehoben (nicht mehr <8.5.10)"
 assert_true "$(grep -qE '^  "esbuild@<0\.25\.0"' "$WORKSPACE_YAML_291"; echo $?)" \
   "#291 AK7: esbuild-Override bleibt erhalten (kein No-op – ohne ihn kommt esbuild@0.18.20 zurück)"
+
+# ─── #267: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ───────
+echo ""
+echo "#267 Session-Empfehlung vs. Worktree-Pflicht (git-workflow.md/CLAUDE.md/OPERATING.md/start-work.sh):"
+
+GW_267="$CHECKS_DIR/../../docs/factory/guidelines/git-workflow.md"
+CLAUDE_MD_267="$CHECKS_DIR/../../CLAUDE.md"
+OPERATING_MD_267="$CHECKS_DIR/../../docs/factory/OPERATING.md"
+OLD_PHRASE_267="Jede neue Task in einer neuen Claude-Session starten"
+
+gw_flat_267=$(flat_286 "$GW_267")
+
+# AK1: der Abschnitt trennt Pflicht (Worktree) von Empfehlung (Session) und nennt das fehlende Gate
+assert_contains_286 "$gw_flat_267" "Eigener Worktree je Task ist Pflicht" \
+  "AK1: git-workflow.md nennt den Worktree explizit als Pflicht"
+assert_contains_286 "$gw_flat_267" "Neue Claude-Session je Task ist Empfehlung" \
+  "AK1: git-workflow.md nennt die Session explizit als Empfehlung"
+assert_contains_286 "$gw_flat_267" "kein technisches Gate" \
+  "AK1: git-workflow.md benennt das Fehlen eines technischen Gates für die Session-Empfehlung"
+# Mutation (Negativ-Kontrolle): die alte, unqualifizierte Fassung erfüllt den Gate-Check nicht –
+# belegt, dass der Guard nicht durch jede beliebige Session-Erwähnung grün wird.
+assert_absent "$OLD_PHRASE_267" "kein technisches Gate" \
+  "AK1 (Mutation): die alte, unqualifizierte Session-Zeile erfüllt den Gate-Guard nicht"
+
+# AK2: legitime Ausnahme (start-work.sh + /requirements in derselben, noch task-freien Session)
+# und Grenze (keine Folge-Task in derselben Session)
+assert_contains_286 "$gw_flat_267" "in derselben, noch task-freien Session laufen" \
+  "AK2: git-workflow.md nennt die start-work.sh/requirements-Ausnahme"
+assert_contains_286 "$gw_flat_267" "Grenze:" \
+  "AK2: git-workflow.md benennt explizit eine Grenze"
+assert_contains_286 "$gw_flat_267" "die nächste Task in derselben Session beginnen" \
+  "AK2: git-workflow.md nennt die Grenze (keine Folge-Task in derselben Session)"
+assert_absent "$OLD_PHRASE_267" "noch task-freien Session" \
+  "AK2 (Mutation): die alte Fassung kennt weder Ausnahme noch Grenze"
+
+# F3: die Worktree-Pflicht bleibt unverändert unverhandelbar (Negativ-Richtung von AK1)
+assert_contains_286 "$gw_flat_267" "Parallele Sessions: eigener Worktree (nicht verhandelbar)" \
+  "F3: die Worktree-Pflicht bleibt als 'nicht verhandelbar' übertitelt"
+
+# AK3: CLAUDE.md-Guardrail ist Empfehlung + verweist auf git-workflow.md als kanonische Quelle
+claude_flat_267=$(flat_286 "$CLAUDE_MD_267")
+assert_contains_286 "$claude_flat_267" "Empfehlung (keine Pflicht): Jede neue Task in einer neuen Claude-Session starten" \
+  "AK3: CLAUDE.md formuliert die Guardrail-Zeile als Empfehlung"
+assert_contains_286 "$claude_flat_267" "Kanonische Quelle für Ausnahmen und Grenzen:" \
+  "AK3: CLAUDE.md verweist auf eine kanonische Quelle für Ausnahmen/Grenzen"
+assert_contains_286 "$claude_flat_267" "guidelines/git-workflow.md" \
+  "AK3: der Verweis zeigt auf git-workflow.md"
+assert_absent "Jede neue Task in einer neuen Claude-Session starten. start-work.sh erinnert daran." \
+  "Kanonische Quelle" \
+  "AK3 (Mutation): die alte Guardrail-Zeile ohne Quellverweis erfüllt den Guard nicht"
+
+# AK4: OPERATING.md widerspruchsfrei zu git-workflow.md/Abschnitt 1.1 (Empfehlung statt Pflicht)
+operating_flat_267=$(flat_286 "$OPERATING_MD_267")
+assert_contains_286 "$operating_flat_267" "Empfohlen: eine Task = eine Claude-Session" \
+  "AK4: Abschnitt 2 formuliert die Session-Regel als Empfehlung"
+assert_contains_286 "$operating_flat_267" "kein technisches Gate" \
+  "AK4: Abschnitt 2 nennt explizit das Fehlen eines technischen Gates"
+assert_absent "**Eine Task = eine Claude-Session.**" "kein technisches Gate" \
+  "AK4 (Mutation): die alte imperative Fassung erfüllt den Guard nicht"
+
+# AK7: wo die alte imperative Wortfolge (ohne Präzisierung) weiterhin exakt vorkommt, muss sie
+# durch eine Empfehlung qualifiziert sein – keine Fundstelle bleibt unbedingte Pflicht. Array statt
+# space-getrennter String: der Worktree-Pfad dieses Repos enthält selbst Leerzeichen
+# ("TCH Gastro Services.worktrees/…"), unquoted Word-Splitting zerrisse die Pfade.
+ak7_files_267=("$GW_267" "$CLAUDE_MD_267" "$OPERATING_MD_267" "$SW")
+ak7_matches_267=$(grep -lF "$OLD_PHRASE_267" "${ak7_files_267[@]}" 2>/dev/null | wc -l | tr -d ' ')
+assert_true "$([ "$ak7_matches_267" -ge 1 ]; echo $?)" \
+  "AK7: Testfixture ist scharf – die alte Wortfolge kommt in mindestens einer der vier Dateien vor"
+ak7_unqualified_267=""
+for ak7_f in "${ak7_files_267[@]}"; do
+  while IFS= read -r ak7_line; do
+    printf '%s' "$ak7_line" | grep -qF "Empfehlung" || ak7_unqualified_267="${ak7_unqualified_267}${ak7_f}: ${ak7_line}\n"
+  done < <(grep -F "$OLD_PHRASE_267" "$ak7_f" 2>/dev/null || true)
+done
+assert_true "$([ -z "$ak7_unqualified_267" ]; echo $?)" \
+  "AK7: jede Fundstelle der alten Wortfolge ist als Empfehlung qualifiziert${ak7_unqualified_267:+ – unqualifiziert:\n${ak7_unqualified_267}}"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

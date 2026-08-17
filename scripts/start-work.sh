@@ -414,6 +414,7 @@ if [ "$ENV_COPIED" = true ]; then
   echo "     (.env.local wurde kopiert – die geteilte lokale DB kennt die SEED_ADMIN_*-Daten evtl. noch nicht)"
 fi
 echo ""
-echo -e "${YELLOW}⚡ Tipp: Starte für Task ${TASK_ID} eine neue Claude-Session in diesem Worktree.${NC}"
-echo "   Eigener Arbeitsbaum = parallele Sessions kollidieren nicht (kein geteilter HEAD)."
+echo -e "${YELLOW}⚡ Eigener Arbeitsbaum: parallele Sessions kollidieren nicht (kein geteilter HEAD).${NC}"
+echo "   Empfehlung (keine Pflicht): Starte für Task ${TASK_ID} zusätzlich eine neue Claude-Session"
+echo "   in diesem Worktree – Kontext-Hygiene, siehe git-workflow.md → 'Eine Task = Eine Session'."
 echo ""

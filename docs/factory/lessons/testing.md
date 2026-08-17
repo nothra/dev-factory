@@ -387,6 +387,24 @@ gewichtet den Lesson-Text höher, wenn Spec und Lesson widersprüchlich klingen.
 Eintragsgruppe/-liste" ist **nie** eine hinreichende Begründung für eine zweite,
 prüfausdrucksidentische Schleife.
 
+**4. Vorkommnis, jetzt bei Einzel-Assertions statt Schleifen (aus #267, /implement→/refactor-
+Diskrepanz):** `/implement` schrieb für sechs neue Präsenz-/Abwesenheits-Prüfungen in
+`run-tests.sh` (AK1/AK2/AK3/AK4-Mutationsbelege plus zwei AK5-Checks) jeweils den vollen
+`printf '%s' "$x" | grep -qF "$y"; assert_true "$([ $? -ne 0 ]; echo $?)" "..."`-Rumpf **inline**,
+obwohl im selben File bereits die Helfer `assert_contains_286` (positive Präsenz) und
+`assert_absent` (Negativ-Kontrolle, exakt dieser $?-Negations-Rumpf) für genau diesen Zweck
+existierten – erst `/refactor` bemerkte die Duplikation und ersetzte alle sechs Stellen durch
+Helfer-Aufrufe (12 Zeilen weniger, identische Assertions). Derselbe Smell wie oben, nur auf
+Ein-Zeilen-Assertions statt `for`-Schleifen: der Fokus beim Schreiben lag auf „prüft das die
+richtige Bedingung", nicht auf „gibt es im File schon eine Funktion mit exakt diesem Rumpf".
+
+**Regel (Ergänzung):** Der Smell/die Regel oben („gegen bereits vorhandene Struktur mit
+identischem Prüfausdruck abgleichen, bevor eine neue angelegt wird") gilt unabhängig von der
+Sprachkonstrukt-Ebene – Schleife, Capability-Check **oder einzelne Assert-Zeile**. Vor einem
+`printf … | grep -qF …; assert_true …`-Konstrukt in `run-tests.sh` den Helfer-Block am
+Dateianfang (`assert_contains_286`, `assert_absent`, `flat_286`, `ls_mode_matches` u. Ä.)
+gegenprüfen, ob der exakte Rumpf schon als Funktion existiert.
+
 ### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus #249, umgekehrte Kausalrichtung)
 
 Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei
