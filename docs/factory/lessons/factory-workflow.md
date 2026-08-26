@@ -100,6 +100,18 @@ Stale-Sentinel-Cleanup (`INTERRUPT-*.md`). Alternativ: mtime/Hash vor dem `claud
 Verdict nur honorieren wenn die Datei sich danach verändert hat. Bis dahin: Pipeline-Re-Läufe auf
 Branches mit bereits committetem Report manuell prüfen (ADR-019 §4 ergänzen).
 
+**Within-Run-Variante (Issue #310, Task 308):** Derselbe Fehlmechanismus tritt auch **innerhalb
+eines einzigen Pipeline-Laufs** auf, nicht nur bei einem Re-Lauf des Skripts: Die
+`REVIEW_ITERATION`-Schleife in Phase 2 ruft `/review` mehrfach hintereinander auf und liest jedes
+Mal dieselbe Report-Datei. Erreicht `/review` in Iteration 2 (oder 3) das Turn-Limit, **bevor** es
+den Report neu geschrieben hat, akzeptiert der Guard den **stehengebliebenen Verdict aus
+Iteration 1** als vermeintlich frischen Erfolg – die Iteration zählt, obwohl in Wahrheit kein
+Review stattfand. In Task 308 führte das dazu, dass der Circuit Breaker nach zwei Iterationen
+auslöste, obwohl der Rework nach Iteration 1 bereits vollständig und unabhängig verifiziert grün
+war. Die Regel aus #92 muss also **zusätzlich** vor jedem Schleifendurchlauf greifen (Report-Datei
+oder ihr Hash/mtime pro Iteration merken), nicht nur einmalig im Preflight vor dem allerersten
+Aufruf.
+
 ### `.claude/**`-Änderungen erfordern Patch-Workflow (aus #91)
 
 Änderungen an `.claude/settings.json` und `.claude/commands/*.md` sind für einen Agenten hard
