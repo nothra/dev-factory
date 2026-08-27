@@ -215,10 +215,30 @@ MAX_REVIEW_ITERATIONS="${MAX_REVIEW_ITERATIONS:-2}"  # Überschreibbar: MAX_REVI
 REVIEW_ITERATION=0
 
 # Stoppt die Pipeline hart, wenn für die Task ein Interrupt signalisiert wurde (ADR-004) –
-# run_skill() braucht denselben Aufruf an drei Stellen (Erfolg, frischer Verdict, stale
-# Verdict). Kein signalisierter Interrupt → Exit 0, Rückkehr zum Aufrufer.
+# run_skill() braucht denselben Aufruf an drei Stellen (Exit-0-Versuch, frischer Verdict nach
+# Turn-Limit, stale Verdict). Kein signalisierter Interrupt → Exit 0, Rückkehr zum Aufrufer.
 stop_if_interrupted() {
   bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$1" || exit $?
+}
+
+# Erfolgsmeldung von run_skill() an einem Ort (Review-Runde-3-Nitpick N2, #312): stand vor
+# #312 einmal im Code, seither an zwei Stellen (report-erzeugender Exit-0-Pfad, Exit-0-Pfad
+# der übrigen Skills) – eine reine Textänderung müsste sonst an beiden nachgezogen werden.
+print_skill_done() {
+  echo -e "${GREEN}✓${NC} /${1} abgeschlossen"
+}
+
+# Erfolgsbedingung der zwei report-erzeugenden Skills (ADR-019 §4): Nicht der Exit-Code
+# entscheidet, sondern das Artefakt – der Report muss IN DIESEM AUFRUF verändert worden sein
+# (Fingerprint gegen den Snapshot von vor dem ersten Versuch, #310) UND einen eindeutigen
+# Verdict tragen. Die Bedingung steht nur hier: beide Rückkehrpfade von run_skill() werten
+# sie aus, damit die Prüfung symmetrisch ist und run_skill() per Konstruktion nie mit einem
+# stale oder verdictlosen Report zurückkehrt (#312 – vor dem Fix sah der Exit-0-Pfad den
+# Fingerprint gar nicht an und die Konsumenten in Phase 2/5 lasen fail-open weiter).
+report_is_fresh_and_valid() {
+  local skill="$1" task_id="$2" fingerprint_before="$3"
+  [ -n "$(report_verdict "$skill" "$task_id")" ] || return 1
+  [ "$(report_fingerprint "$skill" "$task_id")" != "$fingerprint_before" ]
 }
 
 run_skill() {
@@ -262,42 +282,71 @@ run_skill() {
   # Retry mit exponentiellem Backoff (z.B. bei Rate-Limit-Fehlern)
   # FACTORY_STAGE=3 signalisiert dem Agenten den nicht-interaktiven Modus:
   # statt eine Entscheidung zu erfragen, löst er einen Interrupt aus (ADR-004).
-  local attempt
+  local attempt rc
   for attempt in 1 2 3; do
+    # Exit-Code `set -e`-sicher einsammeln: beide Rückkehrpfade werten dieselbe
+    # Erfolgsbedingung aus, der Exit-Code bestimmt nur noch die Meldung. Ein nacktes
+    # `cmd; rc=$?` würde die Shell beenden, bevor der Wert ausgewertet ist.
     if FACTORY_STAGE=3 claude --print "$prompt" \
         --model "$model" \
         --max-turns "$turns" 2>&1; then
-      echo -e "${GREEN}✓${NC} /${skill} abgeschlossen"
-      # Hat der Agent einen Interrupt signalisiert? Dann hart stoppen.
-      stop_if_interrupted "$task_id"
-      return 0
+      rc=0
+    else
+      rc=$?
     fi
 
-    # Report-Guard (ADR-019 §4): review/security-review schreiben ihren Report und
-    # reißen bisweilen DANACH das Turn-Limit (non-zero Exit, „Reached max turns").
-    # Ein gültiger Verdict zählt als Erfolg – NUR für diese zwei report-erzeugenden
-    # Skills, und NUR wenn er in diesem Aufruf entstanden ist (veränderter Fingerprint,
-    # #310). Für alle anderen Skills bleibt non-zero ein Fehlversuch.
-    local verdict report_fingerprint_now
-    verdict="$(report_verdict "$skill" "$task_id")"
-    report_fingerprint_now="$(report_fingerprint "$skill" "$task_id")"
-    if [ -n "$verdict" ] && [ "$report_fingerprint_now" != "$report_fingerprint_before" ]; then
-      echo -e "${GREEN}✓${NC} /${skill} abgeschlossen (Verdict '${verdict}' – Report in diesem Aufruf geschrieben, Turn-Limit toleriert)"
-      # Auch hier: ein signalisierter Interrupt stoppt hart (kein stiller Übergang).
+    # Ein signalisierter Interrupt hat Vorrang vor der Frische-Prüfung (#312): sonst folgten
+    # zwei weitere Heavy-Versuche desselben Skills und der Blocker-Eintrag in der Task-Datei
+    # entfiele. Im Exit-0-Pfad lief diese Prüfung auch vor #312 schon – nur eben erst hinter
+    # einem bedingungslosen `return 0`, das es jetzt nicht mehr gibt.
+    if [ "$rc" -eq 0 ]; then
       stop_if_interrupted "$task_id"
-      return 0
     fi
-    if [ -n "$verdict" ]; then
-      echo -e "${YELLOW}⚠${NC} /${skill}: Verdict '${verdict}' stammt aus einem früheren Aufruf (Report in diesem Aufruf unverändert) – kein Erfolg."
-      # Auch der Stale-Fall darf einen signalisierten Interrupt nicht verschlucken: vor #310
-      # lief er in den (damals erfolgreichen) Verdict-Zweig und stoppte dort hart. Ohne diese
-      # Zeile folgten zwei weitere Heavy-Versuche desselben Skills, und der Blocker-Eintrag in
-      # der Task-Datei entfiele (#310 Review-Runde-2-Nitpick). Liegt kein Interrupt vor, bleibt
-      # es beim regulären Fehlversuch (Exit 0 aus interrupt-check.sh). Der allgemeine Fall ohne
-      # Verdict (fehlender/unvollständiger Report, nicht report-erzeugende Skills) bleibt hier
-      # bewusst außen vor – vorbestehender Zustand, kein Scope dieses Fixes (#310
-      # Review-Runde-3-Nitpick).
-      stop_if_interrupted "$task_id"
+
+    # Report-Guard (ADR-019 §4): Für die zwei report-erzeugenden Skills zählt allein das
+    # Artefakt – ein Verdict gilt nur, wenn er in DIESEM Aufruf entstanden ist. Das deckt
+    # beide Richtungen ab: ein Turn-Limit NACH fertigem Report ist Erfolg (#91), ein
+    # stehengebliebener Verdict ist keiner – weder bei non-zero Exit (#310) noch bei Exit 0
+    # (#312). Für alle anderen Skills entscheidet unverändert der Exit-Code.
+    if is_report_skill "$skill" "$task_id"; then
+      # Verdict-String für die Meldungen einmal materialisieren, statt ihn per eingebetteter
+      # Command Substitution in jeder Meldung neu zu lesen. report_is_fresh_and_valid() liest
+      # den Verdict für die Bedingung separat noch einmal (AK9, ihr einziger Ort) – macht zwei
+      # Verdict-Abfragen pro Versuch im report-erzeugenden Zweig, nicht eine (Review-Runde-3-
+      # Finding #312).
+      local verdict
+      verdict="$(report_verdict "$skill" "$task_id")"
+      if report_is_fresh_and_valid "$skill" "$task_id" "$report_fingerprint_before"; then
+        if [ "$rc" -eq 0 ]; then
+          print_skill_done "$skill"
+        else
+          echo -e "${GREEN}✓${NC} /${skill} abgeschlossen (Verdict '${verdict}' – Report in diesem Aufruf geschrieben, Turn-Limit toleriert)"
+          # Auch hier: ein signalisierter Interrupt stoppt hart (kein stiller Übergang).
+          stop_if_interrupted "$task_id"
+        fi
+        return 0
+      fi
+
+      if [ -n "$verdict" ]; then
+        echo -e "${YELLOW}⚠${NC} /${skill}: Verdict '${verdict}' stammt aus einem früheren Aufruf (Report in diesem Aufruf unverändert) – kein Erfolg."
+        # Auch der Stale-Fall darf einen signalisierten Interrupt nicht verschlucken: vor #310
+        # lief er in den (damals erfolgreichen) Verdict-Zweig und stoppte dort hart. Ohne diese
+        # Zeile folgten zwei weitere Heavy-Versuche desselben Skills, und der Blocker-Eintrag in
+        # der Task-Datei entfiele (#310 Review-Runde-2-Nitpick). Im Exit-0-Fall hat die Prüfung
+        # oben bereits gegriffen; hier deckt sie den non-zero-Pfad ab.
+        stop_if_interrupted "$task_id"
+      else
+        # Wortlaut deckt bewusst zwei Lagen ab: Report frisch geschrieben, aber ohne
+        # auswertbaren Anker – und Report gar nicht vorhanden (non-zero Exit, das Skill kam
+        # nie zum Schreiben). Anders als der Stale-Fall darüber hat dieser Zweig KEIN
+        # stop_if_interrupted: auf dem Exit-0-Pfad hat die Prüfung oben schon gegriffen, auf
+        # dem non-zero-Pfad ist das der vorbestehende Zustand seit #91 (in #310 bewusst nicht
+        # mitgeändert – kein Scope des Fixes, #310 Review-Runde-3-Nitpick).
+        echo -e "${YELLOW}⚠${NC} /${skill}: kein eindeutiger Verdict aus diesem Aufruf – kein Erfolg."
+      fi
+    elif [ "$rc" -eq 0 ]; then
+      print_skill_done "$skill"
+      return 0
     fi
 
     if [ "$attempt" -lt 3 ]; then
@@ -499,12 +548,22 @@ echo -e "${BLUE}Phase 5: Security Review${NC}"
 run_skill "security-review" "$TASK_ID"
 
 # Security-Gate – Verdict ausschließlich aus der Anker-Zeile '## Ergebnis' (report_verdict),
-# nie per Volltext-Grep über den ganzen Report (#211). Nur ein eindeutiges NEEDS_FIXES
-# blockiert; eine Fließtext-Erwähnung anderswo tut es nicht.
-if [ "$(report_verdict security-review "$TASK_ID")" = "NEEDS_FIXES" ]; then
-  echo -e "${RED}Security Review: NEEDS_FIXES${NC}"
-  echo "Kritische Security-Findings müssen manuell behoben werden."
-  exit 1
+# nie per Volltext-Grep über den ganzen Report (#211). Fail-closed: Das Gate passiert nur ein
+# eindeutiges PASSED (#312). Die frühere Polarität blockierte nur bei eindeutigem NEEDS_FIXES
+# und winkte damit auch einen fehlenden Report oder einen Report ohne auswertbaren
+# Verdict-Anker durch – die Fehlrichtung eines Security-Gates darf nicht „durchlassen" sein.
+# --dry-run macht keine echten Skill-Läufe und erzeugt darum nie einen Security-Report; das
+# fail-closed-Gate würde dort systematisch blockieren. Wie die Endzustands-Verifikation unten
+# wird es deshalb im Dry-Run übersprungen statt abgeschwächt.
+if [ "$DRY_RUN" = true ]; then
+  echo -e "${BLUE}[DRY-RUN] Security-Gate übersprungen${NC}"
+else
+  SECURITY_VERDICT="$(report_verdict security-review "$TASK_ID")"
+  if [ "$SECURITY_VERDICT" != "PASSED" ]; then
+    echo -e "${RED}Security Review: ${SECURITY_VERDICT:-kein eindeutiger Verdict}${NC}"
+    echo "Kritische Security-Findings müssen manuell behoben werden."
+    exit 1
+  fi
 fi
 
 # Phase 6: Codify

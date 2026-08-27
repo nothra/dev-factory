@@ -615,3 +615,30 @@ nächstliegenden vorhandenen Mutanten wiederverwenden. Die Kontrolle tatsächlic
 beobachten, ob sie wirklich grün wird: RED-vor-GREEN gilt auch für Positivkontrollen, nicht nur
 für Negativtests. Ergänzt #214 („Negativtest auf Zielpfad isolieren") – hier ist es der
 **grüne** Kontroll-Pfad, der isoliert werden muss.
+
+### Zähl-Assertion in einem per awk extrahierten Funktionsrumpf: Label behauptet mehr, als das Fenster messen kann (aus #312, Review-Runde-3-Finding W1)
+
+Eine Assertion zählte Vorkommen von `report_verdict` im per `awk` extrahierten Rumpf von
+`run_skill()` und war korrekt auf `1` gepinnt. Ihr Label lautete jedoch „run_skill() liest den
+Verdict genau einmal **pro Versuch**" – eine Aussage über den gesamten Aufruf-Pfad. Tatsächlich
+liest eine von `run_skill()` aufgerufene Hilfsfunktion (`report_is_fresh_and_valid()`, **außerhalb**
+des per `awk` extrahierten Fensters) denselben Wert für die Bedingung noch einmal – macht real
+zwei Aufrufe pro Versuch. Die Assertion selbst maß korrekt ihr eigenes, bewusst begrenztes
+Fenster; das Label unterstellte eine Eigenschaft der aufgerufenen **Funktion insgesamt**, die
+das Fenster gar nicht sehen kann. Zwei Review-Runden zuvor hatten „einmal pro Versuch" bereits
+unwidersprochen als nachgeprüfte Tatsache übernommen (Runde 1 zählte sogar Code**stellen** statt
+Aufrufe) – erst eine dritte, gezielt nachbauende Prüfung (Hilfsfunktion mit Zähler umwickelt,
+einen Versuch nachgestellt) deckte die Diskrepanz auf.
+
+**Smell:** Eine Zähl-Assertion extrahiert bewusst nur einen Teil einer Funktion (Performance,
+Fokus, Vermeidung von Fragment-Fallen wie #114) – **aber ihr Label spricht über die ganze
+Funktion oder den ganzen Aufruf-Pfad**, nicht über das tatsächlich extrahierte Fenster.
+
+**Regel:** Das Label einer Zähl-Assertion darf nur behaupten, was der extrahierte Bereich
+tatsächlich abdeckt („… im eigenen Rumpf von X" statt „X tut Y genau einmal"). Ruft die
+extrahierte Funktion denselben Wert über eine externe Hilfsfunktion noch einmal ab, gehört das
+explizit ins Label oder in einen Kommentar direkt daneben – sonst wiederholt eine spätere
+Review-Runde exakt dieselbe falsche Zusammenfassung, weil sie dem Label statt dem Code traut.
+Bei jedem neuen Zähl-Guard dieser Art: „Ruft die als isoliert behandelte Funktion selbst wieder
+etwas auf, das denselben Wert erneut liest – und liegt dieser Aufruf außerhalb meines
+Extraktionsfensters?"

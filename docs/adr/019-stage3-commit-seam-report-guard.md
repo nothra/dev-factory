@@ -56,9 +56,12 @@ tatsächlich genutzten Verben: `gh pr view`, `gh pr checks`, `gh pr update-branc
 server-seitig durch CI **und** menschliches Approval gated – Auto-Merge vollzieht sich nicht ohne
 grüne Gates.
 
-**4 · Report-Guard in `run_skill()`.** Ein non-zero Exit (inkl. „Reached max turns") gilt als
-**Erfolg**, wenn der zugehörige Report **in diesem Skill-Aufruf** mit gültigem Verdict
-geschrieben wurde (Frische-Bedingung, siehe Nachtrag #310 unten) – **nur** für die zwei
+**4 · Report-Guard in `run_skill()`.** Für die zwei report-erzeugenden Skills entscheidet
+nicht der Exit-Code über den Erfolg, sondern das Artefakt: ein Versuch gilt genau dann als
+**Erfolg**, wenn der zugehörige Report **in diesem Skill-Aufruf** verändert wurde **und**
+einen eindeutigen Verdict trägt. Diese Bedingung gilt **auf beiden Rückkehrpfaden** – beim
+non-zero Exit (inkl. „Reached max turns") ebenso wie bei Exit 0 (Frische-Bedingung und
+Symmetrie: siehe die Nachträge #310 und #312 unten). Betroffen sind **nur** die zwei
 report-erzeugenden Skills:
 - `review` → `tasks/review-<id>.md` enthält `APPROVED` oder `NEEDS_REWORK`.
 - `security-review` → `tasks/security-<id>.md` enthält `PASSED` oder `NEEDS_FIXES`.
@@ -89,7 +92,12 @@ fail-open ohne jedes Review). Weil `run_skill()` den Fingerprint pro Aufruf erhe
 Prüfung beide Fälle mit derselben Mechanik ab. Die Skill→Report-Datei-Zuordnung liegt dazu
 ebenfalls nur in der Lib (`report_file`); `run-pipeline.sh` baut keinen Report-Pfad mehr selbst.
 
-Für alle anderen Skills bleibt non-zero = Fehlversuch.
+Die hier für den Fehlerpfad formulierte Bedingung („nach dem Fehlversuch") wertet `run_skill()`
+seit #312 auf **beiden** Rückkehrpfaden aus – Mechanik und Begründung im Nachtrag #312 unten,
+damit sie nicht in zwei Absätzen parallel gepflegt werden muss.
+
+Für alle anderen Skills entscheidet unverändert allein der Exit-Code (non-zero = Fehlversuch),
+unabhängig davon, ob Report-Dateien existieren, fehlen oder stale sind.
 
 **5 · Budget-Puffer.** `factory.defaults.yml`: `max_turns` von `8` auf **14** für `review` und
 `security-review` (mit `@reason`) – zusätzlich zum Guard, nicht als Ersatz.
@@ -225,6 +233,50 @@ kalibriert wurde (14 → 30) und verweist auf den aktuellen Wert als kanonisch i
 `skills.security-review.max_turns`: 14 → 30), `factory.config.yml` (redundanter Override
 entfernt), `scripts/checks/tests/run-tests.sh` (Dry-Run-Assertions auf „max 30 turns"
 aktualisiert).
+
+## Nachtrag (2026-08-27, #312): Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad
+
+**Kontext.** Der #310-Nachtrag beschrieb die Frische-Bedingung ausdrücklich für den Fehlerpfad
+(„Ist der Fingerprint **nach dem Fehlversuch** unverändert …"), und genau dort saß sie auch im
+Code. Endete `claude --print` mit **Exit 0**, kehrte `run_skill()` mit `return 0` zurück, ohne
+den erhobenen Fingerprint je anzusehen. Beendete `/review` einen Aufruf mit Exit 0, **ohne**
+seinen Report (neu) zu schreiben, las Phase 2 den stehengebliebenen Verdict aus einer früheren
+Iteration bzw. einem früheren, committeten Lauf: ein alter `APPROVED` ließ die Pipeline den
+Review-Loop verlassen, ohne dass in diesem Lauf ein Review stattfand – dieselbe
+fail-open-Richtung wie #91/#310, nur über den Erfolgs- statt den Fehlerpfad. Beim Lesen fiel
+zusätzlich auf, dass das Security-Gate in Phase 5 **nur** bei einem eindeutigen `NEEDS_FIXES`
+blockierte und damit auch einen fehlenden Report oder einen Report ohne auswertbaren
+Verdict-Anker durchwinkte.
+
+**Entscheidung.** Kein neuer Design-Fork, sondern die Vervollständigung der unter §4 bereits
+getroffenen Entscheidung „Erfolg = fertiger Report, nicht sauberer Exit":
+
+1. **Symmetrie.** Beide Rückkehrpfade werten dieselbe Bedingung aus – Erfolg nur bei
+   verändertem Fingerprint **und** eindeutigem Verdict. Die Bedingung steht genau einmal im
+   Code (`report_is_fresh_and_valid` in `run-pipeline.sh`, Pfad-/Fingerprint-/Verdict-Wissen
+   weiterhin nur in `scripts/lib/report-verdict.sh`), und der Snapshot bleibt einer pro
+   `run_skill()`-Aufruf. Nur die **Meldung** hängt noch am Exit-Code („Turn-Limit toleriert"
+   gibt es weiterhin ausschließlich im non-zero-Fall). `run_skill()` kann damit per Konstruktion
+   nie mit einem stale oder verdictlosen Report zurückkehren; die Konsumenten in Phase 2 und 5
+   brauchen keine eigene Prüfstelle.
+2. **Strenge.** Auch ein frisch geschriebener Report ohne eindeutigen Verdict ist ein
+   Fehlversuch – das schließt die oben genannte Phase-5-Lücke mit.
+3. **Fehlerpfad.** Ein Exit-0-Aufruf ohne frischen, gültigen Report ist ein regulärer
+   Fehlversuch im bestehenden Retry-Pfad (3 Versuche, dann `exit 1`; kein neuer Interrupt-Typ,
+   kein Löschen des Reports). Ein im Versuch **signalisierter** Interrupt hat Vorrang: die
+   `interrupt-check.sh`-Prüfung läuft im Exit-0-Pfad **vor** der Frische-/Verdict-Auswertung,
+   damit der Blocker-Eintrag in der Task-Datei nicht durch zwei weitere Heavy-Versuche entfällt.
+4. **Gate-Polarität Phase 5.** Das Security-Gate passiert nur ein eindeutiges `PASSED` (statt
+   nur bei `NEEDS_FIXES` zu blockieren) – fail-closed am Gate selbst, unabhängig davon, was
+   `run_skill()` garantiert. Im `--dry-run` wird es übersprungen (dort laufen keine Skills,
+   also entsteht auch kein Report) – dieselbe Ausnahme wie bei der Endzustands-Verifikation.
+
+Details/Testfälle: `docs/specs/spec-312-verdict-konsum-frische-pruefung.md`.
+
+**Betroffene Artefakte (Ergänzung):** `scripts/run-pipeline.sh` (`report_is_fresh_and_valid`,
+symmetrische Auswertung in `run_skill()`, umgedrehtes Security-Gate),
+`scripts/checks/tests/run-tests.sh` (#312-E2E-Block auf dem #310-Harness inkl.
+Mutationsbelegen), `docs/factory/lessons/factory-workflow.md` (Report-Guard-Absatz).
 
 ## Nachtrag (2026-08-02, #262): `-h`/`--help` ist eine Hilfe-Anfrage, kein Pflicht-Argument
 

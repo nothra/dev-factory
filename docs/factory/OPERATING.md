@@ -211,7 +211,10 @@ PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
   Warnung → erst 1.1), stale Interrupt-Sentinel wird entfernt.
 - **Review-Loop** mit **Circuit Breaker**: `MAX_REVIEW_ITERATIONS` (Default 2) – danach `exit 2`,
   Mensch übernimmt.
-- **Security-Gate:** `NEEDS_FIXES` → Abbruch vor Merge.
+- **Security-Gate (fail-closed, #312):** Es passiert **nur ein eindeutiges `PASSED`** – alles
+  andere (`NEEDS_FIXES`, fehlender Report, Report ohne auswertbaren Verdict-Anker) bricht vor dem
+  Merge ab. Im `--dry-run` wird das Gate übersprungen (dort läuft kein Skill, also entsteht auch
+  kein Report).
 - **Hält an den Menschen-Gates** (`FACTORY_STAGE=3`): Erkennt ein Agent eine nicht automatisierbare
   Entscheidung, ruft er `raise-interrupt.sh` und die Pipeline **stoppt hart** (ADR-004, Abschnitt 3).
   Kein stiller Durchlauf.
@@ -369,8 +372,10 @@ klären. In Stage 2 fragt der Agent interaktiv; in Stage 3 löst er den `ADR`-In
 ### 4.2 Security-Freigabe
 
 `/security-review` ist das **letzte Gate vor Merge**. Ergebnis `NEEDS_FIXES` = **Stopp**:
-kritische/wichtige Findings werden behoben (nicht wegdiskutiert). Bewusst akzeptierte Rest-Punkte
-gehören **begründet** in den Report und als Backlog-Issue heraus – nie stillschweigend.
+kritische/wichtige Findings werden behoben (nicht wegdiskutiert). Allgemeiner gilt seit #312
+fail-closed: weiter geht es nur mit einem eindeutigen `PASSED` – ein fehlender oder mehrdeutiger
+Verdict stoppt genauso. Bewusst akzeptierte Rest-Punkte gehören **begründet** in den Report und
+als Backlog-Issue heraus – nie stillschweigend.
 
 ### 4.3 Destruktive Produktions-Migrationen
 

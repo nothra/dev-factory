@@ -1443,6 +1443,11 @@ if [ "$HAS_YQ" = 1 ]; then
   # Verifikation als übersprungen, statt sie auszuführen/abzubrechen.
   printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
   assert_true "$?" "#212 F4: --dry-run markiert Endzustands-Verifikation als übersprungen (kein Abbruch)"
+  # #312: dieselbe Dry-Run-Ausnahme für das jetzt fail-closed Security-Gate. Ohne sie blockierte
+  # jeder --dry-run ab Phase 5 – dort läuft kein Skill, also entsteht nie ein Security-Report.
+  # Direkte Assertion statt bloß transitiver Absicherung über die Erfolgs-Ausgabe darunter.
+  printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Security-Gate übersprungen'
+  assert_true "$?" "#312: --dry-run markiert das Security-Gate als übersprungen (kein Abbruch)"
   printf '%s' "$dry91_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$?" "#212 F4: --dry-run erreicht die Erfolgs-Ausgabe (Verifikation blockiert nicht)"
   rm -rf "$TMP_DRY91"
@@ -4011,12 +4016,28 @@ if [ "$HAS_YQ" = 1 ]; then
      "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_E2E/scripts/lib/"
   cp "$DEFAULTS_YML" "$TMP_E2E/"
   echo "# ctx" > "$TMP_E2E/docs/factory/PROJECT-CONTEXT.md"
+  # SKILL-<name>-Marker wie in scaffold_310: daran erkennt der Stub im Prompt, welches Skill
+  # läuft ('SKILL-review' ist kein Teilstring von 'SKILL-security-review').
   for s in implement review test refactor security-review codify; do
-    echo "# $s mock" > "$TMP_E2E/.claude/commands/$s.md"
+    printf '# SKILL-%s mock\n' "$s" > "$TMP_E2E/.claude/commands/$s.md"
   done
   echo "# Task 78: e2e" > "$TMP_E2E/tasks/task-78-e2e.md"
-  printf '## Empfehlung\nAPPROVED\n' > "$TMP_E2E/tasks/review-78.md"   # Review-Loop sofort grün
-  printf '#!/bin/sh\nexit 0\n' > "$TMP_E2E/bin/claude"; chmod +x "$TMP_E2E/bin/claude"   # no-op-Skills
+  # Der Stub schreibt die Reports IM Aufruf (seit #312 gilt ein report-erzeugendes Skill nur
+  # so als erfolgreich – ein vorab abgelegter APPROVED wäre stale und bräche den Lauf schon
+  # in Phase 2 ab). Der Zähler variiert den Inhalt, damit auch der zweite und dritte Lauf
+  # gegen dasselbe Scaffold einen VERÄNDERTEN Report sehen. Alle drei Dateien bleiben
+  # untrackt (sie entstehen erst nach dem letzten `git add .`) – Preflight und
+  # verify_final_state bewerten nur getrackte Diffs.
+  cat > "$TMP_E2E/bin/claude" <<'CLAUDE_E2E'
+#!/bin/sh
+n=$(cat "$PWD/.stub-calls" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$PWD/.stub-calls"
+case "$*" in
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\nAufruf %s\n' "$n" > "$PWD/tasks/security-78.md" ;;
+  *SKILL-review*)          printf '## Empfehlung\nAPPROVED\nAufruf %s\n' "$n" > "$PWD/tasks/review-78.md" ;;
+esac
+exit 0
+CLAUDE_E2E
+  chmod +x "$TMP_E2E/bin/claude"
   git init --bare -q "$TMP_E2E_ORIGIN"
   git -C "$TMP_E2E" init -q
   git -C "$TMP_E2E" symbolic-ref HEAD refs/heads/feature/e2e 2>/dev/null
@@ -5716,6 +5737,16 @@ assert_true "$([ "$(rf310 security-review 310)" = "$TMP_FP310/tasks/security-310
 assert_true "$([ -z "$(rf310 implement 310)" ]; echo $?)" \
   "#310 AK9: report_file(implement) liefert leer (kein report-erzeugendes Skill)"
 
+# is_report_skill (#312 Review-Nitpick): benanntes Prädikat statt `[ -n "$(report_file …)" ]` an
+# der Verzweigungsstelle in run_skill(). Beide Richtungen, damit es diskriminiert.
+irs312() { bash -c 'source "$1"; is_report_skill "$2" "$3" "$4"' _ "$RV_LIB310" "$1" "$2" "$TMP_FP310/tasks"; }
+assert_true "$(irs312 review 310; echo $?)" \
+  "#312: is_report_skill(review) → wahr"
+assert_true "$(irs312 security-review 310; echo $?)" \
+  "#312: is_report_skill(security-review) → wahr"
+assert_true "$(! irs312 implement 310; echo $?)" \
+  "#312: is_report_skill(implement) → falsch (Diskriminierung in der Gegenrichtung)"
+
 # AK3-Grundlage: „Datei fehlt" ist ein eigener Wert – sonst wäre der Übergang fehlt → vorhanden
 # keine erkennbare Veränderung und ein neu geschriebener Report gälte als stale.
 fp310_absent="$(fp310 review 310)"
@@ -5895,6 +5926,18 @@ run_310() {
 STALE_MSG_310='stammt aus einem früheren Aufruf'
 FRESH_MSG_310='Turn-Limit toleriert'
 
+# Anker der Guard-Bedingung in run_skill(). Immer die VOLLE Zeile, nie ein Kommando-Fragment
+# (Lesson factory-workflow.md, #114): `report_fingerprint "$skill" "$task_id"` allein stünde
+# auch in der Snapshot-Zeile oberhalb der Retry-Schleife, `stop_if_interrupted "$task_id"`
+# dreimal im Skript. Seit #312 stehen beide Teilbedingungen in der Hilfsfunktion
+# report_is_fresh_and_valid(), die BEIDE Rückkehrpfade auswerten – die Mutationsbelege des
+# #310- und des #312-Blocks hängen an denselben Zeilen, darum eine gemeinsame Definition
+# statt zweier gleichlautender Literale.
+FRESH_CMP_PIPE='[ "$(report_fingerprint "$skill" "$task_id")" != "$fingerprint_before" ]'
+VERDICT_CHK_PIPE='[ -n "$(report_verdict "$skill" "$task_id")" ] || return 1'
+GUARD_CALL_PIPE='report_is_fresh_and_valid "$skill" "$task_id" "$report_fingerprint_before"'
+IC_CALL_PIPE='stop_if_interrupted "$task_id"'
+
 if [ "$HAS_YQ" = 1 ]; then
   # ── AK1/AK6/AK7 (Kern #310): Verdict aus Review-Iteration 1, Iteration 2 reißt das
   # Turn-Limit, ohne den Report zu berühren. Der Stub schreibt den Report genau beim
@@ -5934,10 +5977,9 @@ STUB_A310
   # Grund grün (z. B. wenn der Stub gar keinen Verdict schreibt).
   TMP_M310="$(mktemp -d)"
   scaffold_310 "$TMP_M310" 310
-  sed 's/ && \[ "\$report_fingerprint_now" != "\$report_fingerprint_before" \]//' \
+  awk -v cmp="$FRESH_CMP_PIPE" 'index($0, cmp) > 0 { print "  true"; next } { print }' \
     "$PIPELINE" > "$TMP_M310/scripts/run-pipeline.sh"
-  cmp -s "$PIPELINE" "$TMP_M310/scripts/run-pipeline.sh"
-  assert_true "$([ $? -ne 0 ]; echo $?)" \
+  assert_true "$([ "$(grep -cF -- "$FRESH_CMP_PIPE" "$TMP_M310/scripts/run-pipeline.sh")" -eq 0 ]; echo $?)" \
     "#310 AK11: Mutation greift wirklich (Frische-Vergleich aus der Guard-Bedingung entfernt)"
   cp "$TMP_A310/bin/claude" "$TMP_M310/bin/claude"
   commit_310 "$TMP_M310"
@@ -6120,18 +6162,18 @@ STUB_G310
   # NACH der Stale-Meldung – die beiden Erfolgs-Zweige bleiben unberührt). Seit /refactor steht
   # der Aufruf über die Helper-Funktion stop_if_interrupted() (Dedup der zuvor dreifachen
   # Aufrufzeile, #310 Review-Runde-3-Nitpick).
-  # Anker ist die exakte AUFRUF-Zeile, nicht der Funktionsname: gegen ein Fragment gematcht
-  # erwischte die Mutation zuerst die Erwähnung im WHY-Kommentar darüber und ließ den echten
-  # Aufruf stehen (Lesson factory-workflow.md, #114 – „Kommando ≠ Prosa-Erwähnung").
-  IC_CALL_310='stop_if_interrupted "$task_id"'
+  # Anker ist die exakte AUFRUF-Zeile ($IC_CALL_PIPE), nicht der Funktionsname: gegen ein
+  # Fragment gematcht erwischte die Mutation zuerst die Erwähnung im WHY-Kommentar darüber
+  # und ließ den echten Aufruf stehen (Lesson factory-workflow.md, #114 – „Kommando ≠
+  # Prosa-Erwähnung").
   TMP_H310="$(mktemp -d)"
   scaffold_310 "$TMP_H310" 316
-  awk -v call="$IC_CALL_310" '
+  awk -v call="$IC_CALL_PIPE" '
        /stammt aus einem früheren Aufruf/ { seen = 1 }
        seen && index($0, call) > 0 { seen = 0; next }
        { print }' "$PIPELINE" > "$TMP_H310/scripts/run-pipeline.sh"
-  assert_true "$([ "$(grep -cF -- "$IC_CALL_310" "$TMP_H310/scripts/run-pipeline.sh")" \
-    -eq "$(($(grep -cF -- "$IC_CALL_310" "$PIPELINE") - 1))" ]; echo $?)" \
+  assert_true "$([ "$(grep -cF -- "$IC_CALL_PIPE" "$TMP_H310/scripts/run-pipeline.sh")" \
+    -eq "$(($(grep -cF -- "$IC_CALL_PIPE" "$PIPELINE") - 1))" ]; echo $?)" \
     "#310 Interrupt/Stale: Mutation greift wirklich (genau ein interrupt-check-Aufruf entfernt)"
   printf '## Empfehlung\nAPPROVED\naus einem früheren Aufruf\n' > "$TMP_H310/tasks/review-316.md"
   cp "$TMP_G310/bin/claude" "$TMP_H310/bin/claude"
@@ -6165,6 +6207,415 @@ assert_absent "$workflow_flat_310" "Bis dahin: Pipeline-Re-Läufe" \
   "#310 AK12: die Übergangsanweisung 'bis dahin manuell prüfen' ist aufgelöst"
 assert_absent "$workflow_flat_310" "muss also **zusätzlich** vor jedem Schleifendurchlauf greifen" \
   "#310 AK12: die Within-Run-Regel steht nicht mehr als offene Forderung"
+
+# ─── #312: Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad (Spec-312) ───────
+# #310 hat die Frische-Prüfung nur in den non-zero-Zweig von run_skill() gelegt. Endete
+# `claude --print` mit Exit 0, kehrte run_skill() mit `return 0` zurück, ohne den erhobenen
+# Fingerprint je anzusehen – Phase 2 las danach einen stehengebliebenen APPROVED und verließ
+# den Review-Loop, ohne dass in diesem Lauf ein Review stattfand (dieselbe fail-open-Richtung
+# wie #91/#310, nur über den Erfolgs- statt den Fehlerpfad). Der Fix wertet beide
+# Rückkehrpfade gegen dieselbe Bedingung aus und verlangt zusätzlich einen eindeutigen
+# Verdict; das Security-Gate in Phase 5 ist auf „nur PASSED passiert" umgedreht.
+echo ""
+echo "#312 Struktur: eine Bedingung, ein Ort (AK9):"
+
+# Die Zeilen-Anker der Guard-Bedingung ($FRESH_CMP_PIPE / $VERDICT_CHK_PIPE / $GUARD_CALL_PIPE /
+# $IC_CALL_PIPE) stehen gemeinsam mit STALE_MSG_310/FRESH_MSG_310 oben – #310 und #312 mutieren
+# dieselben Zeilen, deshalb genau eine Definition.
+GATE_CMP_312='if [ "$SECURITY_VERDICT" != "PASSED" ]; then'
+
+assert_true "$([ "$(grep -cF -- "$FRESH_CMP_PIPE" "$PIPELINE")" -eq 1 ]; echo $?)" \
+  "#312 AK9: der Frische-Vergleich steht genau einmal im Skript (gemeinsame Hilfsfunktion)"
+assert_true "$([ "$(grep -cF -- "$VERDICT_CHK_PIPE" "$PIPELINE")" -eq 1 ]; echo $?)" \
+  "#312 AK9: die Verdict-Gültigkeitsprüfung steht genau einmal im Skript"
+assert_true "$([ "$(grep -cF -- "$GUARD_CALL_PIPE" "$PIPELINE")" -eq 1 ]; echo $?)" \
+  "#312 AK9: beide Rückkehrpfade werten dieselbe Hilfsfunktion mit demselben Snapshot aus"
+assert_true "$([ "$(grep -c 'report_fingerprint_before=' "$PIPELINE")" -eq 1 ]; echo $?)" \
+  "#312 AK9: nur EIN Fingerprint-Snapshot pro run_skill-Aufruf (kein zweiter im Exit-0-Zweig)"
+assert_true "$(! grep -q 'report_fingerprint_now' "$PIPELINE"; echo $?)" \
+  "#312 AK9: keine zweite Schreibweise der Bedingung im non-zero-Zweig mehr"
+# AK9 („kein Report-Pfad in run-pipeline.sh"): der Report-Guard verzweigt über das benannte
+# Prädikat aus der Lib. Zweite Assertion in der Gegenrichtung – die frühere Schreibweise
+# `[ -n "$(report_file …)" ]` las sich wie eine Datei-Existenz-Prüfung (#312 Review-Nitpick).
+assert_true "$(grep -qF -- 'if is_report_skill "$skill" "$task_id"; then' "$PIPELINE"; echo $?)" \
+  "#312 AK9: run_skill() verzweigt über is_report_skill aus der Lib"
+assert_true "$(! grep -qF -- '[ -n "$(report_file "$skill" "$task_id")" ]' "$PIPELINE"; echo $?)" \
+  "#312 AK9: keine als Existenz-Prüfung lesbare report_file-Verzweigung mehr"
+# Die Erfolgsmeldung materialisiert den Verdict einmal im Rumpf von run_skill(), statt ihn per
+# eingebetteter Command Substitution im Meldungstext neu zu lesen (#312 Review-Runde-1-Nitpick
+# N1). Gezählt werden die report_verdict-Aufrufe IM per awk extrahierten Rumpf von run_skill() –
+# ein Abwesenheits-Guard auf das Fragment `Verdict '$(report_verdict` koppelte Meldungstext und
+# Code-Konstrukt: eine umformulierte Meldung mit erneut eingebetteter Command Substitution wäre
+# grün geblieben (Fragment-Falle aus Lesson factory-workflow.md, #114, in der
+# Abwesenheits-Richtung; #312 Review-Runde-2-Nitpick). Die Zählung ist in beide Richtungen
+# fail-closed für diesen Rumpf-Ausschnitt: eine zu kurze Extraktion liefert 0 Treffer, eine über
+# das Funktionsende hinausreichende mehr als einen. Sie ist blind für report_is_fresh_and_valid()
+# außerhalb von run_skill() – die liest den Verdict für die Bedingung separat noch einmal, macht
+# zwei report_verdict-Aufrufe pro Versuch insgesamt (#312 Review-Runde-3-Finding W1).
+run_skill_body_312() { awk '/^run_skill\(\) \{/ { inside = 1 } inside { print } inside && /^\}/ { exit }' "$1"; }
+runskill_body_312="$(run_skill_body_312 "$PIPELINE")"
+assert_true "$(printf '%s\n' "$runskill_body_312" | grep -qF 'for attempt in 1 2 3; do'; echo $?)" \
+  "#312: die Rumpf-Extraktion trifft wirklich run_skill() (Retry-Schleife enthalten)"
+assert_true "$([ "$(printf '%s\n' "$runskill_body_312" | grep -c 'report_verdict')" -eq 1 ]; echo $?)" \
+  "#312: run_skill() materialisiert den Verdict im eigenen Rumpf genau einmal (keine zweite Command Substitution im Meldungstext; report_is_fresh_and_valid() liest ihn separat)"
+
+# AK5 (Reihenfolge): Die Interrupt-Prüfung des Exit-0-Pfads steht VOR der Frische-/
+# Verdict-Auswertung – verglichen werden Zeilennummern zweier exakter Zeilen, keine zwei
+# isolierten Präsenz-Checks (Lesson testing.md, #286). Den Verhaltensbeweis samt Mutation
+# liefert der E2E-Block unten.
+ic_first_line_312() { grep -nF -- "$IC_CALL_PIPE" "$1" | head -1 | cut -d: -f1; }
+guard_line_312()    { grep -nF -- "$GUARD_CALL_PIPE" "$1" | head -1 | cut -d: -f1; }
+assert_true "$([ "$(ic_first_line_312 "$PIPELINE")" -lt "$(guard_line_312 "$PIPELINE")" ]; echo $?)" \
+  "#312 AK5: die Interrupt-Prüfung des Exit-0-Pfads läuft vor der Frische-/Verdict-Prüfung"
+
+echo ""
+echo "#312 AK8/AK12: Security-Gate ist fail-closed gegen PASSED:"
+
+assert_true "$(grep -qF -- "$GATE_CMP_312" "$PIPELINE"; echo $?)" \
+  "#312 AK8: das Gate vergleicht gegen PASSED (blockiert alles andere), nicht nur gegen NEEDS_FIXES"
+# Mutationsbeleg zum Anker: dieselbe grep-Assertion gegen eine run-pipeline.sh mit der alten
+# NEEDS_FIXES-Polarität. Ohne ihn belegte der Check oben nur, dass die Zeile existiert.
+TMP_GATE_312="$(mktemp -d)"
+sed 's/\[ "\$SECURITY_VERDICT" != "PASSED" \]/[ "$SECURITY_VERDICT" = "NEEDS_FIXES" ]/' \
+  "$PIPELINE" > "$TMP_GATE_312/mutant.sh"
+cmp -s "$PIPELINE" "$TMP_GATE_312/mutant.sh"
+assert_true "$([ $? -ne 0 ]; echo $?)" \
+  "#312 AK12: Mutation greift wirklich (Gate auf die alte NEEDS_FIXES-Polarität zurückgedreht)"
+assert_true "$(! grep -qF -- "$GATE_CMP_312" "$TMP_GATE_312/mutant.sh"; echo $?)" \
+  "#312 AK12 (Mutation): die alte Polarität macht den Anker oben rot – er ist kausal"
+rm -rf "$TMP_GATE_312"
+
+echo ""
+echo "#312 E2E: Exit 0 mit stale oder verdictlosem Report ist kein Erfolg:"
+
+NOVERDICT_MSG_312='kein eindeutiger Verdict aus diesem Aufruf'
+SEC_GATE_MSG_312='Kritische Security-Findings müssen manuell behoben werden'
+
+if [ "$HAS_YQ" = 1 ]; then
+  # ── AK1/AK6/AK7/AK10 (Kern): committeter APPROVED aus einem früheren Pipeline-Lauf,
+  # /review endet mit EXIT 0, ohne den Report zu berühren. Vor dem Fix verließ die Pipeline
+  # damit den Review-Loop, ohne dass in diesem Lauf ein Review stattfand.
+  # Der Stub bedient zusätzlich security-review – nicht für diesen Lauf (er stirbt in Phase 2),
+  # sondern damit der Mutant unten nicht an einer ZWEITEN Ursache scheitert und der
+  # Beleg dadurch aus dem falschen Grund grün würde (Lesson testing.md, #214).
+  TMP_A312="$(mktemp -d)"
+  scaffold_310 "$TMP_A312" 330
+  printf '## Empfehlung\nAPPROVED\naus einem früheren Pipeline-Lauf\n' > "$TMP_A312/tasks/review-330.md"
+  cat > "$TMP_A312/bin/claude" <<'STUB_A312'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*)
+    printf '## Ergebnis\nPASSED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/security-330.md" ;;
+esac
+exit 0
+STUB_A312
+  chmod +x "$TMP_A312/bin/claude"
+  commit_310 "$TMP_A312"
+  run_310 "$TMP_A312" 330
+  assert_exit 1 "$RC_310" "#312 AK1: Exit 0 + stale APPROVED → Fehlversuch (exit 1)"
+  assert_contains_286 "$OUT_310" "failed after 3 attempts" \
+    "#312 AK6: Abbruch über den bestehenden Retry-Pfad (drei Versuche)"
+  assert_absent "$OUT_310" "Circuit Breaker ausgelöst" \
+    "#312 AK6: kein Circuit-Breaker-Abbruch (exit 2) für den Exit-0-Fehlversuch"
+  assert_contains_286 "$OUT_310" "$STALE_MSG_310" \
+    "#312 AK1: die Meldung benennt den stale Verdict als Grund"
+  assert_absent "$OUT_310" "Review bestanden" \
+    "#312 AK1: der Review-Loop wird nicht mit dem alten APPROVED verlassen"
+  assert_absent "$OUT_310" "Phase 3" \
+    "#312 AK1: die Pipeline arbeitet nicht mit dem stale Verdict weiter"
+  assert_absent "$OUT_310" "$FRESH_MSG_310" \
+    "#312 AK10: der Exit-0-Fehlversuch wird nicht als tolerierte Turn-Limit-Lage gemeldet"
+  assert_contains_286 "$OUT_310" "Phase 2" \
+    "#312 AK7: /implement bleibt mit Exit 0 erfolgreich, obwohl ein stale Report vorliegt"
+
+  # ── AK11 (Mutationsbeleg zu AK1): dieselben Assert-Ausdrücke gegen eine run-pipeline.sh,
+  # in der NUR der Frische-Vergleich der Hilfsfunktion entfernt ist (durch `true` ersetzt,
+  # damit die Verdict-Prüfung als einzige Bedingung übrig bleibt).
+  TMP_MA312="$(mktemp -d)"
+  scaffold_310 "$TMP_MA312" 330
+  awk -v cmp="$FRESH_CMP_PIPE" 'index($0, cmp) > 0 { print "  true"; next } { print }' \
+    "$PIPELINE" > "$TMP_MA312/scripts/run-pipeline.sh"
+  assert_true "$([ "$(grep -cF -- "$FRESH_CMP_PIPE" "$TMP_MA312/scripts/run-pipeline.sh")" -eq 0 ]; echo $?)" \
+    "#312 AK11: Mutation greift wirklich (Frische-Vergleich aus der Hilfsfunktion entfernt)"
+  printf '## Empfehlung\nAPPROVED\naus einem früheren Pipeline-Lauf\n' > "$TMP_MA312/tasks/review-330.md"
+  cp "$TMP_A312/bin/claude" "$TMP_MA312/bin/claude"
+  commit_310 "$TMP_MA312"
+  run_310 "$TMP_MA312" 330
+  assert_absent "$OUT_310" "failed after 3 attempts" \
+    "#312 AK11 (Mutation): ohne Frische-Vergleich gilt der Exit-0-Aufruf wieder als Erfolg"
+  assert_absent "$OUT_310" "$STALE_MSG_310" \
+    "#312 AK11 (Mutation): ohne Frische-Vergleich entfällt die Stale-Meldung – der Check oben ist kausal"
+  assert_contains_286 "$OUT_310" "Phase 3" \
+    "#312 AK11 (Mutation): ohne Frische-Vergleich verlässt die Pipeline den Review-Loop mit dem alten APPROVED"
+  rm -rf "$TMP_MA312" "$TMP_A312"
+
+  # ── AK2/AK7/AK8 (Regression Erfolgs-Pfad): review und security-review schreiben ihren
+  # Report IM Aufruf und enden mit Exit 0 → weiterhin Erfolg. Divergenzerzeugende Ausgangslage
+  # sind die vorbestehenden Reports mit dem GEGENTEILIGEN Verdict (Lesson testing.md, #253):
+  # ohne sie könnte der Lauf auch aus einer stehengebliebenen Datei grün sein.
+  TMP_B312="$(mktemp -d)"
+  scaffold_310 "$TMP_B312" 331
+  printf '## Empfehlung\nNEEDS_REWORK\naus einem früheren Lauf\n' > "$TMP_B312/tasks/review-331.md"
+  printf '## Ergebnis\nNEEDS_FIXES\naus einem früheren Lauf\n' > "$TMP_B312/tasks/security-331.md"
+  cat > "$TMP_B312/bin/claude" <<'STUB_B312'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*)
+    printf '## Ergebnis\nPASSED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/security-331.md" ;;
+  *SKILL-review*)
+    printf '## Empfehlung\nAPPROVED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/review-331.md" ;;
+esac
+exit 0
+STUB_B312
+  chmod +x "$TMP_B312/bin/claude"
+  commit_310 "$TMP_B312"
+  run_310 "$TMP_B312" 331
+  assert_contains_286 "$OUT_310" "Review bestanden" \
+    "#312 AK2: im Aufruf geschriebener Report + Exit 0 bleibt Erfolg (Review-Loop verlassen)"
+  assert_absent "$OUT_310" "$STALE_MSG_310" \
+    "#312 AK2: kein Stale-Verdikt bei verändertem Report"
+  assert_absent "$OUT_310" "$FRESH_MSG_310" \
+    "#312 AK10: die Exit-0-Erfolgsmeldung bleibt von der Turn-Limit-Toleranz unterscheidbar"
+  assert_contains_286 "$OUT_310" "Phase 4" \
+    "#312 AK7: test/refactor laufen mit Exit 0 unverändert durch"
+  assert_contains_286 "$OUT_310" "Phase 6" \
+    "#312 AK8: ein eindeutiges PASSED passiert das umgedrehte Security-Gate"
+  assert_absent "$OUT_310" "$SEC_GATE_MSG_312" \
+    "#312 AK8: das Gate blockiert bei eindeutigem PASSED nicht"
+  rm -rf "$TMP_B312"
+
+  # ── AK12 (zweite erreichbare Gate-Richtung): /security-review schreibt IM Aufruf einen
+  # Report mit eindeutigem NEEDS_FIXES → run_skill() gilt als Erfolg (frisch UND gültig),
+  # das UNMUTIERTE Gate blockiert danach mit exit 1. Der Polaritätswechsel darf genau diesen
+  # Fall nicht verändern (Spec-312, Fehlerszenarien) – belegt war bisher nur die
+  # PASSED-Richtung (TMP_B312) und der leere Verdict am mutierten Skript.
+  # Divergenzerzeugende Ausgangslage wie in TMP_B312: der vorbestehende Report trägt den
+  # GEGENTEILIGEN Verdict (Lesson testing.md, #253) – ohne ihn könnte der Lauf auch aus einer
+  # stehengebliebenen Datei blockieren, statt aus dem in diesem Aufruf geschriebenen Verdict.
+  TMP_F312="$(mktemp -d)"
+  scaffold_310 "$TMP_F312" 335
+  printf '## Ergebnis\nPASSED\naus einem früheren Lauf\n' > "$TMP_F312/tasks/security-335.md"
+  cat > "$TMP_F312/bin/claude" <<'STUB_F312'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*)
+    printf '## Ergebnis\nNEEDS_FIXES\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/security-335.md" ;;
+  *SKILL-review*)
+    printf '## Empfehlung\nAPPROVED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/review-335.md" ;;
+esac
+exit 0
+STUB_F312
+  chmod +x "$TMP_F312/bin/claude"
+  commit_310 "$TMP_F312"
+  run_310 "$TMP_F312" 335
+  assert_exit 1 "$RC_310" \
+    "#312 AK12: frischer, eindeutiger NEEDS_FIXES blockiert am Gate (exit 1)"
+  assert_contains_286 "$OUT_310" "$SEC_GATE_MSG_312" \
+    "#312 AK12: die Security-Meldung benennt den Grund des Abbruchs"
+  assert_contains_286 "$OUT_310" "Security Review: NEEDS_FIXES" \
+    "#312 AK12: die Meldung nennt den gelesenen Verdict (nicht 'kein eindeutiger Verdict')"
+  assert_absent "$OUT_310" "failed after 3 attempts" \
+    "#312 AK12: der Abbruch kommt vom Gate, nicht aus dem Retry-Pfad von run_skill"
+  assert_absent "$OUT_310" "Phase 6" \
+    "#312 AK12: mit NEEDS_FIXES wird Codify nicht erreicht"
+
+  # ── Mutationsbeleg zu AK12: dieselben Assert-Ausdrücke gegen eine run-pipeline.sh, in der
+  # NUR die Gate-Bedingung nie zutrifft (`if false`). RED-vor-GREEN ist hier nicht möglich –
+  # das Verhalten existiert bereits, es fehlte die Abdeckung –, deshalb tritt die Mutation an
+  # seine Stelle: ohne das Gate läuft derselbe Lauf bis Phase 6 durch.
+  # Ersetzt statt gelöscht (wie beim AK5-Mutanten): eine Löschung ließe `then`/`fi` ohne
+  # Bedingung zurück und belegte nur einen Syntaxfehler.
+  TMP_MF312="$(mktemp -d)"
+  scaffold_310 "$TMP_MF312" 335
+  awk -v cmp="$GATE_CMP_312" 'index($0, cmp) > 0 { print "  if false; then"; next } { print }' \
+    "$PIPELINE" > "$TMP_MF312/scripts/run-pipeline.sh"
+  assert_true "$([ "$(grep -cF -- "$GATE_CMP_312" "$TMP_MF312/scripts/run-pipeline.sh")" -eq 0 ]; echo $?)" \
+    "#312 AK12: Mutation greift wirklich (Gate-Bedingung auf 'if false' gedreht)"
+  printf '## Ergebnis\nPASSED\naus einem früheren Lauf\n' > "$TMP_MF312/tasks/security-335.md"
+  cp "$TMP_F312/bin/claude" "$TMP_MF312/bin/claude"
+  commit_310 "$TMP_MF312"
+  run_310 "$TMP_MF312" 335
+  assert_absent "$OUT_310" "$SEC_GATE_MSG_312" \
+    "#312 AK12 (Mutation): ohne greifendes Gate entfällt die Meldung – der Check oben ist kausal"
+  assert_absent "$OUT_310" "Security Review: NEEDS_FIXES" \
+    "#312 AK12 (Mutation): ohne greifendes Gate wird der Verdict nicht als Abbruchgrund gemeldet"
+  assert_contains_286 "$OUT_310" "Phase 6" \
+    "#312 AK12 (Mutation): ohne greifendes Gate läuft die Pipeline mit NEEDS_FIXES weiter"
+  rm -rf "$TMP_MF312" "$TMP_F312"
+
+  # ── AK3 (gültiger Verdict verlangt): /security-review schreibt IM Aufruf einen Report,
+  # dessen erste Zeile unter dem Anker beide Tokens nennt → mehrdeutig → kein Verdict.
+  # Frisch allein genügt nicht; sonst passierte der leere Verdict das Security-Gate.
+  TMP_C312="$(mktemp -d)"
+  scaffold_310 "$TMP_C312" 332
+  cat > "$TMP_C312/bin/claude" <<'STUB_C312'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*)
+    printf '## Ergebnis\nPASSED oder NEEDS_FIXES - unklar\n' > "$PWD/tasks/security-332.md" ;;
+  *SKILL-review*)
+    printf '## Empfehlung\nAPPROVED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/review-332.md" ;;
+esac
+exit 0
+STUB_C312
+  chmod +x "$TMP_C312/bin/claude"
+  commit_310 "$TMP_C312"
+  run_310 "$TMP_C312" 332
+  assert_exit 1 "$RC_310" \
+    "#312 AK3: frisch geschriebener Report ohne eindeutigen Verdict → Fehlversuch (exit 1)"
+  assert_contains_286 "$OUT_310" "failed after 3 attempts" \
+    "#312 AK3: Abbruch im Retry-Pfad von run_skill (nicht erst am Security-Gate)"
+  assert_contains_286 "$OUT_310" "$NOVERDICT_MSG_312" \
+    "#312 AK3: die Meldung benennt den fehlenden eindeutigen Verdict"
+  assert_absent "$OUT_310" "Phase 6" \
+    "#312 AK3: das Security-Gate wird nicht mit leerem Verdict passiert"
+
+  # ── Mutationsbeleg zu AK3 – zugleich der Verhaltensbeweis für die durch AK3 unerreichbar
+  # gewordene dritte Gate-Richtung (AK12): ohne die Verdict-Gültigkeitsprüfung passiert der
+  # leere Verdict run_skill wieder und erreicht das Gate. Das umgedrehte Gate blockiert ihn
+  # dort fail-closed – die alte NEEDS_FIXES-Polarität hätte ihn durchgewunken.
+  TMP_MC312="$(mktemp -d)"
+  scaffold_310 "$TMP_MC312" 332
+  awk -v chk="$VERDICT_CHK_PIPE" 'index($0, chk) > 0 { next } { print }' \
+    "$PIPELINE" > "$TMP_MC312/scripts/run-pipeline.sh"
+  assert_true "$([ "$(grep -cF -- "$VERDICT_CHK_PIPE" "$TMP_MC312/scripts/run-pipeline.sh")" -eq 0 ]; echo $?)" \
+    "#312 AK3: Mutation greift wirklich (Verdict-Gültigkeitsprüfung entfernt)"
+  cp "$TMP_C312/bin/claude" "$TMP_MC312/bin/claude"
+  commit_310 "$TMP_MC312"
+  run_310 "$TMP_MC312" 332
+  assert_absent "$OUT_310" "failed after 3 attempts" \
+    "#312 AK3 (Mutation): ohne die Gültigkeitsprüfung ist der leere Verdict wieder ein Erfolg"
+  assert_absent "$OUT_310" "$NOVERDICT_MSG_312" \
+    "#312 AK3 (Mutation): ohne die Gültigkeitsprüfung entfällt die Meldung – der Check oben ist kausal"
+  assert_exit 1 "$RC_310" \
+    "#312 AK12: leerer Verdict am Security-Gate blockiert fail-closed (exit 1)"
+  assert_contains_286 "$OUT_310" "$SEC_GATE_MSG_312" \
+    "#312 AK12: die dritte Gate-Richtung (kein eindeutiges PASSED) blockiert behavioral"
+  assert_absent "$OUT_310" "Phase 6" \
+    "#312 AK12: mit unklarem Verdict wird Codify nicht erreicht"
+  rm -rf "$TMP_MC312" "$TMP_C312"
+
+  # ── AK4 (security-review stale): committeter PASSED aus einem früheren Aufruf,
+  # /security-review endet mit Exit 0, ohne die Datei zu berühren. Gleiche Richtung wie AK1,
+  # andere Report-Datei – und nicht-destruktiv wie in #310.
+  TMP_D312="$(mktemp -d)"
+  scaffold_310 "$TMP_D312" 333
+  printf '## Ergebnis\nPASSED\naus einem früheren Aufruf\n' > "$TMP_D312/tasks/security-333.md"
+  cat > "$TMP_D312/bin/claude" <<'STUB_D312'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*) : ;;
+  *SKILL-review*)
+    printf '## Empfehlung\nAPPROVED\nin diesem Aufruf geschrieben\n' > "$PWD/tasks/review-333.md" ;;
+esac
+exit 0
+STUB_D312
+  chmod +x "$TMP_D312/bin/claude"
+  commit_310 "$TMP_D312"
+  cksum_d312_before="$(cksum < "$TMP_D312/tasks/security-333.md")"
+  run_310 "$TMP_D312" 333
+  assert_exit 1 "$RC_310" "#312 AK4: Exit 0 + stale PASSED → Fehlversuch (exit 1)"
+  assert_contains_286 "$OUT_310" "failed after 3 attempts" \
+    "#312 AK4: Abbruch im Retry-Pfad von run_skill (security-review)"
+  assert_contains_286 "$OUT_310" "$STALE_MSG_310" \
+    "#312 AK4: die Meldung benennt den stale Security-Verdict"
+  assert_absent "$OUT_310" "Phase 6" \
+    "#312 AK4: der alte PASSED wird nicht als Ergebnis dieses Laufs gewertet"
+  assert_true "$([ "$(cksum < "$TMP_D312/tasks/security-333.md")" = "$cksum_d312_before" ]; echo $?)" \
+    "#312 AK4: die Prüfung bleibt nicht-destruktiv (Report inhaltlich unverändert)"
+  rm -rf "$TMP_D312"
+
+  # ── AK5 (Interrupt hat Vorrang): Der Versuch signalisiert einen Interrupt und endet mit
+  # Exit 0, ohne einen gültigen Verdict zu hinterlassen. Zielfall ist bewusst der
+  # „kein Verdict"-Zweig: nur er hat keinen eigenen interrupt-check (der Stale-Zweig hat
+  # seit #310 einen), also kann allein die neue Exit-0-Prüfung ihn stoppen – der Testpfad
+  # ist damit auf den Zielpfad isoliert (Lesson testing.md, #214).
+  TMP_E312="$(mktemp -d)"
+  scaffold_310 "$TMP_E312" 334
+  cat > "$TMP_E312/bin/claude" <<'STUB_E312'
+#!/bin/sh
+case "$*" in
+  *SKILL-review*)
+    bash "$PWD/scripts/raise-interrupt.sh" 334 ADR "Trigger-Kategorie 1: Exit-0-Testfall" >/dev/null
+    printf '## Empfehlung\nunklar\n' > "$PWD/tasks/review-334.md" ;;
+esac
+exit 0
+STUB_E312
+  chmod +x "$TMP_E312/bin/claude"
+  commit_310 "$TMP_E312"
+  run_310 "$TMP_E312" 334
+  assert_exit 1 "$RC_310" "#312 AK5: signalisierter Interrupt bei Exit 0 stoppt die Pipeline (exit 1)"
+  assert_contains_286 "$OUT_310" "[INTERRUPT] ADR: Trigger-Kategorie 1: Exit-0-Testfall" \
+    "#312 AK5: der Interrupt wird vor der Frische-/Verdict-Prüfung erkannt"
+  assert_absent "$OUT_310" "failed after 3 attempts" \
+    "#312 AK5: kein Retry über zwei weitere Heavy-Versuche"
+  assert_true "$(grep -qF 'Pipeline pausiert – ADR: Trigger-Kategorie 1: Exit-0-Testfall' \
+    "$TMP_E312/tasks/task-334-guard.md"; echo $?)" \
+    "#312 AK5: Blocker-Eintrag landet in der Task-Datei"
+
+  # ── Mutationsbeleg zu AK5: dieselben Assert-Ausdrücke gegen eine run-pipeline.sh, in der
+  # NUR der Exit-0-Interrupt-Check fehlt. Er ist der ERSTE der drei Aufrufe im Skript; dass
+  # die Mutation genau ihn trifft, belegt die Positions-Assertion (der erste verbliebene
+  # Aufruf steht danach hinter dem Guard-Aufruf), nicht nur die Anzahl.
+  # Ersetzt statt gelöscht: der Aufruf ist der einzige Rumpf seines `if` – eine Löschung
+  # ergäbe `if …; then` + `fi` und damit einen Syntaxfehler, der den Lauf schon vor der
+  # Zielstelle beendet (die Mutation belegte dann nur Parsing, nicht Kausalität).
+  TMP_ME312="$(mktemp -d)"
+  scaffold_310 "$TMP_ME312" 334
+  awk -v call="$IC_CALL_PIPE" \
+    'removed != 1 && index($0, call) > 0 { removed = 1; print "      :"; next } { print }' \
+    "$PIPELINE" > "$TMP_ME312/scripts/run-pipeline.sh"
+  assert_true "$([ "$(grep -cF -- "$IC_CALL_PIPE" "$TMP_ME312/scripts/run-pipeline.sh")" \
+    -eq "$(($(grep -cF -- "$IC_CALL_PIPE" "$PIPELINE") - 1))" ]; echo $?)" \
+    "#312 AK5: Mutation greift wirklich (genau ein interrupt-check-Aufruf entfernt)"
+  assert_true "$([ "$(ic_first_line_312 "$TMP_ME312/scripts/run-pipeline.sh")" \
+    -gt "$(guard_line_312 "$TMP_ME312/scripts/run-pipeline.sh")" ]; echo $?)" \
+    "#312 AK5: Mutation trifft den Exit-0-Check (erster verbliebener Aufruf liegt hinter dem Guard)"
+  cp "$TMP_E312/bin/claude" "$TMP_ME312/bin/claude"
+  commit_310 "$TMP_ME312"
+  run_310 "$TMP_ME312" 334
+  assert_contains_286 "$OUT_310" "failed after 3 attempts" \
+    "#312 AK5 (Mutation): ohne den Exit-0-Check laufen alle drei Versuche – der Check oben ist kausal"
+  assert_absent "$OUT_310" "[INTERRUPT] ADR: Trigger-Kategorie 1: Exit-0-Testfall" \
+    "#312 AK5 (Mutation): ohne den Exit-0-Check bleibt der Interrupt unbemerkt"
+  rm -rf "$TMP_ME312" "$TMP_E312"
+else
+  skip_yq "#312 E2E: Exit-0-Frischeprüfung (AK1–AK8, AK10–AK12)"
+fi
+
+# ─── #312 AK13: Doku-Nachzug (ADR-019 §4 + Report-Guard-Lesson) ──────────────
+echo ""
+echo "#312 AK13: ADR-019 §4 und die Lesson beschreiben die symmetrische Bedingung:"
+
+adr019_flat_312=$(flat_286 "$ADR019_310")
+assert_contains_286 "$adr019_flat_312" "auf beiden Rückkehrpfaden" \
+  "#312 AK13: ADR-019 §4 beschreibt die Bedingung symmetrisch (Exit 0 und non-zero)"
+assert_contains_286 "$adr019_flat_312" "einen eindeutigen Verdict trägt" \
+  "#312 AK13: ADR-019 §4 nennt die verlangte Verdict-Gültigkeit"
+assert_contains_286 "$adr019_flat_312" "passiert nur ein eindeutiges" \
+  "#312 AK13: ADR-019 §4 nennt die neue Gate-Polarität in Phase 5"
+
+workflow_flat_312=$(flat_286 "$WORKFLOW_LESSON")
+assert_contains_286 "$workflow_flat_312" "In #312 auf den Exit-0-Pfad ausgeweitet" \
+  "#312 AK13: Lesson nennt den Erledigt-Stand der Exit-0-Ausweitung"
+assert_contains_286 "$workflow_flat_312" "auf allen Rückkehrpfaden, nicht nur im Fehlerpfad" \
+  "#312 AK13: die Lesson-Regel ist um alle Rückkehrpfade geschärft"
+
+# Dieselbe Prosa steht an zwei weiteren Orten, die der erste Sweep übersehen hatte (#312
+# Review-Runde-1-Findings): im Modul-Header der Lib – der Datei, die jeder Nutzer der drei
+# Funktionen zuerst liest – und in OPERATING.md, das CLAUDE.md als kanonische Quelle des
+# prozeduralen Ablaufs benennt. Beide beschrieben weiter die alte, einseitige Mechanik.
+rvlib_flat_312=$(flat_286 "$RV_LIB310")
+assert_contains_286 "$rvlib_flat_312" "auf BEIDEN Rückkehrpfaden" \
+  "#312 AK13: der Lib-Modul-Header beschreibt die Bedingung symmetrisch"
+assert_contains_286 "$rvlib_flat_312" "VIER Funktionen" \
+  "#312: der zähl-nennende Modul-Header ist beim Hinzufügen von is_report_skill mitgepflegt"
+
+operating_flat_312=$(flat_286 "$OPERATING_MD")
+assert_contains_286 "$operating_flat_312" 'nur ein eindeutiges `PASSED`' \
+  "#312 AK13: OPERATING.md nennt die neue Gate-Polarität in der Eigenschaften-Liste"
+assert_contains_286 "$operating_flat_312" 'ein fehlender oder mehrdeutiger Verdict stoppt genauso' \
+  "#312 AK13: OPERATING.md §4.2 nennt den fehlenden/mehrdeutigen Verdict als Stopp-Grund"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

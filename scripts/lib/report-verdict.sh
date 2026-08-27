@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # report-verdict.sh – sourcebare Bibliothek: kanonische Verdict-Erkennung für die
-# report-erzeugenden Skills (ADR-019 §4). Stellt DREI Funktionen bereit:
+# report-erzeugenden Skills (ADR-019 §4). Stellt VIER Funktionen bereit:
 #
 #   report_file <skill> <task_id> [tasks_dir]
 #     → druckt den Pfad der Report-Datei des Skills, bei jedem anderen Skill nichts.
 #       Die Skill→Datei-Zuordnung steht NUR hier (ein Ort, #310 AK9) – run-pipeline.sh
 #       baut keinen Report-Pfad mehr selbst.
+#
+#   is_report_skill <skill> <task_id> [tasks_dir]
+#     → Exit 0, wenn das Skill überhaupt einen Report erzeugt, sonst Exit 1.
 #
 #   report_verdict <skill> <task_id> [tasks_dir]
 #     → druckt den gültigen Verdict-String auf stdout, sonst nichts:
@@ -19,11 +22,14 @@
 #
 # EINE Quelle für zwei Nutzer in scripts/run-pipeline.sh, damit sie nicht
 # auseinanderdriften (ADR-019 §4 „ein Ort"):
-#   - run_skill()-Report-Guard: ein non-zero Exit (inkl. „Reached max turns") gilt als
-#     ERFOLG, wenn report_verdict für dieses Skill etwas liefert UND sich der Report
-#     seit dem Beginn dieses Skill-Aufrufs verändert hat (report_fingerprint) – der
-#     Report war fertig, bevor das Turn-Limit riss. Nur für review/security-review;
-#     sonst Fehlversuch.
+#   - run_skill()-Report-Guard: für review/security-review entscheidet allein das Artefakt,
+#     nicht der Exit-Code. Ein Aufruf gilt – auf BEIDEN Rückkehrpfaden, Exit 0 wie non-zero
+#     inkl. „Reached max turns" – nur als ERFOLG, wenn report_verdict für dieses Skill einen
+#     eindeutigen Verdict liefert UND sich der Report seit dem Beginn dieses Skill-Aufrufs
+#     verändert hat (report_fingerprint). Das deckt beide Richtungen ab: ein Turn-Limit NACH
+#     fertigem Report ist Erfolg (#91), ein stehengebliebener oder verdictloser Report ist
+#     keiner – auch dann nicht, wenn das Skill mit Exit 0 endet (#312). Bei allen anderen
+#     Skills entscheidet unverändert der Exit-Code.
 #   - pipeline_summary(): zeigt denselben Verdict an.
 #
 # Der Verdict wird AUSSCHLIESSLICH aus der ersten nicht-leeren Zeile unter der
@@ -42,6 +48,16 @@ report_file() {
     review)          printf '%s\n' "$tasks_dir/review-${task_id}.md" ;;
     security-review) printf '%s\n' "$tasks_dir/security-${task_id}.md" ;;
   esac
+}
+
+# Prädikat „erzeugt dieses Skill überhaupt einen Report?" – dieselbe Zuordnung wie report_file,
+# nur als Frage formuliert. Der run_skill()-Report-Guard verzweigt darauf und bekommt dabei
+# bewusst keinen Report-Pfad in die Hand (ADR-019 §4 „ein Ort"); vor #312 stand an der
+# Aufrufstelle ein `[ -n "$(report_file …)" ]`, das sich beim Lesen wie eine Datei-Existenz-
+# Prüfung las. Genau das ist es NICHT: die Report-Datei entsteht erst im Skill-Lauf.
+# Argumente wie report_file: <skill> <task_id> [tasks_dir].
+is_report_skill() {
+  [ -n "$(report_file "$@")" ]
 }
 
 # Frische-Fingerprint (#310): Der Report-Guard darf einen Verdict nur honorieren, wenn er im
