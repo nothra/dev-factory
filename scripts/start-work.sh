@@ -26,7 +26,7 @@
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 #   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
 #                             (Default aus dem Branch-Typ abgeleitet)
-#   FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels (CSV: security,tech-debt,test)
+#   FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels (CSV: security,tech-debt,test,factory-pipeline)
 #                             für ein neu angelegtes Issue; via --labels a,b übersteuerbar
 
 set -euo pipefail

@@ -77,8 +77,9 @@ create_issue_idempotent "<Titel im Imperativ>" "<Kontext: Kategorie, Angriffsfl�
 ```
 
 **Genau ein Art-Label** (`bug` bei aktivem Defekt, sonst `enhancement`) + Aspekt-Label
-`security` (Konvention kanonisch in `docs/factory/guidelines/git-workflow.md` →
-„GitHub-Labels"). Die Issue-Nummer erscheint auf stdout; im Security-Report referenzieren.
+`security` – dazu `factory-pipeline`, wenn der Fund den Factory-Harness und nicht die App
+trifft (Konvention kanonisch in `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels").
+Die Issue-Nummer erscheint auf stdout; im Security-Report referenzieren.
 
 **B – reiner Nitpick unterhalb der Schwelle:** Eintrag in
 [`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,

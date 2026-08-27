@@ -188,8 +188,10 @@ wechseln, dann:
 2. **Bei ADR-Trigger** (Technologie-/Architektur-/Schnittstellen-/Irreversibel-Entscheidung, siehe
    [4.1](#41-architektur-entscheidung-adr-trigger)): **`/architecture <id>`** – die Entscheidung
    interaktiv treffen und als ADR festhalten, **bevor** die Automatik implementiert.
-3. **Beschreibendes Label** ans Issue hängen (genau eins): `bug` · `enhancement` · `documentation`
-   · `security` · `tech-debt` · `test`.
+3. **Beschreibende Labels** ans Issue hängen – zwei Achsen, nicht eine Liste (kanonisch in
+   [`git-workflow.md`](guidelines/git-workflow.md) → „GitHub-Labels"): **genau ein Art-Label**
+   (`bug` · `enhancement` · `documentation`) plus **null bis mehrere Aspekt-Labels**
+   (`security` · `tech-debt` · `test` · `factory-pipeline`).
 
 > Faustregel: Alles, was menschliches Urteil braucht (was gebaut wird, welche Architektur), gehört
 > vor die Automatik. Alles, was Fleißarbeit ist (wie es gebaut/getestet/reviewt wird), übernimmt sie.

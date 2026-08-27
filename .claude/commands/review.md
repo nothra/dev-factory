@@ -80,7 +80,7 @@ create_issue_idempotent "<Titel im Imperativ>" "<Kontext: Datei:Zeile, warum eig
 ```
 
 **Genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**
-(`security`/`tech-debt`/`test`) – Konvention kanonisch in
+(`security`/`tech-debt`/`test`/`factory-pipeline`) – Konvention kanonisch in
 `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels". Die Issue-Nummer erscheint auf
 stdout; im Review-Report referenzieren.
 

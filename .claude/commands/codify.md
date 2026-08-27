@@ -66,7 +66,8 @@ create_issue_idempotent "<Titel im Imperativ>" "<Kontext: warum, woraus>" enhanc
 
 Konvention (kanonisch in `docs/factory/guidelines/git-workflow.md` → „GitHub-Labels"):
 **genau ein Art-Label** (`bug`/`enhancement`/`documentation`) + passende **Aspekt-Labels**
-(`security`/`tech-debt`/`test`). Die Issue-Nummer erscheint auf stdout; im Report verlinken.
+(`security`/`tech-debt`/`test`/`factory-pipeline`). Die Issue-Nummer erscheint auf stdout; im
+Report verlinken.
 
 **B – unterhalb der Schwelle:** Eintrag in
 [`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,
