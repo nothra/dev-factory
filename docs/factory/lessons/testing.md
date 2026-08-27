@@ -405,6 +405,23 @@ Sprachkonstrukt-Ebene – Schleife, Capability-Check **oder einzelne Assert-Zeil
 Dateianfang (`assert_contains_286`, `assert_absent`, `flat_286`, `ls_mode_matches` u. Ä.)
 gegenprüfen, ob der exakte Rumpf schon als Funktion existiert.
 
+**5. Vorkommnis, jetzt bei Test-Scaffolding statt Assertionen (aus #310, Review-Runde-1-Finding
+W3):** `/implement` legte für die neuen Report-Guard-Tests eine eigene, **parallele**
+Scaffold-Funktion (`scaffold_310`) an, die ein komplettes Wegwerf-Repo von Grund auf neu aufbaut
+– obwohl im selben File bereits `_mk_pipe_repo` existierte und exakt dasselbe Repo-Grundgerüst
+lieferte. Anders als bei den bisherigen Vorkommnissen (rumpfidentische Schleife/Assertion neben
+einer bestehenden) war hier keine zweite Instanz **desselben** Konstrukts das Problem, sondern
+eine neue Funktion, die das bestehende Grundgerüst **nicht wiederverwendet**, sondern komplett
+neu nachbaut – der Smell trifft also auch auf Test-Fixture-/Scaffold-Funktionen, nicht nur auf
+Assertions. Noch in `/implement` selbst (Review-Rework) auf „`_mk_pipe_repo` aufrufen, nur die
+Differenz ergänzen" korrigiert.
+
+**Regel (Ergänzung):** Vor einer neuen Scaffold-/Fixture-Funktion für ein Wegwerf-Repo/-Setup in
+`run-tests.sh` prüfen, ob eine bestehende Funktion (`_mk_pipe_repo` u. Ä.) bereits das
+Grundgerüst liefert. Wenn ja, diese aufrufen und nur die tatsächliche Differenz (zusätzliche
+Dateien, Stubs, Task-Daten) ergänzen – keine parallele Funktion, die das Grundgerüst dupliziert,
+selbst wenn sie inhaltlich nicht Zeile-für-Zeile identisch mit der bestehenden ist.
+
 ### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus #249, umgekehrte Kausalrichtung)
 
 Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei

@@ -200,3 +200,21 @@
   Beide sind reine Prosa-Änderungen, aber `.claude/**`-Änderungen laufen über den
   Patch-Workflow (aus #91) – daher hier vermerkt statt direkt gepatcht.
 - **Herkunft:** `/codify` zu #298. Fundstellen verifiziert am 2026-08-15.
+
+### Zwei Variablen für dieselbe `factory.defaults.yml` in der Bash-Suite
+
+- **Wo:** [`scripts/checks/tests/run-tests.sh:241`](../../scripts/checks/tests/run-tests.sh)
+  (`DEFAULTS_YML="$FACTORY_ROOT/factory.defaults.yml"`) und `:1379`
+  (`DEFAULTS="$FACTORY_ROOT/factory.defaults.yml"`).
+- **Was:** Beide Namen zeigen auf exakt denselben Pfad. Testblöcke nutzen willkürlich den einen
+  oder den anderen (`_mk_pipe_repo` bei `:3681` nimmt `$DEFAULTS`, die #212-Blöcke bei `:3966`
+  und `:4012` nehmen `$DEFAULTS_YML`) – wer einen bestehenden Block als Vorlage kopiert, muss
+  jedes Mal nachsehen, welcher Name in seinem Sichtbereich gemeint ist.
+- **Warum es zählt:** kein Defekt (identischer Wert, kein Testverhalten betroffen); es ist eine
+  Stolperkante beim Zusammenlegen paralleler Scaffolding-Helfer – genau die Arbeit, die die
+  wiederkehrende Duplikat-Lesson (`lessons/testing.md`, #240/#267) verlangt.
+- **Fix:** `:1379` löschen und die dortigen Nutzer auf `DEFAULTS_YML` (das früher definierte)
+  umstellen – reines Suchen/Ersetzen, aber mehr als zehn Fundstellen, deshalb nur mitnehmen,
+  wenn die Datei ohnehin in diesem Bereich angefasst wird.
+- **Herkunft:** `/review` zu #310 (Out-of-Scope-Fund neben dem `scaffold_310`-Duplikat).
+  Fundstellen verifiziert am 2026-08-27.

@@ -86,31 +86,38 @@ Workflow-YAML: `gh api repos/<owner>/<repo>/commits/<pr-head-sha>/check-runs --j
 Post-Merge-/Deploy-Gates gehören in `/post-merge-verify` bzw. das Deploy-Gate, nicht in die
 required-Checks-Liste. Kanonische Entscheidung: [ADR-029](../../adr/029-branch-protection-main-ruleset.md).
 
-### Report-Guard: Stale-Verdict bei Pipeline-Re-Lauf (aus #91, Review-Finding)
+### Report-Guard: Stale-Verdict bei Pipeline-Re-Lauf und Review-Iteration (aus #91/#310, in #310 behoben)
 
-Der `run_skill()`-Report-Guard in `run-pipeline.sh` liest bei non-zero Exit die Report-Datei
-(`tasks/review-<id>.md` / `tasks/security-<id>.md`) und akzeptiert den Verdict **ohne zu prüfen,
+Der `run_skill()`-Report-Guard in `run-pipeline.sh` las bei non-zero Exit die Report-Datei
+(`tasks/review-<id>.md` / `tasks/security-<id>.md`) und akzeptierte den Verdict **ohne zu prüfen,
 ob der Report in diesem Lauf entstanden ist**. Reports sind versioniert – auf einem Re-Lauf-Branch
-kann ein älterer `APPROVED`/`PASSED` bereits committet sein. Schlägt der `claude`-Aufruf sofort
-fehl (Rate-Limit, Auth-Fehler, Crash), liest der Guard den **alten** Verdict und gibt `return 0` –
+kann ein älterer `APPROVED`/`PASSED` bereits committet sein. Schlug der `claude`-Aufruf sofort
+fehl (Rate-Limit, Auth-Fehler, Crash), las der Guard den **alten** Verdict und gab `return 0` –
 ohne dass in diesem Lauf ein Review stattfand (fail-open statt fail-closed).
 
-**Regel (Issue #92):** Report-Datei im Preflight für die aktuelle Task entfernen – analog zum
-Stale-Sentinel-Cleanup (`INTERRUPT-*.md`). Alternativ: mtime/Hash vor dem `claude`-Aufruf merken,
-Verdict nur honorieren wenn die Datei sich danach verändert hat. Bis dahin: Pipeline-Re-Läufe auf
-Branches mit bereits committetem Report manuell prüfen (ADR-019 §4 ergänzen).
-
-**Within-Run-Variante (Issue #310, Task 308):** Derselbe Fehlmechanismus tritt auch **innerhalb
+**Within-Run-Variante (Issue #310, Task 308):** Derselbe Fehlmechanismus trat auch **innerhalb
 eines einzigen Pipeline-Laufs** auf, nicht nur bei einem Re-Lauf des Skripts: Die
 `REVIEW_ITERATION`-Schleife in Phase 2 ruft `/review` mehrfach hintereinander auf und liest jedes
-Mal dieselbe Report-Datei. Erreicht `/review` in Iteration 2 (oder 3) das Turn-Limit, **bevor** es
-den Report neu geschrieben hat, akzeptiert der Guard den **stehengebliebenen Verdict aus
-Iteration 1** als vermeintlich frischen Erfolg – die Iteration zählt, obwohl in Wahrheit kein
+Mal dieselbe Report-Datei. Erreichte `/review` in Iteration 2 (oder 3) das Turn-Limit, **bevor** es
+den Report neu geschrieben hatte, akzeptierte der Guard den **stehengebliebenen Verdict aus
+Iteration 1** als vermeintlich frischen Erfolg – die Iteration zählte, obwohl in Wahrheit kein
 Review stattfand. In Task 308 führte das dazu, dass der Circuit Breaker nach zwei Iterationen
 auslöste, obwohl der Rework nach Iteration 1 bereits vollständig und unabhängig verifiziert grün
-war. Die Regel aus #92 muss also **zusätzlich** vor jedem Schleifendurchlauf greifen (Report-Datei
-oder ihr Hash/mtime pro Iteration merken), nicht nur einmalig im Preflight vor dem allerersten
-Aufruf.
+war.
+
+**In #310 umgesetzt (behebt beide Varianten):** `run_skill()` erhebt **einmal vor dem ersten
+Versuch jedes Aufrufs** einen Inhalts-Fingerprint der Report-Datei (`report_fingerprint`,
+POSIX-`cksum`, in derselben Lib wie `report_verdict`) und honoriert einen Verdict nur bei
+**verändertem** Fingerprint. Weil der Snapshot pro Aufruf entsteht, greift die Prüfung in jedem
+Schleifendurchlauf von Phase 2 (#310) genauso wie beim Re-Lauf mit committetem Report (#91). Ein
+stale Verdict ist ein regulärer Fehlversuch im bestehenden Retry-Pfad (3 Versuche, dann
+`exit 1`) – nicht-destruktiv, also ohne Preflight-Löschen der Reports, wie in #92 zunächst
+angedacht. Der Übergang „Datei fehlt → vorhanden" zählt als Veränderung; ein nicht ermittelbarer
+Fingerprint gilt fail-closed als nicht belegbar frisch. Kanonische Beschreibung: ADR-019 §4.
+
+**Regel für neue Guards dieser Art:** Ein Guard, der Erfolg an einem **Artefakt** statt am
+Exit-Code misst, braucht immer zusätzlich einen Frische-Nachweis für dieses Artefakt – sonst
+belegt er nur, dass die Datei existiert, nicht dass der aktuelle Aufruf sie erzeugt hat.
 
 ### `.claude/**`-Änderungen erfordern Patch-Workflow (aus #91)
 
@@ -424,6 +431,26 @@ Env-Var, Permission) prüft, bekommt einen Block-Anker (`awk`-Block-Extraktion),
 PR ein WHY-Kommentar in der Nähe entsteht, der dieselbe Zeichenfolge zitiert – unabhängig davon,
 ob ein Test das aktuell schon nachweist.
 
+**Nachtrag 6 (aus #310, /implement-Selbstfund – siebtes Rezidiv, diesmal ein Mutations- statt
+ein Präsenz-/Reihenfolge-Guard):** Task #310 sicherte einen neuen Interrupt-Aufruf in
+`run-pipeline.sh` per Mutationsbeleg ab: ein `awk`-Skript entfernt die Aufrufzeile, ein
+Wirksamkeits-Guard zählt danach die Vorkommen der Zeichenkette `interrupt-check.sh` und erwartet
+einen Rückgang. Der erste Anlauf war wirkungslos, weil derselbe WHY-Kommentar **direkt über** der
+Aufrufzeile den Dateinamen `interrupt-check.sh` in Prosa nannte – das `awk`-Muster matchte auf
+den Dateinamen statt auf die volle Aufrufzeile, löschte also den Kommentar, während der echte
+Aufruf stehen blieb. Der „Mutation greift"-Guard war trotzdem grün, weil er dieselbe
+Fragment-Zeichenkette zählte wie die Mutation entfernte – beide maßen denselben falschen Proxy.
+Wie beim sechsten Rezidiv (#284) war die Kollisionsquelle der eigene, im selben Commit
+geschriebene Kommentar; hier vor dem Review bemerkt und behoben, nicht erst danach.
+
+**Regel (Mutationsbeleg-Variante):** Bei einem Mutations-Guard ist der Lösch-Anker die
+**vollständige Aufrufzeile** (hier `bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh"`), nie
+ein Dateiname- oder Kommando-Fragment – und die begleitende Wirksamkeits-Zählung muss exakt
+dieselbe Zeichenkette zählen, die die Mutation löscht. Zählt sie stattdessen ein kürzeres
+Fragment (das auch in einem benachbarten Kommentar vorkommen kann), belegen Mutation und
+Zählung nur gegenseitig denselben blinden Fleck, nicht die Kausalität zwischen Codezeile und
+Testverhalten.
+
 ### App-Router erzeugt Routen aus mehr als `page.tsx`/`route.ts` (aus #145)
 
 Beim Erstellen der Routen-Übersicht (`docs/routes.md`) und des Drift-Checks
@@ -604,7 +631,8 @@ retryt blind, wiederholt dieselbe (bereits fertige) Arbeit dreimal identisch und
 gesamte Pipeline ab. Ein Mensch musste den liegen gebliebenen, aber vollständig
 committierbaren Diff danach manuell finden und committen. `run_skill()` hat für
 `review`/`security-review` bereits einen Report-Guard (`report_verdict`, ADR-019 §4), der
-ein Turn-Limit nach bereits geschriebenem Report toleriert – für code-schreibende Skills
+ein Turn-Limit nach einem im selben Aufruf geschriebenen Report toleriert (Frische-Prüfung
+seit #310) – für code-schreibende Skills
 fehlt das Äquivalent. Härtung als Issue #275 ausgelagert (Scope sprengt #264 selbst).
 **Für die Zwischenzeit:** vor jedem Retry-Abbruch eines automatisierten Skill-Schritts
 `git status` im Zielverzeichnis prüfen, bevor der Lauf als gescheitert gilt – ein

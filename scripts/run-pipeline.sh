@@ -214,6 +214,13 @@ MAX_TURNS="${MAX_TURNS:-}"                          # Optional: globaler Overrid
 MAX_REVIEW_ITERATIONS="${MAX_REVIEW_ITERATIONS:-2}"  # Überschreibbar: MAX_REVIEW_ITERATIONS=3 bash scripts/run-pipeline.sh 42
 REVIEW_ITERATION=0
 
+# Stoppt die Pipeline hart, wenn für die Task ein Interrupt signalisiert wurde (ADR-004) –
+# run_skill() braucht denselben Aufruf an drei Stellen (Erfolg, frischer Verdict, stale
+# Verdict). Kein signalisierter Interrupt → Exit 0, Rückkehr zum Aufrufer.
+stop_if_interrupted() {
+  bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$1" || exit $?
+}
+
 run_skill() {
   local skill="$1"
   local task_id="$2"
@@ -245,6 +252,13 @@ run_skill() {
   printf -v prompt '%s\n\n---\n\n# Task-Datei: %s\n\n%s\n' \
     "$skill_body" "$(basename "$TASK_FILE")" "$(cat "$TASK_FILE")"
 
+  # Frische-Referenz für den Report-Guard (#310): Fingerprint der Report-Datei EINMAL vor
+  # dem ersten Versuch DIESES Aufrufs. Jeder Durchlauf der Review-Schleife in Phase 2 erhebt
+  # ihn dadurch neu – sonst würde ein in Iteration 1 geschriebener Report die Iteration 2
+  # (Turn-Limit vor dem Report) als vermeintlichen Erfolg durchwinken.
+  local report_fingerprint_before
+  report_fingerprint_before="$(report_fingerprint "$skill" "$task_id")"
+
   # Retry mit exponentiellem Backoff (z.B. bei Rate-Limit-Fehlern)
   # FACTORY_STAGE=3 signalisiert dem Agenten den nicht-interaktiven Modus:
   # statt eine Entscheidung zu erfragen, löst er einen Interrupt aus (ADR-004).
@@ -255,21 +269,35 @@ run_skill() {
         --max-turns "$turns" 2>&1; then
       echo -e "${GREEN}✓${NC} /${skill} abgeschlossen"
       # Hat der Agent einen Interrupt signalisiert? Dann hart stoppen.
-      bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$task_id" || exit $?
+      stop_if_interrupted "$task_id"
       return 0
     fi
 
     # Report-Guard (ADR-019 §4): review/security-review schreiben ihren Report und
     # reißen bisweilen DANACH das Turn-Limit (non-zero Exit, „Reached max turns").
-    # Ein bereits geschriebener, gültiger Verdict zählt als Erfolg – NUR für diese
-    # zwei report-erzeugenden Skills; für alle anderen bleibt non-zero ein Fehlversuch.
-    local verdict
+    # Ein gültiger Verdict zählt als Erfolg – NUR für diese zwei report-erzeugenden
+    # Skills, und NUR wenn er in diesem Aufruf entstanden ist (veränderter Fingerprint,
+    # #310). Für alle anderen Skills bleibt non-zero ein Fehlversuch.
+    local verdict report_fingerprint_now
     verdict="$(report_verdict "$skill" "$task_id")"
-    if [ -n "$verdict" ]; then
-      echo -e "${GREEN}✓${NC} /${skill} abgeschlossen (Verdict '${verdict}' – Turn-Limit nach fertigem Report toleriert)"
+    report_fingerprint_now="$(report_fingerprint "$skill" "$task_id")"
+    if [ -n "$verdict" ] && [ "$report_fingerprint_now" != "$report_fingerprint_before" ]; then
+      echo -e "${GREEN}✓${NC} /${skill} abgeschlossen (Verdict '${verdict}' – Report in diesem Aufruf geschrieben, Turn-Limit toleriert)"
       # Auch hier: ein signalisierter Interrupt stoppt hart (kein stiller Übergang).
-      bash "$FACTORY_DIR/scripts/checks/interrupt-check.sh" "$task_id" || exit $?
+      stop_if_interrupted "$task_id"
       return 0
+    fi
+    if [ -n "$verdict" ]; then
+      echo -e "${YELLOW}⚠${NC} /${skill}: Verdict '${verdict}' stammt aus einem früheren Aufruf (Report in diesem Aufruf unverändert) – kein Erfolg."
+      # Auch der Stale-Fall darf einen signalisierten Interrupt nicht verschlucken: vor #310
+      # lief er in den (damals erfolgreichen) Verdict-Zweig und stoppte dort hart. Ohne diese
+      # Zeile folgten zwei weitere Heavy-Versuche desselben Skills, und der Blocker-Eintrag in
+      # der Task-Datei entfiele (#310 Review-Runde-2-Nitpick). Liegt kein Interrupt vor, bleibt
+      # es beim regulären Fehlversuch (Exit 0 aus interrupt-check.sh). Der allgemeine Fall ohne
+      # Verdict (fehlender/unvollständiger Report, nicht report-erzeugende Skills) bleibt hier
+      # bewusst außen vor – vorbestehender Zustand, kein Scope dieses Fixes (#310
+      # Review-Runde-3-Nitpick).
+      stop_if_interrupted "$task_id"
     fi
 
     if [ "$attempt" -lt 3 ]; then
@@ -326,9 +354,13 @@ pipeline_summary() {
   local task_id="$1"
   local review_iter="$2"
   local task_file="$FACTORY_DIR/tasks/task-${task_id}.md"
-  local review_file="$FACTORY_DIR/tasks/review-${task_id}.md"
-  local security_file="$FACTORY_DIR/tasks/security-${task_id}.md"
   local codify_file="$FACTORY_DIR/tasks/codify-${task_id}.md"
+  # Report-Pfade über den geteilten Helper (#310 AK9): die Skill→Datei-Zuordnung steht
+  # ausschließlich in scripts/lib/report-verdict.sh, damit Guard, Frische-Prüfung und
+  # Summary nicht auseinanderdriften.
+  local review_file security_file
+  review_file="$(report_file review "$task_id")"
+  security_file="$(report_file security-review "$task_id")"
 
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

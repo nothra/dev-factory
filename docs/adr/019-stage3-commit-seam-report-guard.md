@@ -57,8 +57,9 @@ server-seitig durch CI **und** menschliches Approval gated – Auto-Merge vollzi
 grüne Gates.
 
 **4 · Report-Guard in `run_skill()`.** Ein non-zero Exit (inkl. „Reached max turns") gilt als
-**Erfolg**, wenn der zugehörige Report bereits mit gültigem Verdict geschrieben wurde – **nur**
-für die zwei report-erzeugenden Skills:
+**Erfolg**, wenn der zugehörige Report **in diesem Skill-Aufruf** mit gültigem Verdict
+geschrieben wurde (Frische-Bedingung, siehe Nachtrag #310 unten) – **nur** für die zwei
+report-erzeugenden Skills:
 - `review` → `tasks/review-<id>.md` enthält `APPROVED` oder `NEEDS_REWORK`.
 - `security-review` → `tasks/security-<id>.md` enthält `PASSED` oder `NEEDS_FIXES`.
 
@@ -69,8 +70,26 @@ mehr (fail-closed bei fehlendem/mehrdeutigem Anker – #211, ersetzt das früher
 Vorkommen gewinnt" per Volltext-Grep). Sie ist in **einen** Helper gezogen
 (`scripts/lib/report-verdict.sh`), damit Guard und Summary nicht auseinanderdriften (kanonische
 Quelle, ein Ort).
-Für alle anderen Skills bleibt non-zero = Fehlversuch. Nach dem als-Erfolg-gewerteten Abbruch
-läuft weiterhin `interrupt-check.sh` (kein stiller Übergang bei signalisiertem Interrupt).
+
+**Frische-Bedingung (Nachtrag #310).** Der Guard honoriert einen Verdict nur, wenn sich die
+Report-Datei **seit dem Beginn dieses Skill-Aufrufs verändert** hat. `run_skill()` erhebt dafür
+**einmal vor dem ersten Versuch** eines Aufrufs einen Inhalts-Fingerprint der Report-Datei
+(`report_fingerprint` in derselben Lib, POSIX-`cksum`; Marker `ABSENT`, wenn die Datei fehlt,
+damit die Neuanlage als Veränderung zählt, und `UNREADABLE` als fail-closed-Fall). Ist der
+Fingerprint nach dem Fehlversuch unverändert, stammt der Verdict aus einem früheren Aufruf und
+gilt **nicht** als Erfolg – der Versuch bleibt ein regulärer Fehlversuch im bestehenden
+Retry-Pfad (3 Versuche, dann `exit 1`; kein neuer Interrupt-Typ, kein Löschen des Reports).
+Ein im Versuch **signalisierter** Interrupt stoppt die Pipeline trotzdem sofort: der
+Stale-Zweig ruft `interrupt-check.sh` ebenso auf wie die Erfolgs-Zweige – sonst folgten zwei
+weitere Heavy-Versuche, und der Blocker-Eintrag in der Task-Datei entfiele.
+Ohne diese Bedingung galt ein stehengebliebener Verdict als frischer Erfolg: innerhalb eines
+Laufs in der Review-Iterationsschleife (#310, Task 308 – der Circuit Breaker brach bei
+fertigem Rework mit `exit 2` ab) und über Läufe hinweg bei bereits committetem Report (#91 –
+fail-open ohne jedes Review). Weil `run_skill()` den Fingerprint pro Aufruf erhebt, deckt die
+Prüfung beide Fälle mit derselben Mechanik ab. Die Skill→Report-Datei-Zuordnung liegt dazu
+ebenfalls nur in der Lib (`report_file`); `run-pipeline.sh` baut keinen Report-Pfad mehr selbst.
+
+Für alle anderen Skills bleibt non-zero = Fehlversuch.
 
 **5 · Budget-Puffer.** `factory.defaults.yml`: `max_turns` von `8` auf **14** für `review` und
 `security-review` (mit `@reason`) – zusätzlich zum Guard, nicht als Ersatz.
@@ -139,12 +158,15 @@ Permissions-Grenze und die Erfolgssemantik der Orchestrierung dauerhaft prägen.
 - `scripts/factory-commit.sh` (neu) – Commit/Push-Seam, fail-closed gegen main/master & `--force`.
 - `.claude/settings.json` – read-only-git + granulare `gh`-Verben in `allow`; `deny` unverändert
   (`.claude/**`, `.env*`). Kein `Bash(git *)`/`Bash(gh *)`.
-- `scripts/run-pipeline.sh` – Report-Guard in `run_skill()`; geteilter Verdict-Helper mit
-  `pipeline_summary()`.
+- `scripts/run-pipeline.sh` – Report-Guard in `run_skill()` inkl. Frische-Fingerprint pro
+  Aufruf (#310); geteilter Verdict-Helper mit `pipeline_summary()`.
+- `scripts/lib/report-verdict.sh` – `report_file` (Skill→Datei), `report_verdict` (Anker-Parser,
+  #211), `report_fingerprint` (Frische-Fingerprint, #310).
 - `factory.defaults.yml` – `review`/`security-review` `max_turns: 8 → 14` (mit `@reason`).
 - Skill-Dateien `implement`/`test`/`refactor`/`bug-fix` – committen/pushen über `factory-commit.sh`.
 - `scripts/checks/tests/run-tests.sh` – Tests für Wrapper (Happy-Path/main-Verweigerung/leer) und
-  Report-Guard (Verdict da → Erfolg; ohne → Fehlschlag), git-Stub-Muster (#80).
+  Report-Guard (Verdict da **und** frisch → Erfolg; stale oder fehlend → Fehlschlag),
+  git-Stub-Muster (#80).
 
 ## Implementierungs-Hinweise (für den Coding-Agenten)
 - **TDD:** Wrapper und Guard sind reine Shell-Logik → Self-Tests in `run-tests.sh` zuerst
