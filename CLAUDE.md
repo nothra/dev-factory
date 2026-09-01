@@ -70,8 +70,13 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
 **Stage 3 (automatisiert):** `scripts/run-pipeline.sh <task-id>` orchestriert alles.
 
 **Messen (zwei Ebenen, ADR-006):**
-- **Prozess:** `/daily-metrics` (bzw. `scripts/metrics.sh`) – Lead-Time, Autonomie-Rate,
-  CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitHub. Baut **kein** Token-Accounting nach.
+- **Prozess:** läuft automatisch als Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs –
+  fail-open, per EXIT-Trap, auch bei Abbruch (ADR-045) – und bleibt zusätzlich manuell über
+  `/daily-metrics` (bzw. `scripts/metrics.sh [--publish]`) aufrufbar. Kennzahlen: Lead-Time,
+  Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitHub. Baut **kein**
+  Token-Accounting nach. Veröffentlichung (`--publish`) optional an `$GITHUB_STEP_SUMMARY`
+  (in CI) und als Kommentar an `FACTORY_METRICS_ISSUE` (Tracking-Issue) – lokal ohne beides
+  bleibt es bei der Report-Datei.
 - **Telemetrie (optional):** `config/otel.env.example` sourcen aktiviert client-seitige
   OTEL-Metriken (Token/Kosten/Nutzung pro Skill & Agent). Default aus, backend-unabhängig
   (funktioniert auch hinter einem AI-Gateway).

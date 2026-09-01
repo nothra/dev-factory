@@ -1235,6 +1235,39 @@ aufzulösen, überwiegt die Chance auf ein verwertbares Ergebnis. Stattdessen di
 Review-Runde ohne Fork-Delegation direkt im Orchestrator-Kontext durchführen (die Dateien/den
 Diff liegen dort ohnehin schon vor) und den Vorfall nicht weiter verfolgen.
 
+### Review-Sub-Agent kann eine falsche Bash-/Shell-Verhaltensbehauptung als „empirisch geprüft" ausgeben (aus #314, Selbstfund während `/review`)
+
+Anders als der Fork-Kontaminations-Fall oben (#298/#267 – dort lieferte der Agent gar keine
+echten Findings) hier ein Fall, in dem ein frischer, korrekt beauftragter General-Purpose-Agent
+tatsächlich recherchierte und eine detaillierte, in sich schlüssige, aber **inhaltlich falsche**
+technische Behauptung als „Wichtig"-Finding auslieferte: Round 1 einer Drei-Runden-Review
+behauptete, ein `return "$_exit_code"` am Ende eines `trap … EXIT`-Handlers sei für den
+Exit-Code-Erhalt der Pipeline „tragend, nicht kosmetisch" und „empirisch geprüft" – mit exakten
+Zeilennummern und einer plausibel klingenden Begründung. Das Gegenteil ist der Fall (siehe
+`docs/factory/guidelines/bash-gotchas.md` #12): Bash erhält den auslösenden Exit-Code nach einem
+EXIT-Trap unabhängig vom `return`-Wert der Handler-Funktion, solange kein `exit` aufgerufen wird.
+Die Behauptung wurde erst durch eigene Standalone-Bash-Tests des Koordinators UND unabhängig
+durch Review-Runde 2 (dieselbe empirische Methode, anderer Agent) widerlegt – eine echte
+Mutation gegen `run-pipeline.sh` (beide `return`-Zeilen entfernt) bestätigte: Exit-Code blieb
+unverändert erhalten.
+
+**Smell:** Ein Review-Finding enthält eine **behavioral/technische Tatsachenbehauptung** über
+Sprach-/Shell-Semantik (nicht: „das ist Spec-widrig", sondern: „X funktioniert so-und-so") und
+markiert sich selbst als „empirisch geprüft" oder „empirisch verifiziert" – das ist eine
+Textur, keine Garantie. Ein Sub-Agent kann exakt diese Formulierung produzieren, ohne den
+behaupteten Test tatsächlich korrekt durchgeführt zu haben.
+
+**Regel:** Jede Kritisch-/Wichtig-Einstufung, deren Begründung eine überprüfbare
+technische Tatsachenbehauptung über Bash-/Shell-/Sprachverhalten ist (Exit-Codes, Trap-
+Semantik, Quoting, Globbing, Locale-Verhalten u. Ä.), **selbst mit einem minimalen
+Standalone-Repro nachvollziehen**, bevor sie unverändert in den finalen Report übernommen wird
+– unabhängig davon, wie detailliert oder selbstsicher die Formulierung des Sub-Agenten klingt.
+Bestätigt sich die Behauptung nicht, gehört sie nicht in den Report (auch nicht abgeschwächt als
+Nitpick), sondern wird verworfen; bestätigt sie sich, gerne mit dem eigenen Repro als zusätzlichem
+Beleg zitieren. Bei mehreren Review-Runden zur selben Codebasis: eine zweite, unabhängige Runde,
+die dieselbe Methode (eigener Test statt Vertrauen) anwendet, ist ein wirksames Gegenkontrolle –
+zwei unabhängige Widerlegungen sind stärker als eine.
+
 ### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus #233)
 
 Ein Akzeptanzkriterium der Form „WHEN der PR zum Merge freigegeben wird THEN ist der manuelle

@@ -642,3 +642,28 @@ Review-Runde exakt dieselbe falsche Zusammenfassung, weil sie dem Label statt de
 Bei jedem neuen Zähl-Guard dieser Art: „Ruft die als isoliert behandelte Funktion selbst wieder
 etwas auf, das denselben Wert erneut liest – und liegt dieser Aufruf außerhalb meines
 Extraktionsfensters?"
+
+### Neuer EXIT-Trap/Hook, der ein externes CLI aufruft: geteiltes Test-Scaffold braucht einen deterministischen Stub, nicht ambientes Fail-Fast (aus #314, Review-Runde-2-Finding)
+
+Task #314 verdrahtete `metrics.sh --quiet --publish` als `trap … EXIT` in `run-pipeline.sh` –
+ab sofort läuft bei **jedem** echten (nicht `--dry-run`) Pipeline-Lauf ein `gh`-Aufruf mit, auch
+in den bereits bestehenden `scaffold_310`-basierten Testfällen (#310/#312-Report-Guard-Familie),
+die von der neuen Mechanik nichts wissen. Die Tests blieben trotzdem grün – aber nur, weil ein
+auf der Testmaschine ambient installierter `gh` gegen den lokalen Bare-Remote der Wegwerf-Repos
+(kein bekannter GitHub-Host) sofort mit Exit ungleich 0 scheitert. Funktional richtig, aber eine
+unausgesprochene Umgebungsannahme: auf einer Maschine ohne `gh`, mit anderem Fehlerverhalten,
+oder gegen einen künftig echten Remote wäre der Testlauf nicht mehr deterministisch von der
+lokalen Toolchain entkoppelt.
+
+**Smell:** Ein neuer `trap`/Hook in einem Skript, das von mehreren bereits bestehenden
+Test-Scaffolds real (ohne `--dry-run`) ausgeführt wird, ruft ein **externes CLI** auf (`gh`,
+`curl`, o. Ä.) – und die Tests bleiben grün, „weil es in dieser Umgebung ohnehin schnell
+fehlschlägt", nicht weil ein Stub das Verhalten festnagelt.
+
+**Regel:** Führt ein neuer Hook in einem von einem geteilten Scaffold (hier: `scaffold_310()`)
+real ausgeführten Skript ein externes CLI aus, gehört ein deterministischer Stub für dieses CLI
+**in das Scaffold selbst** (nicht nur in die eine Testdatei, die den Hook explizit prüft) – so
+profitieren alle bestehenden und künftigen Aufrufstellen einheitlich, ohne von der lokalen
+Toolchain-Installation abzuhängen. Ein Scaffold, das bereits ein `bin/`-Verzeichnis mit
+PATH-Vorrang anlegt (hier: `run_310()`s `PATH="$dir/bin:$PATH"`), braucht dafür nur eine
+zusätzliche Stub-Datei, keine neue Infrastruktur.

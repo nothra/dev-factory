@@ -133,7 +133,8 @@ Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 - Optional Repo-**Variablen**: `FACTORY_MAX_RUNS_PER_DAY` (Default 5), `FACTORY_RUN_TIMEOUT` (Default 3600s).
 - **claude-CLI gepinnt und verifiziert installieren** – Vorbedingung, nicht optional: der Step
   „Runtime bereitstellen" holt sie heute ungepinnt per `npm install -g` in einen Job mit
-  `contents: write` + `issues: write`. Seam analog `install-yq.sh` → Issue
+  `contents: write` + `issues: write` (+ `pull-requests: read`/`actions: read` seit #314,
+  ADR-045 §8, für die Prozess-Metriken). Seam analog `install-yq.sh` → Issue
   [#290](https://github.com/nothra/tch-gastro-services/issues/290).
 - Steuerung erfolgt **ausschließlich** über das Label `factory::run` am Issue (bewusst per Hand).
 - **`schedule`-Trigger in `.github/workflows/factory-poll.yml` wieder eintragen** – er ist seit
@@ -420,13 +421,28 @@ ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` + Index-Zeile 
 
 ### 5.2 Prozess-Kennzahlen
 
+**Läuft automatisch (ADR-045, #314):** `scripts/metrics.sh --quiet --publish` ist ein
+Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs – per EXIT-Trap, fail-open, auch bei
+Abbruch, ohne den Exit-Code der Pipeline je zu verändern. Veröffentlicht wird an
+`$GITHUB_STEP_SUMMARY` (in CI, wenn gesetzt) und als Kommentar an `FACTORY_METRICS_ISSUE`
+(Repository-/Env-Variable mit einer Tracking-Issue-Nummer, wenn gesetzt – ohne Wert kein
+Kommentar, kein Raten).
+
+Manuell identisch erreichbar:
+
 ```bash
-bash scripts/metrics.sh            # Lead-Time, Autonomie-Rate, CI-Quote, Interrupts, Durchsatz
-bash scripts/metrics.sh --no-api   # nur lokale Kennzahlen (ohne GitHub-API)
+bash scripts/metrics.sh                       # Lead-Time, Autonomie-Rate, CI-Quote, Interrupts, Durchsatz
+bash scripts/metrics.sh --no-api              # nur lokale Kennzahlen (ohne GitHub-API)
+FACTORY_METRICS_ISSUE=<nr> bash scripts/metrics.sh --publish   # + Job-Summary/Issue-Kommentar
 ```
 
 Quelle: Git/GitHub (ADR-006) – **kein** Token-Accounting (das ist die optionale Telemetrie-Ebene,
 0.5). Die Autonomie-Rate speist sich aus `tasks/interrupt-log.jsonl`.
+
+> **Aktueller Stand:** `FACTORY_METRICS_ISSUE` ist noch nicht gesetzt – die dedizierte
+> Tracking-Issue („Metrik-Verlauf der Factory") existiert noch nicht (offene Frage aus
+> Spec-314). Bis dahin läuft die Messung ohne Kommentar-Weg; Job-Summary (in CI) und die
+> lokale Report-Datei sind davon unberührt.
 
 ### 5.3 Post-Merge-Verifikation
 

@@ -3680,6 +3680,7 @@ if [ "$HAS_YQ" = 1 ]; then
   _mk_pipe_repo() {
     mkdir -p "$1/scripts/checks" "$1/scripts/lib" "$1/tasks" "$1/docs/factory" "$1/docs/specs"
     cp "$PIPELINE" "$1/scripts/"
+    cp "$SCRIPTS_DIR/metrics.sh" "$1/scripts/"  # run-pipeline ruft metrics.sh im EXIT-Trap (ADR-045)
     cp "$CHECKS_DIR/config-validation-check.sh" "$1/scripts/checks/"
     cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
        "$SCRIPTS_DIR/lib/verify-final-state.sh" "$1/scripts/lib/"  # run-pipeline sourct verify-final-state.sh (ADR-040)
@@ -5901,6 +5902,13 @@ scaffold_310() {
   done
   printf '# Task %s: report-guard\n' "$task_id" > "$dir/tasks/task-${task_id}-guard.md"
   printf '#!/bin/sh\nexit 0\n' > "$dir/bin/sleep"; chmod +x "$dir/bin/sleep"
+  # gh immer fehlschlagen lassen (#314-Nitpick, Review-Runde-1-Finding): run_310() setzt
+  # "$dir/bin" vor den Rest von PATH, damit reicht ein Stub, um den ambienten System-`gh`
+  # zu überschatten. Ohne ihn hinge der EXIT-Trap-Aufruf von `metrics.sh --quiet --publish`
+  # (ADR-045) an der lokalen gh-Installation/-Authentifizierung – heute folgenlos, weil der
+  # Bare-Remote dieser Wegwerf-Repos keinen bekannten GitHub-Host hat (gh scheitert sofort),
+  # aber eine unausgesprochene Umgebungsannahme statt einer deterministischen Fixture.
+  printf '#!/bin/sh\nexit 1\n' > "$dir/bin/gh"; chmod +x "$dir/bin/gh"
 }
 
 # commit_310 <dir> – Wegwerf-Repo committen (preflight_checks verlangt einen sauberen Baum).
@@ -6616,6 +6624,283 @@ assert_contains_286 "$operating_flat_312" 'nur ein eindeutiges `PASSED`' \
   "#312 AK13: OPERATING.md nennt die neue Gate-Polarität in der Eigenschaften-Liste"
 assert_contains_286 "$operating_flat_312" 'ein fehlender oder mehrdeutiger Verdict stoppt genauso' \
   "#312 AK13: OPERATING.md §4.2 nennt den fehlenden/mehrdeutigen Verdict als Stopp-Grund"
+
+# ─── Task 314 (ADR-045): Prozess-Messung real betreiben ──────────────────────
+# metrics.sh läuft als Abschluss-Schritt jedes run-pipeline.sh-Laufs (EXIT-Trap, fail-open,
+# genau ein Aufrufort) und veröffentlicht optional (--publish) an $GITHUB_STEP_SUMMARY und
+# als Kommentar an FACTORY_METRICS_ISSUE. Zwei Test-Gruppen: (A) echte metrics.sh --publish-
+# Läufe (AK4-AK10, AK14), (B) echte run-pipeline.sh-Läufe gegen ein Wegwerf-Repo (AK1/AK2/AK3/
+# AK11/AK15) – kein Wiring-Grep (AK13).
+echo ""
+echo "Task 314 (ADR-045): metrics.sh --publish (echte Läufe):"
+
+TMP_314M="$(mktemp -d)"; mkdir -p "$TMP_314M/tasks" "$TMP_314M/bin"
+
+# AK14 (Exit-Code-Fix): vor dem Fix war die letzte Skriptzeile der Wahrheitswert des
+# QUIET-Tests und das Skript lief ohne `set -e` – --quiet endete darum mit Exit 1, obwohl der
+# Report korrekt geschrieben wurde. Jetzt fest verdrahtet: Exit 0 bei Erfolg.
+FACTORY_DIR="$TMP_314M" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet >/dev/null 2>&1
+assert_exit 0 "$?" "#314 AK14: metrics.sh --quiet endet mit Exit 0 (vorher: Exit 1)"
+
+# AK5: ohne $GITHUB_STEP_SUMMARY kein Schreibversuch, Lauf bleibt fehlerfrei (--publish gesetzt).
+m5_out=$(cd "$TMP_314M" && env -u GITHUB_STEP_SUMMARY -u FACTORY_METRICS_ISSUE \
+  FACTORY_DIR="$TMP_314M" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); m5_rc=$?
+assert_exit 0 "$m5_rc" "#314 AK5: --publish ohne \$GITHUB_STEP_SUMMARY bleibt fehlerfrei"
+assert_absent "$m5_out" 'GITHUB_STEP_SUMMARY angehängt' "#314 AK5: kein Schreibversuch ohne \$GITHUB_STEP_SUMMARY"
+
+# AK4: $GITHUB_STEP_SUMMARY gesetzt und schreibbar -> vollständiger Report-Inhalt angehängt
+# (nicht überschrieben – Datei enthält vorher schon einen Marker).
+SUMMARY_314="$TMP_314M/summary.md"; printf 'vorher\n' > "$SUMMARY_314"
+env -u FACTORY_METRICS_ISSUE FACTORY_DIR="$TMP_314M" GITHUB_STEP_SUMMARY="$SUMMARY_314" \
+  bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish >/dev/null 2>&1
+assert_exit 0 "$?" "#314 AK4: --publish mit schreibbarem \$GITHUB_STEP_SUMMARY endet mit Exit 0"
+grep -qF 'vorher' "$SUMMARY_314" 2>/dev/null
+assert_true "$?" "#314 AK4: bestehender Summary-Inhalt bleibt erhalten (angehängt, nicht überschrieben)"
+grep -qF '# Factory-Metriken' "$SUMMARY_314" 2>/dev/null
+assert_true "$?" "#314 AK4: vollständiger Report-Inhalt steht in \$GITHUB_STEP_SUMMARY"
+report_314="$TMP_314M/tasks/metrics-$(date +%Y-%m-%d).md"
+diff -q "$report_314" <(tail -n +2 "$SUMMARY_314") >/dev/null 2>&1
+assert_true "$?" "#314 AK4: angehängter Teil entspricht 1:1 der Report-Datei"
+
+# Fehlerszenario: $GITHUB_STEP_SUMMARY zeigt auf einen nicht schreibbaren Pfad -> Hinweis,
+# kein Abbruch.
+UNWRITABLE_314="$TMP_314M/no-such-dir/summary.md"
+uw_out=$(env -u FACTORY_METRICS_ISSUE FACTORY_DIR="$TMP_314M" GITHUB_STEP_SUMMARY="$UNWRITABLE_314" \
+  bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); uw_rc=$?
+assert_exit 0 "$uw_rc" "#314: nicht schreibbares \$GITHUB_STEP_SUMMARY bricht den Lauf nicht ab"
+assert_contains_286 "$uw_out" "nicht schreibbar" "#314: nicht schreibbares \$GITHUB_STEP_SUMMARY wird ausgewiesen"
+
+# Fake-gh (loggt Aufrufe) für AK6/AK7/AK8/AK9 – Muster wie TMP_W2 oben.
+GHLOG_314="$TMP_314M/gh.log"
+cat > "$TMP_314M/bin/gh" <<EOF
+#!/bin/sh
+case "\$1 \$2" in
+  "auth status") exit 0 ;;
+  "issue comment") printf '%s\n' "\$*" >> "$GHLOG_314"; exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$TMP_314M/bin/gh"
+
+# AK7 (kein Ziel -> kein Raten): FACTORY_METRICS_ISSUE nicht gesetzt -> kein gh-Aufruf, Grund
+# benannt, kein Ausweichen auf irgendeine andere Nummer.
+: > "$GHLOG_314"
+ak7_out=$(cd "$TMP_314M" && PATH="$TMP_314M/bin:$PATH" env -u FACTORY_METRICS_ISSUE -u GITHUB_STEP_SUMMARY \
+  FACTORY_DIR="$TMP_314M" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); ak7_rc=$?
+assert_exit 0 "$ak7_rc" "#314 AK7: metrics.sh --publish ohne FACTORY_METRICS_ISSUE endet mit Exit 0"
+assert_true "$([ ! -s "$GHLOG_314" ]; echo $?)" "#314 AK7: kein gh-Aufruf ohne FACTORY_METRICS_ISSUE"
+assert_contains_286 "$ak7_out" "FACTORY_METRICS_ISSUE nicht gesetzt" "#314 AK7: übersprungener Schritt wird benannt"
+
+# AK8 (Wert als Daten, fail-closed): nicht-numerischer Wert -> abgelehnt, kein gh-Aufruf.
+: > "$GHLOG_314"
+ak8_out=$(cd "$TMP_314M" && PATH="$TMP_314M/bin:$PATH" env -u GITHUB_STEP_SUMMARY \
+  FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="12x" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); ak8_rc=$?
+assert_exit 0 "$ak8_rc" "#314 AK8: nicht-numerischer FACTORY_METRICS_ISSUE bricht den Lauf nicht ab"
+assert_true "$([ ! -s "$GHLOG_314" ]; echo $?)" "#314 AK8: kein gh-Aufruf bei nicht-numerischem Wert"
+assert_contains_286 "$ak8_out" "keine Zahl ('12x')" "#314 AK8: Ablehnungsgrund nennt den abgelehnten Wert"
+# Typischer Stolperstein: ein CLI-Flag statt einer Zahl – Config-/nutzerkontrollierte Werte
+# als Daten behandeln (clean-code.md), nie als gh-Option.
+: > "$GHLOG_314"
+env -u GITHUB_STEP_SUMMARY FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="--repo" \
+  bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish >/dev/null 2>&1
+assert_true "$([ ! -s "$GHLOG_314" ]; echo $?)" "#314 AK8: '--repo' wird als Daten behandelt, nicht als gh-Option"
+
+# AK9 (gh nicht verfügbar): FACTORY_METRICS_ISSUE gesetzt, aber kein gh im PATH.
+: > "$GHLOG_314"
+ak9_out=$(cd "$TMP_314M" && PATH="/usr/bin:/bin" env -u GITHUB_STEP_SUMMARY \
+  FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="42" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); ak9_rc=$?
+assert_exit 0 "$ak9_rc" "#314 AK9: fehlendes gh bricht den Lauf nicht ab (local-first)"
+assert_contains_286 "$ak9_out" "gh nicht verfügbar" "#314 AK9: Kommentar-Übersprung wird ausgewiesen"
+
+# AK6 (Kommentar-Weg): FACTORY_METRICS_ISSUE gesetzt, gh verfügbar+authentifiziert -> Kommentar
+# an GENAU diese Issue, Body über --body-file (nicht als Argument-String).
+: > "$GHLOG_314"
+ak6_out=$(cd "$TMP_314M" && PATH="$TMP_314M/bin:$PATH" env -u GITHUB_STEP_SUMMARY \
+  FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="42" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); ak6_rc=$?
+assert_exit 0 "$ak6_rc" "#314 AK6: erfolgreicher Kommentar-Weg endet mit Exit 0"
+assert_true "$([ -s "$GHLOG_314" ]; echo $?)" "#314 AK6: gh issue comment wurde aufgerufen"
+grep -qF -- 'issue comment 42' "$GHLOG_314" 2>/dev/null
+assert_true "$?" "#314 AK6: Kommentar geht an die konfigurierte Issue-Nummer (42)"
+grep -qF -- '--body-file' "$GHLOG_314" 2>/dev/null
+assert_true "$?" "#314: Body wird über --body-file übergeben, nicht als Argument-String"
+assert_contains_286 "$ak6_out" "Issue #42 gepostet" "#314 AK6: Erfolg wird ausgewiesen"
+
+# Fehlerszenario (Spec-314): `gh issue comment` selbst schlägt fehl (Netzwerk, fehlendes Recht,
+# gelöschte Issue) – gh ist verfügbar+authentifiziert (anders als AK9), aber der Kommentar-
+# Aufruf scheitert. Hinweis, kein Abbruch, Report-Datei bleibt unverändert erhalten.
+cat > "$TMP_314M/bin/gh" <<'EOF'
+#!/bin/sh
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "issue comment") exit 1 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$TMP_314M/bin/gh"
+report_before_314=$(cat "$report_314" 2>/dev/null)
+ghfail_out=$(cd "$TMP_314M" && PATH="$TMP_314M/bin:$PATH" env -u GITHUB_STEP_SUMMARY \
+  FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="42" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish 2>&1); ghfail_rc=$?
+assert_exit 0 "$ghfail_rc" "#314: fehlschlagender gh-issue-comment-Aufruf bricht den Lauf nicht ab"
+assert_contains_286 "$ghfail_out" "Issue-Kommentar an #42 fehlgeschlagen" "#314: Fehlschlag wird ausgewiesen"
+assert_true "$([ "$(cat "$report_314" 2>/dev/null)" = "$report_before_314" ]; echo $?)" \
+  "#314: Report-Datei bleibt bei fehlschlagendem Kommentar-Versuch unverändert erhalten"
+
+# AK10 (manuell, gleiche Wege): ohne --publish bleibt das heutige Verhalten unverändert - kein
+# gh-/Summary-Versuch, auch wenn beide Ziele gesetzt sind. AK4-AK9 selbst laufen oben bereits
+# über denselben Code-Pfad, den auch der manuelle Aufruf nutzt (eine Implementierung, ADR-045).
+: > "$GHLOG_314"
+FACTORY_DIR="$TMP_314M" GITHUB_STEP_SUMMARY="$UNWRITABLE_314" FACTORY_METRICS_ISSUE="42" \
+  PATH="$TMP_314M/bin:$PATH" bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet >/dev/null 2>&1
+assert_true "$([ ! -s "$GHLOG_314" ]; echo $?)" "#314 AK10: ohne --publish kein gh-Aufruf trotz gesetztem FACTORY_METRICS_ISSUE"
+
+rm -rf "$TMP_314M"
+
+if [ "$HAS_YQ" = 1 ]; then
+  echo ""
+  echo "Task 314 (ADR-045) E2E: Prozess-Metriken-Trap in run-pipeline.sh (echte Läufe):"
+
+  # Reihenfolge-Guard (ADR-045 Implementierungs-Hinweis): der Trap muss NACH preflight_checks
+  # registriert sein – Positionsvergleich der beiden echten Zeilen, kein Präsenz-Grep (Lesson
+  # factory-workflow.md, "Reihenfolge-/Präsenz-Guards: Kommando ≠ Prosa-Erwähnung").
+  preflight_call_line_314=$(grep -n '^preflight_checks$' "$PIPELINE" | head -1 | cut -d: -f1)
+  trap_line_314=$(grep -n 'trap measure_process_metrics_on_exit EXIT' "$PIPELINE" | head -1 | cut -d: -f1)
+  assert_true "$([ -n "$preflight_call_line_314" ] && [ -n "$trap_line_314" ] && [ "$trap_line_314" -gt "$preflight_call_line_314" ]; echo $?)" \
+    "#314: Trap-Registrierung steht NACH dem preflight_checks-Aufruf"
+
+  # commit_314_pushed <dir> <origin> – wie commit_310 (oben, #310-Block), zusätzlich MIT
+  # gepushtem origin-Remote: die Endzustands-Verifikation (ADR-040) verlangt "sauber, gepusht"
+  # für ein grünes Ende – ohne Remote bräche AK1/AK3 schon dort ab, nicht an der Messung.
+  commit_314_pushed() {
+    local dir="$1" origin="$2" br
+    git init --bare -q "$origin"
+    commit_310 "$dir"
+    br="$(git -C "$dir" rev-parse --abbrev-ref HEAD)"
+    git -C "$dir" remote add origin "$origin"
+    git -C "$dir" push -q origin "$br"
+  }
+
+  run_314() {
+    local dir="$1" task_id="$2"; shift 2
+    OUT_314=$(cd "$dir" && PATH="$dir/bin:$PATH" \
+      FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
+      env -u PR_SHEPHERD -u FACTORY_STAGE -u FACTORY_METRICS_ISSUE -u GITHUB_STEP_SUMMARY \
+      bash "$dir/scripts/run-pipeline.sh" "$task_id" "$@" 2>&1); RC_314=$?
+  }
+
+  # ── AK1: regulärer, grüner Lauf -> Messabschnitt erscheint GENAU einmal, Erfolg bleibt.
+  TMP_314A="$(mktemp -d)"; TMP_314A_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_314A" 900
+  cat > "$TMP_314A/bin/claude" <<'STUB_314A'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\n' > "$PWD/tasks/security-900.md" ;;
+  *SKILL-review*)          printf '## Empfehlung\nAPPROVED\n' > "$PWD/tasks/review-900.md" ;;
+esac
+exit 0
+STUB_314A
+  chmod +x "$TMP_314A/bin/claude"
+  commit_314_pushed "$TMP_314A" "$TMP_314A_ORIGIN"
+  run_314 "$TMP_314A" 900
+  assert_exit 0 "$RC_314" "#314 AK1: regulärer Lauf endet weiterhin mit Exit 0"
+  ak1_count=$(printf '%s' "$OUT_314" | grep -c '→ Prozess-Metriken erheben')
+  assert_true "$([ "$ak1_count" -eq 1 ]; echo $?)" "#314 AK1: Messung läuft genau einmal (ein erkennbarer Messabschnitt)"
+  assert_contains_286 "$OUT_314" "Prozess-Metriken erhoben" "#314 AK1: der Lauf gibt einen erkennbaren Erfolg der Messung aus"
+  assert_contains_286 "$OUT_314" "Pipeline erfolgreich abgeschlossen" "#314 AK1: der reguläre Erfolg bleibt unberührt"
+  rm -rf "$TMP_314A" "$TMP_314A_ORIGIN"
+
+  # ── AK2: Abbruch (implement scheitert dreimal) -> Messung läuft trotzdem GENAU einmal,
+  # ursprünglicher Exit-Code (1, aus dem bestehenden "failed after 3 attempts"-Pfad) bleibt.
+  TMP_314B="$(mktemp -d)"
+  scaffold_310 "$TMP_314B" 901
+  printf '#!/bin/sh\nexit 1\n' > "$TMP_314B/bin/claude"; chmod +x "$TMP_314B/bin/claude"
+  commit_310 "$TMP_314B"
+  run_314 "$TMP_314B" 901
+  assert_exit 1 "$RC_314" "#314 AK2: ursprünglicher Exit-Code (1) bleibt nach dem abgebrochenen Lauf erhalten"
+  assert_contains_286 "$OUT_314" "failed after 3 attempts" "#314 AK2: der Abbruch selbst läuft wie zuvor (Retry-Pfad unverändert)"
+  ak2_count=$(printf '%s' "$OUT_314" | grep -c '→ Prozess-Metriken erheben')
+  assert_true "$([ "$ak2_count" -eq 1 ]; echo $?)" "#314 AK2: Messung läuft auch bei Abbruch genau einmal"
+  rm -rf "$TMP_314B"
+
+  # ── AK2 (Mutationsbeleg): OHNE die Trap-Registrierung läuft dieselbe Abbruch-Fixture ohne
+  # Messabschnitt – belegt, dass der Test oben wirklich die Trap-Mechanik prüft (Lesson
+  # testing.md, Mutationsbeleg-Pflicht bei Positivbelegen), nicht nur den vorbestehenden
+  # Retry-Pfad aus #310/#312.
+  TMP_314B2="$(mktemp -d)"
+  scaffold_310 "$TMP_314B2" 901
+  awk '/^trap measure_process_metrics_on_exit EXIT$/{next} {print}' "$PIPELINE" > "$TMP_314B2/scripts/run-pipeline.sh"
+  assert_true "$([ "$(grep -c 'trap measure_process_metrics_on_exit EXIT' "$TMP_314B2/scripts/run-pipeline.sh")" -eq 0 ]; echo $?)" \
+    "#314 AK2: Mutation greift wirklich (Trap-Registrierung entfernt)"
+  printf '#!/bin/sh\nexit 1\n' > "$TMP_314B2/bin/claude"; chmod +x "$TMP_314B2/bin/claude"
+  commit_310 "$TMP_314B2"
+  run_314 "$TMP_314B2" 901
+  assert_exit 1 "$RC_314" "#314 AK2 (Mutation): Abbruch-Exit-Code bleibt unabhängig von der Trap-Mechanik (1)"
+  assert_absent "$OUT_314" "Prozess-Metriken erheben" "#314 AK2 (Mutation): ohne Trap läuft KEINE Messung – der Test oben ist kausal"
+  rm -rf "$TMP_314B2"
+
+  # ── AK3 (fail-open): metrics.sh fehlt -> ein ansonsten grüner Lauf bleibt Exit 0, Hinweis
+  # auf die übersprungene Messung erscheint.
+  TMP_314C="$(mktemp -d)"; TMP_314C_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_314C" 902
+  rm -f "$TMP_314C/scripts/metrics.sh"
+  cat > "$TMP_314C/bin/claude" <<'STUB_314C'
+#!/bin/sh
+case "$*" in
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\n' > "$PWD/tasks/security-902.md" ;;
+  *SKILL-review*)          printf '## Empfehlung\nAPPROVED\n' > "$PWD/tasks/review-902.md" ;;
+esac
+exit 0
+STUB_314C
+  chmod +x "$TMP_314C/bin/claude"
+  commit_314_pushed "$TMP_314C" "$TMP_314C_ORIGIN"
+  run_314 "$TMP_314C" 902
+  assert_exit 0 "$RC_314" "#314 AK3: fehlendes metrics.sh färbt einen grünen Lauf nicht rot (fail-open)"
+  assert_contains_286 "$OUT_314" "übersprungen (fail-open)" "#314 AK3: die übersprungene Messung wird ausgewiesen"
+  assert_contains_286 "$OUT_314" "Pipeline erfolgreich abgeschlossen" "#314 AK3: der reguläre Erfolg bleibt trotz fehlgeschlagener Messung erhalten"
+  rm -rf "$TMP_314C" "$TMP_314C_ORIGIN"
+
+  # ── AK11 (dry-run): nichts wird veröffentlicht, übersprungene Messung wird ausgewiesen.
+  TMP_314D="$(mktemp -d)"
+  _mk_pipe_repo "$TMP_314D"
+  echo "# Task 903: dry" > "$TMP_314D/tasks/task-903-dry.md"
+  git -C "$TMP_314D" init -q
+  git -C "$TMP_314D" config user.email t@t; git -C "$TMP_314D" config user.name t
+  git -C "$TMP_314D" add . >/dev/null 2>&1; git -C "$TMP_314D" commit -q -m init
+  dryrun_out_314=$(cd "$TMP_314D" && bash "$TMP_314D/scripts/run-pipeline.sh" 903 --dry-run 2>&1)
+  assert_contains_286 "$dryrun_out_314" "[DRY-RUN] Prozess-Metriken übersprungen" "#314 AK11: --dry-run weist die übersprungene Messung aus"
+  assert_absent "$dryrun_out_314" "Prozess-Metriken erhoben" "#314 AK11: --dry-run misst/veröffentlicht nicht wirklich"
+  rm -rf "$TMP_314D"
+
+  # ── AK15: factory-poll.yml gewährt die zwei zusätzlichen Read-Scopes für die API-Kennzahlen.
+  poll_permission_guard "$POLL_YML" 'pull-requests: read'
+  assert_true "$?" "#314 AK15: factory-poll.yml gewährt pull-requests: read (Lead-Time)"
+  poll_permission_guard "$POLL_YML" 'actions: read'
+  assert_true "$?" "#314 AK15: factory-poll.yml gewährt actions: read (CI-Quote)"
+else
+  skip_yq "#314 E2E: Prozess-Metriken-Trap in run-pipeline.sh"
+fi
+
+# ─── #314 AK12: Doku ohne Drift (CLAUDE.md, daily-metrics.md, OPERATING.md) ──────────────────
+echo ""
+echo "#314 AK12: Doku beschreibt die Messung als Bestandteil jedes Pipeline-Laufs:"
+
+claude_md_flat_314=$(flat_286 "$CLAUDE_MD")
+assert_contains_286 "$claude_md_flat_314" 'läuft automatisch als Abschluss-Schritt' \
+  "#314 AK12: CLAUDE.md beschreibt die Messung als automatischen Pipeline-Bestandteil"
+assert_contains_286 "$claude_md_flat_314" 'FACTORY_METRICS_ISSUE' \
+  "#314 AK12: CLAUDE.md nennt FACTORY_METRICS_ISSUE als Veröffentlichungs-Ziel"
+
+DAILY_METRICS_MD="$FACTORY_ROOT/.claude/commands/daily-metrics.md"
+daily_metrics_flat_314=$(flat_286 "$DAILY_METRICS_MD")
+assert_contains_286 "$daily_metrics_flat_314" 'Läuft bereits automatisch (ADR-045' \
+  "#314 AK12: daily-metrics.md nennt sich nicht länger als ausschließlich manuellen Weg"
+assert_contains_286 "$daily_metrics_flat_314" 'metrics.sh --publish' \
+  "#314 AK12: daily-metrics.md beschreibt den --publish-Schalter"
+
+operating_flat_314=$(flat_286 "$OPERATING_MD")
+assert_contains_286 "$operating_flat_314" 'Läuft automatisch (ADR-045' \
+  "#314 AK12: OPERATING.md §5.2 beschreibt die Messung als automatischen Pipeline-Bestandteil"
+assert_contains_286 "$operating_flat_314" 'pull-requests: read' \
+  "#314 AK12: OPERATING.md nennt den erweiterten factory-poll.yml-Scope (AK15)"
 
 # ─── #315: Aspekt-Label factory-pipeline in allen Label-Aufzählungen ─────────
 # Warum ein Grep-Guard: Der Seam scripts/lib/create-issue.sh validiert Labels bewusst nicht

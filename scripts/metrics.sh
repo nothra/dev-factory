@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # metrics.sh – Prozess-/Outcome-Kennzahlen der Factory.
 #
-# Verwendung: bash scripts/metrics.sh [--no-api] [--quiet]
-#   --no-api  überspringt die GitHub-API-Metriken (Lead-Time, CI-Quote)
-#   --quiet   schreibt nur die Report-Datei, nicht nach stdout
+# Verwendung: bash scripts/metrics.sh [--no-api] [--quiet] [--publish]
+#   --no-api   überspringt die GitHub-API-Metriken (Lead-Time, CI-Quote)
+#   --quiet    schreibt nur die Report-Datei, nicht nach stdout
+#   --publish  veröffentlicht den Report zusätzlich (ADR-045): an
+#              $GITHUB_STEP_SUMMARY, wenn gesetzt, und als Kommentar an
+#              FACTORY_METRICS_ISSUE, wenn gesetzt. Ohne --publish
+#              unverändertes Verhalten – nur die Report-Datei wird geschrieben.
 #
 # Mess-Ebene laut ADR-006: PROZESS (Git/GitHub). Token/Kosten kommen NICHT von
 # hier, sondern aus der Telemetrie-Ebene (OTEL, config/otel.env.example).
@@ -19,10 +23,12 @@ TASKS_DIR="$FACTORY_DIR/tasks"
 
 USE_API=true
 QUIET=false
+PUBLISH=false
 for arg in "$@"; do
   case "$arg" in
-    --no-api) USE_API=false ;;
-    --quiet)  QUIET=true ;;
+    --no-api)  USE_API=false ;;
+    --quiet)   QUIET=true ;;
+    --publish) PUBLISH=true ;;
   esac
 done
 
@@ -140,3 +146,54 @@ EOF
 printf '%s\n' "$report" > "$report_file"
 [ "$QUIET" = false ] && printf '%s\n' "$report"
 [ "$QUIET" = false ] && echo "" && echo "→ Report geschrieben: tasks/metrics-${today}.md"
+
+# ─── Veröffentlichung (optional, hinter --publish, ADR-045) ──────────────────
+# Wohnt hier statt in run-pipeline.sh (Dependency-Rule, ADR-045 Entscheidung 4):
+# der Pipeline-Runner kennt nur das Kommando, nicht gh/Summary. Meldungen laufen
+# unabhängig von --quiet (das unterdrückt nur den Report-Dump), damit ein
+# übersprungener/fehlgeschlagener Veröffentlichungsschritt im Pipeline-Log sichtbar
+# bleibt (AK9 „ausgewiesen").
+
+publish_summary() {
+  if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+    return 0
+  fi
+  if cat "$report_file" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null; then
+    echo "→ Report an \$GITHUB_STEP_SUMMARY angehängt"
+  else
+    echo "⚠ Job-Summary übersprungen: \$GITHUB_STEP_SUMMARY nicht schreibbar"
+  fi
+}
+
+publish_issue_comment() {
+  local issue="${FACTORY_METRICS_ISSUE:-}"
+  if [ -z "$issue" ]; then
+    echo "→ Issue-Kommentar übersprungen: FACTORY_METRICS_ISSUE nicht gesetzt"
+    return 0
+  fi
+  # Config-/nutzerkontrollierten Wert als Daten behandeln (clean-code.md), fail-closed:
+  # nicht-numerische Werte erreichen gh nie (ADR-045 Entscheidung 5). Der leere String ist
+  # hier bereits durch den [ -z "$issue" ]-Guard oben ausgeschlossen, kein eigenes Pattern nötig.
+  case "$issue" in
+    *[!0-9]*)
+      echo "⚠ Issue-Kommentar abgelehnt: FACTORY_METRICS_ISSUE ist keine Zahl ('${issue}')"
+      return 0
+      ;;
+  esac
+  if ! api_available; then
+    echo "→ Issue-Kommentar übersprungen: gh nicht verfügbar/authentifiziert"
+    return 0
+  fi
+  if gh issue comment "$issue" --body-file "$report_file" >/dev/null 2>&1; then
+    echo "→ Report als Kommentar an Issue #${issue} gepostet"
+  else
+    echo "⚠ Issue-Kommentar an #${issue} fehlgeschlagen"
+  fi
+}
+
+if [ "$PUBLISH" = true ]; then
+  publish_summary
+  publish_issue_comment
+fi
+
+exit 0

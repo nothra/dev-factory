@@ -8,6 +8,12 @@ Task-Dateien) und gibt ihn optional als GitHub-Kommentar aus.
 > NICHT hierher** – die liefert die Telemetrie-Ebene (OTEL, `config/otel.env.example`).
 > Kein eigenes Token-Accounting nachbauen.
 
+> **Läuft bereits automatisch (ADR-045, #314):** `scripts/metrics.sh` ist ein
+> Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs (EXIT-Trap, fail-open – läuft auch bei
+> Abbruch, verändert nie den Exit-Code der Pipeline). Dieser Skill ist der **manuelle** Weg
+> dorthin – z. B. für einen Zwischenstand außerhalb eines Pipeline-Laufs – und erreicht über
+> denselben `--publish`-Schalter dieselben Veröffentlichungs-Wege (Schritt 3).
+
 ## Ablauf
 
 Der Skill ist ein dünner Wrapper um ein deterministisches Skript – die Bash
@@ -33,13 +39,16 @@ Lies den Report und hebe hervor, was Aufmerksamkeit braucht:
 
 ### Schritt 3 (optional): Veröffentlichen
 
-Wenn eine Ziel-Issue-/PR-Nummer gegeben ist, den Report als Kommentar posten:
+`metrics.sh --publish` übernimmt das Veröffentlichen selbst (ADR-045) – kein manueller
+`gh`-Aufruf mehr nötig:
 
 ```bash
-gh issue comment <issue-nummer> --body-file tasks/metrics-<datum>.md
+FACTORY_METRICS_ISSUE=<issue-nummer> bash scripts/metrics.sh --publish
 ```
 
-Sonst genügt der Datei-Report.
+Veröffentlicht wird an `$GITHUB_STEP_SUMMARY` (wenn gesetzt) und als Kommentar an
+`FACTORY_METRICS_ISSUE` (wenn gesetzt, gegen einen nicht-numerischen Wert fail-closed
+abgesichert). Ohne `--publish` genügt der Datei-Report (heutiges Verhalten unverändert).
 
 ## Regeln
 
@@ -55,6 +64,6 @@ Sonst genügt der Datei-Report.
 
 ## Hinweis für Stage 3 / Automatisierung
 
-Deterministisch, kein Gesprächsgedächtnis nötig. Kann via GitHub Actions Scheduled
-Workflow täglich laufen (`bash scripts/metrics.sh --quiet`) und den Report als
-Artefakt oder Issue-Kommentar ablegen.
+Deterministisch, kein Gesprächsgedächtnis nötig – und seit #314 bereits verdrahtet: der
+EXIT-Trap in `run-pipeline.sh` ruft `bash scripts/metrics.sh --quiet --publish` als
+Abschluss-Schritt jedes Pipeline-Laufs auf (ADR-045), kein separater Scheduled Workflow nötig.

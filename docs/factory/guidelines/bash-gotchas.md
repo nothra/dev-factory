@@ -349,6 +349,59 @@ des Skripts wird).
 
 ---
 
+## 12. EXIT-Trap: `return`/letzter Befehl des Handlers bestimmt NICHT den Skript-Exit-Code
+
+Ein `trap … EXIT`-Handler kann den ursprünglichen Exit-Code lesen (`$?` als erste Anweisung),
+aber sein eigener `return`-Wert verändert **nicht**, womit die Shell am Ende exitet – solange
+der Handler selbst kein `exit N` aufruft. Bash behält den auslösenden Exit-Code unabhängig vom
+`return`-Wert der Handler-Funktion bei. Die echte Gefahr liegt woanders: Läuft der Handler unter
+`set -e`, und der **letzte tatsächlich ausgeführte Befehl** im Handler schlägt fehl **ohne**
+`|| true`-Schutz, überschreibt DAS den finalen Exit-Code – `set -e` löst an dieser Stelle selbst
+einen impliziten Abbruch mit diesem Fehlercode aus.
+
+```bash
+# Trugschluss: "return $rc" am Ende sichert den Exit-Code
+foo() {
+  local rc=$?
+  echo "cleanup"
+  return "$rc"          # wirkungslos für den Skript-Exit-Code (weder nötig noch schädlich)
+}
+trap foo EXIT
+exit 5                  # Skript endet trotzdem mit exit 5, ob "return $rc" dasteht oder nicht
+
+# Echte Gefahr: ein ungeschützter Fehlschlag als letzter Befehl im Handler
+foo() {
+  local rc=$?
+  false                  # schlägt fehl, KEIN || true → überschreibt den Exit-Code auf 1
+}
+trap foo EXIT
+exit 5                  # Skript endet mit exit 1, nicht 5!
+
+# RICHTIG: jeden Befehl im Handler || true-schützen, kein exit im Handler aufrufen
+foo() {
+  local rc=$?
+  false || true
+}
+trap foo EXIT
+exit 5                  # Skript endet korrekt mit exit 5
+```
+
+**Faustregel:** In einem EXIT-Trap-Handler schützt **nicht** ein `return $rc` am Ende den
+ursprünglichen Exit-Code – das übernimmt Bash automatisch, solange kein `exit` im Handler steht.
+Schützen muss man stattdessen **jeden Befehl im Handler mit `|| true`**, sonst kann ein
+Fehlschlag darin unter `set -e` den Exit-Code überschreiben. Eine Behauptung, ein
+`return`-Statement sei dafür „tragend", ist ein Trugschluss – mit drei unabhängigen
+Standalone-Tests und einer echten Mutation (`return`-Zeilen aus dem Skript entfernt, Exit-Code
+blieb erhalten) widerlegt.
+
+**Bit uns:** #314 – ein Review-Sub-Agent behauptete, `return "$_exit_code"` am Ende von
+`measure_process_metrics_on_exit()` (`run-pipeline.sh`) sei „empirisch geprüft" tragend für den
+Exit-Code-Erhalt. Zwei unabhängige Gegenproben (Koordinator-Session + separate Review-Runde)
+widerlegten das (siehe `docs/factory/lessons/factory-workflow.md` → „Review-Sub-Agent kann eine
+falsche Bash-/Shell-Verhaltensbehauptung als 'empirisch geprüft' ausgeben").
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

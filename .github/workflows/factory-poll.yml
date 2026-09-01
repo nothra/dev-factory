@@ -30,10 +30,14 @@ name: Factory Poll
 on:
   workflow_dispatch: {}
 
-# Nur Issues/Labels schreiben + Repo-Commits pushen – kein weiterer Scope.
+# Issues/Labels schreiben + Repo-Commits pushen; zusätzlich lesend für die Prozess-Metriken
+# (ADR-045, #314): metrics.sh braucht `gh pr list` (Lead-Time) und `gh run list` (CI-Quote) –
+# ohne diese zwei Read-Scopes liefen beide API-Kennzahlen in CI dauerhaft "übersprungen".
 permissions:
   contents: write
   issues: write
+  pull-requests: read
+  actions: read
 
 # Concurrency=1 über Workflow-Läufe hinweg (Idempotenz-Hälfte 2). Laufende
 # Läufe werden NICHT abgebrochen (kein cancel-in-progress) – ein aktiver

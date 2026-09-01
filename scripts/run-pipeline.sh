@@ -490,6 +490,36 @@ echo ""
 
 preflight_checks
 
+# ─── Prozess-Metriken (ADR-045) ──────────────────────────────────────────────
+# Trap statt explizitem Aufruf am regulären Ende: genau EIN Aufrufort deckt damit auch
+# jeden Abbruchpfad ab (Interrupt, Gate-Fehler, jeder `exit`/`set -e`-Abbruch) – der
+# abgebrochene Lauf ist der Lauf, über den die Autonomie-Rate am meisten aussagt.
+# Registrierung bewusst NACH preflight_checks: ein Usage-Fehler oder ein gerissener
+# Preflight veröffentlicht nichts (ADR-045 §6).
+#
+# Fail-open und exit-code-neutral: `$?` wird als erste Anweisung gesichert, jeder
+# nachfolgende Befehl bleibt `|| true`-geschützt. Ohne `exit` im Trap behält die Shell
+# unter `set -e` den auslösenden Exit-Code – ein ungeschützter Fehlschlag im Trap würde
+# ihn sonst überschreiben (empirisch geprüft, Präzedenz K-1/#261). Die `return
+# "$_exit_code"`-Zeilen sind bewusst defensiv (Absicherung gegen einen künftigen Branch
+# ohne `|| true`-Schutz als letzten Befehl), nicht der eigentliche Erhaltungsmechanismus.
+measure_process_metrics_on_exit() {
+  local _exit_code=$?
+  if [ "$DRY_RUN" = true ]; then
+    echo -e "${BLUE}[DRY-RUN] Prozess-Metriken übersprungen${NC}" || true
+    return "$_exit_code"
+  fi
+  echo "" || true
+  echo -e "${YELLOW}→ Prozess-Metriken erheben${NC}" || true
+  if bash "$FACTORY_DIR/scripts/metrics.sh" --quiet --publish; then
+    echo -e "${GREEN}✓${NC} Prozess-Metriken erhoben" || true
+  else
+    echo -e "${YELLOW}⚠${NC} Prozess-Metriken-Erhebung fehlgeschlagen – übersprungen (fail-open)" || true
+  fi
+  return "$_exit_code"
+}
+trap measure_process_metrics_on_exit EXIT
+
 # Phase 1: Implementieren
 echo -e "${BLUE}Phase 1: Implementierung${NC}"
 run_skill "implement" "$TASK_ID"
