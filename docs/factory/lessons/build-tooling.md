@@ -17,6 +17,21 @@ Hilfsskripte, die nicht eingecheckt werden sollen, immer nach einem dieser Muste
 (oder das Muster in `.gitignore` ergänzen), bevor sie erstellt werden – nicht nachträglich
 aufräumen.
 
+**Nachtrag (aus #324): Muster wiederholt sich bei einer Wegwerf-E2E-Verifikation, und ihr
+eigener Kommentar behauptete eine falsche Gitignore-Abdeckung.** Ein `/implement`-Lauf legte
+zur manuellen Verifikation `e2e/verify-324.tmp.spec.ts` und `.verify-324/` (Screenshot-Ordner)
+an. Der Kommentar in der Spec-Datei behauptete „`*.tmp.*` ist gitignoret" – tatsächlich deckte
+`.gitignore` nur `*.tmp.txt`/`*.tmp.sh`/`*.tmp.py` ab, keinen Wildcard `*.tmp.*` und kein
+`.verify-*/`-Verzeichnis; `git status` zeigte beide Pfade als `Untracked`. Die Behauptung wurde
+nie gegen den echten `.gitignore`-Inhalt geprüft, nur angenommen.
+
+**Regel (erweitert):** `.gitignore` deckt jetzt zusätzlich `*.tmp.spec.ts`/`*.tmp.spec.tsx`
+(Wegwerf-E2E-Specs) und `.verify-*/` (Wegwerf-Verifikationsartefakte wie Screenshots) ab. Ein
+Kommentar, der behauptet „Muster X ist gitignoret", ist selbst eine überprüfbare
+Tatsachenbehauptung (vgl. `lessons/testing.md` #314-Learning zu unverifizierten
+Verhaltensbehauptungen) – vor dem Anlegen einer Wegwerf-Datei `git check-ignore -v <pfad>`
+gegen den geplanten Dateinamen laufen lassen, nicht das Muster erraten.
+
 ### Lint/Vitest fangen keine Typfehler – Gate-Lücke bis zum manuellen `pnpm build` (aus #137)
 
 Review-Runde 1 fand einen Build-Break (fehlender `import type { CatalogCategory }`), den

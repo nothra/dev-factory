@@ -663,6 +663,22 @@ fehlt das Äquivalent. Härtung als Issue #275 ausgelagert (Scope sprengt #264 s
 `git status` im Zielverzeichnis prüfen, bevor der Lauf als gescheitert gilt – ein
 committierbarer Zwischenstand ist kein Fehlschlag, nur ein fehlender letzter Schritt.
 
+**Nachtrag (aus #324): drittes Vorkommnis, diesmal bei `/implement` – der Defekt ist NICHT
+`/refactor`-spezifisch.** `PR_SHEPHERD=true bash scripts/run-pipeline.sh 324` riss den
+`/implement`-Schritt 3× ins Turn-Limit (Task mit 15 AC, entsprechend großer Scope über 6
+Produktionsmodule) und brach danach die gesamte Pipeline ab (Exit 1). Genau wie in #264 hatte
+der Orchestrator zwischen den Retries **nicht** auf `git status` geprüft – im Arbeitsbaum lag
+aber bereits eine **funktional fast fertige** Implementierung (alle Module laut ADR geändert,
+Lint grün, Ziel-Tests grün), dazu zwei vom letzten Versuch selbst angelegte, nicht committete
+Wegwerf-Artefakte (`.verify-324/`, `e2e/verify-324.tmp.spec.ts`) außerhalb der App-Baum-Struktur.
+Ein Mensch musste den Zwischenstand manuell finden, die Wegwerf-Artefakte entfernen und den
+Rest der Pipeline (`/review` bis `/pr-shepherd`) Skill für Skill nachholen. Da dasselbe Muster
+jetzt in zwei unterschiedlichen code-schreibenden Skills (`/refactor`, `/implement`) auftrat,
+ist die Ursache der Orchestrator selbst (`run_skill()`), nicht eine Eigenschaft eines
+bestimmten Skills – Issue #275 deckt die Härtung bereits ab, sein Titel sollte beim Beheben
+entsprechend generalisiert werden (Retry-Guard für **jeden** code-schreibenden Skill-Schritt,
+nicht nur `/refactor`).
+
 ### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
 
 Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
