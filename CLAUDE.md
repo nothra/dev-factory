@@ -176,10 +176,12 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   nur noch über einen **neuen PR** ändern (Direkt-Commit auf `main` ist verboten) – für ein Häkchen
   unverhältnismäßig. (aus #63)
 - Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren
-- **Empfehlung (keine Pflicht): Jede neue Task in einer neuen Claude-Session starten.**
-  `start-work.sh` erinnert daran. Grund: Kleiner Kontext = fokussierte Arbeit, weniger
-  Token-Verbrauch, kein Übersprechen zwischen Tasks. Kanonische Quelle für Ausnahmen und Grenzen:
-  `docs/factory/guidelines/git-workflow.md` → „Eine Task = Eine Session".
+- **Empfehlung (keine Pflicht): Für den `/implement`-Schritt einer Task eine neue
+  Claude-Session öffnen.** `start-work.sh` und das anschließende `/requirements` (ggf.
+  `/architecture`) laufen dagegen im Regelfall in derselben, noch task-freien Session –
+  `start-work.sh` erinnert an der passenden Stelle daran. Grund: Kleiner Kontext = fokussierte
+  Arbeit, weniger Token-Verbrauch, kein Übersprechen zwischen Tasks. Kanonische Quelle für
+  Regelfall und Grenze: `docs/factory/guidelines/git-workflow.md` → „Eine Task = Eine Session".
 - **Vor jeder neuen Task `bash scripts/start-work.sh` aufrufen** – nie manuell branchen.
   Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-PR ist angelegt.
 - **Parallele Sessions arbeiten in getrennten git-Worktrees.** `start-work.sh` legt jede neue Task

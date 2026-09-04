@@ -2316,6 +2316,65 @@ old_same_line_267=$(printf '%s\n' "$OLD_LINE_267" | grep -F "kein geteilter HEAD
 assert_true "$([ "$old_same_line_267" -gt 0 ]; echo $?)" \
   "AK5 (Mutation): die alte, kombinierte Formulierung hätte den Trennungs-Guard reißen lassen"
 
+# ─── #322: Session-Empfehlung ist an Schritt 2 (/implement) gebunden, nicht an den ───────────
+# Worktree-Fakt oder an Schritt 0/1 (/requirements). Nutzt denselben OUT_267 wie AK5 oben.
+echo ""
+echo "#322: start-work.sh bindet die Session-Empfehlung an Schritt 2 (/implement):"
+
+step1_line_322=$(printf '%s\n' "$OUT_267" | grep -n '1\. Task-Datei mit Beschreibung' | head -1 | cut -d: -f1)
+step2_line_322=$(printf '%s\n' "$OUT_267" | grep -n '2\. Implementieren starten' | head -1 | cut -d: -f1)
+rec_line_322=$(printf '%s\n' "$OUT_267" | grep -n 'Empfehlung (keine Pflicht)' | head -1 | cut -d: -f1)
+head_fact_line_322=$(printf '%s\n' "$OUT_267" | grep -n 'kein geteilter HEAD' | head -1 | cut -d: -f1)
+
+assert_true "$([ -n "$step1_line_322" ] && [ -n "$step2_line_322" ] && [ -n "$rec_line_322" ] \
+    && [ -n "$head_fact_line_322" ] && [ "$step1_line_322" -lt "$step2_line_322" ] \
+    && [ "$step2_line_322" -lt "$rec_line_322" ] && [ "$rec_line_322" -lt "$head_fact_line_322" ]; echo $?)" \
+  "#322: Reihenfolge im Abschluss-Output ist Schritt 1 (/requirements) → Schritt 2 (/implement) → Session-Empfehlung → Worktree-Fakt (nicht mehr umgekehrt)"
+
+# Exakt 1: die Empfehlungszeile ist die unmittelbar nächste Zeile nach Schritt 2 (kein
+# unbegründeter Toleranzbereich – die Zeile folgt in start-work.sh direkt auf die Schritt-2-Zeile).
+rec_gap_322=$((rec_line_322 - step2_line_322))
+assert_true "$([ "$rec_gap_322" -eq 1 ]; echo $?)" \
+  "#322: die Session-Empfehlung steht in der unmittelbar nächsten Zeile nach Schritt 2 (/implement), nicht als entkoppelter Schlussabsatz"
+
+no_claude_session_before_step2_322=$(printf '%s\n' "$OUT_267" | head -n "$((step2_line_322 - 1))" | grep -c "Claude-Session")
+assert_true "$([ "$no_claude_session_before_step2_322" -eq 0 ]; echo $?)" \
+  "#322: vor Schritt 2 (/implement) wird keine neue Claude-Session empfohlen (Schritt 0/1 bleiben unqualifiziert)"
+
+# Mutation: die ALTE Reihenfolge (Fakt-Zeile, danach erst die generische Empfehlung am Schluss)
+# hätte die neue Bindungs-/Reihenfolge-Prüfung reißen lassen.
+OLD_TAIL_322=$(printf '%s\n%s\n' \
+  "⚡ Eigener Arbeitsbaum: parallele Sessions kollidieren nicht (kein geteilter HEAD)." \
+  "Empfehlung (keine Pflicht): Starte für Task 792 zusätzlich eine neue Claude-Session in diesem Worktree.")
+old_head_line_322=$(printf '%s\n' "$OLD_TAIL_322" | grep -n 'kein geteilter HEAD' | head -1 | cut -d: -f1)
+old_rec_line_322=$(printf '%s\n' "$OLD_TAIL_322" | grep -n 'Empfehlung (keine Pflicht)' | head -1 | cut -d: -f1)
+assert_true "$([ -n "$old_head_line_322" ] && [ -n "$old_rec_line_322" ] && [ "$old_head_line_322" -lt "$old_rec_line_322" ]; echo $?)" \
+  "#322 (Mutation): die alte Reihenfolge (Fakt vor Empfehlung) hätte die neue Bindungs-Prüfung nicht erfüllt"
+
+# ─── #322 Fehlerszenario 1 (Spec): FACTORY_NO_WORKTREE=1 – Formulierung bleibt sinnvoll ──────
+# Nutzt den bereits geklonten In-Place-Baum $REPO_IP (siehe #74/#236-Block oben) für einen
+# zweiten start-work.sh-Lauf mit anderer Task-ID – start-work.sh checkt vorher $DEFAULT_BRANCH
+# aus, ein zweiter Lauf auf demselben Klon ist damit unproblematisch.
+echo ""
+echo "#322 Fehlerszenario 1: start-work.sh im In-Place-Modus (FACTORY_NO_WORKTREE=1):"
+
+OUT_NOWT_322=$( cd "$REPO_IP" && PATH="$TMP_SW/bin:$PATH" \
+    FACTORY_DIR="$REPO_IP" FACTORY_REPO="acme/demo" FACTORY_NO_WORKTREE=1 \
+    bash "$SW" 793 demo-nowt-322 2>&1 )
+
+assert_absent "$OUT_NOWT_322" "In den isolierten Worktree wechseln" \
+  "#322 Fehlerszenario 1: im In-Place-Modus wird kein Worktree-Wechsel genannt, der nicht stattfindet"
+
+step2_line_nowt_322=$(printf '%s\n' "$OUT_NOWT_322" | grep -n '2\. Implementieren starten' | head -1 | cut -d: -f1)
+rec_line_nowt_322=$(printf '%s\n' "$OUT_NOWT_322" | grep -n 'Empfehlung (keine Pflicht)' | head -1 | cut -d: -f1)
+assert_true "$([ -n "$step2_line_nowt_322" ] && [ -n "$rec_line_nowt_322" ] \
+    && [ "$((rec_line_nowt_322 - step2_line_nowt_322))" -eq 1 ]; echo $?)" \
+  "#322 Fehlerszenario 1: die Session-Empfehlung bleibt auch ohne Worktree-Modus unmittelbar an Schritt 2 (/implement) gebunden"
+
+no_claude_session_before_step2_nowt_322=$(printf '%s\n' "$OUT_NOWT_322" | head -n "$((step2_line_nowt_322 - 1))" | grep -c "Claude-Session")
+assert_true "$([ "$no_claude_session_before_step2_nowt_322" -eq 0 ]; echo $?)" \
+  "#322 Fehlerszenario 1: vor Schritt 2 wird auch ohne Worktree-Modus keine Claude-Session empfohlen"
+
 rm -rf "$TMP_SW"
 
 # ─── #66: Deploy-Gate liest Secrets über env:, nicht inline im run: ──────────
@@ -5639,9 +5698,9 @@ assert_true "$(grep -qxF -- '  "postcss@<8.5.23": "^8.5.23"' "$WORKSPACE_YAML_29
 assert_true "$(grep -qE '^  "esbuild@<0\.25\.0"' "$WORKSPACE_YAML_291"; echo $?)" \
   "#291 AK7: esbuild-Override bleibt erhalten (kein No-op – ohne ihn kommt esbuild@0.18.20 zurück)"
 
-# ─── #267: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ───────
+# ─── #267/#322: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ──
 echo ""
-echo "#267 Session-Empfehlung vs. Worktree-Pflicht (git-workflow.md/CLAUDE.md/OPERATING.md/start-work.sh):"
+echo "#267/#322 Session-Empfehlung vs. Worktree-Pflicht (git-workflow.md/CLAUDE.md/OPERATING.md/start-work.sh):"
 
 GW_267="$CHECKS_DIR/../../docs/factory/guidelines/git-workflow.md"
 CLAUDE_MD_267="$CHECKS_DIR/../../CLAUDE.md"
@@ -5653,7 +5712,7 @@ gw_flat_267=$(flat_286 "$GW_267")
 # AK1: der Abschnitt trennt Pflicht (Worktree) von Empfehlung (Session) und nennt das fehlende Gate
 assert_contains_286 "$gw_flat_267" "Eigener Worktree je Task ist Pflicht" \
   "AK1: git-workflow.md nennt den Worktree explizit als Pflicht"
-assert_contains_286 "$gw_flat_267" "Neue Claude-Session je Task ist Empfehlung" \
+assert_contains_286 "$gw_flat_267" "Neue Claude-Session ist Empfehlung" \
   "AK1: git-workflow.md nennt die Session explizit als Empfehlung"
 assert_contains_286 "$gw_flat_267" "kein technisches Gate" \
   "AK1: git-workflow.md benennt das Fehlen eines technischen Gates für die Session-Empfehlung"
@@ -5662,29 +5721,40 @@ assert_contains_286 "$gw_flat_267" "kein technisches Gate" \
 assert_absent "$OLD_PHRASE_267" "kein technisches Gate" \
   "AK1 (Mutation): die alte, unqualifizierte Session-Zeile erfüllt den Gate-Guard nicht"
 
-# AK2: legitime Ausnahme (start-work.sh + /requirements in derselben, noch task-freien Session)
-# und Grenze (keine Folge-Task in derselben Session)
+# AK2 (#322): start-work.sh + /requirements (ggf. /architecture) in derselben, noch
+# task-freien Session ist jetzt der dokumentierte REGELFALL (zuvor Ausnahme); die
+# Session-Empfehlung selbst ist explizit an den nachfolgenden /implement-Schritt gebunden.
+# Grenze (keine Folge-Task in derselben Session) bleibt unverändert.
 assert_contains_286 "$gw_flat_267" "in derselben, noch task-freien Session laufen" \
-  "AK2: git-workflow.md nennt die start-work.sh/requirements-Ausnahme"
+  "AK2: git-workflow.md nennt start-work.sh + /requirements (ggf. /architecture) in derselben Session"
+assert_contains_286 "$gw_flat_267" "**Regelfall:**" \
+  "AK2: git-workflow.md formuliert diesen Ablauf als Regelfall, nicht mehr als Ausnahme"
+assert_absent "$gw_flat_267" "Zulässige Ausnahme:" \
+  "AK2: git-workflow.md nennt den Ablauf nicht mehr als Ausnahme"
+assert_contains_286 "$gw_flat_267" "Für den nachfolgenden \`/implement\`-Schritt" \
+  "AK2: die Session-Empfehlung ist explizit an den /implement-Schritt gebunden"
 assert_contains_286 "$gw_flat_267" "Grenze:" \
   "AK2: git-workflow.md benennt explizit eine Grenze"
 assert_contains_286 "$gw_flat_267" "die nächste Task in derselben Session beginnen" \
   "AK2: git-workflow.md nennt die Grenze (keine Folge-Task in derselben Session)"
 assert_absent "$OLD_PHRASE_267" "noch task-freien Session" \
-  "AK2 (Mutation): die alte Fassung kennt weder Ausnahme noch Grenze"
+  "AK2 (Mutation): die alte Fassung kennt weder Regelfall noch /implement-Bindung"
 
 # F3: die Worktree-Pflicht bleibt unverändert unverhandelbar (Negativ-Richtung von AK1)
 assert_contains_286 "$gw_flat_267" "Parallele Sessions: eigener Worktree (nicht verhandelbar)" \
   "F3: die Worktree-Pflicht bleibt als 'nicht verhandelbar' übertitelt"
 
-# AK3: CLAUDE.md-Guardrail ist Empfehlung + verweist auf git-workflow.md als kanonische Quelle
+# AK3 (#322): CLAUDE.md bindet die Empfehlung an den /implement-Schritt und verweist weiterhin
+# auf git-workflow.md als kanonische Quelle.
 claude_flat_267=$(flat_286 "$CLAUDE_MD_267")
-assert_contains_286 "$claude_flat_267" "Empfehlung (keine Pflicht): Jede neue Task in einer neuen Claude-Session starten" \
-  "AK3: CLAUDE.md formuliert die Guardrail-Zeile als Empfehlung"
-assert_contains_286 "$claude_flat_267" "Kanonische Quelle für Ausnahmen und Grenzen:" \
-  "AK3: CLAUDE.md verweist auf eine kanonische Quelle für Ausnahmen/Grenzen"
+assert_contains_286 "$claude_flat_267" "Empfehlung (keine Pflicht): Für den \`/implement\`-Schritt einer Task eine neue Claude-Session öffnen" \
+  "AK3: CLAUDE.md bindet die Guardrail-Empfehlung explizit an den /implement-Schritt"
+assert_contains_286 "$claude_flat_267" "Kanonische Quelle für Regelfall und Grenze:" \
+  "AK3: CLAUDE.md verweist auf eine kanonische Quelle für Regelfall/Grenze"
 assert_contains_286 "$claude_flat_267" "guidelines/git-workflow.md" \
   "AK3: der Verweis zeigt auf git-workflow.md"
+assert_absent "$claude_flat_267" "$OLD_PHRASE_267" \
+  "AK3: die alte, generische (nicht an /implement gebundene) Formulierung steht nicht mehr in CLAUDE.md"
 assert_absent "Jede neue Task in einer neuen Claude-Session starten. start-work.sh erinnert daran." \
   "Kanonische Quelle" \
   "AK3 (Mutation): die alte Guardrail-Zeile ohne Quellverweis erfüllt den Guard nicht"
@@ -5698,22 +5768,21 @@ assert_contains_286 "$operating_flat_267" "kein technisches Gate" \
 assert_absent "**Eine Task = eine Claude-Session.**" "kein technisches Gate" \
   "AK4 (Mutation): die alte imperative Fassung erfüllt den Guard nicht"
 
-# AK7: wo die alte imperative Wortfolge (ohne Präzisierung) weiterhin exakt vorkommt, muss sie
-# durch eine Empfehlung qualifiziert sein – keine Fundstelle bleibt unbedingte Pflicht. Array statt
+# AK7 (#322): die #267-Fassung der Session-Empfehlung (generisch statt an /implement gebunden)
+# ist jetzt überholt und darf in keiner der vier betroffenen Dateien mehr vorkommen. Array statt
 # space-getrennter String: der Worktree-Pfad dieses Repos enthält selbst Leerzeichen
 # ("TCH Gastro Services.worktrees/…"), unquoted Word-Splitting zerrisse die Pfade.
 ak7_files_267=("$GW_267" "$CLAUDE_MD_267" "$OPERATING_MD_267" "$SW")
-ak7_matches_267=$(grep -lF "$OLD_PHRASE_267" "${ak7_files_267[@]}" 2>/dev/null | wc -l | tr -d ' ')
-assert_true "$([ "$ak7_matches_267" -ge 1 ]; echo $?)" \
-  "AK7: Testfixture ist scharf – die alte Wortfolge kommt in mindestens einer der vier Dateien vor"
-ak7_unqualified_267=""
 for ak7_f in "${ak7_files_267[@]}"; do
-  while IFS= read -r ak7_line; do
-    printf '%s' "$ak7_line" | grep -qF "Empfehlung" || ak7_unqualified_267="${ak7_unqualified_267}${ak7_f}: ${ak7_line}\n"
-  done < <(grep -F "$OLD_PHRASE_267" "$ak7_f" 2>/dev/null || true)
+  assert_absent "$(flat_286 "$ak7_f")" "$OLD_PHRASE_267" \
+    "AK7: ${ak7_f##*/} enthält die #267-Fassung der Session-Empfehlung nicht mehr"
 done
-assert_true "$([ -z "$ak7_unqualified_267" ]; echo $?)" \
-  "AK7: jede Fundstelle der alten Wortfolge ist als Empfehlung qualifiziert${ak7_unqualified_267:+ – unqualifiziert:\n${ak7_unqualified_267}}"
+# Positivkontrolle (frische Wegwerf-Fixture, kein bereits vorhandener Mutant – Lesson #284):
+# belegt, dass das Muster selbst funktionsfähig ist und eine Regression tatsächlich fände.
+AK7_MUT_DOC_322=$(mktemp)
+printf -- '- **Empfehlung (keine Pflicht): %s.**\n' "$OLD_PHRASE_267" > "$AK7_MUT_DOC_322"
+assert_contains_286 "$(flat_286 "$AK7_MUT_DOC_322")" "$OLD_PHRASE_267" \
+  "AK7 (Mutation): die Wegwerf-Fixture mit der alten Formulierung würde den Abwesenheits-Guard reißen lassen"
 
 # ─── #310: Report-Guard honoriert nur einen frischen Verdict (Spec-310) ──────
 # Der Guard in run_skill() wertete einen non-zero Exit als Erfolg, sobald die Report-Datei

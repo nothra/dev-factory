@@ -667,3 +667,25 @@ profitieren alle bestehenden und künftigen Aufrufstellen einheitlich, ohne von 
 Toolchain-Installation abzuhängen. Ein Scaffold, das bereits ein `bin/`-Verzeichnis mit
 PATH-Vorrang anlegt (hier: `run_310()`s `PATH="$dir/bin:$PATH"`), braucht dafür nur eine
 zusätzliche Stub-Datei, keine neue Infrastruktur.
+
+### Zeilen-Gap-Assertion auf deterministischem Output: unbegründete Toleranz statt Ist-Wert (aus #322, Review-Runde-2-Finding)
+
+Ein neuer Test in Task #322 sollte belegen, dass eine Ausgabe-Zeile "unmittelbar" auf eine andere
+folgt (`start-work.sh`s Session-Empfehlung direkt unter der `/implement`-Zeile). Der erste Wurf
+prüfte `rec_gap -ge 1 && -le 3` – ein Toleranzbereich, der nie begründet wurde und der aus der
+Beschreibung "unmittelbar" nicht folgt. Der tatsächliche Abstand ist bei diesem Skript
+deterministisch **exakt 1** (die Empfehlungszeile ist ein `echo` direkt nach der Schritt-Zeile,
+ohne Zwischenzeile). Mit der Toleranz bis 3 hätte eine Regression, die z. B. zwei Leerzeilen
+zwischen beide schiebt, den Test weiterhin grün gelassen – obwohl "unmittelbar" dann nicht mehr
+zutrifft.
+
+**Smell:** Ein Test auf den Zeilenabstand zwischen zwei Ausgabezeilen eines deterministischen
+Skripts benutzt ein Intervall (`-ge X && -le Y`) statt eines Einzelwerts, ohne dass ein Kommentar
+erklärt, warum genau dieser Bereich (und nicht ein Einzelwert) zulässig sein soll.
+
+**Regel:** Bevor ein Toleranzbereich für einen Zeilen-/Positions-Gap-Check geschrieben wird: den
+tatsächlichen Ist-Wert am realen Output ablesen (nicht schätzen) und exakt darauf prüfen
+(`-eq <Wert>`). Ein Intervall ist nur zulässig, wenn eine echte, in einem Kommentar benannte
+Variabilitätsquelle existiert (z. B. eine optionale Zeile, die je nach Bedingung dazwischen
+erscheinen kann) – sonst verschenkt die Toleranz genau die Präzision, die der Test laut seiner
+eigenen Beschreibung ("unmittelbar", "direkt danach") behaupten soll.

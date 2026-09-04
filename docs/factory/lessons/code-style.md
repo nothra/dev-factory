@@ -197,3 +197,26 @@ eines Literals im Kommentar. Beim Beheben eines gemeldeten Falls **alle Felder d
 Interface-Definition** auf denselben Drift-Typ prüfen, nicht nur das gemeldete – Spezialfall der
 Sweep-Pflicht aus #264 (falscher WHY-Kommentar an kopierten Geschwisterstellen), hier auf
 Nachbarfelder statt kopierte Dateien angewendet.
+
+### TL;DR-Merksatz über einem umformulierten Absatz nicht mitgezogen (aus #322, Review-Runde-3-Finding)
+
+Task #322 formulierte einen Doku-Abschnitt um: aus „Neue Claude-Session **je Task** ist
+Empfehlung" (ein Satz pro Task) wurde die nuanciertere Regel „Regelfall: eine Session für
+start-work.sh+/requirements, separate Empfehlung nur für `/implement`" (potenziell zwei Phasen,
+zwei Empfehlungen). Der Detail-Absatz wurde korrekt umgeschrieben – aber der kurze
+Merksatz-Bullet direkt darüber im selben Abschnitt („**Zwei unabhängige Maßnahmen**"-Liste), der
+dieselbe Aussage als TL;DR zusammenfasst, blieb bei der alten, jetzt widersprüchlichen
+„je Task"-Formulierung stehen. Der Widerspruch existierte ausschließlich innerhalb der eigenen,
+in diesem PR neu verfassten Prosa – keine externe Referenz nötig, um ihn zu finden.
+
+**Smell:** Ein Abschnitt hat eine kurze Zusammenfassungs-Zeile (Bullet, Fettdruck-Lead-in,
+Überschrift) UND einen ausführlicheren Absatz darunter, der dieselbe Regel im Detail erklärt –
+wird nur der Detail-Absatz umformuliert, bleibt die Zusammenfassung unangetastet und kann die
+neue Nuance widersprechen.
+
+**Regel:** Beim Umformulieren eines Absatzes im selben Abschnitt aktiv nach einer kurzen
+Zusammenfassungs-Zeile suchen, die dieselbe Aussage bereits vor der Änderung auf den Punkt
+gebracht hat (typischerweise die erste Zeile/der erste Bullet des Abschnitts) – und sie
+mitziehen, auch wenn sie nicht als eigenes Finding gemeldet wurde. Diese Prüfung ist unabhängig
+von der Cross-Datei-Sweep-Pflicht aus #211/#176/#264: hier reicht es, den umgebenden Abschnitt in
+derselben Datei noch einmal komplett zu lesen, nicht nur die geänderte Zeile.

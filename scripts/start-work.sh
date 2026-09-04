@@ -398,13 +398,15 @@ echo "  Task-Datei: tasks/task-${TASK_ID}-${TASK_DESC}.md"
 echo ""
 echo -e "${CYAN}Nächste Schritte:${NC}"
 if [ "$WORKTREE_MODE" = true ]; then
-  echo "  0. In den isolierten Worktree wechseln:"
+  echo "  0. In den isolierten Worktree wechseln (in dieser Session):"
   echo "       cd \"${WORKDIR}\""
   echo "     (Aufräumen nach dem Merge: git worktree remove \"${WORKDIR}\")"
 fi
 echo "  1. Task-Datei mit Beschreibung und Akzeptanzkriterien befüllen"
-echo "     (oder: /requirements ${TASK_ID} in Claude Code)"
+echo "     (oder: /requirements ${TASK_ID} in Claude Code, weiterhin in dieser Session)"
 echo "  2. Implementieren starten: /implement ${TASK_ID} in Claude Code"
+echo "     Empfehlung (keine Pflicht): dafür eine neue Claude-Session in diesem Arbeitsbaum"
+echo "     öffnen – Kontext-Hygiene, siehe git-workflow.md → 'Eine Task = Eine Session'."
 if [ "$ENV_COPIED" = true ]; then
   # Bewusst als Zusatz UNTER Schritt 2 statt als eigener Schritt 3: der Hinweis muss vor dem
   # ersten 'pnpm test:e2e' greifen, und das findet innerhalb von Schritt 2 statt. Die lokale
@@ -415,6 +417,4 @@ if [ "$ENV_COPIED" = true ]; then
 fi
 echo ""
 echo -e "${YELLOW}⚡ Eigener Arbeitsbaum: parallele Sessions kollidieren nicht (kein geteilter HEAD).${NC}"
-echo "   Empfehlung (keine Pflicht): Starte für Task ${TASK_ID} zusätzlich eine neue Claude-Session"
-echo "   in diesem Worktree – Kontext-Hygiene, siehe git-workflow.md → 'Eine Task = Eine Session'."
 echo ""
