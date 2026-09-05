@@ -97,5 +97,14 @@ berührt (jede Server Action validiert per Zod und schreibt via Drizzle).
 - Die kanonische Quelle je Regel verschiebt sich von „Bekannte Stolpersteine" nach
   `lessons/<thema>.md`; bestehende Cross-Verweise (`[[…]]`, „siehe #NN", ADR-Verweise)
   müssen beim Verschieben nachgezogen werden (AC6).
-- Guidelines-Dateien und ihre `@import`-Einbindung bleiben unverändert.
+- ~~Guidelines-Dateien und ihre `@import`-Einbindung bleiben unverändert.~~ **Überholt durch
+  [ADR-047](047-import-kontext-guidelines-nach-erzwungenheit.md) (#319):** Der hier bewusst
+  ausgenommene Guidelines-Block wurde nach dem Kriterium „ist die Regel technisch erzwungen?"
+  geschnitten – `git-workflow.md` und `architecture-principles.md` sind aus dem `@import`
+  genommen (Kurzregeln + „Laden bei"-Trigger inline), `tdd-principles.md` und
+  `testing-standards.md` bleiben geladen und wurden verdichtet. Der **Lessons-Teil dieser ADR
+  bleibt vollständig in Kraft** (kein `Superseded`); ADR-047 ergänzt ihn um die
+  Guidelines-Ebene und schließt zugleich die hier offen gebliebene Governance-Lücke: der
+  Index, den diese ADR auf „~60–80 Zeilen" kalkuliert hat, war ohne Gate auf 341 Zeilen
+  gewachsen. ADR-047 §4 deckelt den gesamten @import-Kontext per `pre-push`-Check.
 - Kein Produktverhalten betroffen (reine Kontext-/Doku-Umschichtung).

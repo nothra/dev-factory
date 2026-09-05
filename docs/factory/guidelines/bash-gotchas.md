@@ -402,6 +402,43 @@ falsche Bash-/Shell-Verhaltensbehauptung als 'empirisch geprüft' ausgeben").
 
 ---
 
+## 13. `$((summe + ""))` ist kein Fehler, sondern `+ 0` – ein Gate wird davon still grün
+
+Eine leere Variable in einem Arithmetik-Kontext ist in bash **kein Fehler**: `$((total + ""))`
+und `$((total + ))` werten beide zu `total + 0` aus, ohne Meldung und mit Rückgabewert 0. Wer
+eine Zahl aus einem Kommando bezieht, hat damit einen stillen Nullwert im System, sobald das
+Kommando fehlschlägt:
+
+```bash
+lines="$(awk 'END { print NR }' "$datei")"   # schlägt fehl → lines=""
+total=$((total + lines))                     # kein Fehler, addiert 0
+[ "$total" -gt "$GRENZE" ] || exit 0         # → grün, obwohl nichts gemessen wurde
+```
+
+Das ist besonders tückisch in **fail-closed-Gates**: der Check meldet „0 von 1100" und Exit 0,
+also genau das Bild eines erfolgreich bestandenen Laufs. Ein Gate, das seine Fail-closed-
+Eigenschaft zusichert, verliert sie hier lautlos (beobachtet in #319: ein fehlschlagendes `awk`
+machte den @import-Deckel grün, während der Kontext die Grenze um das Doppelte riss).
+
+**Gegenprobe zum Verständnis:** Ein **nicht-numerischer** Wert verhält sich anders – `lines="abc"`
+lässt bash den Namen `abc` als Variable auflösen und bricht unter `set -u` mit „unbound variable"
+ab (Exit ≠ 0, also rot). Nur der *leere* Wert ist der stille Fall. Wer nur den nicht-numerischen
+Fall testet, hält das Gate fälschlich für abgesichert.
+
+**Regel:** Jeder von außen bezogene Wert wird **vor** dem arithmetischen Gebrauch als Integer
+abgesichert – dieselbe Guard-Klausel, die `clean-code.md` → „Portabilität in Gate-/Shell-Skripten"
+für Vergleiche fordert, gilt für Additionen genauso:
+
+```bash
+lines="$(awk 'END { print NR }' "$datei" 2>/dev/null)" || lines=""
+case "$lines" in
+  ''|*[!0-9]*) echo "✗ Zeilenzahl nicht ermittelbar: $datei (fail-closed)"; failed=1; continue ;;
+esac
+total=$((total + lines))
+```
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

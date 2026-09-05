@@ -78,6 +78,16 @@ assert_absent() {
   assert_true "$([ $? -ne 0 ]; echo $?)" "$3"
 }
 
+# mk_feature_repo <verzeichnis> <branch> – leeres git-Repo auf einem Feature-Branch, bereit für
+# einen echten pre-push.sh-Lauf. Die lokale Git-Identität wird explizit gesetzt: ohne sie
+# scheitert der Commit in einer identitätslosen Umgebung (CI), wo kein globaler Fallback
+# existiert (Lesson aus #265). Genutzt von den pre-push-Verhaltenstests in #149 und #319.
+mk_feature_repo() {
+  git -C "$1" init -q
+  git -C "$1" checkout -q -b "$2"
+  git -C "$1" -c user.email=t@t.com -c user.name=t commit -q --allow-empty -m init
+}
+
 # ls_mode_matches <datei> <modus-präfix, z. B. '-rw-------'>
 # Modus-Vergleich über `ls -l` (die `stat`-Flags sind zwischen BSD und GNU unvereinbar).
 # Präfix-Match, weil macOS bei ACLs/xattrs ein '+'/'@' an die Modus-Spalte anhängt.
@@ -1052,7 +1062,8 @@ assert_true "$([[ "$out" = "204" ]]; echo $?)" "AC5: niedrigste Nummer gewinnt a
 # Defensiv-Guard (create-issue.sh: `''|*[!0-9]*)`): eine nicht-numerische „Nummer"-Zeile bei
 # titelgleichem Kandidaten wird übersprungen (schützt das `-lt` vor nicht-numerischem Input),
 # der echte numerische Treffer wird trotzdem gefunden. Erzwingt den sonst nie erreichten
-# Guard-Zweig (testing-standards.md: Exhaustiveness-Guards brauchen einen eigenen Test).
+# Guard-Zweig (lessons/testing.md: Exhaustiveness-Guards brauchen einen eigenen Test; bis #319
+# stand die Regel in testing-standards.md).
 CLOG="$TMP_IDEM/guard.create"; : > "$CLOG"
 open_bad_num=$(printf 'x\nRefactor foo bar\n204\nRefactor foo bar\n')
 out=$(FAKE_OPEN="$open_bad_num" GH_LOG="$CLOG" idem "Refactor foo bar" "B" "enhancement" 2>/dev/null); rc=$?
@@ -3307,9 +3318,7 @@ assert_true "$?" "#149: pre-push.sh verdrahtet das Format-Gate mit fail-closed-D
 # neutralisieren (true), sodass allein das Format-Gate das Ergebnis bestimmt. Beweist,
 # dass das Gate den ECHTEN Befehl ausführt (rot → blockiert) und der Env-Override greift.
 TMP_G149="$(mktemp -d)"
-git -C "$TMP_G149" init -q
-git -C "$TMP_G149" checkout -q -b feature/149-format-gate-test
-git -C "$TMP_G149" -c user.email="t@t.com" -c user.name="t" commit -q --allow-empty -m init
+mk_feature_repo "$TMP_G149" feature/149-format-gate-test
 run_prepush_149() { # $1 = FACTORY_FORMAT_COMMAND-Wert
   ( cd "$TMP_G149" && FACTORY_TEST_COMMAND=true FACTORY_TYPECHECK_COMMAND=true \
       FACTORY_FORMAT_COMMAND="$1" bash "$CHECKS_DIR/pre-push.sh" >/dev/null 2>&1 )
@@ -7262,7 +7271,577 @@ assert_true "$([ -z "$(git -C "$REPO_UNSCAFFOLDED_315" ls-files -- docs/factory/
   "#315 AK10 (Mutation): genau dort wird die Fail-closed-Kontrolle rot"
 
 rm -rf "$TMP_315"
+# ─── #319: Deckel für den @import-Dauerkontext (ADR-047 §4) ──────────────────
+echo ""
+echo "#319 @import-Kontext-Deckel (ADR-047):"
 
+IMPORT_CHECK="$CHECKS_DIR/import-context-limit-check.sh"
+assert_true "$([[ -f "$IMPORT_CHECK" ]]; echo $?)" "#319: import-context-limit-check.sh vorhanden"
+
+# Kopplung an die Wirklichkeit, nicht nur an Fixtures: der Deckel muss für den ECHTEN
+# Repo-Stand grün sein. Wäre er hier rot, wäre die Grenze falsch hergeleitet – oder ein
+# Prosa-Token (real: „@importiert" in CLAUDE.md) würde fälschlich als Import gezählt.
+# Ausgabe NICHT verwerfen: bei Fehlschlag ist die breakdown-Liste die einzige Information,
+# welche Datei zu groß geworden ist.
+ic_real_319="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"; ic_rc_319=$?
+assert_exit 0 "$ic_rc_319" "#319: realer @import-Stand des Repos liegt unter dem Deckel"
+[ "$ic_rc_319" -eq 0 ] || printf '%s\n' "$ic_real_319" | sed 's/^/      /'
+
+# Grenze UND Herleitungs-Basis aus dem Skript lesen, statt sie im Test zu duplizieren – sonst
+# driften beide, und ein Bump der Konstante bliebe unbemerkt grün.
+IC_LIMIT_319="$(sed -n 's/^MAX_IMPORT_LINES=\([0-9]*\).*/\1/p' "$IMPORT_CHECK" | head -1)"
+IC_BASIS_319="$(sed -n 's/^# = \([0-9]*\) Zeilen.*/\1/p' "$IMPORT_CHECK" | head -1)"
+assert_true "$([ -n "$IC_LIMIT_319" ] && [ "$IC_LIMIT_319" -gt 0 ]; echo $?)" \
+  "#319: MAX_IMPORT_LINES ist als Konstante im Skript lesbar"
+assert_true "$([ -n "$IC_BASIS_319" ] && [ "$IC_BASIS_319" -gt 0 ]; echo $?)" \
+  "#319: die Herleitungs-Basis ist aus dem Kommentar lesbar"
+
+# Herleitung als Kommentar an der Konstante (ADR-047 §4: keine Magic Number). Der Anker muss
+# eine Phrase treffen, die NUR im Kommentarblock steht – das Wort „Herleitung" allein steht auch
+# in der Remediation-Ausgabe, die Assertion wäre dann überclaimt (Lesson #312: das Label darf nur
+# behaupten, was der Prüfausdruck abdeckt).
+IC_SRC_319="$(flat_286 "$IMPORT_CHECK")"
+assert_contains_286 "$IC_SRC_319" "Herleitung (ADR-047 §4" \
+  "#319: Konstante trägt die Herleitung als Kommentar (Anker nur im Kommentarblock)"
+assert_contains_286 "$IC_SRC_319" "25 % Puffer" "#319: Herleitung nennt den Puffer (25 %)"
+# Die Herleitung muss die Konstante auch RECHNERISCH tragen: Basis + 25 %, aufgerundet auf 50.
+# Beide Werte kommen aus dem Skript – der Test hält nur die Rechenregel, keine Zahl.
+ic_expected_319=$(( ((IC_BASIS_319 * 125 / 100) + 49) / 50 * 50 ))
+assert_true "$([ "$IC_LIMIT_319" -eq "$ic_expected_319" ]; echo $?)" \
+  "#319: MAX_IMPORT_LINES ($IC_LIMIT_319) entspricht der dokumentierten Herleitung ($IC_BASIS_319 + 25 % → $ic_expected_319)"
+
+# Fixture: eigene Projektwurzel; FACTORY_DIR steuert die Wurzel des Checks (wie routes-doc-check).
+TMP_IC="$(mktemp -d)"
+mkdir -p "$TMP_IC/docs"
+ic_319() { FACTORY_DIR="$TMP_IC" bash "$IMPORT_CHECK" 2>&1; }
+# mklines_319 <datei> <anzahl> – deterministischer Füllinhalt; `seq` wie an den bestehenden
+# Fixture-Stellen der Suite (:3721), keine dritte Schreibweise.
+mklines_319() { seq 1 "$2" > "$1"; }
+# claude_fixture_319 [zeile…] – Fixture-CLAUDE.md aus 20 Füllzeilen plus den übergebenen Zeilen.
+# Die 20 erklären die „21" in den Summen der Test-Labels (Füllzeilen + die Referenz-/Prosa-Zeile);
+# sie stehen hier an einer Stelle statt dreizehnmal im Block.
+claude_fixture_319() {
+  mklines_319 "$TMP_IC/CLAUDE.md" 20
+  [ "$#" -eq 0 ] || printf '%s\n' "$@" >> "$TMP_IC/CLAUDE.md"
+}
+
+# 1. Unter dem Deckel → exit 0, Ausgabe nennt Summe UND Grenze (sonst ist sie nicht handlungsfähig)
+claude_fixture_319 '@docs/a.md'
+mklines_319 "$TMP_IC/docs/a.md" 30
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#319: Summe unter der Grenze → exit 0"
+assert_contains_286 "$ic_out" "51" "#319: Ausgabe nennt die Ist-Summe (21 + 30 = 51 Zeilen)"
+# Fallback-Literal, damit die Assertion bei leerem IC_LIMIT_319 nicht vakuum-grün wird
+# (grep -qF "" trifft jede Zeile) – sie soll dann aus dem richtigen Grund rot sein.
+assert_contains_286 "$ic_out" "${IC_LIMIT_319:-__MAX_IMPORT_LINES_NICHT_LESBAR__}" \
+  "#319: Ausgabe nennt die Grenze"
+
+# 2. Grenzwert-Semantik: der Vergleich ist die EINZIGE Rechenoperation des Skripts, und
+#    `-gt` vs. `-ge` unterscheidet sich genau an dieser einen Zeile. Ohne beide Fälle bliebe
+#    eine Mutation des Operators unbemerkt grün (testing-standards.md: Boundary Values).
+mklines_319 "$TMP_IC/CLAUDE.md" "$IC_LIMIT_319"
+ic_319 >/dev/null 2>&1
+assert_exit 0 "$?" "#319 Grenzwert: genau MAX_IMPORT_LINES Zeilen sind noch zulässig (exit 0)"
+mklines_319 "$TMP_IC/CLAUDE.md" $((IC_LIMIT_319 + 1))
+ic_319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319 Grenzwert: eine Zeile darüber ist rot (exit 1)"
+
+# 3. Drift-Guard Seite A: CLAUDE.md selbst wächst über die Grenze → rot.
+mklines_319 "$TMP_IC/CLAUDE.md" $((IC_LIMIT_319 + 10))
+ic_319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319 Seite A: CLAUDE.md allein über der Grenze → exit 1 (fail-closed)"
+
+# 4. Drift-Guard Seite B: CLAUDE.md klein, aber eine REFERENZIERTE Datei wächst über die Grenze.
+#    Zwei Beiträger, damit auch die Sortierung der breakdown-Liste (größter zuerst) prüfbar ist.
+claude_fixture_319 '@docs/a.md' '@docs/klein.md'
+mklines_319 "$TMP_IC/docs/a.md" $((IC_LIMIT_319 + 10))
+mklines_319 "$TMP_IC/docs/klein.md" 5
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#319 Seite B: referenzierte Datei über der Grenze → exit 1 (fail-closed)"
+assert_contains_286 "$ic_out" 'docs/a.md' "#319 Seite B: Ausgabe nennt den Beiträger namentlich"
+# Reihenfolge: der größte Beiträger steht vor dem kleinsten (sort -rn), sonst ist die Liste
+# bei vielen Dateien nicht handlungsfähig. Positionsvergleich, nicht zwei Präsenz-Checks.
+ic_pos_gross=$(printf '%s\n' "$ic_out" | grep -nF 'docs/a.md' | head -1 | cut -d: -f1)
+ic_pos_klein=$(printf '%s\n' "$ic_out" | grep -nF 'docs/klein.md' | head -1 | cut -d: -f1)
+assert_true "$([ -n "$ic_pos_gross" ] && [ -n "$ic_pos_klein" ] && [ "$ic_pos_gross" -lt "$ic_pos_klein" ]; echo $?)" \
+  "#319 Seite B: größter Beiträger steht in der Liste vor dem kleinsten"
+rm -f "$TMP_IC/docs/klein.md"
+
+# 5. Summen-Beweis: zwei Dateien, jede allein unter der Grenze, zusammen darüber. Belegt, dass
+#    der Check die SUMME prüft und nicht je Datei einzeln (ADR-047 §4: „ein Deckel für beide").
+claude_fixture_319 '@docs/a.md' '@docs/b.md'
+mklines_319 "$TMP_IC/docs/a.md" $((IC_LIMIT_319 * 2 / 3))
+mklines_319 "$TMP_IC/docs/b.md" $((IC_LIMIT_319 * 2 / 3))
+ic_319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319: zwei je-für-sich zulässige Dateien, zusammen über der Grenze → exit 1"
+
+# 6. Rekursion: @import in einer importierten Datei zählt mit (CLAUDE.md → a.md → b.md).
+#    Mutationsbeleg über dieselbe Assertion: ohne den geschachtelten Beitrag läge die Summe
+#    unter der Grenze – der Test kann also nur wegen der Rekursion rot werden.
+claude_fixture_319 '@docs/a.md'
+mklines_319 "$TMP_IC/docs/a.md" 30
+printf '@docs/b.md\n' >> "$TMP_IC/docs/a.md"
+mklines_319 "$TMP_IC/docs/b.md" $((IC_LIMIT_319 + 10))
+ic_319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319: geschachtelter @import zählt mit → exit 1"
+rm -f "$TMP_IC/docs/b.md"
+sed -i.bak '/^@docs\/b.md$/d' "$TMP_IC/docs/a.md" && rm -f "$TMP_IC/docs/a.md.bak"
+ic_319 >/dev/null 2>&1
+assert_exit 0 "$?" "#319 (Mutation): ohne den geschachtelten Beitrag ist dieselbe Prüfung grün"
+
+# 7. Fail-closed bei unlesbarer Quelle – Seite B: einwortige Referenz-Zeile, Datei fehlt.
+claude_fixture_319 '@docs/fehlt.md'
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#319: nicht lesbare Referenz-Zeile → exit 1 (fail-closed, keine Umgehung per Rename)"
+assert_contains_286 "$ic_out" 'docs/fehlt.md' "#319: benennt die nicht lesbare Datei"
+
+# 8. Fail-closed – Seite A: die Einstiegsdatei selbst fehlt. Eigener Guard mit eigener Meldung
+#    (nicht der Referenz-Zweig): „Referenz in CLAUDE.md korrigieren" wäre als Remediation
+#    unbrauchbar, wenn genau diese Datei fehlt. Muster wie routes-doc-check.sh.
+rm -f "$TMP_IC/CLAUDE.md"
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#319: fehlende CLAUDE.md → exit 1 (fail-closed)"
+assert_contains_286 "$ic_out" "Einstiegsdatei" "#319: eigene Meldung für die fehlende Einstiegsdatei"
+# Nicht erreichbare Projektwurzel ist ein dritter, unterscheidbarer Fall (analog routes-doc-check).
+ic_out="$(FACTORY_DIR="$TMP_IC/gibt-es-nicht" bash "$IMPORT_CHECK" 2>&1)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#319: nicht erreichbare Projektwurzel → exit 1 (fail-closed)"
+assert_contains_286 "$ic_out" "Projektwurzel nicht erreichbar" "#319: eigene Meldung für die Projektwurzel"
+
+# 9. Zyklus (a.md importiert CLAUDE.md zurück) terminiert – mit Watchdog, damit ein fehlender
+#    seen-Schutz die Suite nicht hängen lässt, sondern rot macht. Der Exit-Code allein genügt
+#    NICHT: ein Mutant ohne seen-Dedup terminiert ebenfalls mit 0 und meldet nur eine zu große
+#    Summe. Deshalb wird die SUMME assertiert (21 + 31 = 52) – sonst behauptet das Label mehr,
+#    als der Ausdruck messen kann (Lesson #312).
+claude_fixture_319 '@docs/a.md'
+mklines_319 "$TMP_IC/docs/a.md" 30
+printf '@CLAUDE.md\n' >> "$TMP_IC/docs/a.md"
+IC_CYCLE_OUT_319="$(mktemp)"
+( ic_319 > "$IC_CYCLE_OUT_319" 2>&1 ) & ic_pid=$!
+( sleep 15; kill -9 "$ic_pid" 2>/dev/null ) & ic_dog=$!
+wait "$ic_pid" 2>/dev/null; ic_rc=$?
+kill "$ic_dog" 2>/dev/null; wait "$ic_dog" 2>/dev/null
+assert_exit 0 "$ic_rc" "#319: zyklischer @import terminiert (kein Hänger)"
+assert_contains_286 "$(cat "$IC_CYCLE_OUT_319")" "52 von" \
+  "#319: der Zyklus zählt CLAUDE.md nur einmal (52 Zeilen, nicht 73)"
+rm -f "$IC_CYCLE_OUT_319"
+
+# 10. K1 (Review-Iteration 1+2): ein `@pfad` MITTEN IN PROSA wird von Claude Code geladen –
+#     empirisch belegt mit `claude --print`, auch **fett**, _kursiv_ und hinter `>`. Alle diese
+#     Formen müssen mitzählen, sonst ist der Deckel per Prosa-Zeile lautlos umgehbar (fail-open
+#     gegen die eigene Anforderung aus ADR-047 §4). Je Dekorationsform ein eigener Fall.
+mklines_319 "$TMP_IC/docs/gross.md" $((IC_LIMIT_319 + 10))
+for ic_deko_319 in 'Siehe @docs/gross.md fuer die Details.' \
+                   'Kanonisch ist **@docs/gross.md** – dort nachlesen.' \
+                   'Kanonisch ist _@docs/gross.md_ – dort nachlesen.' \
+                   '>@docs/gross.md' \
+                   'Details in @docs/gross.md.' \
+                   'Details in (@docs/gross.md), siehe dort.'; do
+  claude_fixture_319 "$ic_deko_319"
+  ic_out="$(ic_319)"; ic_rc=$?
+  assert_exit 1 "$ic_rc" "#319 K1: Inline-@import zählt mit – Form: $ic_deko_319"
+  assert_contains_286 "$ic_out" 'docs/gross.md' "#319 K1: nennt die inline referenzierte Datei ($ic_deko_319)"
+done
+# Mutationsbeleg über dieselbe Assertion: ohne die Prosa-Zeile ist die Prüfung grün – der Test
+# kann also nur wegen des Inline-Treffers rot werden (nicht wegen der 21 Basis-Zeilen).
+claude_fixture_319
+ic_319 >/dev/null 2>&1
+assert_exit 0 "$?" "#319 K1 (Mutation): ohne die Inline-Zeile ist dieselbe Prüfung grün"
+
+# 11. Gegenrichtung zu K1 – Prosa-Token, die auf KEINE Datei zeigen, dürfen weder gezählt noch
+#     fail-closed rot werden. Der real wirksame Fall im Repo ist „@importiert" (CLAUDE.md);
+#     `@serwist/next` hier bewusst OHNE Klammer, damit das Resolve-Sieb wirklich durchlaufen
+#     wird (geklammert scheidet das Token schon am Zeilen-Split aus und prüfte nichts).
+claude_fixture_319 'Die Lessons sind bewusst nicht @importiert (ADR-037).' 'Stack: @serwist/next, @neondatabase/serverless und @types/node.'
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#319 K1: Prosa-/npm-Scope-Token ohne Datei-Auflösung lassen den Check grün"
+assert_absent "$ic_out" "importiert" "#319 K1: Prosa-Token wird nicht als Referenz gemeldet"
+assert_absent "$ic_out" "serwist" "#319 K1: unklammerter npm-Scope wird nicht als Referenz gemeldet"
+
+# 12. Eine Zeile, die mit `@` beginnt, ist nicht automatisch eine Import-Zeile: enthält der Rest
+#     Leerzeichen, ist es Prosa (ein umgebrochener Absatz genügt) und darf den Push nicht mit
+#     einer irreführenden „Datei nicht lesbar: <ganzer Satz>"-Meldung blockieren.
+claude_fixture_319 '@importiert werden die Lessons bewusst nicht.'
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#319: Prosa-Zeile, die mit @ beginnt, ist kein Import (exit 0)"
+assert_absent "$ic_out" "nicht lesbar" "#319: keine irreführende Fehlermeldung für eine Prosa-Zeile"
+# Die einwortige Referenz-Zeile bleibt davon unberührt fail-closed (Regressions-Gegenprobe zu 7).
+claude_fixture_319 '@docs/fehlt.md'
+ic_319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319: einwortige Referenz-Zeile bleibt fail-closed (keine Aufweichung durch 12)"
+
+# 13. Alleinstehende Import-Zeile mit Leerzeichen im Pfad: der Rest der Zeile ist der Pfad, wenn
+#     er auflöst. Vorher wurde die Zeile gar nicht erkannt → 30 Zeilen blieben ungezählt.
+claude_fixture_319 '@docs/mit datei.md'
+mklines_319 "$TMP_IC/docs/mit datei.md" 30
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#319: Import-Zeile mit Leerzeichen im Pfad wird aufgelöst"
+assert_contains_286 "$ic_out" "51" "#319: ihre Zeilen zählen mit (21 + 30 = 51)"
+
+# 14. Datei ohne Schluss-Newline wird vollständig gezählt (`wc -l` hätte um 1 unterzählt; kein
+#     Gate erzwingt die Schluss-Newline – `.prettierignore` deckt `docs/` und `CLAUDE.md`).
+claude_fixture_319 '@docs/a.md'
+printf 'eins\nzwei\ndrei' > "$TMP_IC/docs/a.md"   # bewusst OHNE \n am Ende
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#319: Datei ohne Schluss-Newline → exit 0"
+assert_contains_286 "$ic_out" "24" "#319: ihre letzte Zeile zählt mit (21 + 3 = 24, nicht 23)"
+
+rm -rf "$TMP_IC"
+
+# 15. Verdrahtung im Push-Gate – Anker ist die echte AUFRUFZEILE, nicht der Dateiname
+#     (Lesson factory-workflow.md: Kommando ≠ Prosa-Erwähnung).
+IC_CALL_319='bash "$IMPORT_CONTEXT_CHECK"'
+grep -qF -- "$IC_CALL_319" "$CHECKS_DIR/pre-push.sh"
+assert_true "$?" "#319: pre-push.sh ruft den Deckel-Check auf (echte Aufrufzeile)"
+
+# Mutationsbeleg mit DEMSELBEN Assert-Ausdruck: ohne die Aufrufzeile wird der Guard rot
+# (belegt Kausalität, nicht nur Quoting – Lesson #286).
+IC_MUT_319="$(mktemp)"
+grep -vF -- "$IC_CALL_319" "$CHECKS_DIR/pre-push.sh" > "$IC_MUT_319"
+assert_absent "$(cat "$IC_MUT_319")" "$IC_CALL_319" \
+  "#319 (Mutation): ohne die Aufrufzeile wird derselbe Guard rot"
+rm -f "$IC_MUT_319"
+
+# 16. VERHALTEN, nicht nur Verdrahtung: ein rotes Check-Ergebnis muss den Push blockieren
+#     (Lesson #212 – deterministisches Gate braucht einen E2E-Verhaltenstest). pre-push.sh leitet
+#     FACTORY_DIR aus dem eigenen Skript-Pfad ab (nicht aus der Env), deshalb Kopie von Gate +
+#     Check in ein Temp-Root; die teuren Gates werden per Env auf `true` neutralisiert, Checks 4/5
+#     fehlen dort und überspringen sich selbst – so entscheidet allein der Deckel. Muster wie
+#     run_prepush_149 (:3313).
+TMP_PP319="$(mktemp -d)"
+mkdir -p "$TMP_PP319/scripts/checks"
+cp "$CHECKS_DIR/pre-push.sh" "$CHECKS_DIR/import-context-limit-check.sh" "$TMP_PP319/scripts/checks/"
+mk_feature_repo "$TMP_PP319" feature/319-deckel-e2e
+run_prepush_319() {  # $1 = Zeilen in CLAUDE.md, $2 = Gate-Skript (Default: das kopierte Original)
+  mklines_319 "$TMP_PP319/CLAUDE.md" "$1"
+  ( cd "$TMP_PP319" && FACTORY_TEST_COMMAND=true FACTORY_TYPECHECK_COMMAND=true \
+      FACTORY_FORMAT_COMMAND=true bash "${2:-scripts/checks/pre-push.sh}" >/dev/null 2>&1 )
+}
+run_prepush_319 $((IC_LIMIT_319 + 100))
+assert_exit 1 "$?" "#319: roter Deckel blockiert den Push tatsächlich (E2E über pre-push.sh)"
+run_prepush_319 20
+assert_exit 0 "$?" "#319: Kontext unter der Grenze lässt den Push zu (E2E)"
+# Mutationsbeleg: fällt das `FAILED=1` im Check-6-Block weg, blockiert derselbe rote Deckel
+# nicht mehr – belegt, dass die Assertion oben genau daran hängt und nicht am Exit des Checks.
+# Der awk-Block bricht am nächsten Job-Trenner ab (nicht nur an „Check 7"), damit die Isolation
+# nicht still zu breit wird, falls der Deckel später der letzte Check ist (Klasse #255).
+IC_PP_MUT_319="$TMP_PP319/scripts/checks/pre-push-ohne-failed.sh"
+awk '
+  /^# ─── Check 6:/ { in6 = 1; print; next }
+  in6 && /^# ─── / { in6 = 0 }
+  in6 && /^    FAILED=1$/ { next }
+  { print }
+' "$TMP_PP319/scripts/checks/pre-push.sh" > "$IC_PP_MUT_319"
+assert_true "$([ "$(grep -c '^    FAILED=1$' "$IC_PP_MUT_319")" -lt "$(grep -c '^    FAILED=1$' "$TMP_PP319/scripts/checks/pre-push.sh")" ]; echo $?)" \
+  "#319 (Mutation): das FAILED=1 des Check-6-Blocks ist entfernt"
+run_prepush_319 $((IC_LIMIT_319 + 100)) "$IC_PP_MUT_319"
+assert_exit 0 "$?" "#319 (Mutation): ohne FAILED=1 lässt derselbe rote Deckel den Push durch"
+rm -rf "$TMP_PP319"
+
+# 17. Referenz-Guard für alle Guidelines, die referenziert aber NICHT importiert werden
+#     (ADR-047 §3): ohne ihn wird eine ausgelagerte Datei zur toten Datei. Deckt die zwei neu
+#     ausgelagerten Dateien und die zwei schon vorher nur referenzierten ab – eine Schreibweise
+#     statt zweier (der ältere bash-gotchas-Guard oben prüft nur die Präsenz der Referenz).
+CLAUDE_FLAT_319="$(flat_286 "$FACTORY_ROOT/CLAUDE.md")"
+for g in git-workflow architecture-principles bash-gotchas token-efficiency; do
+  assert_true "$([[ -f "$FACTORY_ROOT/docs/factory/guidelines/$g.md" ]]; echo $?)" \
+    "#319: guidelines/$g.md vorhanden"
+  assert_contains_286 "$CLAUDE_FLAT_319" "guidelines/$g.md" \
+    "#319: $g.md ist in CLAUDE.md referenziert (nicht verwaist)"
+  # Gegenrichtung: nicht importiert – sonst ist die Umstellung nicht vollzogen
+  grep -qE "^@docs/factory/guidelines/$g\.md$" "$FACTORY_ROOT/CLAUDE.md"
+  assert_true "$([ $? -ne 0 ]; echo $?)" "#319: $g.md ist nicht per @import geladen"
+done
+
+# 18. Die geladen bleibenden Guidelines MÜSSEN @importiert bleiben (ADR-047 §2).
+for g in clean-code tdd-principles testing-standards; do
+  grep -qE "^@docs/factory/guidelines/$g\.md$" "$FACTORY_ROOT/CLAUDE.md"
+  assert_true "$?" "#319: $g.md bleibt per @import geladen"
+done
+
+# 19. Der „Laden bei"-Trigger muss JE Datei existieren (ADR-047 §3), nicht irgendwo in CLAUDE.md:
+# die Phrase wird deshalb zusammen mit dem Dateinamen als EINE Phrase geprüft. Eine
+# dateiunabhängige Suche nach „Laden bei" wäre vakuös – belegt per Mutation unten.
+# Die Trigger stehen in einem Blockquote, dessen Fortsetzungszeilen mit "> " beginnen; die
+# Marker müssen vor dem Flachlesen weg, sonst landen sie mitten in der Phrase. Deshalb
+# sed-Vorlauf in eine Kopie und darauf der vorhandene flat_286-Helfer (komponiert, keine
+# zweite Lesefunktion – Lesson #240/#267 zur Helfer-Duplikation).
+# ACHTUNG Fehlalarm-Modus: die Anker enthalten die vollständige Themen-Aufzählung des Bullets.
+# Eine reine Umformulierung der Beschreibung macht diese Tests rot, OBWOHL der Trigger noch da
+# ist – dann hier den Anker mitziehen, nicht den Trigger suchen.
+IC_NOQUOTE_319="$(mktemp)"
+sed 's/^[[:space:]]*>[[:space:]]*//' "$FACTORY_ROOT/CLAUDE.md" > "$IC_NOQUOTE_319"
+CLAUDE_TRIGGERS_319="$(flat_286 "$IC_NOQUOTE_319")"
+rm -f "$IC_NOQUOTE_319"
+IC_TRIGGER_GW_319='guidelines/git-workflow.md) – Branches, PR/Issue, Labels, Commits, Worktrees, Hook-Installation, Branch-Aufräumen · **Laden bei:**'
+IC_TRIGGER_AP_319='guidelines/architecture-principles.md) – SOLID, Separation of Concerns, Dependency Rule, Fehlerbehandlung, API-Design · **Laden bei:**'
+assert_contains_286 "$CLAUDE_TRIGGERS_319" "$IC_TRIGGER_GW_319" \
+  "#319: git-workflow.md trägt einen eigenen „Laden bei\"-Trigger"
+assert_contains_286 "$CLAUDE_TRIGGERS_319" "$IC_TRIGGER_AP_319" \
+  "#319: architecture-principles.md trägt einen eigenen „Laden bei\"-Trigger"
+# Mutation je Datei: Trigger nur an EINEM Bullet entfernen → nur dessen Assertion wird rot.
+# Ersetzt wird LITERAL über awk index() – ein `sed`-Muster ist hier untauglich, weil die Phrase
+# das Markdown-Bold `**Laden bei:**` enthält und BSD-sed das als Repetition-Operator ablehnt
+# ("repetition-operator operand invalid"); die Substitution scheiterte dann still und die
+# Mutation prüfte nichts (beim GREEN-Lauf dieser Task aufgefallen).
+IC_MUT_FILE_319="$(mktemp)"
+awk -v needle='API-Design · **Laden bei:**' -v repl='API-Design (ohne Trigger)' '
+  { i = index($0, needle); if (i > 0) $0 = substr($0, 1, i - 1) repl substr($0, i + length(needle)); print }
+' "$FACTORY_ROOT/CLAUDE.md" | sed 's/^[[:space:]]*>[[:space:]]*//' > "$IC_MUT_FILE_319"
+IC_CLAUDE_MUT_319="$(flat_286 "$IC_MUT_FILE_319")"
+rm -f "$IC_MUT_FILE_319"
+assert_contains_286 "$IC_CLAUDE_MUT_319" "$IC_TRIGGER_GW_319" \
+  "#319 (Mutation): der git-workflow-Trigger bleibt unberührt"
+assert_absent "$IC_CLAUDE_MUT_319" "$IC_TRIGGER_AP_319" \
+  "#319 (Mutation): ein je-Datei entfernter Trigger macht genau dessen Assertion rot"
+
+# 20. Die drei aus testing-standards.md verschobenen Abschnitte liegen in der Lesson und sind
+#     im Index referenziert – verlustfreie Migration statt Streichung (spec-319 AC5/AC8).
+TESTING_LESSON_319="$(flat_286 "$FACTORY_ROOT/docs/factory/lessons/testing.md")"
+PC_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
+for phrase in "Exhaustiveness-Guards" "Mock-Default mit leerem Array" "Coverage-Ausgabe nur in ignorierte Pfade"; do
+  assert_contains_286 "$TESTING_LESSON_319" "$phrase" \
+    "#319: „$phrase\" steht in lessons/testing.md"
+done
+for phrase in "Exhaustiveness-Guard" "Mock-Default" "Coverage-Ausgabe nur in"; do
+  assert_contains_286 "$PC_FLAT_319" "$phrase" \
+    "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
+done
+# Umfang statt nur Präsenz: die drei Abschnitte wurden byte-identisch migriert (1.197 + 1.531 +
+# 920 = 3.648 Bytes Rumpf). Eine spätere versehentliche Kürzung würde die Präsenz-Checks oben
+# nicht röten – deshalb ein Größen-Guard je Abschnitt (Lesson #196: Migration mit
+# Reconstruction-Assertion belegen, nicht mit Titel-Präsenz).
+ic_body_bytes_319() {  # $1 = Titel-Präfix des ### -Abschnitts
+  awk -v anchor="$1" '
+    index($0, "### ") == 1 && index($0, anchor) > 0 { found = 1; next }
+    found && index($0, "### ") == 1 { exit }
+    found { print }
+  ' "$FACTORY_ROOT/docs/factory/lessons/testing.md" | wc -c | tr -d ' '
+}
+assert_true "$([ "$(ic_body_bytes_319 'Exhaustiveness-Guards')" -ge 1190 ]; echo $?)" \
+  "#319: der Exhaustiveness-Abschnitt ist vollständig migriert (≥ 1190 Bytes Rumpf)"
+assert_true "$([ "$(ic_body_bytes_319 'Mock-Default mit leerem Array')" -ge 1520 ]; echo $?)" \
+  "#319: der Mock-Default-Abschnitt ist vollständig migriert (≥ 1520 Bytes Rumpf)"
+assert_true "$([ "$(ic_body_bytes_319 'Coverage-Ausgabe nur in ignorierte Pfade')" -ge 910 ]; echo $?)" \
+  "#319: der ADR-040-Abschnitt ist vollständig migriert (≥ 910 Bytes Rumpf)"
+# Der verschobene Text darf nicht auf seinen alten Kontext zeigen („siehe unten" zeigte in der
+# Lesson ins Leere, weil darunter der Coverage-Abschnitt fehlt – Deixis-Falle, Lesson #315).
+assert_absent "$TESTING_LESSON_319" "100 % bei neuem Code, siehe unten" \
+  "#319: kein Deixis-Verweis „siehe unten\" im verschobenen Abschnitt"
+# Und kein Verweis darf die verschobene Regel weiter in der alten Datei verorten. Die Suchphrase
+# wird zur Laufzeit zusammengesetzt: stünde sie als Literal hier, enthielte die gescannte Datei
+# (diese) sie selbst und der Guard wäre immer rot – selbstreferenzieller Content-Scan.
+IC_OLD_HOME_319="testing-standards.md"
+assert_absent "$(flat_286 "$CHECKS_DIR/tests/run-tests.sh")" \
+  "$IC_OLD_HOME_319: Exhaustiveness-Guards" \
+  "#319: kein Verweis mehr auf die verschobene Regel in der alten Datei"
+
+# 21. Die kanonische pre-push-Check-Liste in git-workflow.md nennt den neuen Check (Lesson
+#     #211/#176: Prosa im Präsens, die die geänderte Mechanik beschreibt, im selben PR nachziehen).
+assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md")" \
+  "@import-Kontext-Deckel" "#319: git-workflow.md Hook-Tabelle nennt den Deckel-Check"
+# Und die Invarianten-Registry in OPERATING.md (kanonische Quelle des prozeduralen Ablaufs).
+# Anker ohne das führende `@import` in Backticks (der Zieltext setzt es als Code-Span, die
+# Backticks würden sonst mitten in der Phrase stehen) – und ohne führenden Bindestrich: die
+# assert_*-Helfer geben kein `--` an grep weiter, ein mit `-` beginnender Anker würde als Option
+# gelesen (clean-code.md: variabler Suchwert immer als Daten behandeln).
+assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")" \
+  "Kontext unter dem Deckel halten" "#319: OPERATING.md führt die Deckel-Invariante"
+
+# 22. Die Kern-Kurzregeln dürfen die Label-Konvention und die Schwellen-Tabelle NICHT kopieren:
+#     git-workflow.md („Die kanonische Label-Liste bleibt allein in diesem Abschnitt"), ADR-018
+#     und ADR-043 („Ein Ort je Regel") entscheiden das, und der #315-Registry-Guard kennt
+#     CLAUDE.md nicht – eine Kopie hier wäre die einzige unbewachte (Review-Runde 3, K3).
+assert_absent "$CLAUDE_FLAT_319" "Fund-Art" \
+  "#319 K3: CLAUDE.md kopiert die Schwellen-Tabelle nicht"
+assert_absent "$CLAUDE_FLAT_319" "Im Zweifel Issue" \
+  "#319 K3: CLAUDE.md kopiert die Schwellen-Regel nicht als Prosa"
+assert_absent "$CLAUDE_FLAT_319" "beliebig viele Aspekt-Labels" \
+  "#319 K3: CLAUDE.md kopiert die Label-Konvention nicht"
+# Stattdessen ein Verweis auf die kanonische Quelle – sonst wäre die Regel im Dauerkontext
+# unauffindbar (das wäre der umgekehrte Fehler). Anker trägt die Semantik der Regel, nicht nur
+# das Fragment „kanonisch in": das wäre durch jede beliebige Umformulierung erfüllbar.
+assert_contains_286 "$CLAUDE_FLAT_319" "nie aus dem Gedächtnis" \
+  "#319 K3: CLAUDE.md verpflichtet zum Nachlesen der kanonischen Quelle"
+assert_contains_286 "$CLAUDE_FLAT_319" "„GitHub-Labels\"" \
+  "#319 K3: der Verweis nennt den Abschnitt der kanonischen Quelle"
+
+# 23. Keine falsche Erzwingungs-Behauptung (K2): der pre-push-Hook ist lokales, umgehbares
+#     Feedback – fail-closed ist allein das Ruleset. Die Kurzregel darf das nicht verwischen,
+#     und der Guardrail zum Deckel darf denselben Fehler nicht wiederholen.
+assert_absent "$CLAUDE_FLAT_319" "beide fail-closed" \
+  "#319 K2: keine Behauptung „beide fail-closed\" über Hook + Ruleset"
+assert_contains_286 "$CLAUDE_FLAT_319" "umgehbar" \
+  "#319 K2: Kurzregel benennt den Hook als umgehbares lokales Feedback"
+# Und der commit-msg-Hook darf in ADR-047 nicht als Erzwinger des Commit-FORMATS auftreten –
+# er prüft ausschließlich `--help`/`-h` (commit-msg-check.sh:11-12, :78). Ebenso darf
+# branch-name-check.sh nicht als fail-closed-Gate auftreten: er ist ein PreToolUse-Hook auf den
+# Bash-Tool-Input und greift nur bei `checkout -b`/`switch -c` aus Claude Code.
+ADR047_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/adr/047-import-kontext-guidelines-nach-erzwungenheit.md")"
+assert_absent "$ADR047_FLAT_319" "\`commit-msg\`-Hook, \`issue-sync\`-Gate" \
+  "#319 K2: ADR-047 führt den commit-msg-Hook nicht als Format-Erzwinger"
+assert_contains_286 "$ADR047_FLAT_319" "PreToolUse" \
+  "#319 K2: ADR-047 benennt branch-name-check.sh als PreToolUse-Hook, nicht als Push-Gate"
+# Die YAGNI-Regel, die §4 für überholt erklärt, steht in OPERATING.md – nicht in
+# token-efficiency.md (dort stand sie nie, `git log -S` belegt es).
+assert_absent "$ADR047_FLAT_319" "Reflex\", \`token-efficiency.md\`" \
+  "#319: ADR-047 zitiert die YAGNI-Regel nicht bei der falschen Quelle"
+assert_contains_286 "$ADR047_FLAT_319" "OPERATING.md" \
+  "#319: ADR-047 nennt OPERATING.md als Quelle der YAGNI-Regel"
+# Und eine im selben PR umgesetzte ADR steht auf `Accepted`, nicht auf `Proposed`
+# (Lesson factory-workflow.md, aus #197 – beim Implementieren mitzuziehen).
+assert_contains_286 "$ADR047_FLAT_319" "## Status Accepted" \
+  "#319: ADR-047 steht auf Accepted (Umsetzung im selben PR)"# ─── #319 (/security-review): Härtung des Gates gegen präparierte Referenzen ──
+echo ""
+echo "#319 Gate-Härtung (/security-review):"
+
+TMP_SEC319="$(mktemp -d)"
+mkdir -p "$TMP_SEC319/fx"
+sec319() { FACTORY_DIR="$TMP_SEC319/fx" bash "$IMPORT_CHECK" 2>&1; }
+
+# S1 – Fail-open bei nicht ermittelbarer Zeilenzahl. `$((total + ""))` ist in bash KEIN Fehler,
+# sondern `+ 0`: schlug die Zählung fehl, meldete das Gate „0 von 1100" und exit 0, obwohl der
+# Kontext die Grenze reißt. clean-code.md verlangt für genau das einen Integer-Guard vor der
+# Arithmetik („fail-closed – im Zweifel ablehnen, nie still durchwinken").
+seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
+printf '@big.md\n' >> "$TMP_SEC319/fx/CLAUDE.md"
+seq 1 2000 > "$TMP_SEC319/fx/big.md"
+sec319 >/dev/null 2>&1
+assert_exit 1 "$?" "#319 S1 (Kontrolle): der Fixture ist ohne Manipulation rot"
+mkdir -p "$TMP_SEC319/stub"
+printf '#!/bin/sh\nexit 1\n' > "$TMP_SEC319/stub/awk"
+chmod +x "$TMP_SEC319/stub/awk"
+sec_out="$(PATH="$TMP_SEC319/stub:$PATH" FACTORY_DIR="$TMP_SEC319/fx" bash "$IMPORT_CHECK" 2>&1)"
+sec_rc=$?
+assert_exit 1 "$sec_rc" "#319 S1: nicht ermittelbare Zeilenzahl → exit 1 (fail-closed statt still grün)"
+assert_absent "$sec_out" "0 von" "#319 S1: meldet keine Summe 0, die eine Freigabe vortäuscht"
+rm -rf "$TMP_SEC319/stub"
+
+# S2 – Pfad-Confinement. Eine Referenz-Zeile, die aus der Projektwurzel herausführt, ist kein
+# @import dieses Repos: absolute Pfade und `..`-Segmente werden abgelehnt statt gezählt. Ohne
+# das war der Check ein Zeilenzahl-Orakel über beliebige lesbare Dateien der Maschine
+# (`@/etc/passwd` → „143 von 1100", exit 0).
+for sec_pfad in '/etc/passwd' '../ausserhalb.md' 'unter/../../ausserhalb.md'; do
+  seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
+  printf '@%s\n' "$sec_pfad" >> "$TMP_SEC319/fx/CLAUDE.md"
+  sec_out="$(sec319)"; sec_rc=$?
+  assert_exit 1 "$sec_rc" "#319 S2: Referenz außerhalb der Projektwurzel → exit 1 ($sec_pfad)"
+  assert_contains_286 "$sec_out" "außerhalb der Projektwurzel" \
+    "#319 S2: nennt den Grund der Ablehnung ($sec_pfad)"
+done
+# Gegenprobe: ein normaler wurzelrelativer Pfad bleibt unberührt zulässig.
+seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
+printf '@unter/normal.md\n' >> "$TMP_SEC319/fx/CLAUDE.md"
+mkdir -p "$TMP_SEC319/fx/unter"
+seq 1 5 > "$TMP_SEC319/fx/unter/normal.md"
+sec319 >/dev/null 2>&1
+assert_exit 0 "$?" "#319 S2 (Gegenprobe): ein wurzelrelativer Pfad bleibt zulässig"
+# Inline-Token außerhalb der Wurzel werden still übergangen (wie jedes nicht auflösende Token) –
+# sonst würde eine Prosa-Erwähnung wie „@/etc/hosts" den Push blockieren.
+seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
+printf 'Beispielhaft erwähnt: @/etc/passwd im Fließtext.\n' >> "$TMP_SEC319/fx/CLAUDE.md"
+sec_out="$(sec319)"; sec_rc=$?
+assert_exit 0 "$sec_rc" "#319 S2: Inline-Token außerhalb der Wurzel blockiert nicht"
+assert_absent "$sec_out" "passwd" "#319 S2: und wird auch nicht gezählt oder gemeldet"
+
+# S3 – Keine Terminal-/Log-Injection über den Pfad. `echo -e` interpretierte `\033`-Sequenzen aus
+# dem Dateiinhalt und schrieb echte ESC-Bytes in die Gate-Ausgabe: ein präparierter Pfad konnte
+# den Bildschirm löschen und ein grünes „alles ok" über die Ergebnisse der anderen Checks legen.
+# Der Exit-Code war nie betroffen – die Täuschung zielte auf den Menschen (oder den Agenten),
+# der die Push-Ausgabe liest.
+seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
+printf '@x\\033[2J\\033[32mGATE-OK\n' >> "$TMP_SEC319/fx/CLAUDE.md"
+sec_out="$(sec319)"
+assert_contains_286 "$sec_out" 'x\033[2J' "#319 S3: die Escape-Sequenz bleibt literal in der Ausgabe"
+printf '%s' "$sec_out" | LC_ALL=C grep -q "$(printf '\033')\[2J"
+assert_true "$([ $? -ne 0 ]; echo $?)" "#319 S3: kein echtes ESC-Byte aus dem Pfad in der Ausgabe"
+
+rm -rf "$TMP_SEC319"
+
+# ─── #319 (/test): Lücken aus der AK-Abdeckungsmatrix ────────────────────────
+echo ""
+echo "#319 AK-Abdeckung (/test):"
+
+# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (der
+# Lessons-Index, der nach ADR-037 von ~80 auf 341 Zeilen gewachsen ist) Teil der gedeckelten
+# Summe IST. Verschwände die @import-Zeile, liefe der Index wieder unbegrenzt – und alle
+# übrigen Deckel-Tests blieben grün, weil sie nur die Guidelines betrachten.
+grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md"
+assert_true "$?" "#319 AC4: PROJECT-CONTEXT.md ist Teil des gedeckelten @import-Sets"
+# Mutationsbeleg mit demselben Assert-Ausdruck: ohne die Zeile wird der Guard rot.
+IC_AC4_MUT_319="$(mktemp)"
+grep -vE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md" > "$IC_AC4_MUT_319"
+grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$IC_AC4_MUT_319"
+assert_true "$([ $? -ne 0 ]; echo $?)" "#319 AC4 (Mutation): ohne die Import-Zeile wird derselbe Guard rot"
+rm -f "$IC_AC4_MUT_319"
+
+# AC5 – „jede geltende Regel bleibt gültig und auffindbar". Die zwei verdichteten Guidelines
+# behalten ihre Regel-Abschnitte; eine spätere, zu eifrige Verdichtung würde sonst unbemerkt
+# eine Regelgruppe kappen (die vorhandenen Tests prüfen nur die drei VERSCHOBENEN Abschnitte).
+ic_missing_sections_319() {  # $1 = Datei, $2… = erwartete Abschnitts-Überschriften
+  local f="$1" fehlend="" titel
+  shift
+  for titel in "$@"; do
+    grep -qF -- "## $titel" "$f" || fehlend="$fehlend '$titel'"
+  done
+  printf '%s' "$fehlend"
+}
+IC_TDD_319="$FACTORY_ROOT/docs/factory/guidelines/tdd-principles.md"
+IC_TST_319="$FACTORY_ROOT/docs/factory/guidelines/testing-standards.md"
+assert_true "$([ -z "$(ic_missing_sections_319 "$IC_TDD_319" \
+  'Der Zyklus: Red → Green → Refactor' 'Test-Granularität' 'Was TDD nicht bedeutet' 'Wenn TDD schwer fällt')" ]; echo $?)" \
+  "#319 AC5: tdd-principles.md trägt nach der Verdichtung alle Regel-Abschnitte"
+assert_true "$([ -z "$(ic_missing_sections_319 "$IC_TST_319" \
+  'Test-Aufbau: Arrange-Act-Assert' 'Test-Namen' 'Was testen? Was nicht?' 'Mocking-Regeln' \
+  'Test-Isolation' 'Flaky Tests: Zero Tolerance' 'Coverage-Anforderungen')" ]; echo $?)" \
+  "#319 AC5: testing-standards.md trägt nach der Verdichtung alle Regel-Abschnitte"
+# Diskriminierungs-Kontrolle: der Helfer meldet eine fehlende Überschrift auch wirklich –
+# sonst wäre die Abwesenheit von Fehlern oben nicht aussagekräftig.
+assert_true "$([ -n "$(ic_missing_sections_319 "$IC_TDD_319" 'Ein Abschnitt, den es nicht gibt')" ]; echo $?)" \
+  "#319 AC5 (Kontrolle): der Abschnitts-Helfer meldet eine fehlende Überschrift"
+
+# AC8 – „kein Verweis zeigt ins Leere". In dieser Task sind zweimal tote relative Links
+# entstanden (ein geratener ADR-Dateiname, ein Pfad ohne `../` aus tasks/) – beide erst durch
+# einen Ad-hoc-Lauf gefunden. Der Check gehört damit in die Suite, begrenzt auf die Dateien,
+# die dieser Task besitzt.
+# Grenze der Erkennung: der Ausdruck sieht Markdown-Link-Syntax, nicht deren Kontext. Prosa, die
+# ÜBER Links spricht (z. B. `](../adr/` in einem Backtick-Span, wie in lessons/factory-workflow.md),
+# wird als Link gelesen und wäre ein Fehlalarm. Deshalb prüft der Guard eine feste Dateiliste –
+# Dateien mit solcher Meta-Prosa gehören nicht hinein, bevor der Ausdruck Code-Spans ausnimmt.
+ic_dead_links_319() {  # $1 = Markdown-Datei → gibt "datei → ziel" je totem relativen Link aus
+  local f="$1" d ziel
+  d="$(dirname "$f")"
+  grep -oE '\]\([^)#][^)]*\)' "$f" 2>/dev/null | sed 's/^](//; s/)$//; s/#.*//' | while read -r ziel; do
+    case "$ziel" in http*|"") continue ;; esac
+    [ -e "$d/$ziel" ] || printf '%s → %s\n' "$f" "$ziel"
+  done
+}
+# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (clean-code.md: ein
+# Gate-Regex braucht beide Richtungen) – unabhängig vom Repo-Inhalt.
+TMP_LNK_319="$(mktemp -d)"
+printf 'Ziel\n' > "$TMP_LNK_319/ziel.md"
+printf 'Ein [guter Link](ziel.md) und sonst nichts.\n' > "$TMP_LNK_319/doc.md"
+assert_true "$([ -z "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
+  "#319 AC8 (Kontrolle): ein auflösender Link wird nicht gemeldet"
+printf 'Ein [toter Link](gibt-es-nicht.md).\n' >> "$TMP_LNK_319/doc.md"
+assert_true "$([ -n "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
+  "#319 AC8 (Kontrolle): ein toter Link wird gemeldet"
+rm -rf "$TMP_LNK_319"
+# Der eigentliche Guard über die Dateien dieses Tasks.
+ic_dead_links_found_319=""
+for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md docs/factory/OPERATING.md \
+         docs/factory/kleinfunde.md docs/factory/lessons/testing.md \
+         docs/factory/lessons/code-style.md docs/factory/lessons/frontend-react.md \
+         docs/factory/guidelines/tdd-principles.md docs/factory/guidelines/testing-standards.md \
+         docs/factory/guidelines/token-efficiency.md \
+         docs/adr/047-import-kontext-guidelines-nach-erzwungenheit.md \
+         docs/adr/037-lessons-auslagern-aus-import-kontext.md \
+         docs/specs/spec-319-adr-import-kontext-guidelines.md \
+         tasks/task-319-adr-import-kontext-guidelines.md tasks/review-319.md; do
+  ic_dead_links_found_319="$ic_dead_links_found_319$(ic_dead_links_319 "$FACTORY_ROOT/$f")"
+done
+assert_true "$([ -z "$ic_dead_links_found_319" ]; echo $?)" \
+  "#319 AC8: kein toter relativer Link in den Dateien dieses Tasks"
+[ -z "$ic_dead_links_found_319" ] || printf '%s\n' "$ic_dead_links_found_319" | sed 's/^/      /'
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"

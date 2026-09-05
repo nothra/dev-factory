@@ -689,3 +689,145 @@ tatsächlichen Ist-Wert am realen Output ablesen (nicht schätzen) und exakt dar
 Variabilitätsquelle existiert (z. B. eine optionale Zeile, die je nach Bedingung dazwischen
 erscheinen kann) – sonst verschenkt die Toleranz genau die Präzision, die der Test laut seiner
 eigenen Beschreibung ("unmittelbar", "direkt danach") behaupten soll.
+
+### Exhaustiveness-Guards (`never`-Check) brauchen einen eigenen Test (verschoben aus `testing-standards.md`, #319)
+
+Ein `else`/`default`-Zweig, der eine Union über `const _exhaustive: never = wert; throw new
+Error(...)` abschließt, ist zur **Compile-Zeit** unerreichbar – zur **Laufzeit** zählt er aber
+weiter als Code-Zeile für Coverage. Der Reflex ist, ihn als „durch das Typsystem abgesichert"
+zu betrachten und ungetestet zu lassen, weil kein regulärer Input ihn je auslöst.
+
+**Smell:** „Ich kann diesen Zweig nicht über einen normalen Input erreichen" – das ist kein
+Freibrief, ihn ungetestet zu lassen, sondern der Hinweis, den Wert per Type-Cast zu erzwingen.
+
+**Regel:** Jeder Exhaustiveness-Guard bekommt einen eigenen Testfall, der die Guard-Bedingung
+über einen Type-Cast (`as unknown as T`) erzwingt und den Fehlertext prüft:
+```ts
+it("should_throw_when_categoryIsUnknown", () => {
+  const invalid = { category: "unknown" as unknown as CatalogCategory, /* … */ };
+  expect(() => zeileSummen([invalid])).toThrow("Unbekannte Kategorie");
+});
+```
+Ohne diesen Test bleibt der Guard-Zweig als einzige ungetestete Zeile zurück – Coverage-Ziele
+(100 % bei neuem Code, siehe `testing-standards.md` → „Coverage-Anforderungen") werden verfehlt, ohne dass es beim Schreiben auffällt,
+weil der Zweig „offensichtlich sicher" wirkt.
+
+### Mock-Default mit leerem Array verdeckt Mapping-Code (verschoben aus `testing-standards.md`, #319)
+
+Setzt ein `beforeEach` eine Mock-Funktion, die eine Liste liefert (z. B. ein Data-Layer-Call wie
+`listZeilen`/`listPositionen`), pauschal auf `mockResolvedValue([])` und überschreibt kein
+Einzeltest sie mit echten Daten, läuft jeder nachgelagerte `.map(...)`/`.filter(...)`-Aufruf im
+Produktionscode nur über das leere Array. Der Lambda-Rumpf – meist die Feldübersetzung von
+DB-Row auf Domain-/Modell-Objekt – wird dadurch **nie mit echten Werten** ausgeführt: ein
+vertauschtes oder falsch benanntes Feld bliebe unentdeckt, obwohl Coverage-Tools die Zeile als
+„covered" zählen (die Lambda-*Definition* läuft, ihr Aufruf mit befüllten Daten nicht).
+
+**Smell:** „Wird dieser Mock in irgendeinem Testfall mit **befüllten** Daten aufgerufen?" Bleibt
+er in jedem Test bei `[]`, ist das Mapping darüber ungetestet – unabhängig davon, ob der Test
+selbst grün ist.
+
+**Regel:** Verarbeitet ein Produktionscode-Pfad das Ergebnis eines gemockten Data-Layer-Calls
+per `.map(...)`/`.filter(...)`, muss mindestens **ein** Testfall den Mock mit einem befüllten
+Array (mind. ein Element mit allen relevanten Feldern) versorgen und das Ergebnis gegen die
+erwarteten gemappten Werte prüfen – nicht nur den Response-Status:
+```ts
+listZeilenMock.mockResolvedValue([
+  { id: "z-1", teilnehmerId: "t-1", anzeigename: "Anna", erhaltenCents: 1500, /* … */ },
+]);
+// … Act …
+expect(berichtXlsxMock).toHaveBeenCalledWith(
+  expect.objectContaining({ teilnehmer: [expect.objectContaining({ anzeigename: "Anna" })] }),
+);
+```
+
+### Coverage-Ausgabe nur in ignorierte Pfade schreiben (ADR-040, verschoben aus `testing-standards.md`, #319)
+
+Coverage-Artefakte (HTML-Report, `coverage-summary.json`, sonstige Zwischenausgaben) dürfen
+**nie** in einen von Git getrackten Pfad geschrieben werden. Ein versehentlich committetes
+Coverage-Verzeichnis blockiert später den Push-Gate (Prettier) – und ein unbeaufsichtigter
+Pipeline-Lauf lief genau daran auf (#212: `.coverage-tmp209/coverage-summary.json`).
+
+**Regel:** Coverage-Ausgabe zielt ausschließlich auf einen `.gitignore`-abgedeckten Pfad:
+- Standard-Report von `pnpm test:coverage` (Vitest): Default-Verzeichnis `coverage/` – bereits
+  ignoriert.
+- Braucht ein Schritt (z. B. `/test`/`/review`, per-Diff-Coverage) ein **isoliertes** oder
+  temporäres Coverage-Verzeichnis, ist der ignorierte Präfix **`.coverage-tmp<id>/`** zu nutzen
+  (deckt `.coverage-tmp*/` in `.gitignore`), nie ein Ad-hoc-Pfad im Projektbaum.
+
+Kurz: Wenn Coverage nach `git status` auftaucht, ist der Zielpfad falsch gewählt.
+
+### Fail-closed-Zusicherung eines Gates braucht einen Test, der die MESSUNG bricht – nicht nur den Input (aus #319, Security-Review-Finding)
+
+Ein Gate, das „fail-closed" zusichert, wird üblicherweise gegen **Inputs** getestet: zu groß →
+rot, zulässig → grün, Datei fehlt → rot. Alle diese Tests prüfen den Fall, dass die Messung
+funktioniert und ihr Ergebnis unerwünscht ist. Ungetestet bleibt der Fall, dass die **Messung
+selbst** ausfällt – und genau dort war der @import-Deckel fail-**open**: ein fehlschlagendes
+`awk` lieferte einen leeren Wert, `$((total + ""))` addierte lautlos 0, und der Check meldete
+„✓ 0 von 1100 Zeilen" mit Exit 0. Zwölf Input-Tests waren grün; keiner sah es.
+
+**Smell:** Die Testliste eines Gates deckt Grenzwerte, Sonderfälle und Fehleingaben ab – aber
+kein Fall bricht das **Werkzeug**, mit dem gemessen wird (das externe Kommando, den Parser, die
+Datei-API).
+
+**Regel:** Zu jeder Fail-closed-Zusicherung gehört mindestens ein Test, der die Messung
+sabotiert statt den Input – am billigsten über einen Stub im `PATH`:
+
+```bash
+printf '#!/bin/sh\nexit 1\n' > "$TMP/stub/awk"; chmod +x "$TMP/stub/awk"
+sec_out="$(PATH="$TMP/stub:$PATH" FACTORY_DIR="$FX" bash "$CHECK" 2>&1)"; rc=$?
+assert_exit 1 "$rc" "nicht ermittelbare Zahl → exit 1 (fail-closed statt still grün)"
+assert_absent "$sec_out" "0 von" "meldet keine Summe 0, die eine Freigabe vortäuscht"
+```
+
+Dazu die **Kontrolle**, dass derselbe Fixture ohne Manipulation rot ist – sonst belegt der Test
+nicht, dass der Stub die Ursache war. Und die zweite Assertion ist kein Luxus: der Exit-Code
+allein unterscheidet nicht zwischen „korrekt gemessen und abgelehnt" und „nichts gemessen".
+
+### Content-Scan-Guard, dessen Suchphrase als Literal in der gescannten Datei steht, ist immer rot (aus #319, /implement-Selbstfund)
+
+Ein Guard, der eine Datei nach einer verbotenen Phrase durchsucht, scannt sich selbst mit, wenn
+die Datei **die Testdatei ist**. Die Phrase steht dann zwangsläufig darin – als Argument des
+Guards:
+
+```bash
+assert_absent "$(flat_286 "$CHECKS_DIR/tests/run-tests.sh")" \
+  "testing-standards.md: Exhaustiveness-Guards" "kein Verweis mehr auf die alte Datei"
+```
+
+Der Guard ist damit **nie erfüllbar**, unabhängig vom tatsächlichen Repo-Zustand. Verwandt mit
+dem #312-Learning (verzeichnisweiter Scan ist blind für Tracked-Status), aber eigenständig: dort
+war eine fremde Datei die Störquelle, hier ist es die geprüfte Datei selbst.
+
+**Smell:** Ein Abwesenheits-Guard über eine Datei, die auch den Guard enthält – erkennbar daran,
+dass der Scan-Pfad auf `run-tests.sh` (oder eine andere Datei mit Testcode) zeigt.
+
+**Regel:** Die Suchphrase zur Laufzeit zusammensetzen, damit sie als Literal nirgends im
+gescannten Text steht:
+
+```bash
+IC_OLD_HOME="testing-standards.md"
+assert_absent "$(flat_286 "$DATEI")" "$IC_OLD_HOME: Exhaustiveness-Guards" "…"
+```
+
+Gegenprobe nicht vergessen: Ein Guard, der **sofort** rot ist, ist genauso verdächtig wie einer,
+der nie rot wird – beide prüfen nicht, was ihr Label behauptet.
+
+### Ein Anker, der mit `-` beginnt, macht die assert-Helfer still falsch (aus #319, dritter Fall derselben Regel im selben PR)
+
+`assert_contains_286`/`assert_absent` reichen ihren Suchwert als `grep -qF "$2"` weiter – **ohne**
+`--`. Beginnt die Phrase mit einem Bindestrich (`-Kontext unter dem Deckel`), liest `grep` sie als
+Option. Das Ergebnis ist kein Fehler, sondern ein **stiller Fehlschlag**: der Präsenz-Guard wird
+rot, obwohl die Phrase in der Datei steht.
+
+Die Fehldiagnose liegt nahe und kostet Zeit – man sucht den Fehler in der Zieldatei („warum fehlt
+der Satz?"), nicht im Anker. In #319 ist die Regel aus `clean-code.md` („Config-/nutzerkontrollierte
+Werte als Daten, `--` vor das Pattern") im selben PR dreimal aufgelaufen: einmal bei einem
+Ad-hoc-`grep -nF` auf eine Zeile, die mit `- ` beginnt, einmal an diesem Helfer, einmal als
+Argument-Injection-Fläche im Gate selbst (`@-v` als awk-Option).
+
+**Smell:** Ein Präsenz-Guard ist rot, obwohl `grep -c` von Hand die Phrase findet – oder ein
+Abwesenheits-Guard ist grün, obwohl sie da ist. Erster Blick: **beginnt der Anker mit `-`?**
+
+**Regel:** Anker so wählen, dass sie nicht mit `-` beginnen (ein Wort früher ansetzen), und bei
+eigenen `grep`-Aufrufen mit variablem Wert grundsätzlich `grep -qF -- "$wert"` schreiben. Der Fix
+in den geteilten Helfern selbst ist als Kleinfund erfasst.

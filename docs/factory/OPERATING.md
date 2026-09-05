@@ -409,7 +409,10 @@ Nie an reine Backlog-/Doku-Issues.
 
 `/codify <id>` extrahiert Learnings → neue Regeln in `CLAUDE.md`, den Guidelines oder als
 ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` + Index-Zeile in
-`docs/factory/PROJECT-CONTEXT.md` (ADR-037). Faustregeln aus der Praxis:
+`docs/factory/PROJECT-CONTEXT.md` (ADR-037). **Achtung:** die beiden erstgenannten Ziele liegen im
+`@import`-Dauerkontext und stehen seit
+[ADR-047](../adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4 unter einem harten
+Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln aus der Praxis:
 
 - **Stack-spezifisch** (Next/NextAuth/Drizzle/Vitest …) → Volltext nach
   `docs/factory/lessons/<thema>.md` + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
@@ -417,7 +420,10 @@ ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` + Index-Zeile 
 - **Kanonische Quelle referenzieren:** taucht eine Regel mehrfach auf (Skill + Persona + Spec),
   jede Kopie auf die Quelle verweisen und beim Update **alle** synchronisieren.
 - **Kein Check-Skript aus Reflex:** ein Gate nur, wenn der Fehler verlässlich grep-bar **und**
-  wiederkehrend ist – sonst YAGNI (der laute Fehlschlag genügt).
+  wiederkehrend ist – sonst YAGNI (der laute Fehlschlag genügt). Umgekehrt gilt: ist der Defekt
+  **eingetreten und gemessen**, schützt YAGNI ihn nicht mehr – so beim @import-Kontext, dessen
+  Wachstum ADR-037 per Konvention begrenzen wollte und der daraufhin auf das Vierfache lief
+  (ADR-047 §4).
 
 ### 5.2 Prozess-Kennzahlen
 
@@ -461,7 +467,12 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
 
 - **Task = Issue** (ADR-013): `bash scripts/sync-issues.sh --check` (CI-Gate `issue-sync`
   erzwingt es); `--create` legt fehlende Issues an.
-- **Nie direkt auf `main`** – pre-push-Hook blockiert hart; immer über Feature-Branch + PR.
+- **Nie direkt auf `main`** – der pre-push-Hook gibt lokales (umgehbares) Feedback, verbindlich
+  ist das serverseitige Ruleset `protect-main` (ADR-029); immer über Feature-Branch + PR.
+- **`@import`-Kontext unter dem Deckel halten** (ADR-047 §4):
+  `bash scripts/checks/import-context-limit-check.sh` – summiert `CLAUDE.md` + alle
+  `@`-eingebundenen Dateien gegen `MAX_IMPORT_LINES`. Läuft im pre-push-Gate; neue Regeln
+  verdichten oder als Lesson auslagern, statt anzuhängen.
 - **Parallele Sessions in eigenen Worktrees** – `start-work.sh` legt jede Task in einem eigenen
   git-Worktree an; nach dem Merge `git worktree remove <pfad>` (siehe git-workflow.md).
 - **Lokale Git-Hooks installiert halten** (ADR-042): `bash scripts/install-hooks.sh` ist die

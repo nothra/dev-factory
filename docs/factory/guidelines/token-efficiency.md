@@ -49,9 +49,14 @@ Verbrauch niedrig, ohne die Qualität zu senken.
 
 ## 5. Kontext-Dateien schlank halten
 
-- `CLAUDE.md`, `PROJECT-CONTEXT.md` und die Guidelines werden bei **jeder**
-  Session geladen. Jede Zeile darin wird dauerhaft mitbezahlt.
+- `CLAUDE.md`, `PROJECT-CONTEXT.md` und die per `@import` eingebundenen Guidelines
+  (`clean-code.md`, `tdd-principles.md`, `testing-standards.md`) werden bei **jeder** Session
+  geladen. Jede Zeile darin wird dauerhaft mitbezahlt. `git-workflow.md` und
+  `architecture-principles.md` sind seit [ADR-047](../../adr/047-import-kontext-guidelines-nach-erzwungenheit.md)
+  (#319) **nicht** mehr im Dauerkontext – Kurzregeln + „Laden bei"-Trigger stehen in `CLAUDE.md`.
 - Nur aufnehmen, was wirklich projektweit gilt. Veraltetes raus.
+- Die Summe ist gedeckelt: `scripts/checks/import-context-limit-check.sh` blockiert im
+  Push-Gate, wenn `CLAUDE.md` + alle Imports die Grenze überschreiten (ADR-047 §4).
 
 ---
 

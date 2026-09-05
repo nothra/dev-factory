@@ -218,3 +218,39 @@
   wenn die Datei ohnehin in diesem Bereich angefasst wird.
 - **Herkunft:** `/review` zu #310 (Out-of-Scope-Fund neben dem `scaffold_310`-Duplikat).
   Fundstellen verifiziert am 2026-08-27.
+
+### Branch-Präfix-Tabelle nennt `claude/` nicht, der Enforcer erlaubt es
+
+- **Wo:** [`scripts/checks/branch-name-check.sh:25`](../../scripts/checks/branch-name-check.sh)
+  – `VALID_PREFIXES="^(feature|fix|improvement|hotfix|chore|docs|test|refactor|claude)/"` gegen
+  die Tabelle in [`docs/factory/guidelines/git-workflow.md:28-37`](guidelines/git-workflow.md)
+  (Header `:28-29`, acht Präfix-Zeilen `:30-37`), die `claude/` **nicht** auflistet
+  (Zeilennummern verifiziert am 2026-09-05).
+- **Was:** Der Enforcer erlaubt einen neunten Präfix, den die kanonische Doku nicht kennt; im
+  Skript ist er nur als Kommentar erklärt (`:10` „Claude-interne Branches (claude/) werden
+  ebenfalls toleriert."). Wer die Tabelle als vollständig liest, hält `claude/…` für ungültig –
+  und wer die Tabelle als Quelle für einen Guard nutzt, baut ihn zu streng. Vorbestehende Drift,
+  nicht von #319 eingeführt; dort nur aufgefallen, weil die Präfix-Liste als Kern-Kurzregel eine
+  dritte Kopie bekam.
+- **Fix:** Eine Zeile in der Tabelle („`claude/<beschreibung>` | Claude-interne Branches, vom
+  Check toleriert") – unter zehn Zeilen. Mitnehmen, wenn `git-workflow.md` → „Branches" oder
+  `branch-name-check.sh` ohnehin angefasst wird. Zugleich lohnt dort der Hinweis, dass der Check
+  ein Claude-Code-PreToolUse-Hook ist und nur `checkout -b`/`switch -c` sieht – die Formulierung
+  „erzwingt diese Konvention automatisch" verspricht mehr, als er leistet.
+- **Herkunft:** `/review` zu #319 (Out-of-Scope-Fund neben den Kern-Kurzregeln).
+
+### `assert_contains_286`/`assert_absent` geben kein `--` an `grep` weiter
+
+- **Wo:** [`scripts/checks/tests/run-tests.sh:66-79`](../../scripts/checks/tests/run-tests.sh) –
+  `printf '%s' "$1" | grep -qF "$2"` in beiden Helfern (verifiziert am 2026-09-05).
+- **Was:** Beginnt die gesuchte Phrase mit `-` (z. B. `-Kontext unter dem Deckel`), liest `grep`
+  sie als Option statt als Suchwert. Ergebnis ist ein **stiller Fehlschlag**: der Präsenz-Guard
+  wird rot, obwohl die Phrase in der Datei steht – bzw. ein Abwesenheits-Guard grün, obwohl sie
+  da ist. `clean-code.md` → „Portabilität in Gate-/Shell-Skripten" verlangt genau dafür ein
+  `--` vor dem Pattern. In dieser Task zweimal aufgelaufen (einmal an `grep -nF` in einem
+  Wegwerf-Aufruf, einmal an diesem Helfer), jeweils per Anker-Umformulierung umgangen statt am
+  Helfer behoben.
+- **Fix:** `grep -qF -- "$2"` in beiden Helfern (zwei Zeichen je Stelle). Danach die
+  Anker-Workarounds in den Aufrufern nicht mehr nötig – aber auch nicht schädlich, deshalb kein
+  eigener Task.
+- **Herkunft:** `/implement`-Selbstfund während der Review-Rework-Runde 2 zu #319.

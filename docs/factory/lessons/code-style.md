@@ -54,7 +54,8 @@ Input erweckt den Eindruck durchgängiger Absicherung, den der zweite bricht.
 für jeden Input**, der in dieselbe Vergleichs-/Rechenoperation fließt – sonst leckt die Invariante
 über den ungeprüften Zweig. Die Guard-Klausel je Input duplizieren (`case "$x" in ''|*[!0-9]*) …`),
 nicht nur für den „offensichtlich unsicheren" Wert. Jeder Guard bekommt zudem einen eigenen Test
-(vgl. `testing-standards.md`).
+(vgl. [`lessons/testing.md`](testing.md) → Exhaustiveness-Guards; bis #319 in
+`testing-standards.md`).
 
 ### Magic-Number-Konsistenz-Bewertung braucht projektweiten Grep, nicht nur Datei-/PR-lokalen Vergleich (aus #142, Review→Refactor-Diskrepanz)
 
@@ -220,3 +221,64 @@ gebracht hat (typischerweise die erste Zeile/der erste Bullet des Abschnitts) �
 mitziehen, auch wenn sie nicht als eigenes Finding gemeldet wurde. Diese Prüfung ist unabhängig
 von der Cross-Datei-Sweep-Pflicht aus #211/#176/#264: hier reicht es, den umgebenden Abschnitt in
 derselben Datei noch einmal komplett zu lesen, nicht nur die geänderte Zeile.
+
+### Eine Erzwingungs-Behauptung ist eine Tatsachenbehauptung über Code – vor dem Schreiben den Enforcer lesen (aus #319, dreimal im selben PR)
+
+Sätze der Form „X erzwingt Y", „geprüft von X", „X blockiert das fail-closed" lesen sich wie
+Prosa, sind aber **überprüfbare Aussagen über fremden Code**. In #319 standen davon drei
+gleichzeitig im selben PR, jede plausibel und jede falsch:
+
+| Behauptung | Wirklichkeit | Prüfaufwand |
+|------------|--------------|-------------|
+| „Prettier erzwingt die Schluss-Newline" (Skript-Header) | `.prettierignore` deckt `docs/` **und** `CLAUDE.md` – kein Gate erzwingt sie | ein Blick in `.prettierignore`, den ich in derselben Session bereits geworfen hatte |
+| „pre-push-Hook und Ruleset, **beide** fail-closed" (Kern-Kurzregel) | der Hook ist lokal und mit `--no-verify` umgehbar; die kanonische Quelle sagt das zwei Abschnitte weiter selbst | ein `grep` in `git-workflow.md` |
+| „Erzwungen durch … `branch-name-check.sh`" (ADR-Tabelle) | ein Claude-Code-**PreToolUse**-Hook auf den Bash-Tool-Input; greift nicht bei `git worktree add -b`, nicht außerhalb von Claude Code, in keinem Push-/CI-Gate | `grep -rl branch-name-check` → eine einzige Verdrahtung |
+
+Das Muster ist nicht Nachlässigkeit, sondern **Plausibilität statt Prüfung**: ein Skript namens
+`branch-name-check.sh` *klingt* nach einem Gate, ein Formatter *klingt* nach Normalisierung. Die
+Behauptung entsteht beim Schreiben der Begründung, nicht beim Lesen des Codes. Besonders bitter
+ist der erste Fall – die widerlegende Information lag bereits im eigenen Sitzungsverlauf.
+
+Verschärfend: solche Sätze landen bevorzugt in **ADR-Begründungen** und **Kern-Kurzregeln**, also
+genau dort, wo sie eine Entscheidung tragen bzw. dauerhaft geladen werden. Eine überzeichnete
+Erzwingung ist dabei gefährlicher als eine fehlende: Sie verleitet dazu, die Regel für abgesichert
+zu halten und die Sorgfalt zu sparen („der Hook fängt das schon").
+
+**Smell:** Im eigenen Text steht ein Enforcer-Name neben einem starken Verb (erzwingt, blockiert,
+verhindert, prüft, fail-closed) – und ich habe den genannten Enforcer in dieser Session **nicht
+geöffnet**.
+
+**Regel:** Vor dem Schreiben einer Erzwingungs-Behauptung den Enforcer öffnen und zwei Fragen
+beantworten: (1) *Wo* ist er verdrahtet (`grep -rl <name>` über `*.sh`, `*.yml`, `*.json` – ein
+Hook, ein Push-Gate, ein CI-Job, ein Ruleset?) und (2) *was genau* lehnt er ab (der Scope steht
+meist im eigenen Header)? Trägt er die Behauptung nicht, wird sie auf das eingeschränkt, was gilt.
+Und wie bei der falschen Kausalkette aus #264 gilt: Ist eine solche Behauptung einmal falsch, per
+Grep nach den **Geschwister-Stellen** suchen – sie treten in Rudeln auf, weil dieselbe Annahme
+mehrere Absätze getragen hat.
+
+### Massen-Ersetzung beim Extrahieren eines Helfers trifft den Rumpf des neuen Helfers (aus #319, /refactor-Selbstfund)
+
+Wer eine wiederholte Codefolge in einen Helfer zieht und die Aufrufstellen per Regex/`sed`
+ersetzt, hat nach dem Anlegen des Helfers **eine Fundstelle mehr** als vorher: dessen eigenen
+Rumpf. Er enthält die extrahierte Folge ja gerade. Die Ersetzung macht daraus einen Aufruf – der
+Helfer ruft sich selbst auf:
+
+```bash
+claude_fixture_319() {
+  claude_fixture_319          # war: mklines_319 "$TMP/CLAUDE.md" 20
+  ...
+}
+```
+
+Der Schaden ist keine Fehlermeldung, sondern eine **Endlosschleife zur Laufzeit** – und wenn der
+Helfer in einem selten laufenden Zweig sitzt, fällt sie erst dort auf.
+
+**Smell:** Nach einer Massen-Ersetzung meldet die Kontrollzählung **null** verbliebene
+Vorkommen des alten Musters – obwohl der neue Helfer es per Definition enthalten muss. „Zu gut,
+um zu stimmen" ist hier ein wörtlich brauchbares Kriterium.
+
+**Regel:** Beim Extrahieren per Massen-Ersetzung entweder den Helfer **nach** der Ersetzung
+anlegen, oder das Muster so ankern, dass der Funktionsrumpf ausgenommen ist, oder nach der
+Ersetzung gezielt gegenprüfen: „enthält der neue Helfer noch das Original?" (`sed -n
+'/^name() {/,/^}/p'`). Die reine Zählung der ersetzten Stellen genügt **nicht** – sie zählt den
+Selbsttreffer als Erfolg.

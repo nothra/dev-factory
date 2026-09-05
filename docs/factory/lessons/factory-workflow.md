@@ -1371,3 +1371,32 @@ Perspektive, in der der Vorschlag geschrieben wurde. Im Zweifel den Bezug expliz
 (Dateiname/Pfad statt „diese(r) X").
 → `/implement`, `/review` – beim wörtlichen Übernehmen eines Fix-Vorschlags aus einem
 Review-/Security-/Codify-Report in eine andere Zieldatei
+
+### Neues Gate: prüfen, ob eine ADR den Ort für Gates dieser Klasse schon entschieden hat (aus #319, Review-Runde-3-Finding)
+
+ADR-047 verankerte den @import-Deckel als `pre-push`-Check und ließ als server-seitigen Arm
+**eine einzelne Assertion** in der Self-Test-Suite stehen, die den Check gegen den echten
+Repo-Stand laufen lässt. Genau dieses Muster hatte
+[ADR-041](../../adr/041-config-validation-ci-required-check.md) für `config-validation-check.sh`
+bereits verworfen – wörtlich: „der einzige CI-seitige Schutz war bislang eine einzelne Testzeile
+in `run-tests.sh`, die *zufällig* das reale `factory.config.yml` gegen das Gate laufen lässt.
+Diese Kopplung ist fragil." Dort wurde daraufhin ein eigener CI-Job plus
+`required_status_checks`-Eintrag geschaffen, und sogar die Zwischenlösung „nur ein Step im
+bestehenden `factory-self-test`-Job" wurde bewusst abgelehnt (fehlende Sichtbarkeit im
+PR-Checks-UI). ADR-047 erwähnte ADR-041 nicht.
+
+Der Fehler ist nicht die Entscheidung – `pre-push` als Ort kann richtig sein – sondern dass die
+**bereits getroffene Grundsatzentscheidung zur selben Frage** nicht gewogen wurde. Eine ADR, die
+eine Klasse von Entscheidungen regelt, ist beim nächsten Fall derselben Klasse Pflichtlektüre;
+sonst entsteht Präzedenz-Drift: zwei Gates, zwei Verankerungen, keine Begründung für den
+Unterschied.
+
+**Smell:** Der PR führt ein **Gate** ein (Check-Skript, Hook-Verdrahtung, CI-Job) – und die ADR
+begründet nur, *dass* es das Gate braucht, nicht *warum an diesem Ort*.
+
+**Regel:** Vor dem Verankern eines neuen Gates `grep -l "required\|CI-Check\|pre-push\|Ruleset"
+docs/adr/*.md` und die Treffer lesen. Fällt die neue Entscheidung anders aus als eine bestehende
+ADR zur selben Frage, gehört der Unterschied **mit Begründung** in die neue ADR (hier: die
+Ruleset-Änderung braucht nach ADR-029 Adminrechte, also einen menschlichen Schritt – deshalb
+zunächst getragen und über ein Issue nachgezogen). Wird sie gar nicht bemerkt, wiederholt der
+Harness eine Lücke, die er schon einmal geschlossen hatte.

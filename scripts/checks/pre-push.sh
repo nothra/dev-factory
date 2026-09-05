@@ -126,7 +126,28 @@ else
   echo -e "  ${YELLOW}⚠${NC}  Git-Hooks-Check fehlt ($HOOKS_INSTALLED_CHECK) – übersprungen"
 fi
 
-# ─── Check 6: Nicht auf main/master pushen ohne PR ───────────────────────────
+# ─── Check 6: Deckel für den @import-Dauerkontext ────────────────────────────
+# CLAUDE.md + rekursiv alle @-eingebundenen Dateien werden bei jeder Session und jedem
+# Pipeline-Schritt vollständig geladen. ADR-037 wollte diesen Kontext per Prosa-Konvention
+# schlank halten – der Lessons-Index lief trotzdem von ~80 auf 341 Zeilen. Deshalb ein Gate
+# statt einer zweiten Konvention (ADR-047 §4). Fail-closed auch bei nicht lesbarer Referenz.
+IMPORT_CONTEXT_CHECK="$FACTORY_DIR/scripts/checks/import-context-limit-check.sh"
+if [ -f "$IMPORT_CONTEXT_CHECK" ]; then
+  echo -e "  ${YELLOW}→${NC} @import-Kontext: CLAUDE.md + Imports unter der Grenze?"
+  if IMPORT_CONTEXT_OUTPUT="$(FACTORY_DIR="$FACTORY_DIR" bash "$IMPORT_CONTEXT_CHECK" 2>&1)"; then
+    # Ausgabe des Checks verbatim (enthält bereits ✓ + Ist/Grenze) – die Zahl zeigt,
+    # wie viel Luft bis zum Deckel bleibt, bevor er blockiert.
+    echo "$IMPORT_CONTEXT_OUTPUT" | sed 's/^/  /'
+  else
+    echo -e "  ${RED}✗${NC} @import-Kontext-Deckel rot – push blockiert"
+    echo "$IMPORT_CONTEXT_OUTPUT" | sed 's/^/     /'
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  @import-Kontext-Deckel fehlt ($IMPORT_CONTEXT_CHECK) – übersprungen"
+fi
+
+# ─── Check 7: Nicht auf main/master pushen ohne PR ───────────────────────────
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo -e "  ${RED}✗${NC} Direkter Push auf $CURRENT_BRANCH nicht erlaubt"
