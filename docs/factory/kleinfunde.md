@@ -284,3 +284,16 @@
   Baseline (CSP, `nosniff`, `frame-options`, HSTS) – ist bewusst **nicht** Teil dieses Eintrags;
   sie wäre ein eigener Task und keine Kleinigkeit.
 - **Herkunft:** `/security-review` zu #297 (Hinweis-Ebene, kein Blocker).
+
+### ADR-035 D2: „eingeklappt entfällt **nur** der Erfassungs-Körper" ist unvollständig
+
+- **Wo:** [`docs/adr/035-selbstbedienung-erfasser-ziel-fokus.md:66-67`](../adr/035-selbstbedienung-erfasser-ziel-fokus.md)
+  – „eingeklappt entfällt nur der Erfassungs-Körper (Kategorien + `MengeControl`)" (verifiziert am
+  2026-09-09).
+- **Was:** Beim Einklappen entfällt zusätzlich der `aktion`-Slot, der am selben
+  `koerperSichtbar`-Gate hängt (`app/_verzehr/VerzehrErfassung.tsx:114` + `:149`). Die
+  Ungenauigkeit stammt aus #308 (damals lag der Slot positionell im Körper, die Aussage war also
+  stimmig); seit #318 sitzt er zwischen Kopf und Körper und stimmt auch positionell nicht mehr.
+  Rein dokumentarisch – kein Verhaltensdefekt.
+- **Fix:** Ein-Satz-Drift-Hinweis an D2 im Stil der bestehenden Hinweise (`:53-56`), ca. 2 Zeilen.
+- **Herkunft:** `/review` zu #318 (Nitpick, out of scope – ADR-035 wird von #318 nicht angefasst).

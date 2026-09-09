@@ -873,3 +873,38 @@ relativ zu einem vorherigen Test-Zeitpunkt. Bei mehreren Test-Blöcken mit ident
 Import-Reset-Sequenz lohnt sich eine geteilte Helper-Funktion (`importFreshRateLimitModule()`).
 Nachweis der Isolation: `pnpm vitest run <datei> --sequence.shuffle=true --sequence.seed=<n>` über
 mehrere Seeds grün, nicht nur der Default-Lauf in Schreibreihenfolge.
+
+### DOM-Adjazenz-Assertion mit `toBeGreaterThan` statt `toBe(index + 1)` (aus #318, Review-Runde-1-Finding)
+
+Ein AK forderte „Element X steht **unmittelbar** unter Element Y" (Kopf → Wechsel-Link, ohne
+Zwischenelement). Der erste Test belegte das mit `expect(aktionIndex).toBeGreaterThan(kopfIndex)`
+– das prüft nur die Reihenfolge, nicht die Adjazenz. Per Mutation gemessen: ein zusätzliches
+Fremd-Element zwischen Kopf und Link ließ alle 40 Tests der Datei grün bleiben, obwohl das AK
+klar verletzt war. Dieselbe Wurzelursache wie
+[„Zeilen-Gap-Assertion auf deterministischem Output"](#zeilen-gap-assertion-auf-deterministischem-output-unbegründete-toleranz-statt-ist-wert-aus-322-review-runde-2-finding)
+(#322) – dort in einer Bash/Zeilenzähl-Assertion, hier erstmals in einer React/DOM-Index-Assertion.
+
+**Smell:** Ein AK/Kommentar benutzt ein Wort wie „unmittelbar"/„direkt"/„sofort danach" (Adjazenz,
+kein reiner Reihenfolge-Anspruch), der Test aber vergleicht mit `toBeGreaterThan`/`>`/`-gt` statt
+mit einer exakten Index-Gleichheit.
+
+**Regel:** Bei einer Adjazenz-Behauptung immer `expect(zielIndex).toBe(referenzIndex + 1)`
+(bzw. Äquivalent) schreiben, nie eine reine Größer-als-Prüfung. Den Test durch Einfügen eines
+Fremd-Elements zwischen den beiden Positionen verifizieren (muss rot werden).
+
+### Reihenfolge-/Positions-Test auf dem Default-Props-Pfad, obwohl der einzige Produktions-Konsument eine andere Prop-Kombination rendert (aus #318, Review-Runde-1-Finding)
+
+Derselbe Adjazenz-Test lief zunächst ohne `collapsible`/`open` – dem Default-Pfad der
+Komponente. Der einzige Produktions-Konsument (`FokusListe`) rendert die Karte aber immer mit
+`collapsible: true, open: true`; dieser Pfad rendert einen zusätzlichen Kopf-`<button>`, dessen
+DOM-Struktur vom Default-Pfad abweicht. Ein Test, der nur den Default-Pfad trifft, kann eine
+Positions-Regression übersehen, die ausschließlich in der tatsächlich ausgelieferten
+Prop-Kombination auftritt.
+
+**Smell:** Ein Positions-/Struktur-Test für eine Komponente mit optionalen Props nutzt die
+Default-Werte dieser Props, während `grep` nach dem Komponentennamen zeigt, dass jeder reale
+Konsument eine andere Kombination übergibt.
+
+**Regel:** Vor dem Schreiben eines Positions-/Struktur-Tests kurz prüfen, welche Prop-Kombination
+die realen Konsumenten tatsächlich verwenden (`grep` auf den Komponentennamen); der Test muss
+diese Kombination abdecken, nicht nur den einfachsten/Default-Pfad.
