@@ -254,3 +254,33 @@
   Anker-Workarounds in den Aufrufern nicht mehr nötig – aber auch nicht schädlich, deshalb kein
   eigener Task.
 - **Herkunft:** `/implement`-Selbstfund während der Review-Rework-Runde 2 zu #319.
+
+### Drosseln der Theken-Route hinterlässt keine Spur (OWASP A09)
+
+- **Wo:** [`proxy.ts:70`](../../proxy.ts) – `return limiter.tryAcquire() ? NextResponse.next() :
+  tooManyRequestsResponse();` (verifiziert am 2026-09-09).
+- **Was:** Eine Ablehnung ist nach außen sichtbar (429), nach innen aber unbeobachtbar: kein Log,
+  kein Zähler. Ob die Bremse je gegriffen hat – durch Missbrauch oder weil der Schwellwert für
+  eine reale Theke zu eng bemessen ist – lässt sich nachträglich nicht feststellen. Konsistent
+  mit ADR-020 (`app/api/health/route.ts` loggt ebenfalls nicht), aber dort trifft eine Drossel
+  nur den Deploy-Healthcheck, hier echte Besucher.
+- **Fix:** Ein `console.warn` auf der **Flanke** (erste Ablehnung je Fenster), nicht pro Anfrage –
+  sonst wird ausgerechnet der Flood-Fall zur Log-Amplifikation. Größenordnung: ein Zustandsbit im
+  Limiter + zwei Zeilen im Proxy. Mitnehmen, wenn `proxy.ts` oder `lib/rate-limit.ts` sowieso
+  angefasst wird.
+- **Herkunft:** `/security-review` zu #297 (Hinweis-Ebene, kein Blocker).
+
+### 429-Antwort des Proxy ohne `X-Content-Type-Options: nosniff`
+
+- **Wo:** [`lib/theke-throttle-response.ts:52-56`](../../lib/theke-throttle-response.ts) – der
+  `headers`-Block setzt `content-type`, `retry-after`, `cache-control` (verifiziert am
+  2026-09-09).
+- **Was:** Kein aktueller Angriffsvektor – das Dokument ist statisch, die einzige Interpolation
+  ist eine aus einer Konstante berechnete Zahl, es wird nichts aus Pfad, Query oder Headern
+  reflektiert. Aber es ist die einzige Antwort der App mit Inline-HTML direkt aus dem Proxy, und
+  `next.config.ts` setzt projektweit **keine** `headers()`-Policy, die das nachträglich abdecken
+  würde.
+- **Fix:** Eine Zeile im `headers`-Objekt. Die größere Frage – eine projektweite Security-Header-
+  Baseline (CSP, `nosniff`, `frame-options`, HSTS) – ist bewusst **nicht** Teil dieses Eintrags;
+  sie wäre ein eigener Task und keine Kleinigkeit.
+- **Herkunft:** `/security-review` zu #297 (Hinweis-Ebene, kein Blocker).

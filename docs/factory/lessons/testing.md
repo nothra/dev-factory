@@ -291,6 +291,22 @@ die `false`-Kontrolle beweist der Test nur „ist-immer-ignoriert", nicht „ign
 Richtige". Bei mehreren Ignore-Zielen jedes einzeln assertieren (Wegfall genau eines Eintrags → nur
 der zugehörige Test rot).
 
+**Rezidiv in neuer Domäne: Pfad-Präfix-Diskriminator vor einem Auth-Gate (aus #297,
+Review-Runde-2-Finding).** `proxy.ts` entscheidet über `isThekePath` (Pfad beginnt mit
+`/theke/`), ob eine Anfrage **komplett am Auth-Gate vorbeiläuft**. Die erste Testsuite prüfte nur
+den Treffer (`/theke/<token>`) und einen **weit entfernten** Negativfall (`/veranstaltung`) – ein
+zu breites Präfix (`"/theke"` statt `"/theke/"`) hätte auch `/thekenwart` ungeprüft durchgelassen,
+und alle Tests blieben trotzdem grün. Genau wie beim ESLint-Fall oben fehlte die **Positiv-Kontrolle
+in der Gegenrichtung mit einer ähnlichen, aber falschen Eingabe** – ein entfernter Negativfall
+diskriminiert eine Präfix-Verbreiterung nicht.
+
+**Regel (Ergänzung):** Bei jedem Pfad-/Präfix-Prädikat, das über Sein-oder-Nichtsein eines
+Sicherheitsgates entscheidet (Auth-Gate-Bypass, Rate-Limit-Zweig, Ignore-Liste), muss der
+Negativtest ein Eingabe wählen, die dem Muster **ähnelt, aber nicht matchen darf** (Nachbar-Pfad
+mit gemeinsamem Präfix, nicht ein thematisch entfernter Pfad) – sonst bleibt eine zu breite
+Grenze (fehlender Trenner, offenes `startsWith` ohne Slash-Anker) unentdeckt. Mutationsbeleg
+pflichtig: Präfix-Konstante probehalber verbreitern → genau der neue Negativtest muss rot werden.
+
 ### Row/Cell-Index-Assertions gegen einen gerenderten Report sind beim Schreiben Magic Numbers – Herleitung sofort mitschreiben (aus #189, Review-Runde-1-Finding)
 
 Ein Test für `berichtXlsx.ts` (Excel-Renderer) rendert einen Bericht und liest ihn über
@@ -831,3 +847,29 @@ Abwesenheits-Guard ist grün, obwohl sie da ist. Erster Blick: **beginnt der Ank
 **Regel:** Anker so wählen, dass sie nicht mit `-` beginnen (ein Wort früher ansetzen), und bei
 eigenen `grep`-Aufrufen mit variablem Wert grundsätzlich `grep -qF -- "$wert"` schreiben. Der Fix
 in den geteilten Helfern selbst ist als Kleinfund erfasst.
+
+### Test-Blöcke gegen einen modulweit geteilten Singleton mit relativem Fake-Time-Vorstellen sind reihenfolgeabhängig (aus #297, Review-Runde-3-Finding)
+
+`lib/rate-limit.test.ts` legte für zwei neue globale (schlüssellose) Rate-Limiter-Singletons je
+einen `describe`-Block an, der gegen das **echte, produktive** Modul-Objekt testete und die
+Fake-Uhr nur **relativ** vorstellte (`vi.advanceTimersByTime`/`setSystemTime(start + 1h)`,
+`start + 2h`, …). Ein globaler Zähler ohne Schlüssel startet sein Fenster beim Modul-**Import**,
+nicht lazy beim ersten Aufruf – und hat keine Isolation zwischen Test-Blöcken: der Block, der die
+240 ausschöpft, verbraucht das Budget für den Rest der Datei. Mit `--sequence.shuffle` +
+gepinntem Seed reproduzierbar: **1 Test rot**, isoliert/in der geschriebenen Reihenfolge lief die
+Suite dagegen immer grün, weil `vitest.config.ts` kein Shuffle aktiviert – ein klassischer Fall
+von „deterministisch grün, weil zufällig richtig sortiert", nicht weil isoliert.
+
+**Smell:** Ein `describe`-Block importiert einen **modulweit geteilten** Singleton (kein Factory-
+Aufruf, kein `resetModules` davor) und stellt die Fake-Uhr nur **relativ** zum vorherigen Wert vor,
+statt absolut auf einen fixen Zeitpunkt einzufrieren. Test-Isolation prüft man nicht am
+geschriebenen Lauf, sondern mit `--sequence.shuffle=true --sequence.seed=<n>` gegen mehrere Seeds.
+
+**Regel:** Jeder Test, der einen **vollständigen Zähler-Zyklus** an einem schlüssellosen,
+modulweiten Rate-Limiter-Singleton braucht, holt sich per `vi.resetModules()` + dynamischem
+Re-Import ein **eigenes** Modul-Objekt (Muster: der bereits bestehende Cold-Start-Test) und friert
+die Fake-Uhr **vor** dem Import absolut auf einen festen Wert ein (`vi.setSystemTime(0)`), nicht
+relativ zu einem vorherigen Test-Zeitpunkt. Bei mehreren Test-Blöcken mit identischer
+Import-Reset-Sequenz lohnt sich eine geteilte Helper-Funktion (`importFreshRateLimitModule()`).
+Nachweis der Isolation: `pnpm vitest run <datei> --sequence.shuffle=true --sequence.seed=<n>` über
+mehrere Seeds grün, nicht nur der Default-Lauf in Schreibreihenfolge.
