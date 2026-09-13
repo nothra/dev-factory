@@ -77,9 +77,13 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
   Token-Accounting nach. Veröffentlichung (`--publish`) optional an `$GITHUB_STEP_SUMMARY`
   (in CI) und als Kommentar an `FACTORY_METRICS_ISSUE` (Tracking-Issue) – lokal ohne beides
   bleibt es bei der Report-Datei.
-- **Telemetrie (optional):** `config/otel.env.example` sourcen aktiviert client-seitige
-  OTEL-Metriken (Token/Kosten/Nutzung pro Skill & Agent). Default aus, backend-unabhängig
-  (funktioniert auch hinter einem AI-Gateway).
+- **Telemetrie:** läuft seit #334 automatisch je Pipeline-Lauf ([ADR-049](docs/adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
+  Default **an**, Abschaltung per `--no-telemetry`. Der Lauf erntet die OTEL-Ist-Werte der CLI
+  (Token/Kosten je Schritt, Modell und Sub-Agent – nie selbst gerechnet), schreibt sie
+  **personenfrei** (Whitelist) nach `tasks/telemetry-<task-id>-<zeitstempel>.csv` und
+  **committet + pusht** sie zwischen `/codify` und `/pr-shepherd` – jeder Task-PR trägt ab
+  jetzt eine Telemetrie-CSV im Diff. Fail-open: eine gescheiterte Messung ändert den
+  Exit-Code nicht. `config/otel.env.example` bleibt die Vorlage für den manuellen/Gateway-Weg.
 
 **Nach dem Merge:** `/post-merge-verify` (CI-Stage `verify`, nur auf `main`) prüft das
 Verhalten der deployten Umgebung – CI-grün ≠ Produktion-grün. Check via

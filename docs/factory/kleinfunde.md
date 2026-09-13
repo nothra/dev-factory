@@ -35,6 +35,25 @@
 
 ## Offen
 
+### Telemetrie-CSV: führende `+`/`-`/`@`-Zeichen in Feldwerten ungeschützt gegen CSV-Injection
+
+- **Wo:** [`scripts/lib/telemetry-harvest.sh:55`](../../scripts/lib/telemetry-harvest.sh) –
+  `function clean(s) { gsub(/[^A-Za-z0-9._@:+-]/, "_", s); return s }`.
+- **Was:** `clean()` erlaubt `+`, `-`, `@`, `.` in jedem Feldwert. Ein Feldwert, der mit einem
+  dieser Zeichen beginnt (z. B. `model`/`agent_name`), wird von Excel/Google Sheets beim Öffnen
+  potenziell als Formel interpretiert (klassische CSV-Injection). Die gefährlicheren
+  Payload-Zeichen für DDE-artige Angriffe (Pipe, Leerzeichen, Anführungszeichen, Klammern)
+  entfernt `clean()` bereits – das Risiko ist spürbar reduziert, nicht strukturell
+  ausgeschlossen.
+- **Fix:** Feldwert mit führendem `=`/`+`/`-`/`@` beim Schreiben mit einem Apostroph oder
+  Tab-Zeichen neutralisieren, bevor er in die CSV-Zeile wandert.
+- **Bewusst nicht dabei:** aus dem Security-Report zu #334 übernommen als kein Blocker – die
+  primäre Auswertung ist maschinell (AK8), nicht interaktiv in Excel, und der praktisch
+  relevantere Angriffspfad (Personendaten-Exfiltration über dieselben Feldwerte) ist über die
+  Werte-Whitelist bereits geschlossen.
+- **Herkunft:** `tasks/security-334.md` (Hinweis, kein Blocker). Fundstelle verifiziert am
+  2026-09-13.
+
 ### `install-hooks.sh`: leerer `core.hooksPath` fällt durch den Guard
 
 - **Wo:** [`scripts/install-hooks.sh:46-47`](../../scripts/install-hooks.sh) – `if HOOKS_PATH_CONFIG="$(git … --get core.hooksPath …)" && [ -n "$HOOKS_PATH_CONFIG" ]; then`

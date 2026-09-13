@@ -145,10 +145,30 @@ Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 > zusätzlich ohne `schedule`-Trigger: Der Poll passiert nicht mehr von selbst, bleibt aber per
 > `workflow_dispatch` auf Knopfdruck verfügbar (ADR-008, Update 2026-08-12).
 
-### 0.5 Optional: Telemetrie (Token/Kosten)
+### 0.5 Telemetrie (Token/Kosten) – Default an, nichts einzurichten
 
-`source config/otel.env.example` aktiviert client-seitige OTEL-Metriken (ADR-006). Default aus,
-backend-unabhängig. Die **Prozess**-Kennzahlen (Abschnitt 5) brauchen das **nicht**.
+Seit #334 ist die Telemetrie **Teil jedes `run-pipeline.sh`-Laufs** und standardmäßig
+**eingeschaltet** ([ADR-049](../adr/049-telemetrie-persistenz-je-pipeline-lauf.md)). Es ist
+nichts zu konfigurieren: Der Lauf setzt `CLAUDE_CODE_ENABLE_TELEMETRY=1` und
+`OTEL_METRICS_EXPORTER=console` selbst, erntet am Ende die **Ist-Werte der CLI** und legt sie ab.
+
+| Was | Wo / Wie |
+|-----|----------|
+| **Abschalten** | `bash scripts/run-pipeline.sh <task-id> --no-telemetry` – dann wird nichts aktiviert und nichts geschrieben |
+| **Ablage** | `tasks/telemetry-<task-id>-<zeitstempel>.csv`, **getrackt in Git** – je Lauf eine Datei, ältere bleiben erhalten |
+| **Spalten** | `run_timestamp, task_id, step_seq, step, metric, model, query_source, agent_name, value_type, value` |
+| **Commit** | Der Lauf committet und pusht die CSV selbst, zwischen `/codify` und `/pr-shepherd` (danach wäre der PR gemergt). **Jeder Task-PR trägt darum eine Telemetrie-CSV im Diff.** |
+| **Personendaten** | Ausgeschlossen per **Whitelist**: nur die obigen Spalten wandern in die Datei, nie `user.email`, `user.id`, `user.account_id`, `user.account_uuid`, `organization.id`, `session.id`. Der personenbehaftete Roh-Output wird nach der Ernte gelöscht und nie getrackt. |
+| **Wenn etwas schiefgeht** | Fail-open: Format-Drift, gescheiterter Commit oder Push ändern den **Exit-Code des Laufs nicht**. Ein gescheiterter Push nimmt den Commit zurück – entweder committet *und* gepusht, oder gar nichts. |
+| **Nicht erkanntes Format** | Wird laut gemeldet („Keine auswertbaren OTEL-Messwerte"), es entsteht **keine** leere Datei. |
+
+Wofür: Modell-/Tier-Entscheidungen (ADR-038 `tier_by_size`, ADR-009-Kalibrierung) auf gemessenen
+Kosten statt auf Annahmen. Bekannte Lücke: die Kosten von `/pr-shepherd` selbst fehlen, weil der
+Commit vor diesem Schritt liegen muss.
+
+`config/otel.env.example` bleibt als Vorlage für den manuellen Weg bzw. eine Gateway-Anbindung
+bestehen; `run-pipeline.sh` sourct sie **nicht**. Die **Prozess**-Kennzahlen (Abschnitt 5)
+brauchen die Telemetrie **nicht** – die zwei Ebenen aus ADR-006 bleiben getrennt.
 
 ---
 
@@ -205,6 +225,7 @@ Wenn die Anforderung steht, orchestriert **ein** deterministisches Skript die re
 ```bash
 PR_SHEPHERD=true bash scripts/run-pipeline.sh <task-id>   # implement→review↺→test→refactor→security→codify→PR-Lifecycle
 bash scripts/run-pipeline.sh <task-id> --dry-run          # zeigt nur, was liefe (keine Claude-Aufrufe)
+bash scripts/run-pipeline.sh <task-id> --no-telemetry     # ohne Telemetrie-Erhebung (Default: an, 0.5)
 ```
 
 Ohne `PR_SHEPHERD=true` endet der Lauf am merge-reifen Stand; mit ihm fährt er zusätzlich den
@@ -442,8 +463,9 @@ bash scripts/metrics.sh --no-api              # nur lokale Kennzahlen (ohne GitH
 FACTORY_METRICS_ISSUE=<nr> bash scripts/metrics.sh --publish   # + Job-Summary/Issue-Kommentar
 ```
 
-Quelle: Git/GitHub (ADR-006) – **kein** Token-Accounting (das ist die optionale Telemetrie-Ebene,
-0.5). Die Autonomie-Rate speist sich aus `tasks/interrupt-log.jsonl`.
+Quelle: Git/GitHub (ADR-006) – **kein** Token-Accounting (das ist die Telemetrie-Ebene, 0.5;
+der `--publish`-Report bleibt frei von Telemetriedaten). Die Autonomie-Rate speist sich aus
+`tasks/interrupt-log.jsonl`.
 
 > **Aktueller Stand:** `FACTORY_METRICS_ISSUE` ist noch nicht gesetzt – die dedizierte
 > Tracking-Issue („Metrik-Verlauf der Factory") existiert noch nicht (offene Frage aus

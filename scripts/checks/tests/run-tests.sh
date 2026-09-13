@@ -62,9 +62,16 @@ assert_true() {
 flat_286() { tr '\n' ' ' < "$1" | tr -s ' '; }
 
 # assert_contains_286 <geflachter-inhalt> <phrase> <beschreibung>
+#
+# Das `--` vor dem Pattern (seit #334) ist nicht kosmetisch: ohne es liest grep eine Phrase,
+# die mit `-` beginnt (`--no-telemetry`, `-v`, …), als OPTION und bricht mit einem
+# Usage-Fehler ab – der Test wird rot bzw. der Abwesenheits-Spiegel grün, ohne dass die
+# Phrase je gesucht wurde. Genau diese Falle traf #319 dreimal im selben PR und #334 erneut;
+# clean-code.md („Config-/nutzerkontrollierte Werte als Daten behandeln") verlangt das `--`
+# ohnehin. Die Kontroll-Assertion dazu steht im #334-Block.
 # Verdichtet das wiederkehrende "enthält der geflachte Inhalt die Phrase?" auf einen Aufruf.
 assert_contains_286() {
-  printf '%s' "$1" | grep -qF "$2"
+  printf '%s' "$1" | grep -qF -- "$2"
   assert_true "$?" "$3"
 }
 
@@ -74,7 +81,7 @@ assert_contains_286() {
 # (`assert_true "$([ $? -ne 0 ]; echo $?)"`) ist das korrekt, aber an jeder Aufrufstelle neu zu
 # entziffern.
 assert_absent() {
-  printf '%s' "$1" | grep -qF "$2"
+  printf '%s' "$1" | grep -qF -- "$2"
   assert_true "$([ $? -ne 0 ]; echo $?)" "$3"
 }
 
@@ -158,6 +165,22 @@ done
 echo "Interrupt-Mechanismus (Stage-3, ADR-004):"
 
 SCRIPTS_DIR="$(cd "$CHECKS_DIR/.." && pwd)"
+
+# cp_pipeline_libs <repo-root> – legt ALLE von run-pipeline.sh gesourcten scripts/lib/-Dateien
+# in eine Temp-Repo-Kopie. Einziger Ort, an dem eine neu gesourcte Lib nachzutragen ist: fehlt
+# sie, bricht run-pipeline.sh unter `set -euo pipefail` schon am `source` ab und der Test wird
+# rot aus dem falschen Grund (bash-gotchas.md §5; Vorfälle #91, #197). Vor #334 stand dieselbe
+# cp-Gruppe achtmal kopiert in der Suite – jede Kopie eine Stelle, die man beim nächsten Seam
+# vergessen kann.
+cp_pipeline_libs() {
+  mkdir -p "$1/scripts/lib"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" \
+     "$SCRIPTS_DIR/lib/tier-select.sh" \
+     "$SCRIPTS_DIR/lib/verify-final-state.sh" \
+     "$SCRIPTS_DIR/lib/telemetry-harvest.sh" \
+     "$1/scripts/lib/"
+}
+
 TMP_FACTORY="$(mktemp -d)"
 mkdir -p "$TMP_FACTORY/tasks"
 # Realistische Task-Datei, damit der Blocker-Eintrag geprüft werden kann
@@ -219,9 +242,7 @@ if [ "$HAS_YQ" = 1 ]; then
   mkdir -p "$TMP_PF/scripts/checks" "$TMP_PF/scripts/lib"
   cp "$SCRIPTS_DIR/run-pipeline.sh" "$TMP_PF/scripts/"
   cp "$SCRIPTS_DIR/checks/config-validation-check.sh" "$TMP_PF/scripts/checks/"  # Gate-Abhängigkeit (ADR-010)
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
-  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_PF/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
-  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_PF/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
+  cp_pipeline_libs "$TMP_PF"
   cp "$SCRIPTS_DIR/../factory.defaults.yml" "$TMP_PF/"   # run-pipeline liest sie (Phase 1b, ADR-009)
   bash "$TMP_PF/scripts/run-pipeline.sh" 55 --dry-run >/dev/null 2>&1 || true
   assert_true "$([[ ! -f "$TMP_PF/tasks/INTERRUPT-55.md" ]]; echo $?)" "Preflight entfernt Stale-Sentinel vor Pipeline-Start"
@@ -288,9 +309,13 @@ assert_true "$([[ -f "$OTEL_FILE" ]]; echo $?)" "config/otel.env.example vorhand
 grep -q 'CLAUDE_CODE_ENABLE_TELEMETRY=1' "$OTEL_FILE"
 assert_true "$?" "otel.env.example enthält CLAUDE_CODE_ENABLE_TELEMETRY=1"
 
-# Default AUS heißt: Beispiel-Datei, nicht automatisch gesourct → kein Wiring in run-pipeline.sh
+# config/otel.env.example bleibt die Beispiel-Datei für den manuellen/Gateway-Weg und wird
+# von run-pipeline.sh weiterhin NICHT gesourct – die Pipeline setzt ihre zwei Variablen seit
+# #334 selbst (ADR-049 §E3). Die frühere Zusicherung „OTEL ist opt-in" ist damit ungültig;
+# ihr Ersatz (Default an + wirksamer Abschalt-Parameter) steht im #334-Block unten. Was hier
+# bleibt, ist die schwächere, aber weiter gültige Aussage: kein Wiring auf die Beispiel-Datei.
 grep -q 'otel.env' "$FACTORY_ROOT/scripts/run-pipeline.sh"
-assert_true "$([ $? -ne 0 ]; echo $?)" "OTEL ist opt-in (nicht automatisch in run-pipeline.sh gesourct)"
+assert_true "$([ $? -ne 0 ]; echo $?)" "config/otel.env.example wird nicht von run-pipeline.sh gesourct (ADR-049 §E3)"
 
 # ─── Stufe-2: Metrics-Digest + Interrupt-Log (#12) ───────────────────────────
 echo ""
@@ -1343,9 +1368,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_261/scripts/"
   cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_261/scripts/checks/"
   cp "$FACTORY_ROOT/factory.defaults.yml" "$TMP_261/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_261/scripts/lib/"
-  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_261/scripts/lib/"
-  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_261/scripts/lib/"
+  cp_pipeline_libs "$TMP_261"
   echo "# ctx" > "$TMP_261/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 3: codify-regelzeilen-ac" > "$TMP_261/tasks/task-3-codify-regelzeilen-ac.md"
   printf '## Empfehlung\nAPPROVED\n' > "$TMP_261/tasks/review-3.md"
@@ -1415,9 +1438,7 @@ if [ "$HAS_YQ" = 1 ]; then
   # Behavioral end-to-end: run-pipeline --dry-run löst implement aus der Config zu opus/20 auf
   TMP_CFG="$(mktemp -d)"; mkdir -p "$TMP_CFG/scripts/checks" "$TMP_CFG/scripts/lib" "$TMP_CFG/tasks" "$TMP_CFG/docs/factory"
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (Task 91, ADR-019 §4)
-  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_CFG/scripts/lib/"     # run-pipeline sourct sie (ADR-038)
-  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_CFG/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
+  cp_pipeline_libs "$TMP_CFG"
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -1437,9 +1458,7 @@ if [ "$HAS_YQ" = 1 ]; then
   # die Pipeline bis Phase 5 (security-review) läuft – beide "Starte:"-Zeilen erscheinen.
   TMP_DRY91="$(mktemp -d)"; mkdir -p "$TMP_DRY91/scripts/checks" "$TMP_DRY91/scripts/lib" "$TMP_DRY91/tasks" "$TMP_DRY91/docs/factory"
   cp "$PIPELINE" "$TMP_DRY91/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_DRY91/scripts/checks/"; cp "$DEFAULTS" "$TMP_DRY91/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_DRY91/scripts/lib/"
-  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_DRY91/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
-  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_DRY91/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
+  cp_pipeline_libs "$TMP_DRY91"
   echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
   printf '## Empfehlung\nAPPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
@@ -3234,9 +3253,7 @@ if [ "$HAS_YQ" = 1 ]; then
            "$TMP_G101/docs/factory" "$TMP_G101/.claude/commands" "$TMP_G101/bin"
   cp "$PIPELINE" "$TMP_G101/scripts/"
   cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_G101/scripts/checks/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$TMP_G101/scripts/lib/"
-  cp "$SCRIPTS_DIR/lib/tier-select.sh" "$TMP_G101/scripts/lib/"   # run-pipeline sourct sie (ADR-038)
-  cp "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_G101/scripts/lib/"  # run-pipeline sourct sie (ADR-040)
+  cp_pipeline_libs "$TMP_G101"
   cp "$DEFAULTS_YML" "$TMP_G101/"
   echo "# ctx" > "$TMP_G101/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_G101/.claude/commands/implement.md"
@@ -3750,8 +3767,7 @@ if [ "$HAS_YQ" = 1 ]; then
     cp "$PIPELINE" "$1/scripts/"
     cp "$SCRIPTS_DIR/metrics.sh" "$1/scripts/"  # run-pipeline ruft metrics.sh im EXIT-Trap (ADR-045)
     cp "$CHECKS_DIR/config-validation-check.sh" "$1/scripts/checks/"
-    cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
-       "$SCRIPTS_DIR/lib/verify-final-state.sh" "$1/scripts/lib/"  # run-pipeline sourct verify-final-state.sh (ADR-040)
+    cp_pipeline_libs "$1"
     cp "$DEFAULTS" "$1/"
     echo "# ctx" > "$1/docs/factory/PROJECT-CONTEXT.md"
   }
@@ -4035,8 +4051,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_INT/scripts/"
   cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_INT/scripts/checks/"
   cp "$SCRIPTS_DIR/raise-interrupt.sh" "$TMP_INT/scripts/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
-     "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_INT/scripts/lib/"
+  cp_pipeline_libs "$TMP_INT"
   cp "$DEFAULTS_YML" "$TMP_INT/"
   echo "# ctx" > "$TMP_INT/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_INT/.claude/commands/implement.md"
@@ -4081,8 +4096,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_E2E/scripts/"
   cp "$CHECKS_DIR/config-validation-check.sh" "$CHECKS_DIR/interrupt-check.sh" "$TMP_E2E/scripts/checks/"
   cp "$SCRIPTS_DIR/raise-interrupt.sh" "$TMP_E2E/scripts/"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" "$SCRIPTS_DIR/lib/tier-select.sh" \
-     "$SCRIPTS_DIR/lib/verify-final-state.sh" "$TMP_E2E/scripts/lib/"
+  cp_pipeline_libs "$TMP_E2E"
   cp "$DEFAULTS_YML" "$TMP_E2E/"
   echo "# ctx" > "$TMP_E2E/docs/factory/PROJECT-CONTEXT.md"
   # SKILL-<name>-Marker wie in scaffold_310: daran erkennt der Stub im Prompt, welches Skill
@@ -7842,6 +7856,583 @@ done
 assert_true "$([ -z "$ic_dead_links_found_319" ]; echo $?)" \
   "#319 AC8: kein toter relativer Link in den Dateien dieses Tasks"
 [ -z "$ic_dead_links_found_319" ] || printf '%s\n' "$ic_dead_links_found_319" | sed 's/^/      /'
+
+# ─── #334: Telemetrie-Persistenz je Pipeline-Lauf (ADR-049) ──────────────────
+echo ""
+echo "#334 Telemetrie-Persistenz (ADR-049):"
+
+TELE_LIB="$SCRIPTS_DIR/lib/telemetry-harvest.sh"
+TELE_FIXTURE="$CHECKS_DIR/tests/fixtures/otel-console-sample.txt"
+assert_true "$([[ -f "$TELE_LIB" ]]; echo $?)" "#334: scripts/lib/telemetry-harvest.sh vorhanden"
+assert_true "$([[ -f "$TELE_FIXTURE" ]]; echo $?)" "#334: anonymisierte OTEL-Fixture vorhanden"
+
+# Positivkontrolle VOR jedem Personendaten-Guard: trägt die Roh-Eingabe die verbotenen Felder
+# überhaupt? Ohne sie prüfte der Guard unten nur, dass eine Datei ohne Personenfelder keine
+# Personenfelder erzeugt – grün aus dem falschen Grund (Lesson #284/#319).
+tele_raw_has_pii=0
+for tele_f in 'user.email' 'user.id' 'user.account_id' 'user.account_uuid' 'organization.id'; do
+  grep -qF -- "\"$tele_f\"" "$TELE_FIXTURE" || tele_raw_has_pii=1
+done
+assert_true "$tele_raw_has_pii" "#334 AK5 (Positivkontrolle): Fixture trägt alle fünf Personenfelder als Roh-Eingabe"
+
+# Roh-Log wie im echten Lauf: Marker-Zeile von run_skill + Console-Exporter-Ausgabe.
+TELE_TMP="$(mktemp -d)"
+{ printf '→ Starte: /implement 334 (model: claude-haiku-4-5-20251001, max 20 turns)\n'
+  cat "$TELE_FIXTURE"; } > "$TELE_TMP/raw.txt"
+
+# Aufruf unter denselben Shell-Optionen wie der echte Aufrufer run-pipeline.sh
+# (`set -euo pipefail`) – ein nachsichtigeres Harness übersieht genau die Klasse aus
+# bash-gotchas.md §4 (leere Arrays/ungesetzte Variablen unter set -u).
+tele_csv="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "2026-09-11T12:00:00Z" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/raw.txt" 2>"$TELE_TMP/err.txt")" && tele_rc=0 || tele_rc=$?
+assert_true "$tele_rc" "#334 AK1: Ernte gegen die Fixture endet mit exit 0"
+
+assert_contains_286 "$tele_csv" 'run_timestamp,task_id,step_seq,step,metric,model,query_source,agent_name,value_type,value' \
+  "#334 AK1: CSV trägt die Whitelist-Kopfzeile"
+assert_contains_286 "$tele_csv" '2026-09-11T12:00:00Z,334,1,implement,' \
+  "#334 AK1/AK3: jede Zeile trägt Lauf-Zeitstempel, Task-ID und den Pipeline-Schritt"
+
+# AK8: das verursachende Modell steht je Messwert in der Zeile.
+assert_contains_286 "$tele_csv" ',claude_code.cost.usage,claude-haiku-4-5-20251001,main,,,0.0924215' \
+  "#334 AK8/AK2: Kosten der Hauptsession mit Modell (Ist-Wert der Fixture)"
+# AK2: der Sub-Agent ist eine eigene Zeile mit eigener Herkunft – weder in die Hauptsession
+# eingerechnet noch weggelassen.
+assert_contains_286 "$tele_csv" ',claude_code.cost.usage,claude-haiku-4-5-20251001,subagent,Explore,,0.02247895' \
+  "#334 AK2: Sub-Agenten-Kosten getrennt ausgewiesen (agent.name + query_source)"
+assert_contains_286 "$tele_csv" ',claude_code.token.usage,claude-haiku-4-5-20251001,main,,cacheRead,155975' \
+  "#334 AK1: Token-Werttyp cacheRead der Hauptsession übernommen"
+assert_contains_286 "$tele_csv" ',claude_code.token.usage,claude-haiku-4-5-20251001,subagent,Explore,output,540' \
+  "#334 AK2: Token-Werttyp output des Sub-Agenten getrennt übernommen"
+
+# Vollständigkeit: 2 cost- + 8 token-Datenpunkte der Fixture = 10 Datenzeilen (ohne Kopfzeile).
+tele_rows=$(printf '%s\n' "$tele_csv" | grep -c '^2026-09-11T12:00:00Z,' || true)
+assert_true "$([ "${tele_rows:-0}" -eq 10 ]; echo $?)" \
+  "#334 AK1: genau 10 Datenzeilen – die 10 Datenpunkte der Fixture, keine erfunden, keine verloren (war: ${tele_rows:-0})"
+
+# AK5 (der eigentliche Guard): weder ein verbotenes FELD noch ein verbotener WERT in der CSV.
+# Beides, weil die Whitelist auf Feldnamen filtert, ein Leck aber über den Wert sichtbar würde.
+for tele_f in 'user.email' 'user.id' 'user.account_id' 'user.account_uuid' 'organization.id' 'session.id'; do
+  assert_absent "$tele_csv" "$tele_f" "#334 AK5: CSV enthält kein '$tele_f'"
+done
+for tele_v in 'anon@example.invalid' 'ANONYMISIERT-user-id' 'ANONYMISIERT-account-id' \
+              'ANONYMISIERT-account-uuid' 'ANONYMISIERT-org-id' 'ANONYMISIERT-costcenter'; do
+  assert_absent "$tele_csv" "$tele_v" "#334 AK5: CSV enthält auch den Wert '$tele_v' nicht"
+done
+
+# Security-Review-Finding (Kritisch): die Whitelist filtert nur FELDNAMEN, nie die FORM des
+# Werts. Jeder String, der clean()s Zeichen-Alphabet einhält, wandert unverändert in die
+# CSV – auch wenn er nicht vom echten OTEL-Exporter stammt, sondern aus der Konversations-
+# ausgabe des Agenten (Teil desselben Streams, den telemetry_capture unverändert mitschreibt).
+# Empirisch belegt (tasks/security-334.md): ein "model"-Feld mit einer E-Mail-Adresse wird
+# klaglos übernommen. Guard: alle vier gelesenen Attribute mit demselben Angriffsmuster
+# (E-Mail-artiger Wert) füttern, keines davon darf in der CSV auftauchen.
+{ printf '→ Starte: /implement 334 (model: x, max 20 turns)\n'
+  cat <<'RAW'
+{
+  descriptor: {
+    name: "claude_code.token.usage",
+  },
+  dataPoints: [
+    {
+      attributes: {
+        model: "opfer@angreifer.example",
+        query_source: "opfer2@angreifer.example",
+        "agent.name": "opfer3@angreifer.example",
+        type: "opfer4@angreifer.example",
+      },
+      value: 1,
+    }
+  ],
+}
+RAW
+} > "$TELE_TMP/wertefaelschung.txt"
+tele_csv_wf="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "T" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/wertefaelschung.txt" 2>/dev/null || true)"
+for tele_wf in 'opfer@angreifer.example' 'opfer2@angreifer.example' \
+               'opfer3@angreifer.example' 'opfer4@angreifer.example'; do
+  assert_absent "$tele_csv_wf" "$tele_wf" \
+    "#334 (Security-Review-Finding): kein E-Mail-artiger Wert gelangt über ein gefälschtes Attribut in die CSV ('$tele_wf')"
+done
+# Kontrolle: derselbe Datenpunkt mit einem ECHTEN, erwartbaren model/query_source/type bleibt
+# weiterhin nutzbar – der Fix darf keine legitimen Werte miterfassen (Diskriminierung).
+{ printf '→ Starte: /implement 334 (model: x, max 20 turns)\n'
+  cat "$TELE_FIXTURE"
+} > "$TELE_TMP/echte-werte.txt"
+tele_csv_echt="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "T" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/echte-werte.txt" 2>/dev/null || true)"
+assert_contains_286 "$tele_csv_echt" ',claude_code.cost.usage,claude-haiku-4-5-20251001,main,,,0.0924215' \
+  "#334 (Security-Review-Kontrolle): ein echter, erwartbarer Wert bleibt nach dem Fix erhalten"
+assert_contains_286 "$tele_csv_echt" ',claude_code.cost.usage,claude-haiku-4-5-20251001,subagent,Explore,,0.02247895' \
+  "#334 (Security-Review-Kontrolle): auch der Sub-Agenten-Datenpunkt bleibt erhalten"
+
+# Kumulative Counter: derselbe Export-Zyklus zweimal im selben Schritt (das reale Verhalten bei
+# gesetztem OTEL_METRIC_EXPORT_INTERVAL – gemessen am 2026-09-11: beide Zyklen tragen denselben
+# Wert) darf die Zeilen nicht verdoppeln und den Wert nicht summieren.
+{ printf '→ Starte: /implement 334 (model: claude-haiku-4-5-20251001, max 20 turns)\n'
+  cat "$TELE_FIXTURE"; cat "$TELE_FIXTURE"; } > "$TELE_TMP/raw2.txt"
+tele_csv2="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "2026-09-11T12:00:00Z" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/raw2.txt" 2>/dev/null || true)"
+tele_rows2=$(printf '%s\n' "$tele_csv2" | grep -c '^2026-09-11T12:00:00Z,' || true)
+assert_true "$([ "${tele_rows2:-0}" -eq 10 ]; echo $?)" \
+  "#334: zwei Export-Zyklen desselben Schritts bleiben 10 Zeilen (kumulativer Counter, war: ${tele_rows2:-0})"
+assert_contains_286 "$tele_csv2" ',claude_code.cost.usage,claude-haiku-4-5-20251001,main,,,0.0924215' \
+  "#334: kumulativer Counter wird nicht summiert (0.0924215, nicht 0.184843)"
+
+# AK3: zwei verschiedene Schritte bleiben getrennt – und derselbe Skill in zwei Aufrufen
+# (Review-Rework-Schleife) kollabiert nicht zu einer Zeile, weil jeder Aufruf ein eigener
+# claude-Prozess mit eigenem, bei 0 startendem Counter ist.
+{ printf '→ Starte: /implement 334 (model: x, max 20 turns)\n'; cat "$TELE_FIXTURE"
+  printf '→ Starte: /review 334 (model: x, max 30 turns)\n';    cat "$TELE_FIXTURE"
+  printf '→ Starte: /implement 334 (model: x, max 20 turns)\n'; cat "$TELE_FIXTURE"; } > "$TELE_TMP/raw3.txt"
+tele_csv3="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "2026-09-11T12:00:00Z" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/raw3.txt" 2>/dev/null || true)"
+tele_rows3=$(printf '%s\n' "$tele_csv3" | grep -c '^2026-09-11T12:00:00Z,' || true)
+assert_true "$([ "${tele_rows3:-0}" -eq 30 ]; echo $?)" \
+  "#334 AK3: drei Schritt-Aufrufe → 3×10 Zeilen, je Aufruf getrennt (war: ${tele_rows3:-0})"
+assert_contains_286 "$tele_csv3" ',1,implement,' "#334 AK3: erster Aufruf trägt step_seq 1"
+assert_contains_286 "$tele_csv3" ',2,review,'    "#334 AK3: zweiter Aufruf trägt step_seq 2"
+assert_contains_286 "$tele_csv3" ',3,implement,' \
+  "#334 AK3: der zweite /implement-Aufruf bleibt als step_seq 3 eigenständig (Rework-Schleife)"
+
+# Format-Drift-Guard (ADR-049 §E2), fail-closed: ein nicht mehr erkanntes Console-Format ist
+# ein Fehler, keine Messung von 0.
+printf 'irgendein Log ohne jede OTEL-Struktur\nnoch eine Zeile\n' > "$TELE_TMP/kaputt.txt"
+tele_drift_out="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "T" 334' \
+  _ "$TELE_LIB" "$TELE_TMP/kaputt.txt" 2>/dev/null)" && tele_drift_rc=0 || tele_drift_rc=$?
+assert_true "$([ "$tele_drift_rc" -ne 0 ]; echo $?)" \
+  "#334 Fehlerszenario: unerkanntes Console-Format endet non-zero (fail-closed, kein stilles 0)"
+assert_absent "$tele_drift_out" 'claude_code.' "#334: bei Format-Drift entsteht keine Datenzeile"
+
+# Drift auf der Marker-Seite: bleibt die Blockstruktur erkennbar, fehlt aber die Marker-Zeile,
+# darf die Ernte nicht scheitern – die Messwerte sind echt, nur die Schritt-Zuordnung fehlt.
+tele_csv4="$(bash -c 'set -euo pipefail; source "$1"; harvest_telemetry_csv "$2" "T" 334' \
+  _ "$TELE_LIB" "$TELE_FIXTURE" 2>/dev/null || true)"
+assert_contains_286 "$tele_csv4" ',0,unbekannt,' \
+  "#334: Metrikblock ohne vorangehende Marker-Zeile wird als Schritt 'unbekannt' erfasst, nicht verworfen"
+
+rm -rf "$TELE_TMP"
+
+# Verdrahtung im Orchestrator: Default an, Abschalt-Parameter, Seam gesourct.
+# Ersetzt die bis #334 gültige Assertion „OTEL ist opt-in (nicht automatisch in
+# run-pipeline.sh gesourct)" – durch ADR-049 §E3 ungültig geworden. Ersatz statt Löschung:
+# eine entfernte Zusicherung hinterlässt eine unbewachte Zusage.
+grep -q 'source .*lib/telemetry-harvest.sh' "$PIPELINE"
+assert_true "$?" "#334: run-pipeline.sh sourct den Ernte-Seam"
+grep -qF -- 'TELEMETRY=true' "$PIPELINE"
+assert_true "$?" "#334 AK4: Telemetrie ist in run-pipeline.sh per Default an"
+grep -qF -- '--no-telemetry) TELEMETRY=false ;;' "$PIPELINE"
+assert_true "$?" "#334 AK4: --no-telemetry schaltet sie im Argument-Parsing ab"
+grep -qF -- 'CLAUDE_CODE_ENABLE_TELEMETRY=1' "$PIPELINE"
+assert_true "$?" "#334: run-pipeline.sh aktiviert den Master-Schalter selbst"
+grep -qF -- 'OTEL_METRICS_EXPORTER=console' "$PIPELINE"
+assert_true "$?" "#334 §E2: Erhebung über den Console-Exporter"
+# ADR-049 §E4: gezieltes Staging – factory-commit.sh (git add -A) würde bei einem Abbruch
+# halbfertige Agenten-Änderungen mitcommitten.
+tele_persist_body="$(awk '/^telemetry_persist\(\) \{/,/^\}/' "$PIPELINE")"
+# Nur die CODE-Zeilen des Rumpfs: der WHY-Kommentar darin muss factory-commit.sh benennen
+# (er begründet ja gerade dessen Nichtverwendung) und würde einen reinen Textscan über den
+# ganzen Rumpf immer rot färben – die Prosa-Kollision aus Lesson #284.
+tele_persist_code="$(printf '%s\n' "$tele_persist_body" | grep -v '^[[:space:]]*#' || true)"
+assert_contains_286 "$tele_persist_code" 'commit -q -m "chore: telemetrie-messwerte lauf' \
+  "#334 §E4: telemetry_persist() committet die CSV selbst"
+assert_contains_286 "$tele_persist_code" 'git -C "$FACTORY_DIR" add -- "$TELEMETRY_CSV"' \
+  "#334 §E4: gezieltes Staging genau der CSV, nicht des ganzen Baums"
+# Review-Finding (Kritisch, Runde 2): der Commit darf NICHT von ambienter Git-Identität
+# abhängen – auf einem frischen ubuntu-latest-Runner ohne konfigurierte user.email/user.name
+# verwirft `git` seinen eigenen Fallback (empirisch in ubuntu:24.04 belegt: "unable to
+# auto-detect email address"), wenn der Hostname keinen Domainanteil hat. Struktureller
+# Guard statt Verhaltens-E2E, weil das Verhalten selbst plattformabhängig ist (auf macOS
+# liefert git anstandslos eine Fallback-Identität und verdeckt eine fehlende Absicherung).
+assert_contains_286 "$tele_persist_code" '-c user.email="factory-pipeline@localhost"' \
+  "#334 (Review-Runde 2): der Commit trägt eine explizite user.email, unabhängig von ambienter Konfiguration"
+assert_contains_286 "$tele_persist_code" '-c user.name="dm Development Factory"' \
+  "#334 (Review-Runde 2): der Commit trägt auch einen expliziten user.name"
+assert_contains_286 "$tele_persist_code" 'git -C "$FACTORY_DIR" push -q origin HEAD' \
+  "#334 AK7: telemetry_persist() pusht den Commit auch (verify_final_state prüft ungepushte Commits)"
+assert_absent "$tele_persist_code" 'factory-commit.sh' \
+  "#334 §E4: der Telemetrie-Commit nutzt NICHT factory-commit.sh (git add -A)"
+# Diskriminierungs-Kontrolle: schlägt derselbe Abwesenheits-Ausdruck an, wenn der Aufruf
+# tatsächlich im Code stünde? Ohne sie belegt das grüne Ergebnis oben nur, dass irgendetwas
+# gefiltert wurde – nicht, dass der Guard den Rückfall bemerken würde.
+tele_persist_mutant="$(printf '%s\n  bash "$FACTORY_DIR/scripts/factory-commit.sh" "x"\n' "$tele_persist_code")"
+printf '%s' "$tele_persist_mutant" | grep -qF 'factory-commit.sh'
+assert_true "$?" "#334 (Kontrolle): derselbe Guard schlägt an, wenn factory-commit.sh im Code steht"
+
+
+# ── E2E gegen den echten Orchestrator (Lesson #212: ein Wiring-Grep belegt kein Verhalten) ──
+# Scaffold, Commit- und Origin-Helfer kommen aus den #310/#314-Blöcken oben – dort im
+# HAS_YQ-Zweig definiert, deshalb steht auch dieser Abschnitt darin (Lesson #310: keine
+# zweite, parallele Repo-Fixture daneben bauen).
+if [ "$HAS_YQ" = 1 ]; then
+  TELE_E2E_PROBE="$(mktemp -d)/env-probe.txt"
+
+  # claude-Stub: schreibt die zwei Report-Dateien, protokolliert die geerbten OTEL-Variablen
+  # und gibt die anonymisierte Fixture als Console-Exporter-Ausgabe aus.
+  mk_tele_stub_334() {
+    cat > "$1/bin/claude" <<STUB_334
+#!/bin/sh
+case "\$*" in
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\n' > "\$PWD/tasks/security-$2.md" ;;
+  *SKILL-review*)          printf '## Empfehlung\nAPPROVED\n' > "\$PWD/tasks/review-$2.md" ;;
+esac
+printf 'telemetry=%s exporter=%s\n' "\${CLAUDE_CODE_ENABLE_TELEMETRY:-unset}" "\${OTEL_METRICS_EXPORTER:-unset}" >> "$TELE_E2E_PROBE"
+$3
+exit 0
+STUB_334
+    chmod +x "$1/bin/claude"
+  }
+
+  # CLAUDE_CODE_ENABLE_TELEMETRY/OTEL_METRICS_EXPORTER werden mit ausgeknipst: sie sind in
+  # einer interaktiven Claude-Code-Sitzung ambient gesetzt (hier beobachtet am 2026-09-11:
+  # CLAUDE_CODE_ENABLE_TELEMETRY=1). Ohne das `-u` wäre der --no-telemetry-Test lokal
+  # falschrot UND der Default-an-Test falschgrün – er belegte dann die ambiente Variable,
+  # nicht die Aktivierung durch die Pipeline. Dieselbe Klasse wie das
+  # PR_SHEPHERD/FACTORY_STAGE-Durchschlagen aus #262.
+  run_334() {
+    local dir="$1" task_id="$2"; shift 2
+    OUT_334=$(cd "$dir" && PATH="$dir/bin:$PATH" \
+      FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
+      env -u PR_SHEPHERD -u FACTORY_STAGE -u FACTORY_METRICS_ISSUE -u GITHUB_STEP_SUMMARY \
+          -u CLAUDE_CODE_ENABLE_TELEMETRY -u OTEL_METRICS_EXPORTER \
+      bash "$dir/scripts/run-pipeline.sh" "$task_id" "$@" 2>&1); RC_334=$?
+  }
+
+  # ── AK1/AK3/AK4/AK7 (Default an): CSV entsteht, ist committet und gepusht.
+  TMP_334A="$(mktemp -d)"; TMP_334A_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334A" 905
+  cp "$TELE_FIXTURE" "$TMP_334A/bin/otel-fixture.txt"
+  mk_tele_stub_334 "$TMP_334A" 905 'cat "$(dirname "$0")/otel-fixture.txt"'
+  : > "$TELE_E2E_PROBE"
+  commit_314_pushed "$TMP_334A" "$TMP_334A_ORIGIN"
+  run_334 "$TMP_334A" 905
+  assert_contains_286 "$(cat "$TELE_E2E_PROBE")" 'telemetry=1 exporter=console' \
+    "#334 AK4 (E2E): ein Lauf ohne Parameter vererbt die OTEL-Variablen an die CLI"
+  tele_csv_e2e="$(find "$TMP_334A/tasks" -name 'telemetry-905-*.csv' | head -1)"
+  assert_true "$([ -n "$tele_csv_e2e" ]; echo $?)" \
+    "#334 AK1 (E2E): der Lauf legt tasks/telemetry-905-<zeitstempel>.csv an"
+  assert_contains_286 "$OUT_334" 'Telemetrie persistiert' "#334 AK1 (E2E): der Lauf meldet die Persistenz"
+  if [ -n "$tele_csv_e2e" ]; then
+    tele_body_e2e="$(cat "$tele_csv_e2e")"
+    assert_contains_286 "$tele_body_e2e" ',implement,claude_code.cost.usage,' \
+      "#334 AK3 (E2E): die Kosten des /implement-Schritts stehen unter diesem Schritt"
+    assert_contains_286 "$tele_body_e2e" ',security-review,claude_code.cost.usage,' \
+      "#334 AK3 (E2E): auch ein späterer Schritt ist eigenständig zugeordnet"
+    assert_contains_286 "$tele_body_e2e" ',subagent,Explore,' \
+      "#334 AK2 (E2E): der Sub-Agenten-Anteil steht getrennt in der Datei"
+    for tele_f in 'user.email' 'user.id' 'user.account_id' 'user.account_uuid' 'organization.id'; do
+      assert_absent "$tele_body_e2e" "$tele_f" "#334 AK5 (E2E): die geschriebene Datei enthält kein '$tele_f'"
+    done
+    # AK7: getrackt, committet UND gepusht – nicht nur geschrieben. `git status --porcelain`
+    # über die Datei ist leer, sobald sie committet ist; `git log origin/<branch>` belegt den
+    # Push (ohne ihn ließe verify_final_state jeden Folgelauf scheitern).
+    assert_true "$([ -z "$(git -C "$TMP_334A" status --porcelain -- "$tele_csv_e2e")" ]; echo $?)" \
+      "#334 AK7 (E2E): die CSV ist committet – sie hinterlässt keinen dirty Working Tree"
+    tele_br_334="$(git -C "$TMP_334A" rev-parse --abbrev-ref HEAD)"
+    git -C "$TMP_334A" log --oneline "origin/$tele_br_334" -- "$tele_csv_e2e" 2>/dev/null | grep -q .
+    assert_true "$?" "#334 AK7 (E2E): der Commit ist auch auf origin – der Lauf pusht ihn selbst"
+  fi
+  assert_true "$([ -z "$(find "$TMP_334A/tasks" -name 'telemetry-raw-*.tmp.txt')" ]; echo $?)" \
+    "#334 AK5 (E2E): der personenbehaftete Roh-Output bleibt nicht liegen"
+  rm -rf "$TMP_334A" "$TMP_334A_ORIGIN"
+
+  # ── AK4 (abgeschaltet): --no-telemetry erzeugt nichts und aktiviert nichts.
+  TMP_334B="$(mktemp -d)"; TMP_334B_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334B" 906
+  cp "$TELE_FIXTURE" "$TMP_334B/bin/otel-fixture.txt"
+  mk_tele_stub_334 "$TMP_334B" 906 'cat "$(dirname "$0")/otel-fixture.txt"'
+  : > "$TELE_E2E_PROBE"
+  commit_314_pushed "$TMP_334B" "$TMP_334B_ORIGIN"
+  run_334 "$TMP_334B" 906 --no-telemetry
+  assert_contains_286 "$(cat "$TELE_E2E_PROBE")" 'telemetry=unset exporter=unset' \
+    "#334 AK4: --no-telemetry setzt die OTEL-Variablen gar nicht erst"
+  assert_true "$([ -z "$(find "$TMP_334B/tasks" -name 'telemetry-906-*.csv')" ]; echo $?)" \
+    "#334 AK4: --no-telemetry schreibt kein Artefakt"
+  assert_absent "$OUT_334" 'Telemetrie ernten' "#334 AK4: --no-telemetry führt den Ernte-Schritt nicht aus"
+  rm -rf "$TMP_334B" "$TMP_334B_ORIGIN"
+
+  # ── AK6 / Fehlerszenario 1: die CLI emittiert nichts Erkennbares.
+  # Gebrochen wird die MESSUNG (der Stub gibt Text ohne OTEL-Struktur aus), nicht nur der
+  # Input – ein Guard, der nur leere Eingaben kennt, sähe den stillen Teilausfall nie (#319).
+  TMP_334C="$(mktemp -d)"; TMP_334C_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334C" 907
+  mk_tele_stub_334 "$TMP_334C" 907 'printf "ich bin ein Log ohne jede OTEL-Struktur\n"'
+  : > "$TELE_E2E_PROBE"
+  commit_314_pushed "$TMP_334C" "$TMP_334C_ORIGIN"
+  run_334 "$TMP_334C" 907
+  assert_contains_286 "$OUT_334" 'Keine auswertbaren OTEL-Messwerte' \
+    "#334 Fehlerszenario 1: das Fehlen wird sichtbar gemeldet"
+  assert_true "$([ -z "$(find "$TMP_334C/tasks" -name 'telemetry-907-*.csv')" ]; echo $?)" \
+    "#334 Fehlerszenario 1: es entsteht KEIN leeres/irreführendes Artefakt"
+  assert_contains_286 "$OUT_334" 'Pipeline erfolgreich abgeschlossen' \
+    "#334 AK6: der Lauf bleibt trotz gescheiterter Messung erfolgreich"
+  assert_exit 0 "$RC_334" "#334 AK6: gescheiterte Messung lässt den Exit-Code unverändert"
+  rm -rf "$TMP_334C" "$TMP_334C_ORIGIN"
+
+  # ── AK6/AK7: Push scheitert (kein origin). Entweder committet UND gepusht – oder gar
+  # nichts. Ein liegengebliebener Commit ließe jeden Folgelauf im selben Worktree an der
+  # Endzustands-Verifikation scheitern.
+  TMP_334D="$(mktemp -d)"
+  scaffold_310 "$TMP_334D" 908
+  cp "$TELE_FIXTURE" "$TMP_334D/bin/otel-fixture.txt"
+  mk_tele_stub_334 "$TMP_334D" 908 'cat "$(dirname "$0")/otel-fixture.txt"'
+  : > "$TELE_E2E_PROBE"
+  commit_310 "$TMP_334D"
+  tele_head_before_334="$(git -C "$TMP_334D" rev-parse HEAD)"
+  run_334 "$TMP_334D" 908
+  # Referenzlauf im identischen Setup, nur ohne Telemetrie: AK6 verlangt „Exit-Code
+  # unverändert" – belegbar nur im Vergleich mit demselben Lauf ohne die Messung.
+  TMP_334E="$(mktemp -d)"
+  scaffold_310 "$TMP_334E" 908
+  mk_tele_stub_334 "$TMP_334E" 908 'printf "x\n"'
+  commit_310 "$TMP_334E"
+  tele_rc_with_334="$RC_334"
+  run_334 "$TMP_334E" 908 --no-telemetry
+  assert_exit "$RC_334" "$tele_rc_with_334" \
+    "#334 AK6: gescheiterter Push ändert den Exit-Code nicht (gleicher Code wie ohne Telemetrie)"
+  assert_true "$([ "$(git -C "$TMP_334D" rev-parse HEAD)" = "$tele_head_before_334" ]; echo $?)" \
+    "#334 AK7: nach gescheitertem Push liegt kein Telemetrie-Commit im Branch"
+  assert_true "$([ -z "$(find "$TMP_334D/tasks" -name 'telemetry-908-*.csv')" ]; echo $?)" \
+    "#334 AK7: nach gescheitertem Push bleibt auch keine uncommittete CSV liegen"
+  rm -rf "$TMP_334D" "$TMP_334E"
+
+  # ── Review-Finding 1 (Kritisch): „Index nicht leer"-Zweig darf die geerntete CSV nicht
+  # auf der Platte zurücklassen – sonst dirty Working Tree trotz „übersprungen (fail-open)".
+  TMP_334F="$(mktemp -d)"; TMP_334F_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334F" 909
+  cp "$TELE_FIXTURE" "$TMP_334F/bin/otel-fixture.txt"
+  # codify staged bewusst eine fremde Datei, bevor telemetry_persist läuft (Ort im Ablauf:
+  # unmittelbar nach /codify) – simuliert eine Situation, in der bereits etwas im Index liegt.
+  mk_tele_stub_334 "$TMP_334F" 909 \
+    'case "$*" in *SKILL-codify*) : > "$PWD/tasks/leftover-staged.txt"; git add "$PWD/tasks/leftover-staged.txt" ;; esac
+cat "$(dirname "$0")/otel-fixture.txt"'
+  : > "$TELE_E2E_PROBE"
+  commit_314_pushed "$TMP_334F" "$TMP_334F_ORIGIN"
+  run_334 "$TMP_334F" 909
+  assert_contains_286 "$OUT_334" 'Index nicht leer' \
+    "#334 (Review-Finding 1): der Index-nicht-leer-Zweig greift wie erwartet"
+  assert_true "$([ -z "$(find "$TMP_334F/tasks" -name 'telemetry-909-*.csv')" ]; echo $?)" \
+    "#334 (Review-Finding 1): der Index-nicht-leer-Zweig hinterlässt KEINE CSV auf der Platte"
+  # Kein "Pipeline erfolgreich"-Assert hier: die selbst injizierte Vorbedingung
+  # (leftover-staged.txt) macht den Arbeitsbaum unabhängig vom Telemetrie-Fix dirty – das
+  # ist Absicht des Szenarios, nicht Teil dessen, was der Fix beheben soll.
+  rm -rf "$TMP_334F" "$TMP_334F_ORIGIN"
+
+  # ── Review-Finding 1 (Kritisch), zweiter Zweig: `git add` gelingt, `git commit` scheitert
+  # (hier: ablehnender pre-commit-Hook – deterministischer als auf fehlende globale
+  # Git-Identität zu setzen, Lesson testing.md #265). Auch hier darf keine CSV liegen bleiben.
+  TMP_334G="$(mktemp -d)"; TMP_334G_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334G" 910
+  cp "$TELE_FIXTURE" "$TMP_334G/bin/otel-fixture.txt"
+  mk_tele_stub_334 "$TMP_334G" 910 'cat "$(dirname "$0")/otel-fixture.txt"'
+  : > "$TELE_E2E_PROBE"
+  commit_314_pushed "$TMP_334G" "$TMP_334G_ORIGIN"
+  mkdir -p "$TMP_334G/.git/hooks"
+  printf '#!/bin/sh\nexit 1\n' > "$TMP_334G/.git/hooks/pre-commit"
+  chmod +x "$TMP_334G/.git/hooks/pre-commit"
+  run_334 "$TMP_334G" 910
+  assert_contains_286 "$OUT_334" 'Telemetrie-Commit fehlgeschlagen' \
+    "#334 (Review-Finding 1): der add-ok/commit-fehlgeschlagen-Zweig greift wie erwartet"
+  assert_true "$([ -z "$(find "$TMP_334G/tasks" -name 'telemetry-910-*.csv')" ]; echo $?)" \
+    "#334 (Review-Finding 1): der Commit-fehlgeschlagen-Zweig hinterlässt KEINE CSV auf der Platte"
+  rm -rf "$TMP_334G" "$TMP_334G_ORIGIN"
+
+  # ── Review-Finding 2 (Kritisch): Retry-mit-Backoff INNERHALB eines run_skill()-Aufrufs
+  # (Rate-Limit-Fall, run-pipeline.sh:405) darf die Kosten des ersten (gescheiterten)
+  # Versuchs nicht verlieren. Zwei physische claude-Prozesse unter demselben Skill –
+  # sleep ist über scaffold_310s Stub bereits entschärft (kein echtes Warten).
+  TMP_334H="$(mktemp -d)"; TMP_334H_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334H" 911
+  cat > "$TMP_334H/bin/otel-fixture-fail.txt" <<'FIXA'
+{
+  descriptor: {
+    name: "claude_code.cost.usage",
+  },
+  dataPoints: [
+    {
+      attributes: {
+        model: "claude-haiku-4-5-20251001",
+        query_source: "main",
+      },
+      value: 0.05,
+    }
+  ],
+}
+FIXA
+  cat > "$TMP_334H/bin/otel-fixture-ok.txt" <<'FIXB'
+{
+  descriptor: {
+    name: "claude_code.cost.usage",
+  },
+  dataPoints: [
+    {
+      attributes: {
+        model: "claude-haiku-4-5-20251001",
+        query_source: "main",
+      },
+      value: 0.08,
+    }
+  ],
+}
+FIXB
+  cat > "$TMP_334H/bin/claude" <<'STUB_334H'
+#!/bin/sh
+case "$*" in
+  *SKILL-implement*)
+    d="$(dirname "$0")"
+    n=0
+    [ -f "$d/.impl-attempts" ] && n="$(cat "$d/.impl-attempts")"
+    n=$((n + 1))
+    echo "$n" > "$d/.impl-attempts"
+    if [ "$n" -eq 1 ]; then
+      cat "$d/otel-fixture-fail.txt"
+      exit 7
+    fi
+    cat "$d/otel-fixture-ok.txt"
+    exit 0
+    ;;
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\n' > "$PWD/tasks/security-911.md" ;;
+  *SKILL-review*)          printf '## Empfehlung\nAPPROVED\n' > "$PWD/tasks/review-911.md" ;;
+esac
+exit 0
+STUB_334H
+  chmod +x "$TMP_334H/bin/claude"
+  commit_314_pushed "$TMP_334H" "$TMP_334H_ORIGIN"
+  run_334 "$TMP_334H" 911
+  tele_csv_h="$(find "$TMP_334H/tasks" -name 'telemetry-911-*.csv' | head -1)"
+  assert_true "$([ -n "$tele_csv_h" ]; echo $?)" \
+    "#334 (Review-Finding 2): der Lauf mit einem gescheiterten ersten Versuch persistiert dennoch eine CSV"
+  if [ -n "$tele_csv_h" ]; then
+    # Summe statt Maximum: 0.05 (Versuch 1, gescheitert) + 0.08 (Versuch 2, erfolgreich) = 0.13.
+    # awk statt bc/jq – hier bereits als Test-Utility im Einsatz (siehe die awk-Aufrufe oben).
+    tele_sum_h=$(awk -F, '$4=="implement" && $5=="claude_code.cost.usage"{s+=$10} END{printf "%.2f", s+0}' "$tele_csv_h")
+    assert_true "$([ "$tele_sum_h" = "0.13" ]; echo $?)" \
+      "#334 (Review-Finding 2): Kosten BEIDER Versuche stehen in der Summe (0.13), nicht nur der letzte (0.08) (war: $tele_sum_h)"
+  fi
+  rm -rf "$TMP_334H" "$TMP_334H_ORIGIN"
+
+  # ── Fehlerszenario 2 (spec-334): Lauf bricht vorzeitig ab (hier: Quality-Gate „Tests"
+  # scheitert nach Phase 1) – die bis dahin angefallene Telemetrie (der /implement-Schritt)
+  # wird trotzdem persistiert. Das ist NICHT der reguläre Aufrufort zwischen /codify und
+  # /pr-shepherd, sondern ausschließlich der EXIT-Trap-Fallback (measure_process_metrics_on_exit).
+  TMP_334I="$(mktemp -d)"; TMP_334I_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334I" 912
+  cp "$TELE_FIXTURE" "$TMP_334I/bin/otel-fixture.txt"
+  mk_tele_stub_334 "$TMP_334I" 912 'cat "$(dirname "$0")/otel-fixture.txt"'
+  commit_314_pushed "$TMP_334I" "$TMP_334I_ORIGIN"
+  OUT_334I=$(cd "$TMP_334I" && PATH="$TMP_334I/bin:$PATH" \
+    FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=false \
+    env -u PR_SHEPHERD -u FACTORY_STAGE -u FACTORY_METRICS_ISSUE -u GITHUB_STEP_SUMMARY \
+        -u CLAUDE_CODE_ENABLE_TELEMETRY -u OTEL_METRICS_EXPORTER \
+    bash "$TMP_334I/scripts/run-pipeline.sh" 912 2>&1); RC_334I=$?
+  assert_true "$([ "$RC_334I" -ne 0 ]; echo $?)" \
+    "#334 Fehlerszenario 2: der erzwungene Gate-Fehlschlag beendet den Lauf tatsächlich non-zero"
+  assert_absent "$OUT_334I" 'Phase 2: Code-Review' \
+    "#334 Fehlerszenario 2 (Kontrolle): der Abbruch geschieht wie beabsichtigt VOR Phase 2 (Test-Vorbedingung selbst geprüft)"
+  tele_csv_i="$(find "$TMP_334I/tasks" -name 'telemetry-912-*.csv' | head -1)"
+  assert_true "$([ -n "$tele_csv_i" ]; echo $?)" \
+    "#334 Fehlerszenario 2: die EXIT-Trap persistiert die bis zum Abbruch angefallene Telemetrie"
+  if [ -n "$tele_csv_i" ]; then
+    assert_contains_286 "$(cat "$tele_csv_i")" ',implement,claude_code.cost.usage,' \
+      "#334 Fehlerszenario 2: die CSV enthält die Kosten des vor dem Abbruch gelaufenen /implement-Schritts"
+  fi
+  rm -rf "$TMP_334I" "$TMP_334I_ORIGIN"
+
+  # ── Fehlerszenario 3 (spec-334): kein Lauf überschreibt das Artefakt eines anderen.
+  # Zwei sequenzielle Läufe für ZWEI TASKS im selben Worktree – nach dem zweiten Lauf müssen
+  # beide Telemetrie-Dateien noch existieren (der zweite Lauf löscht/überschreibt die Datei
+  # des ersten nicht). Bewusst zwei Task-IDs statt zweier Läufe derselben Task innerhalb der
+  # gleichen Sekunde: Letzteres wäre ein Test-Artefakt der Sekunden-Granularität des
+  # Zeitstempels, kein realistisches Szenario (ein echter Pipeline-Lauf dauert Minuten).
+  TMP_334J="$(mktemp -d)"; TMP_334J_ORIGIN="$(mktemp -d)"
+  scaffold_310 "$TMP_334J" 913
+  printf '# Task 914: zweiter Lauf\n' > "$TMP_334J/tasks/task-914-zweiter-lauf.md"
+  cp "$TELE_FIXTURE" "$TMP_334J/bin/otel-fixture.txt"
+  # EIN Stub für BEIDE Task-IDs, einmal geschrieben und committet: würde der Stub zwischen
+  # den beiden Läufen erneut geschrieben (mk_tele_stub_334 ein zweites Mal), stünde
+  # bin/claude als geänderte, uncommittete Tracked-Datei da – der zweite Lauf schlüge dann
+  # schon am Preflight („Working Tree nicht sauber") fehl, bevor die eigentliche Frage
+  # (überschreibt er die erste CSV?) je geprüft würde.
+  #
+  # Die review-914.md/security-914.md-Schreibvorgänge müssen an dieselbe Skill-Fallunterscheidung
+  # gebunden sein wie das eingebaute $2=913-Case – sonst schreibt JEDER claude-Aufruf während
+  # des ERSTEN Laufs (auch /implement, /test, /refactor) review-914.md unconditional vorab.
+  # Das ließ den späteren echten /review-Aufruf des ZWEITEN Laufs auf identischen Inhalt
+  # treffen → Report-Guard wertet ihn als „aus einem früheren Aufruf, unverändert" (stale) →
+  # /review scheitert nach 3 Versuchen → der zweite Lauf bricht in Phase 2 ab, nicht am Ende.
+  # Test bestand dadurch nur zufällig, weil der EXIT-Trap-Fallback (nicht der reguläre
+  # Aufrufort zwischen /codify und /pr-shepherd) die Telemetrie rettete – ein Test-Selbstfund
+  # während /test, kein Produktionsdefekt (Rezidiv der Lesson „Mock-Default … verdeckt" in
+  # neuer Form: die Testdouble-Fixture erzeugte Zustand außerhalb ihres eigenen Zuständigkeits-
+  # fensters und kollidierte mit einer echten Guard-Logik der Produktion).
+  # Zusätzlich an `task-914` geankert, nicht nur an den Skill-Marker: Ein reiner
+  # `*SKILL-review*`-Treffer feuerte auch beim ECHTEN /review-Aufruf von Lauf 1 (Task 913) –
+  # dieselbe Prompt-Substring-Prüfung kennt den Unterschied zwischen den Läufen nicht, nur
+  # die eingebettete Task-Datei (`task-${TASK_ID}-*.md`, hier `task-914-zweiter-lauf.md`)
+  # unterscheidet sie zuverlässig.
+  mk_tele_stub_334 "$TMP_334J" 913 \
+    'case "$*" in
+  *SKILL-review*task-914*)          printf "## Empfehlung\nAPPROVED\n" > "$PWD/tasks/review-914.md" ;;
+  *SKILL-security-review*task-914*) printf "## Ergebnis\nPASSED\n" > "$PWD/tasks/security-914.md" ;;
+esac
+cat "$(dirname "$0")/otel-fixture.txt"'
+  commit_314_pushed "$TMP_334J" "$TMP_334J_ORIGIN"
+  run_334 "$TMP_334J" 913
+  tele_csv_j1="$(find "$TMP_334J/tasks" -name 'telemetry-913-*.csv' | head -1)"
+  assert_true "$([ -n "$tele_csv_j1" ]; echo $?)" \
+    "#334 Fehlerszenario 3: erster Lauf (Task 913) persistiert seine CSV"
+  run_334 "$TMP_334J" 914
+  tele_csv_j2="$(find "$TMP_334J/tasks" -name 'telemetry-914-*.csv' | head -1)"
+  assert_true "$([ -n "$tele_csv_j2" ]; echo $?)" \
+    "#334 Fehlerszenario 3: zweiter Lauf (Task 914) persistiert seine EIGENE CSV"
+  assert_true "$([ -f "$tele_csv_j1" ]; echo $?)" \
+    "#334 AK1/Fehlerszenario 3: die CSV des ERSTEN Laufs existiert nach dem zweiten Lauf noch (kein Überschreiben)"
+  rm -rf "$TMP_334J" "$TMP_334J_ORIGIN"
+  rm -rf "$(dirname "$TELE_E2E_PROBE")"
+else
+  skip_yq "#334 E2E: Telemetrie-Persistenz in run-pipeline.sh"
+fi
+
+# ── Doku ohne Drift (CLAUDE.md, OPERATING.md) ───────────────────────────────
+# Beide beschrieben die Telemetrie bis #334 als „Default aus, otel.env.example sourcen".
+# Erledigt der PR die Mechanik, ist dieselbe Prosa im selben PR nachzuziehen (Lesson #176).
+# Kontrolle für die `--`-Härtung der beiden Assert-Helfer (siehe ihre Definition oben):
+# eine Phrase, die mit `-` beginnt, muss gefunden UND ihr Fehlen erkannt werden. Ohne das `--`
+# bricht grep hier mit einem Usage-Fehler ab – der Präsenz-Check wäre rot, der
+# Abwesenheits-Check grün, in beiden Fällen ohne je gesucht zu haben.
+assert_contains_286 'ein --no-telemetry im Text' '--no-telemetry' \
+  "#334 (Kontrolle): assert_contains_286 findet eine Phrase, die mit '-' beginnt"
+assert_absent 'hier steht der Parameter nicht' '--no-telemetry' \
+  "#334 (Kontrolle): assert_absent erkennt das Fehlen derselben Phrase"
+
+claude_md_flat_334=$(flat_286 "$CLAUDE_MD")
+assert_contains_286 "$claude_md_flat_334" 'läuft seit #334 automatisch je Pipeline-Lauf' \
+  "#334 Doku: CLAUDE.md beschreibt die Telemetrie als automatischen Pipeline-Bestandteil"
+assert_contains_286 "$claude_md_flat_334" '--no-telemetry' \
+  "#334 Doku: CLAUDE.md nennt den Abschalt-Parameter"
+assert_contains_286 "$claude_md_flat_334" 'tasks/telemetry-<task-id>-<zeitstempel>.csv' \
+  "#334 Doku: CLAUDE.md nennt den Ablageort"
+assert_absent "$claude_md_flat_334" 'OTEL-Metriken (Token/Kosten/Nutzung pro Skill & Agent). Default aus' \
+  "#334 Doku: die überholte 'Default aus'-Formulierung steht nicht mehr in CLAUDE.md"
+
+# Geprüft wird der Endzustand der COMMITTETEN Live-Datei, nicht tasks/patch-334.diff: das
+# Patch-Artefakt ist transient, die Zusicherung hängt an der Datei, die Agenten wirklich
+# lesen (Lesson #212). Die Datei liegt unter .claude/** und war für den Agenten gesperrt –
+# der Patch-Umweg ändert nichts daran, was hier zu bewachen ist.
+daily_metrics_flat_334=$(flat_286 "$FACTORY_ROOT/.claude/commands/daily-metrics.md")
+assert_contains_286 "$daily_metrics_flat_334" 'tasks/telemetry-<task-id>-<zeitstempel>.csv' \
+  "#334 Doku: daily-metrics.md verweist für Token/Kosten auf die persistierte Telemetrie-CSV"
+assert_absent "$daily_metrics_flat_334" 'die liefert die Telemetrie-Ebene (OTEL, `config/otel.env.example`)' \
+  "#334 Doku: daily-metrics.md nennt otel.env.example nicht mehr als DEN Telemetrie-Weg"
+
+operating_flat_334=$(flat_286 "$OPERATING_MD")
+assert_contains_286 "$operating_flat_334" 'Telemetrie (Token/Kosten) – Default an' \
+  "#334 Doku: OPERATING.md §0.5 nennt den neuen Default"
+assert_contains_286 "$operating_flat_334" 'run-pipeline.sh <task-id> --no-telemetry' \
+  "#334 Doku: OPERATING.md nennt den Abschalt-Aufruf vollständig"
+assert_contains_286 "$operating_flat_334" 'Jeder Task-PR trägt darum eine Telemetrie-CSV im Diff.' \
+  "#334 Doku: OPERATING.md warnt vor der neuen Datei in jedem Diff"
+assert_absent "$operating_flat_334" '`source config/otel.env.example` aktiviert' \
+  "#334 Doku: OPERATING.md nennt otel.env.example nicht mehr als Aktivierungsweg"
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""
 echo -e "Ergebnis: ${GREEN}${PASS} grün${NC}, ${RED}${FAIL} rot${NC}"

@@ -908,3 +908,33 @@ Konsument eine andere Kombination übergibt.
 **Regel:** Vor dem Schreiben eines Positions-/Struktur-Tests kurz prüfen, welche Prop-Kombination
 die realen Konsumenten tatsächlich verwenden (`grep` auf den Komponentennamen); der Test muss
 diese Kombination abdecken, nicht nur den einfachsten/Default-Pfad.
+
+### Claude-Stub-Nebenwirkung ohne Skill-/Task-Bindung lässt ein Testszenario über einen fremden Guard statt den behaupteten Pfad bestehen (aus #334, /test-Selbstfund)
+
+Ein neues E2E-Szenario sollte belegen, dass zwei **normale, vollständig durchlaufende** Läufe
+sich gegenseitig nicht überschreiben. Der `claude`-Stub des ersten Laufs schrieb dafür die
+Report-Dateien des zweiten Laufs (`review-914.md`/`security-914.md`) vorsorglich unbedingt bei
+**jedem** eigenen Aufruf – nicht nur, wenn tatsächlich `/review`/`/security-review` für Task 914
+liefen. Dadurch sah der ECHTE `/review`-Aufruf des zweiten Laufs eine bereits vorhandene,
+inhaltlich identische Report-Datei vor sich; der Report-Frische-Guard (ADR-019 §4, Fingerprint-
+Vergleich) wertete das als „Verdict aus einem früheren Aufruf" (stale) und ließ `/review` nach
+drei Versuchen scheitern. Der zweite Lauf brach dadurch in Phase 2 ab – die Telemetrie wurde
+trotzdem persistiert, aber über den EXIT-Trap-Fallback, nicht über den regulären Aufrufort
+zwischen `/codify` und `/pr-shepherd`, den der Testkommentar eigentlich behauptete. Der Test
+bestand, aber aus dem falschen Grund; erst ein Mutationstest (Entfernen des EXIT-Trap-Aufrufs
+ließ ausgerechnet dieses „Zwei normale Läufe"-Szenario rot werden, was es laut Beschreibung
+nicht dürfte) deckte die Verwechslung auf.
+
+**Smell:** Ein Test-Stub schreibt eine Ausgabedatei für einen SPÄTEREN Lauf/Task **unbedingt**
+bei jedem Aufruf des AKTUELLEN Laufs, statt die Bedingung (welcher Skill, welche Task-ID) exakt
+so zu prüfen wie das eingebaute Template es für die eigene Task-ID bereits tut. Ein Abgleich
+„läuft mein Test durch den behaupteten Pfad oder über einen stillschweigend greifenden
+Fallback?" fehlt.
+
+**Regel:** Schreibt ein Test-Stub in einem MEHR-Lauf-Szenario Dateien für einen anderen
+Lauf/Task vor, muss die Schreibbedingung an **beide** Marker gebunden sein, die auch die echte
+Aufrufzeile trägt – den Skill-Marker UND den Task-Marker (z. B. `*SKILL-review*task-914*`),
+nicht nur den Skill-Marker allein. Bei einem Test, der einen bestimmten Erfolgs-**Pfad**
+behauptet (hier: regulärer Aufrufort statt EXIT-Trap-Fallback), diesen Pfad zusätzlich per
+Mutationstest isoliert bestätigen – ein grüner Test allein belegt nur, dass IRGENDEIN Pfad zum
+erwarteten Endzustand geführt hat, nicht welcher.

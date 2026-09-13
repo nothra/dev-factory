@@ -5,7 +5,9 @@ Task-Dateien) und gibt ihn optional als GitHub-Kommentar aus.
 
 > **Mess-Ebene (ADR-006):** Dieser Skill misst **Prozess** – Lead-Time,
 > Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. **Token und Kosten gehören
-> NICHT hierher** – die liefert die Telemetrie-Ebene (OTEL, `config/otel.env.example`).
+> NICHT hierher** – die liefert die Telemetrie-Ebene (OTEL). Sie läuft seit #334 automatisch
+> je Pipeline-Lauf und legt ihre Werte in `tasks/telemetry-<task-id>-<zeitstempel>.csv` ab
+> (ADR-049); `config/otel.env.example` ist nur noch die Vorlage für den manuellen/Gateway-Weg.
 > Kein eigenes Token-Accounting nachbauen.
 
 > **Läuft bereits automatisch (ADR-045, #314):** `scripts/metrics.sh` ist ein
@@ -52,7 +54,8 @@ abgesichert). Ohne `--publish` genügt der Datei-Report (heutiges Verhalten unve
 
 ## Regeln
 
-- Keine Token-/Kosten-Metriken (kommen aus OTEL – ADR-006)
+- Keine Token-/Kosten-Metriken (kommen aus der Telemetrie-Ebene: OTEL – ADR-006, seit #334
+  je Lauf persistiert in `tasks/telemetry-<task-id>-*.csv`, ADR-049)
 - Nichts erfinden: nur ausgeben, was `metrics.sh` aus echten Quellen berechnet
 - Fehlende API-Daten ehrlich als „übersprungen" ausweisen, nicht schätzen
 

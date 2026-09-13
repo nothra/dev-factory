@@ -176,9 +176,16 @@ gefärbt.
 
 - `tasks/metrics-*.md` bleibt gitignored. Würde die Datei getrackt, hinterließe jeder Lauf einen
   dirty Arbeitsbaum und die Endzustands-Verifikation des **nächsten** Laufs (ADR-040) schlüge fehl.
-- OTEL bleibt opt-in: die Verdrahtung fasst `config/otel.env*` nicht an. Die bestehende
+- ~~OTEL bleibt opt-in: die Verdrahtung fasst `config/otel.env*` nicht an. Die bestehende
   Assertion in `run-tests.sh` („OTEL ist opt-in, nicht in `run-pipeline.sh` gesourct") bleibt
-  gültig.
+  gültig.~~ **Überholt durch [ADR-049](049-telemetrie-persistenz-je-pipeline-lauf.md)**
+  (#334, 2026-09-11): die Telemetrie-Erzeugung ist dort in `run-pipeline.sh` integriert und
+  **standardmäßig an** (abschaltbar per Parameter); die genannte Assertion wurde durch eine
+  ersetzt, die diese neue Zusicherung bewacht. Für die Entscheidung **dieser** ADR war die
+  Invariante gültig, und ihr Kern bleibt es: die Verdrahtung *dieser* ADR fasst
+  `config/otel.env*` nicht an, und ADR-049 legt die Telemetrie-Werte bewusst **nicht** in
+  `tasks/metrics-*.md` ab – der via `--publish` veröffentlichte Report bleibt frei von
+  Telemetriedaten.
 - Die Prozess-Ebene baut weiterhin **kein** Token-/Kosten-Accounting (ADR-006, verbindliche
   Scope-Grenze). Diese ADR ändert nur den Auslöser, nicht die Kennzahlen.
 - Kein neuer Freitext-Kanal: der veröffentlichte Report ist maschinen-erzeugter, numerischer

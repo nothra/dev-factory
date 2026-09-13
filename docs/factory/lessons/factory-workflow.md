@@ -1121,6 +1121,77 @@ Kanäle, `/implement` schreibt die Warnung mit demselben Zug wie das Schema, nic
 Nachtrag. Trigger: `/architecture`, `/implement`, `/security-review` bei jedem neuen
 Ablage-Mechanismus für Agenten-Freitext in einer Repo-Datei.
 
+### Eine Feldnamen-Whitelist filtert nicht die Wertform, wenn derselbe Stream strukturierten Export und Agenten-Freitext ununterschieden vermengt (aus #334, Security-Review-Finding)
+
+Die Telemetrie-Ernte (#334, ADR-049 §E5) liest nur benannte OTEL-Attribute (`model`,
+`query_source`, `agent.name`, `type`) und verwarf damit bewusst alles andere – eine
+Feldnamen-Whitelist, gedacht gegen unbekannte künftige Personenfelder. Sie prüfte aber nie,
+ob der übernommene WERT wirklich vom OTEL-Exporter stammt: `telemetry_capture` schreibt den
+**gesamten** `claude --print`-Output in dasselbe Roh-Log, nicht nur den Exporter-Anteil –
+Konversationstext des Agenten und echte Metrik-Blöcke landen ununterschieden im selben Strom.
+Ein Agent, der (z. B. durch Prompt-Injection) eine Zeile ausgibt, die exakt der erwarteten
+Blockstruktur entspricht, konnte darüber beliebigen Text – auch Personendaten – über ein
+erlaubtes Feld in die getrackte, automatisch gepushte CSV schmuggeln. Empirisch belegt: ein
+`model`-Feld mit einer E-Mail-Adresse wurde klaglos übernommen. Erst in `/security-review`
+gefunden, nicht in `/implement`/`/review` – der Fokus lag auf „welche Felder dürfen rein",
+nicht auf „kann die Quelle dieses Feldwerts überhaupt vertraut werden". Die Härtung (exakte
+Werte-Enums für vollständig aufzählbare Felder, Muster-/Längenprüfung für den Rest) blieb
+selbst unvollständig – ein residualer Freitext-Kanal ohne das konkret geprüfte Muster (`@`)
+bleibt offen, siehe Issue #336.
+
+**Smell:** „Meine Task liest Werte aus einem Stream/einer Datei, der/die auch – an anderer
+Stelle im selben Strom – von einem Agenten (mit-)geschriebenen Freitext enthält, und übernimmt
+einen Wert, sobald er unter einem erlaubten Feldnamen auftaucht. Prüfe ich dabei, ob der Wert
+zur erwarteten FORM dieses Feldes passt (bekannter Enum, erwartetes Muster), oder nur, ob der
+FeldNAME auf der Whitelist steht?"
+
+**Regel:** Bei einer Whitelist-Projektion aus einer Quelle, die strukturierten und
+freitext-/agentenkontrollierten Inhalt im selben Strom mischt, zusätzlich zur Feldnamen-Prüfung
+die Wertform prüfen: vollständig enumerierbare Felder exakt gegen die bekannten Werte, alles
+andere zumindest gegen ein Muster/eine Längengrenze für plausible Werte dieses Feldes – nicht
+plausibel heißt LEER, nie übernommen (dieselbe §E1-Logik wie „fehlt ein Wert, bleibt er leer").
+Ein Test dazu muss denselben Angriff wie den erlaubten Feldnamen-Kanal selbst durchspielen
+(Wert im Format eines anderen, verbotenen Feldtyps unter einem erlaubten Feldnamen), nicht nur
+die Feldnamen-Filterung selbst. Trigger: `/architecture`, `/implement`, `/security-review` bei
+jeder neuen Whitelist-Projektion aus einer Quelle, die strukturierten und
+agentenkontrollierten Inhalt im selben Strom/derselben Datei mischt.
+
+### Pipeline-Code, der selbst committet, braucht eine explizite Git-Identität – die ambiente Fallback-Synthese existiert auf macOS, nicht zuverlässig auf CI-Runnern (aus #334, Review-Runde-2-Finding)
+
+Ein neuer Commit-Aufruf in `run-pipeline.sh` (`telemetry_persist()`, #334) lief lokal
+anstandslos, ohne dass irgendwo eine Git-Identität explizit gesetzt war – und ließ dieselbe
+CI-Suite (`factory-self-test`, `ubuntu-latest`) fehlschlagen: `fatal: unable to auto-detect
+email address`. Ursache: Git synthetisiert bei fehlender Konfiguration einen Fallback aus
+Benutzername + Hostname, verwirft diesen Fallback aber, wenn der Hostname keinen Domainanteil
+trägt (endet auf `.(none)`) – auf der Entwickler-Maschine (Hostname mit Domainanteil) griff der
+Fallback, auf dem GitHub-Actions-Runner nicht. Das ist mehr als die bereits bekannte Lesson
+„Test-Fixture-Helfer brauchen lokale Identität" (db-drizzle.md, #265): Dort ging es um
+`-c user.email=…`-Overrides für den EIGENEN Init-Commit eines Test-Scaffolds; hier scheiterte
+PRODUKTIONSCODE, der im Rahmen des automatisierbaren Stage-3-Pfads (`factory-poll.yml`, aktuell
+nur mangels Trigger ruhend) künftig auf genau so einem identitätslosen Runner laufen soll.
+
+Der Versuch, das Verhalten lokal nachzustellen, führte zusätzlich in die Irre:
+`GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit` schlug auf macOS **nicht**
+fehl – die Fallback-Synthese aus Benutzername/Hostname ist ein von der Konfigurationsdatei
+unabhängiger Git-interner Mechanismus (`ident.c`), den Blanking der Config-Dateien nicht
+berührt. Erst ein frischer `ubuntu:24.04`-Docker-Container (passend zum echten
+`runs-on: ubuntu-latest`) reproduzierte den Fehler zuverlässig.
+
+**Smell:** Ein neuer `git commit`/`git push`-Aufruf in Pipeline-Code (nicht nur in
+Test-Scaffolding) setzt keine explizite `-c user.email=…`/`-c user.name=…` – „lief doch lokal
+grün" ist bei genau dieser Fehlerklasse kein Beleg, weil macOS und Linux-CI-Runner sich in der
+Fallback-Synthese unterscheiden.
+
+**Regel:** Jeder neue `git commit`-Aufruf in Produktions-/Pipeline-Code (nicht nur in
+Test-Helfern) bekommt eine explizite `-c user.email=…`/`-c user.name=…` – unabhängig davon, ob
+der lokale Entwicklungsrechner eine ambiente Identität hat. Beim Verdacht auf eine
+CI-only-Umgebungsdifferenz dieser Art lokal **nicht** nur die Config-Dateien leeren, sondern in
+einem Container reproduzieren, der dem echten Runner entspricht (`runs-on:`-Wert aus der
+Workflow-Datei) – ein negatives lokales Ergebnis ist sonst kein Beleg für „kein Bug", nur dafür,
+dass die lokale Umgebung anders reagiert. Trigger: `/implement`, `/review` bei jedem neuen
+`git commit`/`git push`-Aufruf außerhalb von `factory-commit.sh`; `/review`, `/security-review`
+bei der Einordnung eines CI-only-Fehlschlags, der lokal nicht reproduziert.
+
 ### Mutationsbeleg muss denselben Assert-Ausdruck ausführen, nicht nur denselben Grundbefehl (aus #286, Review-Runde-2-Finding)
 
 Ein neuer Abwesenheits-Guard in `run-tests.sh` (#286) belegte per „Mutationsbeleg", dass ein
