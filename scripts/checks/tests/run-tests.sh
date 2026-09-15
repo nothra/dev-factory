@@ -5539,13 +5539,17 @@ ADR043="$FACTORY_ROOT/docs/adr/043-schwelle-fuer-autonome-issue-anlage.md"
 adr043_status_line="$(awk '/^## Status/{found=1; next} found && NF {print; exit}' "$ADR043")"
 assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-043 Status ist auf 'Accepted' geflippt"
 
-# ─── #291: Dependency-Security-Floors (Dependabot-Alerts) ────────────────────
+# ─── #291/#337: Dependency-Security-Floors (Dependabot-Alerts) ───────────────
 # Die Alerts aus #291 sind über einen next-Bump plus konditionale Overrides in
 # pnpm-workspace.yaml geschlossen. Ohne Guard rutscht eine dieser Auflösungen bei der
 # nächsten Lockfile-Erneuerung lautlos wieder unter ihren Patch-Floor zurück. Geprüft wird
 # deshalb die im Lockfile AUFGELÖSTE Version (Spec-291: ein Override wirkt erst, wenn er im
 # Lockfile ankommt), nicht die Deklaration in package.json.
-echo "#291 Dependency-Security-Floors (aufgelöste Lockfile-Versionen):"
+# #337 hat denselben Guard weitergenutzt statt einen zweiten daneben zu stellen: die Floors
+# von sharp und js-yaml sind ANGEHOBEN (Muster „Floor angehoben statt zweiter Eintrag daneben",
+# #169/#291), browserslist/baseline-browser-mapping/vitest/@vitest/mocker sind als Fälle
+# ergänzt, und der next-Pin-Floor steht auf 16.3.3 (GHSA-2xp9-vwfh-vxw4, GHSA-p293-qw3h-jr36).
+echo "#291/#337 Dependency-Security-Floors (aufgelöste Lockfile-Versionen):"
 
 LOCKFILE_291="$FACTORY_ROOT/pnpm-lock.yaml"
 PKG_JSON_291="$FACTORY_ROOT/package.json"
@@ -5561,8 +5565,10 @@ assert_true "$([ -r "$LOCKFILE_291" ] && [ -r "$PKG_JSON_291" ] && [ -r "$WORKSP
 # Schlüssel, weil derselbe Paketname mehrfach mit unterschiedlichen Floors im Baum liegt
 # (brace-expansion 1.x und 2.x tragen verschiedene Advisories). Peer-Suffixe wie
 # "(react@19.2.4)" und der abschließende Doppelpunkt werden abgeschnitten.
+# Scoped-Pakete schreibt pnpm quotiert ('@vitest/mocker@4.1.11':) – die Quotes fallen vorab
+# aus dem Strom, sonst liefe der Fall lautlos ins Leere (kein Treffer = scheinbar sauber, #337).
 lock_versions_291() {
-  grep -E "^  $1@$2\." "$3" | sed -E "s/^  $1@//; s/[(:].*$//" | sort -u -V
+  tr -d "'" < "$3" | grep -E "^  $1@$2\." | sed -E "s|^  $1@||; s|[(:].*$||" | sort -u -V
 }
 
 # version_below_291 <version> <floor> – 0, wenn version echt kleiner als floor ist.
@@ -5588,16 +5594,20 @@ floor_cases_291=(
   "nanoid|3|3.3.17|runtime, via postcss"
   "brace-expansion|1|1.1.18|runtime, via minimatch@3"
   "brace-expansion|2|2.1.4|runtime, via minimatch@5"
-  "sharp|0|0.35.0|runtime, via next (Bildoptimierung)"
+  "sharp|0|0.35.4|runtime, via next (Bildoptimierung), Floor aus #337"
   "undici|7|7.29.0|development, via jsdom"
-  "js-yaml|4|4.3.1|development, via eslint"
+  "js-yaml|4|4.3.2|development, via eslint, Floor aus #337"
+  "browserslist|4|4.28.7|runtime, via next, Floor aus #337/#329"
+  "baseline-browser-mapping|2|2.11.0|runtime, via browserslist/caniuse, Floor aus #337"
+  "vitest|4|4.1.11|development, direkt deklariert, Floor aus #337"
+  "@vitest/mocker|4|4.1.11|development, via vitest, Floor aus #337"
 )
 
 for case_291 in "${floor_cases_291[@]}"; do
   IFS='|' read -r pkg_291 major_291 floor_291 herkunft_291 <<< "$case_291"
   below_291="$(versions_below_floor_291 "$pkg_291" "$major_291" "$floor_291" "$LOCKFILE_291")"
   assert_true "$([ -z "$below_291" ]; echo $?)" \
-    "#291 AK3/AK4/AK6: keine aufgelöste ${pkg_291}@${major_291}.x-Kopie unter ${floor_291} (${herkunft_291})${below_291:+ – gefunden:${below_291}}"
+    "#291/#337 AK3/AK4/AK6: keine aufgelöste ${pkg_291}@${major_291}.x-Kopie unter ${floor_291} (${herkunft_291})${below_291:+ – gefunden:${below_291}}"
 done
 
 # Mutationsbeleg für den Floor-Vergleich: dieselbe Extraktions-/Vergleichskette gegen eine
@@ -5609,6 +5619,21 @@ mut_below_291="$(versions_below_floor_291 postcss 8 8.5.23 "$mut_lock_291")"
 assert_true "$([ "$mut_below_291" = " 8.5.16" ]; echo $?)" \
   "#291 Mutationsbeleg: Floor-Kette meldet auf einer Fixture mit postcss@8.5.16 genau diese Version (ist: '${mut_below_291}')"
 rm -f "$mut_lock_291"
+
+# Mutationsbeleg für den QUOTIERTEN Scoped-Schlüssel (#337): @vitest/mocker steht im Lockfile
+# als '@vitest/mocker@4.1.11': – ohne die Quote-Entfernung in lock_versions_291 fände die Kette
+# nie einen Treffer und der zugehörige Floor-Fall wäre dauerhaft grün, ohne etwas zu messen.
+# Die Gegenrichtung (gleiche Fixture, Version ÜBER dem Floor) belegt, dass der Treffer aus dem
+# Vergleich kommt und nicht daraus, dass das Muster auf jede quotierte Zeile passt.
+mut_scoped_337="$(mktemp)"
+printf "  '@vitest/mocker@4.1.9':\n  '@vitest/mocker@4.1.11':\n" > "$mut_scoped_337"
+mut_scoped_below_337="$(versions_below_floor_291 '@vitest/mocker' 4 4.1.11 "$mut_scoped_337")"
+assert_true "$([ "$mut_scoped_below_337" = " 4.1.9" ]; echo $?)" \
+  "#337 Mutationsbeleg: Floor-Kette liest quotierte Scoped-Schlüssel und meldet genau @vitest/mocker@4.1.9 (ist: '${mut_scoped_below_337}')"
+mut_scoped_clean_337="$(versions_below_floor_291 '@vitest/mocker' 4 4.1.9 "$mut_scoped_337")"
+assert_true "$([ -z "$mut_scoped_clean_337" ]; echo $?)" \
+  "#337 Diskriminierungs-Kontrolle: dieselbe Fixture ist gegen Floor 4.1.9 sauber (ist: '${mut_scoped_clean_337}')"
+rm -f "$mut_scoped_337"
 
 # AK-1/AK-2: next exakt gepinnt, oberhalb des Floors, und eslint-config-next im Lockstep.
 # pkg_pin_291 <paket> <package.json> – die deklarierte Version, ohne Range-Präfix zu raten.
@@ -5622,8 +5647,10 @@ eslint_next_pin_291="$(pkg_pin_291 eslint-config-next "$PKG_JSON_291")"
 # Exakter Pin zuerst prüfen: gegen "^16.2.12" wäre der nachfolgende Floor-Vergleich bedeutungslos.
 assert_true "$(printf '%s' "$next_pin_291" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; echo $?)" \
   "#291 AK1: package.json pinnt next exakt, ohne ^/~ (ist: '${next_pin_291}')"
-assert_true "$([ -n "$next_pin_291" ] && ! version_below_291 "$next_pin_291" "16.2.12"; echo $?)" \
-  "#291 AK1: package.json pinnt next auf >= 16.2.12 (ist: '${next_pin_291}')"
+# Floor angehoben 16.2.12 → 16.3.3 (#337): unterhalb 16.3.3 stehen zwei kritische unauth.
+# RCE-Advisories offen (GHSA-2xp9-vwfh-vxw4 Image-Optimization/AVIF, GHSA-p293-qw3h-jr36).
+assert_true "$([ -n "$next_pin_291" ] && ! version_below_291 "$next_pin_291" "16.3.3"; echo $?)" \
+  "#291/#337 AK1: package.json pinnt next auf >= 16.3.3 (ist: '${next_pin_291}')"
 assert_true "$([ -n "$eslint_next_pin_291" ] && [ "$eslint_next_pin_291" = "$next_pin_291" ]; echo $?)" \
   "#291 AK2: eslint-config-next trägt dieselbe Version wie next (ist: '${eslint_next_pin_291}')"
 
@@ -5709,15 +5736,42 @@ mut_caret_viol_291="$(caret_violations_291 "$mut_caret_291")"
 assert_true "$([ "$mut_caret_viol_291" = '  "foo@<1.0.0": ">=1.0.0"' ]; echo $?)" \
   "#291 Mutationsbeleg AK5: Caret-Guard meldet nur den nicht ausgenommenen Verstoß, esbuild-Ausnahme bleibt unauffällig (ist: '${mut_caret_viol_291}')"
 
-# AK-7 (#169): der postcss-Eintrag ist ANGEHOBEN (8.5.10 → 8.5.23), nicht dupliziert – genau
-# ein postcss-Override, und zwar auf dem aktuellen Floor. Der esbuild-Eintrag BLEIBT: er ist
-# nachweislich kein No-op (ohne ihn löst der Baum esbuild@0.18.20 auf, in #291 durch Entfernen
-# + Neuinstallation verifiziert), und der No-op-Verdacht aus #169 ist damit widerlegt.
-postcss_ovr_count_291="$(printf '%s\n' "$overrides_keys_291" | grep -cE '^  "?postcss@' || true)"
-assert_true "$([ "$postcss_ovr_count_291" = "1" ]; echo $?)" \
-  "#291 AK7: genau ein postcss-Override in pnpm-workspace.yaml, kein zweiter Floor daneben (ist: $postcss_ovr_count_291)"
-assert_true "$(grep -qxF -- '  "postcss@<8.5.23": "^8.5.23"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#291 AK7: der bestehende postcss-Override ist auf 8.5.23 angehoben (nicht mehr <8.5.10)"
+# AK-7/AK-8 (#169/#337): postcss, sharp und js-yaml sind ENTFERNT, nicht mehr nur angehoben.
+# next 16.3.5 pinnt postcss exakt auf 8.5.23 (= Floor, vorher 8.4.31) und verlangt sharp selbst
+# als ^0.35.4; eslint zieht js-yaml auf 4.3.2. Alle drei sind damit messbar No-ops geworden
+# (#337: Eintrag streichen, ohne Alt-Lockfile neu auflösen, aufgelöste Version prüfen) – das in
+# #169/#291 als unerreichbar notierte Entfern-Kriterium ist für postcss erreicht. Dass die
+# Floors OHNE die Einträge weiter halten, prüft die Floor-Schleife oben; hier steht nur, dass
+# die Einträge wirklich verschwunden sind. Der esbuild-Eintrag BLEIBT: er ist nachweislich kein
+# No-op (ohne ihn löst der Baum esbuild@0.18.20 auf, in #291 durch Entfernen + Neuinstallation
+# verifiziert).
+ovr_count_337() {
+  printf '%s\n' "$overrides_keys_291" | grep -cE "^  \"?$1@" || true
+}
+
+for pkg_337 in postcss sharp js-yaml; do
+  count_337="$(ovr_count_337 "$pkg_337")"
+  assert_true "$([ "$count_337" = "0" ]; echo $?)" \
+    "#337 AK7/AK8: kein ${pkg_337}-Override mehr in pnpm-workspace.yaml (gemessener No-op nach dem next-16.3.5-Bump, ist: $count_337)"
+done
+
+# Diskriminierungs-Kontrolle zu den drei Null-Zählungen: derselbe Ausdruck MUSS die weiterhin
+# nötigen Einträge finden – sonst wären sie grün, weil die Extraktion gar nichts liefert.
+undici_ovr_count_337="$(ovr_count_337 undici)"
+assert_true "$([ "$undici_ovr_count_337" = "1" ]; echo $?)" \
+  "#337 Diskriminierungs-Kontrolle: derselbe Zähl-Ausdruck findet den weiterhin nötigen undici-Override (ist: $undici_ovr_count_337)"
+
+# Mutationsbeleg für die drei Null-Zählungen (Review-Runde-1-Finding #337): die undici-Kontrolle
+# oben belegt nur, dass IRGENDEIN vorhandener Override gefunden wird – nicht spezifisch, dass ein
+# postcss-Override (falls er zurückkäme) ebenfalls träfe. Synthetische Fixture mit genau einer
+# postcss-Zeile schließt das.
+overrides_keys_291_saved_337="$overrides_keys_291"
+overrides_keys_291='  "postcss@<8.5.23": "^8.5.23"
+  "undici@<7.29.0": "^7.29.0"'
+mut_postcss_ovr_count_337="$(ovr_count_337 postcss)"
+overrides_keys_291="$overrides_keys_291_saved_337"
+assert_true "$([ "$mut_postcss_ovr_count_337" = "1" ]; echo $?)" \
+  "#337 Mutationsbeleg: derselbe Zähl-Ausdruck findet einen zurückgekehrten postcss-Override auf einer Fixture (ist: $mut_postcss_ovr_count_337)"
 assert_true "$(grep -qE '^  "esbuild@<0\.25\.0"' "$WORKSPACE_YAML_291"; echo $?)" \
   "#291 AK7: esbuild-Override bleibt erhalten (kein No-op – ohne ihn kommt esbuild@0.18.20 zurück)"
 

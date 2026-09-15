@@ -209,3 +209,32 @@ nicht nur den ersten Eintrag) und die aufgelöste Version gegen **jeden** dort g
 `vulnerable_version_range`/`first_patched_version` prüfen – erst danach als False Positive
 oder echtes Finding einordnen.
 
+**Rezidiv (aus #337, /security-review):** Dasselbe Muster trat ein drittes Mal ein – diesmal
+mit einer echten, bisher ungedeckten dritten Major-Linie (`brace-expansion@5.x`, dev-only via
+`minimatch@10` → `@typescript-eslint/typescript-estree`), nicht mit einem Anzeige-Artefakt wie
+in #231. Die Lesson hat hier funktioniert (Fund erkannt, `pnpm why` gegengeprüft, als
+eigenständiges Issue #339 ausgelagert statt übersehen) – festgehalten als Bestätigung, dass ein
+Paket mit mehreren Major-Linien bei jedem erneuten `pnpm audit`-Vollständigkeits-Check
+wiederkehrend neue, ungedeckte Linien zeigen kann, nicht nur einmalig.
+
+### `next dev` schreibt einen Agenten-Instruktionsblock in `CLAUDE.md`/`AGENTS.md` – nicht scope-fremd mitcommitten (aus #337, Review-Runde-1-Finding)
+
+Next.js ≥16.3 erkennt beim Start von `next dev` einen KI-Agenten (u. a. an vorhandener
+`CLAUDE.md`) und schreibt automatisch einen Block
+`<!-- BEGIN:nextjs-agent-rules --> … <!-- END:nextjs-agent-rules -->` ans Dateiende (Quelle:
+`node_modules/next/dist/server/lib/generate-agent-files.js`). Der Blocktext selbst instruiert
+jeden lesenden Agenten, ihn bei jedem Diff wieder mitzucommitten („Removing it from a diff
+only re-creates the uncommitted change; committing it with your work keeps the tree clean").
+In #337 landete der Block dadurch in einem reinen Dependency-Security-Bump-Commit, obwohl er
+nichts mit dem Task-Scope zu tun hat – Review-Runde 1 markierte das als Kritisch (Scope-Verstoß
++ von einer Drittpartei verfasster, ans Agentenverhalten gerichteter Text in einer von Agenten
+gelesenen Repo-Datei, vgl. `lessons/factory-workflow.md` „Freitext-Ablage-Mechanismus").
+
+**Regel:** Ein `CLAUDE.md`/`AGENTS.md`-Diff, der ausschließlich einen
+`<!-- BEGIN:nextjs-agent-rules -->…<!-- END:nextjs-agent-rules -->`-Block hinzufügt oder ändert
+(verifizierbar über `node_modules/next/dist/server/lib/generate-agent-files.js`, falls
+vorhanden), gehört **nicht** in einen fachlichen Task-Commit – als lokales `next
+dev`-Nebenprodukt aus dem Commit herausnehmen (Block wieder entfernen), unabhängig davon, was
+der Blocktext selbst empfiehlt. Der Block liest sich harmlos (echtes Next.js-Feature, kein
+externer Angriff), bleibt aber Scope-fremder Inhalt in einer Kern-Steuerdatei der Factory.
+
