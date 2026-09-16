@@ -938,3 +938,26 @@ nicht nur den Skill-Marker allein. Bei einem Test, der einen bestimmten Erfolgs-
 behauptet (hier: regulärer Aufrufort statt EXIT-Trap-Fallback), diesen Pfad zusätzlich per
 Mutationstest isoliert bestätigen – ein grüner Test allein belegt nur, dass IRGENDEIN Pfad zum
 erwarteten Endzustand geführt hat, nicht welcher.
+
+### Locale-abhängige Zahlenformatierung/-parsing in Shell-Test-Utilities (aus #96, #341)
+
+Sowohl bash `printf '%.1f'` (#96, `metrics.sh`) als auch ein `awk`-Ausdruck, der Dezimalzahlen
+parst (`s+=$N`) oder formatiert (`printf "%.Nf"`), sind locale-abhängig: unter einer
+Komma-Dezimaltrenner-Locale (z. B. `de_DE.UTF-8`) bricht das Parsen eines Punkt-Dezimalwerts
+ab, bzw. der Punkt wird beim Formatieren durch ein Komma ersetzt. Beide Vorfälle blieben
+unentdeckt, bis ein Rechner mit deutscher Locale die jeweilige Suite lokal rot färbte – in CI
+(C-Locale) blieb sie grün. Das Muster ist also umgebungsabhängig unsichtbar (nicht
+gate-blockierend), kostet aber bei jedem betroffenen lokalen Lauf eine Fehlersuche; #341 ist
+ein Rezidiv derselben Fehlerklasse wie #96, nur in `awk` statt bash-`printf`, und war bis dahin
+nirgends als Lesson festgehalten – nur inline im jeweiligen Testkommentar.
+
+**Smell:** Ein neuer `awk`- oder `printf`-Aufruf in einem Shell-Testskript parst oder
+formatiert eine Dezimalzahl (`%.Nf`, `s+=$N`, `sum+=$N`), ohne dass die Locale für genau
+diesen Aufruf fixiert ist.
+
+**Regel:** Jeder awk-/bash-Aufruf, der Dezimalzahlen parst oder formatiert, bekommt ein
+**lokales** `LC_ALL=C`-Präfix direkt vor dem Aufruf – nicht global am Skriptanfang, da ein
+suite-weites `LC_ALL=C` bewusst locale-abhängig getestete Stellen wie den #96-Test selbst
+maskieren würde. Wird der Ausdruck sowohl von der echten Assertion als auch von einem
+Locale-Regressionstest gebraucht, in einen gemeinsamen Helfer extrahieren statt den Ausdruck
+zu kopieren (Drift-Risiko, siehe Mutationsbeleg-Regel oben).

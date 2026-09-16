@@ -8199,6 +8199,17 @@ STUB_334
       bash "$dir/scripts/run-pipeline.sh" "$task_id" "$@" 2>&1); RC_334=$?
   }
 
+  # tele_cost_sum_334 <csv-datei> – Summen-Helfer für die #334-Kostensummen-Assertion
+  # (Review-Finding 2) unten UND den #341-Locale-Regressionstest: beide rufen denselben
+  # Ausdruck, statt dass eine Kopie vom Original wegdriftet (lessons/testing.md,
+  # Mutationsbeleg-Regel).
+  # LC_ALL=C (#341): ohne gesetzte Locale parst BSD-awk "0.05"/"0.08" unter einer
+  # Komma-Dezimaltrenner-Locale als 0 UND formatiert "%.2f" mit Komma – Ergebnis "0,00"
+  # statt "0.13". Präzedenz in dieser Datei: :4687, :7871.
+  tele_cost_sum_334() {
+    LC_ALL=C awk -F, '$4=="implement" && $5=="claude_code.cost.usage"{s+=$10} END{printf "%.2f", s+0}' "$1"
+  }
+
   # ── AK1/AK3/AK4/AK7 (Default an): CSV entsteht, ist committet und gepusht.
   TMP_334A="$(mktemp -d)"; TMP_334A_ORIGIN="$(mktemp -d)"
   scaffold_310 "$TMP_334A" 905
@@ -8406,11 +8417,31 @@ STUB_334H
   if [ -n "$tele_csv_h" ]; then
     # Summe statt Maximum: 0.05 (Versuch 1, gescheitert) + 0.08 (Versuch 2, erfolgreich) = 0.13.
     # awk statt bc/jq – hier bereits als Test-Utility im Einsatz (siehe die awk-Aufrufe oben).
-    tele_sum_h=$(awk -F, '$4=="implement" && $5=="claude_code.cost.usage"{s+=$10} END{printf "%.2f", s+0}' "$tele_csv_h")
+    tele_sum_h=$(tele_cost_sum_334 "$tele_csv_h")
     assert_true "$([ "$tele_sum_h" = "0.13" ]; echo $?)" \
       "#334 (Review-Finding 2): Kosten BEIDER Versuche stehen in der Summe (0.13), nicht nur der letzte (0.08) (war: $tele_sum_h)"
   fi
   rm -rf "$TMP_334H" "$TMP_334H_ORIGIN"
+
+  # ── #341: tele_cost_sum_334() bleibt unter deutscher Locale locale-unabhängig ──
+  # BSD-awk parst/formatiert Dezimalzahlen sonst lokale-abhängig (Komma statt Punkt) –
+  # dieselbe Fail-Klasse wie #96, hier in awk statt bash-printf. Ruft denselben Helfer wie
+  # die #334-Assertion oben auf (kein kopierter awk-Ausdruck, sonst Drift zwischen Test und
+  # echter Zeile, lessons/testing.md).
+  if [ "$HAS_DE_LOCALE" -eq 1 ]; then
+    TELE_341_CSV="$(mktemp)"
+    cat > "$TELE_341_CSV" <<'CSV341'
+run_timestamp,task_id,step_seq,step,metric,model,query_source,agent_name,value_type,value
+2026-09-16T00:00:00Z,341,1,implement,claude_code.cost.usage,claude-haiku-4-5-20251001,main,,double,0.05
+2026-09-16T00:00:00Z,341,2,implement,claude_code.cost.usage,claude-haiku-4-5-20251001,main,,double,0.08
+CSV341
+    tele_sum_341="$(LC_ALL=de_DE.UTF-8 LC_NUMERIC=de_DE.UTF-8 tele_cost_sum_334 "$TELE_341_CSV")"
+    assert_true "$([ "$tele_sum_341" = "0.13" ]; echo $?)" \
+      "#341: tele_cost_sum_334() summiert 0.05+0.08 unter deutscher Locale korrekt zu 0.13 (war: $tele_sum_341)"
+    rm -f "$TELE_341_CSV"
+  else
+    echo "  • #341: tele_cost_sum_334() locale-sicher – übersprungen (de_DE.UTF-8-Locale fehlt)"
+  fi
 
   # ── Fehlerszenario 2 (spec-334): Lauf bricht vorzeitig ab (hier: Quality-Gate „Tests"
   # scheitert nach Phase 1) – die bis dahin angefallene Telemetrie (der /implement-Schritt)
