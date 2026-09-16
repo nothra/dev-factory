@@ -5549,6 +5549,9 @@ assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-04
 # von sharp und js-yaml sind ANGEHOBEN (Muster „Floor angehoben statt zweiter Eintrag daneben",
 # #169/#291), browserslist/baseline-browser-mapping/vitest/@vitest/mocker sind als Fälle
 # ergänzt, und der next-Pin-Floor steht auf 16.3.3 (GHSA-2xp9-vwfh-vxw4, GHSA-p293-qw3h-jr36).
+# #339 nutzt denselben Guard ebenso weiter: drei brace-expansion-Fälle für die 3er- und die
+# 4.x/5.x-Linie. Die Floors kommen beide aus GHSA-rgw5-rvv9-x895 (5.0.9 bzw. 3.0.6);
+# GHSA-mh99-v99m-4gvg liegt mit 5.0.8 / 3.0.3 darunter und ist damit mitgedeckt.
 echo "#291/#337 Dependency-Security-Floors (aufgelöste Lockfile-Versionen):"
 
 LOCKFILE_291="$FACTORY_ROOT/pnpm-lock.yaml"
@@ -5563,7 +5566,7 @@ assert_true "$([ -r "$LOCKFILE_291" ] && [ -r "$PKG_JSON_291" ] && [ -r "$WORKSP
 # lock_versions_291 <paket> <major> <lockfile> – alle aufgelösten Versionen des Pakets
 # innerhalb EINER Major-Linie, aufsteigend sortiert, eine je Zeile. Die Major-Linie gehört zum
 # Schlüssel, weil derselbe Paketname mehrfach mit unterschiedlichen Floors im Baum liegt
-# (brace-expansion 1.x und 2.x tragen verschiedene Advisories). Peer-Suffixe wie
+# (brace-expansion trägt in 1.x, 2.x, 3.x und 4.x/5.x je eigene Floors). Peer-Suffixe wie
 # "(react@19.2.4)" und der abschließende Doppelpunkt werden abgeschnitten.
 # Scoped-Pakete schreibt pnpm quotiert ('@vitest/mocker@4.1.11':) – die Quotes fallen vorab
 # aus dem Strom, sonst liefe der Fall lautlos ins Leere (kein Treffer = scheinbar sauber, #337).
@@ -5589,11 +5592,22 @@ versions_below_floor_291() {
 }
 
 # Format: "<paket>|<major>|<floor>|<herkunft im Baum>"
+# #339: die 4.x/5.x-Linie deckt EIN Override-Selektor (>=4.0.0 <5.0.9) ab, hier stehen aber
+# DREI Fälle, weil lock_versions_291 je Major-Linie filtert (grep "^  <paket>@<major>\.") und
+# ein Fall damit nur seine eigene Linie sieht. Gemessen wird allein vom Major-5-Fall: er traf
+# im RED-Lauf die real aufgelöste 5.0.7, während der Major-4-Fall prompt grün war. Die Fälle
+# für Major 4 und 3 sind Vorsorge gegen ein künftiges Hereinziehen – heute löst der Baum in
+# beiden Linien keine Kopie auf (minimatch@10 deklariert ^5.0.5 und kann selbst keine 4.x
+# ziehen). Für Major 3 ist dieser Fall die EINZIGE Deckung: die 3er-Linie hat bewusst keinen
+# Override-Selektor (Begründung in pnpm-workspace.yaml), eine 3.0.x zöge sonst still ein.
 floor_cases_291=(
   "postcss|8|8.5.23|runtime, via next"
   "nanoid|3|3.3.17|runtime, via postcss"
   "brace-expansion|1|1.1.18|runtime, via minimatch@3"
   "brace-expansion|2|2.1.4|runtime, via minimatch@5"
+  "brace-expansion|3|3.0.6|Vorsorge, heute keine 3.x-Kopie im Baum, kein Override-Selektor (#339)"
+  "brace-expansion|4|5.0.9|Vorsorge, heute keine 4.x-Kopie im Baum, Floor in der 5er-Linie (#339)"
+  "brace-expansion|5|5.0.9|development, via minimatch@10 (typescript-eslint), Floor aus #339"
   "sharp|0|0.35.4|runtime, via next (Bildoptimierung), Floor aus #337"
   "undici|7|7.29.0|development, via jsdom"
   "js-yaml|4|4.3.2|development, via eslint, Floor aus #337"
@@ -5619,6 +5633,34 @@ mut_below_291="$(versions_below_floor_291 postcss 8 8.5.23 "$mut_lock_291")"
 assert_true "$([ "$mut_below_291" = " 8.5.16" ]; echo $?)" \
   "#291 Mutationsbeleg: Floor-Kette meldet auf einer Fixture mit postcss@8.5.16 genau diese Version (ist: '${mut_below_291}')"
 rm -f "$mut_lock_291"
+
+# Mutationsbeleg für die #339-Vorsorge-Fälle (Major 3 und Major 4): der Baum löst heute in
+# beiden Linien keine Kopie auf, die Fälle sind im Ist-Lauf also zwangsläufig grün, ohne etwas
+# zu messen (Lesson testing.md, #319 – In-Suite-Diskriminierungs-Kontrolle statt nur behaupteter
+# Deckung). Je Fall eine Fixture mit einer Kopie unter dem Floor MUSS anschlagen, sonst wäre ein
+# Tippfehler in Paketname/Major dauerhaft unsichtbar.
+mut_vorsorge3_339="$(mktemp)"
+printf '  brace-expansion@3.0.1:\n  brace-expansion@3.0.6:\n' > "$mut_vorsorge3_339"
+mut_vorsorge3_below_339="$(versions_below_floor_291 brace-expansion 3 3.0.6 "$mut_vorsorge3_339")"
+assert_true "$([ "$mut_vorsorge3_below_339" = " 3.0.1" ]; echo $?)" \
+  "#339 Mutationsbeleg: Major-3-Vorsorge-Fall meldet auf einer Fixture mit brace-expansion@3.0.1 genau diese Version (ist: '${mut_vorsorge3_below_339}')"
+mut_vorsorge3_clean_339="$(versions_below_floor_291 brace-expansion 3 3.0.1 "$mut_vorsorge3_339")"
+assert_true "$([ -z "$mut_vorsorge3_clean_339" ]; echo $?)" \
+  "#339 Diskriminierungs-Kontrolle: dieselbe Fixture ist gegen Floor 3.0.1 sauber (ist: '${mut_vorsorge3_clean_339}')"
+rm -f "$mut_vorsorge3_339"
+
+# Major-4-Fall zusätzlich mit einer 5.x-Nachbarzeile in derselben Fixture: belegt neben dem
+# Floor-Vergleich auch, dass lock_versions_291 die Major-Linien trennt (die 5.0.12-Zeile darf
+# beim Major-4-Filter nicht mitzählen, sonst wäre die Vorsorge-Zeile aus dem falschen Grund grün).
+mut_vorsorge4_339="$(mktemp)"
+printf '  brace-expansion@4.0.0:\n  brace-expansion@5.0.12:\n' > "$mut_vorsorge4_339"
+mut_vorsorge4_below_339="$(versions_below_floor_291 brace-expansion 4 5.0.9 "$mut_vorsorge4_339")"
+assert_true "$([ "$mut_vorsorge4_below_339" = " 4.0.0" ]; echo $?)" \
+  "#339 Mutationsbeleg: Major-4-Vorsorge-Fall meldet auf einer Fixture mit brace-expansion@4.0.0 genau diese Version, nicht die 5.x-Nachbarzeile (ist: '${mut_vorsorge4_below_339}')"
+mut_vorsorge4_clean_339="$(versions_below_floor_291 brace-expansion 5 5.0.9 "$mut_vorsorge4_339")"
+assert_true "$([ -z "$mut_vorsorge4_clean_339" ]; echo $?)" \
+  "#339 Diskriminierungs-Kontrolle: dieselbe Fixture ist für den Major-5-Filter gegen Floor 5.0.9 sauber (5.0.12 liegt darüber) (ist: '${mut_vorsorge4_clean_339}')"
+rm -f "$mut_vorsorge4_339"
 
 # Mutationsbeleg für den QUOTIERTEN Scoped-Schlüssel (#337): @vitest/mocker steht im Lockfile
 # als '@vitest/mocker@4.1.11': – ohne die Quote-Entfernung in lock_versions_291 fände die Kette
@@ -5712,6 +5754,12 @@ assert_true "$(grep -qxF -- '  "brace-expansion@<1.1.18": "^1.1.18"' "$WORKSPACE
   "#291 AK5: brace-expansion@1.x-Override hebt innerhalb der 1er-Linie (^1.1.18)"
 assert_true "$(grep -qxF -- '  "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"' "$WORKSPACE_YAML_291"; echo $?)" \
   "#291 AK5: brace-expansion@2.x-Override ist nach unten begrenzt (>=2.0.0) und greift nicht auf 1.x über"
+# #339 AK1: dritter Selektor für die 4.x/5.x-Linie. Die untere Schranke prüft nur diese Zeile –
+# der projektweite Konditionalitäts-Guard oben sieht ausschließlich die OBERE Schranke, ein
+# versehentliches "brace-expansion@<5.0.9" (das auch 1.x/2.x über die Major-Grenze höbe)
+# käme dort also unauffällig durch.
+assert_true "$(grep -qxF -- '  "brace-expansion@>=4.0.0 <5.0.9": "^5.0.9"' "$WORKSPACE_YAML_291"; echo $?)" \
+  "#339 AK1: brace-expansion@4.x/5.x-Override ist nach unten begrenzt (>=4.0.0) und hebt in die Fix-Linie (5er, ^5.0.9) – 4.x hat keinen eigenen Fix"
 
 # Caret-Regel projektweit für ALLE neuen #291-Einträge, nicht nur brace-expansion – sharp/
 # undici/js-yaml tragen dieselbe Ziel-Range-Form und dürfen bei einem künftigen Umstellen auf

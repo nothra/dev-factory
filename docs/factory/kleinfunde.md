@@ -137,9 +137,10 @@
 
 ### Alt-Overrides `esbuild`/`uuid` tragen offene `>=`-Ziel-Ranges
 
-- **Wo:** [`pnpm-workspace.yaml:66-67`](../../pnpm-workspace.yaml) –
-  `"esbuild@<0.25.0": ">=0.25.0"` und `"uuid@<11.1.1": ">=11.1.1"`.
-- **Was:** Beide verletzen die mit #291 in derselben Datei (`:15-18`) aufgestellte Regel
+- **Wo:** [`pnpm-workspace.yaml:101-102`](../../pnpm-workspace.yaml) –
+  `"esbuild@<0.25.0": ">=0.25.0"` und `"uuid@<11.1.1": ">=11.1.1"` (Zeilen driften, zuletzt
+  verifiziert am 2026-09-16 im Rahmen von #339).
+- **Was:** Beide verletzen die mit #291 in derselben Datei (`:16-19`) aufgestellte Regel
   „Ziel-Range immer als Caret innerhalb derselben Major-Linie". Wirkung ist messbar: `uuid`
   löst auf **14.0.1** auf, während `exceljs@4.4.0` `uuid: ^8.3.2` deklariert – drei Major-Linien
   über dem Floor 11.1.1. Ein offenes `>=` lässt pnpm auf die neueste Major springen; genau
@@ -153,30 +154,29 @@
   `pnpm-workspace.yaml` über die alert-behafteten Einträge hinaus aus.
 - **Herkunft:** #291 (`/review`, Runde 1). Fundstelle verifiziert am 2026-08-13.
 
-### Override-Selektoren ohne untere Schranke greifen auf ältere Major-Linien über
+### Override-Selektor ohne untere Schranke greift auf ältere Major-Linien über
 
-- **Wo:** [`pnpm-workspace.yaml:60,63-65`](../../pnpm-workspace.yaml) – `"postcss@<8.5.23"`,
-  `"sharp@<0.35.0"`, `"undici@<7.29.0"`, `"js-yaml@<4.3.1"`.
-- **Was:** Vier der sechs #291-Selektoren sind nach unten offen und passen damit auch auf
-  ältere Major-Linien desselben Pakets: `js-yaml@<4.3.1` matcht `js-yaml@3.14.x`,
-  `undici@<7.29.0` matcht `undici@5/6`, `postcss@<8.5.23` matcht `postcss@7`. Zieht künftig ein
-  Paket eine solche Kopie in den Baum, hebt der Override sie über die Major-Grenze – der
-  Caret-Ziel-Range (`^4.3.1`) verhindert das **nicht**, er begrenzt nur nach oben. Exakt dieser
-  Mechanismus ist in #291 bei `brace-expansion` empirisch eingetreten und wurde dort mit einem
-  disjunkten Selektor (`>=2.0.0 <2.1.4`) behoben – die vier übrigen blieben unbegrenzt, weil im
-  aktuellen Baum keine ältere Major-Kopie existiert (am 2026-08-13 im Lockfile geprüft:
-  je genau eine aufgelöste Kopie, alle in der Ziel-Major).
+- **Wo:** [`pnpm-workspace.yaml:100`](../../pnpm-workspace.yaml) – `"undici@<7.29.0"`.
+  **Aktualisiert am 2026-09-16 (im Rahmen von #339):** `postcss`, `sharp` und `js-yaml` sind
+  seit #337 aus `overrides:` entfernt (No-op-Messung nach dem next-16.3.5-Bump) – die
+  ursprüngliche Formulierung „vier der sechs #291-Selektoren" nannte diese drei weiter, obwohl
+  sie nicht mehr existieren. Nur `undici` ist heute noch betroffen.
+- **Was:** `undici@<7.29.0` ist nach unten offen und passt damit auch auf ältere Major-Linien
+  desselben Pakets (`undici@5/6`). Zieht künftig ein Paket eine solche Kopie in den Baum, hebt
+  der Override sie über die Major-Grenze – der Caret-Ziel-Range (`^7.29.0`) verhindert das
+  **nicht**, er begrenzt nur nach oben. Exakt dieser Mechanismus ist in #291 bei
+  `brace-expansion` empirisch eingetreten und wurde dort mit einem disjunkten Selektor
+  (`>=2.0.0 <2.1.4`) behoben – `undici` blieb unbegrenzt, weil im aktuellen Baum keine ältere
+  Major-Kopie existiert (zuletzt am 2026-09-16 im Lockfile geprüft: genau eine aufgelöste
+  Kopie, in der Ziel-Major).
 - **Warum es zählt:** kein Sicherheitsrisiko und heute kein Defekt – der Auslöser (ältere
-  Major-Kopie im Baum) ist in diesem Repo derzeit nicht herstellbar, deshalb kein Issue. Bei
-  `js-yaml` wäre die Folge aber hart: 4.x hat `safeLoad`/`safeDump` entfernt, ein
-  zwangs-gehobenes 3.x-Dev-Tool bräche zur Laufzeit.
+  Major-Kopie im Baum) ist in diesem Repo derzeit nicht herstellbar, deshalb kein Issue.
 - **Fix:** untere Schranke ergänzen, analog zum `brace-expansion@2.x`-Eintrag – z. B.
-  `"js-yaml@>=4.0.0 <4.3.1"`, `"undici@>=7.0.0 <7.29.0"` (vier Zeilen). Die Vulnerable-Ranges
-  der Advisories nennen die Untergrenze bereits (`>= 7.0.0, < 7.29.0` bzw. `>= 4.0.0, < 4.3.1`);
-  bei `postcss`/`sharp` ist sie aus den Advisory-Daten abzuleiten. Danach einmal `install` +
-  Gates, obwohl sich am aufgelösten Baum nichts ändern sollte.
-- **Herkunft:** #291 (`/security-review`). Fundstelle und Lockfile-Auflösung verifiziert am
-  2026-08-13.
+  `"undici@>=7.0.0 <7.29.0"` (eine Zeile). Die Vulnerable-Range der Advisory nennt die
+  Untergrenze bereits (`>= 7.0.0, < 7.29.0`). Danach einmal `install` + Gates, obwohl sich am
+  aufgelösten Baum nichts ändern sollte.
+- **Herkunft:** #291 (`/security-review`), Inhalt aktualisiert in #339 (`/codify`, Review-Runde
+  2 Nitpick). Fundstelle und Lockfile-Auflösung verifiziert am 2026-09-16.
 
 ### `start-work.sh` erkennt einen wiederverwendeten Worktree nicht hinter einem Pfad-Symlink
 

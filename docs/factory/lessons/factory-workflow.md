@@ -1374,7 +1374,7 @@ rechtfertigt für sich allein **keinen** vollen `/implement`-Rücksprung, wenn s
 nachgezogen wird – sie sollte aber nicht erst `/pr-shepherd` überlassen werden, da dessen
 Merge-Freigabe sonst auf einer unvollständigen Task-Datei aufsetzt.
 
-### Content-scannender Anti-Regressions-Guard in run-tests.sh ist blind für Tracked-Status (aus #312, zweimal in derselben Task)
+### Content-scannender Anti-Regressions-Guard in run-tests.sh ist blind für Tracked-Status (aus #312, zweimal in derselben Task; drittes Vorkommnis aus #339)
 
 Der Gotcha-Guard „kein `grep -c … || echo`-Muster in scripts/" (`run-tests.sh`, Zeile ~1269)
 durchsucht `$SCRIPTS_DIR` **inhaltlich per `grep -r`** – nicht nur `git ls-files`. Während der
@@ -1397,6 +1397,14 @@ Suite-Lauf entfernen, nicht den Guard abschwächen oder auf getrackte Dateien ei
 → `/review`, `/test`, `/refactor`, `/security-review` – bei unerwartetem Rot eines
 verzeichnisweiten Content-Scan-Guards in `run-tests.sh`, obwohl `git status` (ohne `--ignored`)
 sauber ist
+
+**Drittes Vorkommnis (aus #339):** Zwölf `scripts/*.tmp.sh` + ein `scripts/*.tmp.log`-Rest aus
+den Review-Runden 2/3 lagen beim `/test`-Lauf noch im Baum, obwohl die Task-Datei bereits
+vorher „Wegwerf-Artefakte: erledigt, kein Blocker" notiert hatte – die Behauptung war zum
+Notiz-Zeitpunkt richtig, es entstanden aber in den folgenden Verify-Schritten neue Artefakte.
+**Ergänzung:** „Wegwerf-Artefakte entfernt" ist eine Momentaufnahme, keine Dauerzusage – vor dem
+nächsten Suite-Lauf (nicht nur einmal pro Task) per `git status --ignored` erneut prüfen,
+gerade wenn zwischen der Notiz und dem Lauf weitere Sub-Agenten-Schritte liefen.
 
 ### Anker-Liste einer Fail-safe-Klassifizierungsregel braucht einen Verteilungs-Check gegen den echten Repo-Inhalt (aus #315, Review-Runde-4-Finding)
 

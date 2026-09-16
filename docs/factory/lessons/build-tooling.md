@@ -72,13 +72,26 @@ Version belegen (`pnpm why <paket>` bzw. Lockfile-Prüfung) – ergänzend die D
 (eigener Eintrag unten, #228). Nicht auf die Abwesenheit einer Fehlermeldung vertrauen.
 
 **Ziel-Range immer als Caret innerhalb derselben Major-Linie** (`^1.1.18`, nicht `>=1.1.18`, aus
-#291): Ein offenes `>=` lässt pnpm auf die neueste Major springen und schiebt damit einen
+#291) – Ausnahme siehe unten: Ein offenes `>=` lässt pnpm auf die neueste Major springen und schiebt damit einen
 Major-Bump in einen Baum, der ihn nicht angefordert hat – `">=2.1.4"` hob die von `minimatch@3`
 erwartete `brace-expansion@1.1.15` über die Major-Grenze auf 2.x, und der Alt-Eintrag
 `"uuid@<11.1.1": ">=11.1.1"` löst bis heute auf **14.0.1** auf, obwohl `exceljs` `^8.3.2`
-deklariert. Trägt ein Paket Advisories in zwei Major-Linien, brauchen die Selektoren **disjunkte**
-Grenzen (`brace-expansion@<1.1.18` **und** `brace-expansion@>=2.0.0 <2.1.4`) – ohne die untere
-Schranke greift der 2er-Selektor auch auf 1.1.x.
+deklariert. Trägt ein Paket Advisories in mehreren Major-Linien, brauchen die Selektoren
+**disjunkte** Grenzen (bei `brace-expansion` inzwischen drei: `@<1.1.18`, `@>=2.0.0 <2.1.4` und
+`@>=4.0.0 <5.0.9`, #339) – ohne die untere Schranke greift der 2er-Selektor auch auf 1.1.x.
+
+**Ausnahme zur Major-Gleichheit: Linie ohne eigenen Fix wird in der Fix-Linie gepatcht** (aus
+#339). Veröffentlicht das Advisory für die Linie des Selektors keinen eigenen Patch, sondern
+behebt sie erst in einer höheren Linie, zeigt der Caret in **diese Fix-Linie**:
+`"brace-expansion@>=4.0.0 <5.0.9": "^5.0.9"` hebt eine 4.x-Kopie über die Major-Grenze, weil in
+der 4er-Linie nur `4.0.0`/`4.0.1` existieren und `first_patched_version` beider Advisories in der
+5er-Linie liegt. Die Caret-Form bleibt Pflicht (sie begrenzt dann die Fix-Linie nach oben). Der
+Guard `caret_violations_291` prüft nur die Caret-**Syntax**, nicht die Major-Gleichheit, kann die
+Ausnahme also nicht bestätigen – sie braucht deshalb den Prosa-Anker im Kommentar von
+`pnpm-workspace.yaml`, sonst stellt ein späterer Durchlauf die untere Schranke „regelkonform" auf
+`>=5.0.0` und reißt die 4.x-Lücke wieder auf. Ist eine parallel gepflegte Linie von **keinem**
+Selektor gedeckt (dort `3.x`), gehört sie mindestens als Fall in den Floor-Guard, damit ein
+künftiges Hereinziehen CI-rot wird statt still durchzugehen.
 
 **Overrides sind „sticky", aber nicht automatisch No-ops, sobald die Parents nachziehen** – die
 Vermutung ist zu messen, nicht anzunehmen (aus #291, das den Follow-up #169 erledigt): `esbuild@<0.25.0`
@@ -213,7 +226,8 @@ oder echtes Finding einordnen.
 mit einer echten, bisher ungedeckten dritten Major-Linie (`brace-expansion@5.x`, dev-only via
 `minimatch@10` → `@typescript-eslint/typescript-estree`), nicht mit einem Anzeige-Artefakt wie
 in #231. Die Lesson hat hier funktioniert (Fund erkannt, `pnpm why` gegengeprüft, als
-eigenständiges Issue #339 ausgelagert statt übersehen) – festgehalten als Bestätigung, dass ein
+eigenständiges Issue #339 ausgelagert statt übersehen; #339 ist mit dem dritten
+Override-Selektor inzwischen erledigt) – festgehalten als Bestätigung, dass ein
 Paket mit mehreren Major-Linien bei jedem erneuten `pnpm audit`-Vollständigkeits-Check
 wiederkehrend neue, ungedeckte Linien zeigen kann, nicht nur einmalig.
 
