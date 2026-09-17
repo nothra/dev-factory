@@ -961,3 +961,32 @@ suite-weites `LC_ALL=C` bewusst locale-abhängig getestete Stellen wie den #96-T
 maskieren würde. Wird der Ausdruck sowohl von der echten Assertion als auch von einem
 Locale-Regressionstest gebraucht, in einen gemeinsamen Helfer extrahieren statt den Ausdruck
 zu kopieren (Drift-Risiko, siehe Mutationsbeleg-Regel oben).
+
+### Gleicher Testdaten-Namensliteral in mehreren DB-Integrationstestdateien kollidiert unter Parallelisierung (aus #59/#347)
+
+Mehrere `*.test.ts`-Dateien, die alle echte Zeilen in derselben Tabelle anlegen (hier:
+`catalog_item` über `createItem`), griffen unabhängig voneinander auf denselben Namensliteral
+zurück (`__test__Cola`, zusätzlich latent `__test__Kaffee` in zwei weiteren Dateien) – jede
+Datei für sich war korrekt und räumte ihre eigene Zeile per `id` wieder ab, aber unter Vitests
+paralleler Dateiausführung legten zwei Läufe gleichzeitig dieselbe `(catalogId, name, size)`-
+Kombination an und kollidierten auf der Unique-Constraint. Der Flake war **vorbestehend** (auch
+unter der alten globalen `UNIQUE(name, size)` reproduzierbar), wurde aber durch einen in
+derselben Task neu hinzugefügten, länger laufenden Test in einer der beteiligten Dateien
+praktisch deterministisch (3 von 3 rot statt gelegentlich).
+
+**Smell:** Zwei oder mehr `*.test.ts`-Dateien legen Zeilen mit demselben Namensliteral in
+derselben unique-constraint-tragenden Spalte an, ohne dass ein gemeinsames, dateispezifisches
+Präfix das ausschließt – erkennbar per Grep auf das Literal über alle Testdateien, die dieselbe
+Tabelle beschreiben.
+
+**Regel:** Jede Testdatei, die Zeilen in einer Tabelle mit Unique-Constraint auf einem
+Namensfeld anlegt, bekommt ein **eigenes** Namensfenster (z. B. `ITEM_PREFIX =
+"__test__<dateithema>-"`), nicht ein geteiltes `__test__`-Präfix, das erst beim Kombinieren
+mehrerer Dateien disjunkt sein muss. Der Fix ist reine **Konvention ohne Enforcer** – eine
+vierte, neu hinzukommende Datei kann die Kollision wieder einführen, wenn sie das Muster nicht
+kennt; ein Kommentar an der Konstante sollte alle beteiligten Namensfelder der Tabelle
+vollständig aufzählen (nicht nur die zum Fix-Zeitpunkt bekannten), damit die nächste Datei sich
+daran orientieren kann. Ein Test, der die **gesamte** Ergebnisliste einer geteilten Ressource
+vor/nach einer Aktion vergleicht (hier: alle Artikel eines Katalogs), ist zusätzlich selbst
+nicht parallelitätsfest, wenn andere Dateien parallel Zeilen derselben Ressource anlegen/abräumen
+– er muss stattdessen nur den selbst angelegten Datensatz über seine Lesewege verfolgen.

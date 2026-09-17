@@ -316,3 +316,35 @@
   Rein dokumentarisch – kein Verhaltensdefekt.
 - **Fix:** Ein-Satz-Drift-Hinweis an D2 im Stil der bestehenden Hinweise (`:53-56`), ca. 2 Zeilen.
 - **Herkunft:** `/review` zu #318 (Nitpick, out of scope – ADR-035 wird von #318 nicht angefasst).
+
+### `updateItem` schützt `catalogId` nicht symmetrisch zu `createItem`
+
+- **Wo:** [`db/catalog.ts:82`](../../db/catalog.ts) – `.set({ ...data, updatedAt: new Date() })`
+  (verifiziert am 2026-09-17).
+- **Was:** `createItem` setzt den Katalogbezug **nach** dem Spread (`.values({ ...data, catalogId })`,
+  `:74-76`) und ist damit auch gegen ein verunreinigtes `data` robust. `updateItem` spreadet `data`
+  dagegen ungefiltert in `.set()`; ein `catalogId`-Key in `data` würde den Artikel in einen fremden
+  Katalog verschieben. **Heute nicht ausnutzbar** – zwei unabhängige Ebenen schließen es aus:
+  `CatalogItemData` `Omit`tet `catalogId`, und `catalogItemSchema` ist ein nicht-strictes
+  `z.object`, das unbekannte Keys verwirft (empirisch gegen zod ^4.4.3 geprüft: `catalogId` aus
+  `FormData` erscheint nicht in `parsed.data`). Reine Defense-in-Depth: die Sicherheit hängt an
+  einer Laufzeit-Eigenschaft von Zod, nicht an der Data-Layer selbst.
+- **Fix:** `catalogId` im `.set()` explizit mitführen (`.set({ ...data, catalogId, updatedAt: … })`)
+  – 1 Zeile; macht das Feld idempotent statt beschreibbar. Gleiches gilt sinngemäß, wenn `#345`
+  weitere Schreibpfade auf `catalog_item` ergänzt.
+- **Herkunft:** `/security-review` zu #59 (Hinweis-Ebene, kein Blocker – nicht erreichbar).
+
+### `db/catalog.test.ts`-Dateikopf behauptet „nicht-destruktiv", der AK9-Replay macht DDL
+
+- **Wo:** [`db/catalog.test.ts:22-23`](../../db/catalog.test.ts) – „Tests sind nicht-destruktiv: sie
+  räumen nur die selbst angelegten Zeilen per id wieder ab" (verifiziert am 2026-09-17).
+- **Was:** Der AK9-Replay legt seit #59 in derselben Verbindung ein Schema an und entfernt es
+  wieder (`:442` `CREATE SCHEMA`, `:505` `DROP SCHEMA … CASCADE`). Der Schemaname ist
+  generiert (`__test_ak9_${Date.now()}`, keine Fremdeingabe) und `search_path` schließt `public`
+  aus, der Radius ist also sauber begrenzt – aber die Suite braucht seither
+  `CREATE SCHEMA`-Rechte auf der per `DATABASE_URL` verbundenen DB, und der Dateikopf sagt das
+  Gegenteil. Wer den Kommentar als Freigabe liest, führt die Suite eher gegen eine fremde DB aus.
+- **Fix:** Halbsatz im Dateikopf ergänzen („…, mit Ausnahme des AK9-Replays, der ein
+  Wegwerf-Schema anlegt und wieder verwirft"), ca. 2 Zeilen.
+- **Herkunft:** `/security-review` zu #59 (Hinweis-Ebene, kein Blocker – Doku-Drift, kein
+  Verhaltensdefekt).

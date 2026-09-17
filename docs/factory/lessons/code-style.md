@@ -256,6 +256,15 @@ Und wie bei der falschen Kausalkette aus #264 gilt: Ist eine solche Behauptung e
 Grep nach den **Geschwister-Stellen** suchen – sie treten in Rudeln auf, weil dieselbe Annahme
 mehrere Absätze getragen hat.
 
+**Rezidiv trotz vorhandener Lesson (aus #59):** ein viermal kopierter Testkommentar behauptete,
+der Drift-Guard aus `db/catalog.test.ts` halte ein test-lokales Literal gegen Produktionskonstante
+und Migration – der Guard liest diese vier Testdateien nie, er prüft ausschließlich
+`db/catalog.ts` gegen die Migrationsdatei. Erst `/review` fand es, nicht das Schreiben des
+Kommentars selbst. Zeigt: die Regel „vor dem Schreiben den Enforcer öffnen" wird beim
+**Kopieren** eines bereits geschriebenen Kommentars in Geschwisterdateien besonders leicht
+übersprungen, weil der erste Blick nur dem Kopiervorgang gilt, nicht der Behauptung selbst –
+gerade das Kopieren verlangt die erneute Prüfung, nicht nur das Erstschreiben.
+
 ### Massen-Ersetzung beim Extrahieren eines Helfers trifft den Rumpf des neuen Helfers (aus #319, /refactor-Selbstfund)
 
 Wer eine wiederholte Codefolge in einen Helfer zieht und die Aufrufstellen per Regex/`sed`
