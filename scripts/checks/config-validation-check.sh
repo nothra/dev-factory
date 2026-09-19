@@ -31,7 +31,9 @@
 # könnte ein Override sein eigenes Maximum/Minimum anheben und den Guard aushebeln.
 set -uo pipefail
 
-MAX_TURNS_CEILING=50
+# 50 → 80 (#348, ADR-051): wiederkehrendes Turn-Limit-Exhaustion-Muster bei /implement
+# (Task 49: 20→40, Task 53: 40→50, zuletzt #324 erneuter Abbruch am damaligen Maximum).
+MAX_TURNS_CEILING=80
 
 # Mindest-Tier-Policy (Task 241): security-review und review sind Gates ohne
 # automatisierten Backstop (ADR-009 §G) — review entscheidet zudem über die

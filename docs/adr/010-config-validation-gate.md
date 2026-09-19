@@ -58,6 +58,11 @@ Default — sie gehört bewusst nicht in die merge-bare Config (sonst könnte ei
 eigenes Maximum anheben und den Guard aushebeln). Kommen weitere Obergrenzen hinzu, werden sie
 in eine deklarative Policy-Datei neben dem Gate promotet (siehe Konsequenzen).
 
+> **Erweitert durch [ADR-051](051-turn-limit-ceiling-implement-80.md) (#348):** Der konkrete
+> Wert von `MAX_TURNS_CEILING` wurde von 50 auf 80 angehoben (wiederkehrendes Turn-Limit-
+> Exhaustion-Muster bei `/implement`, zuletzt #324). Der hier beschriebene Mechanismus
+> (Skript-Konstante, nicht Team-überschreibbar) ist davon unberührt.
+
 **Aufrufpunkte (zwei, fail-closed):**
 - **Laufzeit:** `run-pipeline.sh` → in/vor `load_config()` (Z. 73). Ungültige Config bricht den
   Lauf **vor** der ersten Agenten-Aktion ab. yq ist dort ohnehin Prerequisite (ADR-009 §A).

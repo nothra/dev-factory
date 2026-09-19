@@ -1451,6 +1451,15 @@ if [ "$HAS_YQ" = 1 ]; then
   ovr_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
   printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
+
+  # #348/ADR-051: der REALE Team-Override aus dem Repo-Root löst end-to-end zu 80 auf
+  # (nicht nur ein synthetischer Testwert wie oben) – belegt, dass die effektive Config
+  # für /implement tatsächlich den neuen Wert trägt, kein stiller Fallback auf 20/50.
+  cp "$FACTORY_ROOT/factory.config.yml" "$TMP_CFG/factory.config.yml"
+  git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m real-override
+  real_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
+  printf '%s' "$real_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5, max 80 turns)'
+  assert_true "$?" "#348: realer Repo-Override löst implement end-to-end zu max 80 turns auf"
   rm -rf "$TMP_CFG"
 
   # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
@@ -1553,6 +1562,16 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   printf 'skills:\n  implement: { max_turns: 0 }\n' > "$GTMP/zero.yml"
   bash "$GATE" "$DEFAULTS" "$GTMP/zero.yml" >/dev/null 2>&1; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate: max_turns = 0 (unter Minimum) → fail-closed"
+
+  # Positiv (Grenzfall, #348/ADR-051): max_turns = 80 ist die neue Ceiling → exit 0
+  printf 'skills:\n  implement: { max_turns: 80 }\n' > "$GTMP/ceil80.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/ceil80.yml" >/dev/null 2>&1
+  assert_true "$?" "Gate #348: max_turns = 80 (neue Ceiling) → exit 0"
+
+  # Negativ (Grenzfall, #348/ADR-051): max_turns = 81 liegt über der neuen Ceiling
+  printf 'skills:\n  implement: { max_turns: 81 }\n' > "$GTMP/ceil81.yml"
+  bash "$GATE" "$DEFAULTS" "$GTMP/ceil81.yml" >/dev/null 2>&1; rc=$?
+  assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #348: max_turns = 81 (über neuer Ceiling) → fail-closed"
 
   # ── Mindest-Tier für sicherheitsrelevante Skills (Task 241, Regel 5) ────────
   # AK1 (Negativ): security-review.tier unter heavy → fail-closed. light ist ein

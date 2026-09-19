@@ -679,6 +679,12 @@ bestimmten Skills – Issue #275 deckt die Härtung bereits ab, sein Titel sollt
 entsprechend generalisiert werden (Retry-Guard für **jeden** code-schreibenden Skill-Schritt,
 nicht nur `/refactor`).
 
+**Nachtrag (aus #348/ADR-051):** Die Turn-Limit-Ceiling für `/implement` (`MAX_TURNS_CEILING`,
+`scripts/checks/config-validation-check.sh`) stand bei diesem Incident bereits auf dem
+damaligen Gate-Policy-Maximum 50 – keine Config-Änderung hätte geholfen. Seit #348 ist die
+Ceiling selbst auf 80 angehoben (ADR-051, Begründung: dieselbe Eskalationshistorie wie hier
+plus Task #49/#53). Issue #275 (Retry-Guard) bleibt davon unberührt und weiterhin offen.
+
 ### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
 
 Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische

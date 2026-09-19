@@ -990,3 +990,34 @@ daran orientieren kann. Ein Test, der die **gesamte** Ergebnisliste einer geteil
 vor/nach einer Aktion vergleicht (hier: alle Artikel eines Katalogs), ist zusätzlich selbst
 nicht parallelitätsfest, wenn andere Dateien parallel Zeilen derselben Ressource anlegen/abräumen
 – er muss stattdessen nur den selbst angelegten Datensatz über seine Lesewege verfolgen.
+
+### Ein Config-/Gate-Wert, der als „gültig" akzeptiert wird, ist damit noch nicht als „angewendet" belegt (aus #348, /test-Selbstfund)
+
+Task #348 hob `MAX_TURNS_CEILING` (Gate-Policy-Konstante, `config-validation-check.sh`) samt
+dem zugehörigen `factory.config.yml`-Override für `/implement` von 50 auf 80 an. `/implement`
+schrieb dafür zwei Grenzfall-Tests: `max_turns: 80` wird vom Gate akzeptiert, `max_turns: 81`
+bleibt fail-closed abgelehnt. Beide Tests waren echte Verhaltenstests (kein reiner Wiring-Grep,
+vgl. #212) – und trotzdem blieb eine Lücke: Sie belegen nur, dass das **Validierungs-Gate**
+den Wert 80 für **gültig** hält, nicht, dass der **Konsument** der effektiven Config
+(`run-pipeline.sh`, ein anderes Skript als das Gate) den Wert für `/implement` auch
+tatsächlich **anwendet** – ein Tippfehler in der Auflösungslogik von `run-pipeline.sh` selbst
+(z. B. ein noch auf den alten Default verweisender Pfad) wäre von den Gate-Tests nicht
+gefangen worden, weil sie `run-pipeline.sh` gar nicht aufrufen.
+
+**Smell:** Ein Config-Wert wird durch ein separates Validierungs-Gate geprüft (Positiv-/
+Negativ-Fixtures, Grenzfälle) – aber der eigentliche **Verbraucher** dieses Werts ist ein
+anderes Skript/Modul, das in diesen Tests nicht selbst ausgeführt wird. „Das Gate lässt den
+Wert durch" ist dann nur die halbe Behauptung; die andere Hälfte („der Wert kommt beim
+Verbraucher an, kein stiller Fallback auf den alten Default") bleibt unbelegt.
+
+**Regel:** Bei jeder Änderung eines Werts in einer geschichteten Config (ADR-009), der von
+einem separaten Gate validiert **und** von einem anderen Skript konsumiert wird, mindestens
+eine End-to-End-Assertion ergänzen, die den **realen** Konsumenten mit den **realen**
+Repo-Dateien (nicht nur einem synthetischen Testwert) ausführt und den tatsächlich verwendeten
+Wert im Output prüft (hier: `run-pipeline.sh <id> --dry-run` gegen die reale
+`factory.config.yml`, Assertion auf „max 80 turns" im Klartext-Output). Ergänzt „Deterministisches
+Gate/Backstop braucht E2E-Verhaltenstest, nicht nur Wiring-Grep" (#212) um den Fall, dass der
+fehlende Beweis nicht die Existenz eines Branches ist, sondern die **Weiterleitung** eines
+bereits validierten Werts an eine andere Komponente. **Laden bei:** `/implement`, `/test` bei
+Änderungen an `MAX_TURNS_CEILING`, `model_tiers`, `tier_by_size` oder anderen Gate-geprüften
+Config-Werten mit eigenem Konsumenten außerhalb des Gates selbst.
