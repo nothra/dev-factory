@@ -1457,6 +1457,41 @@ Perspektive, in der der Vorschlag geschrieben wurde. Im Zweifel den Bezug expliz
 → `/implement`, `/review` – beim wörtlichen Übernehmen eines Fix-Vorschlags aus einem
 Review-/Security-/Codify-Report in eine andere Zieldatei
 
+### Als „separat geflaggt"/„Hinweis" markierter Out-of-Scope-Fund bleibt Session-Notiz statt sofort kanonisch verankert zu werden (aus #345, Orchestrator-Selbstfund)
+
+In der Session zu #345 wurde ein Out-of-Scope-Fund zweimal (nach Rework Runde 2, nach dem
+Security-Review) zunächst nur als interne Notiz/Vormerkung markiert – „separat geflaggt",
+„Hinweis-Ebene, kein Blocker" – statt in demselben Zug den kanonischen Seam aufzurufen
+(`create_issue_idempotent` oder `kleinfunde.md`-Eintrag, ADR-018/ADR-043). Die abschließenden
+Task-/Review-Dateien zeigen zwar am Ende die korrekt verankerten Ergebnisse (Issues
+[#351](https://github.com/nothra/tch-gastro-services/issues/351)/[#353](https://github.com/nothra/tch-gastro-services/issues/353),
+ein `kleinfunde.md`-Eintrag) – diese Verankerung musste aber **nachträglich** von der
+orchestrierenden Ebene nachgeholt werden, nicht im selben Atemzug wie das Flaggen selbst. Ein
+als „separat geflaggt" markierter Fund ist damit für ein bis zwei Skill-Übergänge lang nur im
+Gesprächskontext oder einem `spawn_task`-Chip sichtbar – geht die Session dort verloren
+(Absturz, Kontext-Kompression, Zusammenfassung), verschwindet der Fund komplett, obwohl er als
+„gefunden und bewertet" galt.
+
+**Smell:** Ein Review-/Security-Review-/Test-Schritt schreibt „separat geflaggt",
+„Hinweis-Ebene", „außerhalb des Scopes dieser Runde" oder Ähnliches in seinen eigenen Report,
+ohne dass im selben Werkzeugaufruf-Block bereits `create_issue_idempotent` gelaufen ist oder ein
+`kleinfunde.md`-Eintrag geschrieben wurde – „geflaggt" ist ein Bewertungs-Zustand, keine
+Ablage-Handlung.
+
+**Regel:** Sobald ein Skill während seiner eigentlichen Arbeit (Review, Security-Review, Test,
+Refactor) einen Out-of-Scope-Fund als solchen erkennt und einordnet (nicht Merge-Blocker, aber
+festhaltenswert), erfolgt die Klassifizierung gegen die Schwellen-Tabelle und die Anlage
+(Issue **oder** `kleinfunde.md`) **im selben Schritt** – nicht als TODO für eine spätere
+Orchestrator-Runde. Eine `spawn_task`-Suggestion oder eine reine Session-Notiz ersetzt die
+kanonische Anlage nicht, auch nicht vorübergehend: Sie hat keine Persistenz über das Ende der
+Session hinaus und keinen Platz im Lessons-Index, den ein künftiger Task-Lauf lesen würde. Ein
+Orchestrator, der am Ende einer Pipeline auf offene „separat geflaggt"-Erwähnungen in
+Task-/Review-Dateien stößt, für die noch kein Issue/`kleinfunde.md`-Eintrag existiert, holt die
+Anlage vor dem Merge nach (z. B. im `/codify`-Schritt) – das ist ein Sicherheitsnetz, kein
+Ersatz für die sofortige Anlage.
+→ `/review`, `/security-review`, `/test`, `/refactor`, `/codify` – sobald ein eigener Report das
+Wort „separat geflaggt"/„Hinweis-Ebene"/„außerhalb des Scopes" für einen Fund verwendet
+
 ### Neues Gate: prüfen, ob eine ADR den Ort für Gates dieser Klasse schon entschieden hat (aus #319, Review-Runde-3-Finding)
 
 ADR-047 verankerte den @import-Deckel als `pre-push`-Check und ließ als server-seitigen Arm

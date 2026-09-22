@@ -35,6 +35,23 @@
 
 ## Offen
 
+### `db/catalog.ts`-Kommentar behauptet nach #345 nicht mehr zutreffend „kein fremder Katalog als Schreibziel"
+
+- **Wo:** [`db/catalog.ts:64-66`](../../db/catalog.ts) – Kommentar über `CatalogItemData`
+  (verifiziert am 2026-09-22).
+- **Was:** Der Kommentar sagt: „er wird serverseitig gesetzt und nie aus `FormData` geparst …
+  ein Client kann keinen fremden Katalog als Schreibziel angeben." Das war vor #345 wörtlich
+  wahr (`STANDARD_CATALOG_ID` fix verdrahtet); seit #345 wird `catalogId` in den Actions
+  (`app/verwaltung/katalog/actions.ts:66,94,122`) aus `FormData` gelesen und lediglich
+  serverseitig als Parent-Key ins `WHERE`/`INSERT` gebunden – ein Client *kann* eine
+  fremde/beliebige `catalogId` angeben, sie wird nur konsistent gebunden/geprüft statt blind
+  vertraut. Kein Sicherheitsrisiko (jeder `verwalter` darf ohnehin jeden Katalog verwalten),
+  aber eine überprüfbare Tatsachenbehauptung, die nicht mehr stimmt.
+- **Fix:** Zweiten Halbsatz präzisieren, z. B. „wird serverseitig als Parent-Key
+  gebunden/geprüft, nicht blind übernommen" statt „kann keinen fremden Katalog angeben" – 1-2
+  Zeilen.
+- **Herkunft:** `/security-review` zu #345 (Hinweis-Ebene, kein Blocker – Doku-Drift).
+
 ### Telemetrie-CSV: führende `+`/`-`/`@`-Zeichen in Feldwerten ungeschützt gegen CSV-Injection
 
 - **Wo:** [`scripts/lib/telemetry-harvest.sh:55`](../../scripts/lib/telemetry-harvest.sh) –
@@ -333,6 +350,38 @@
   – 1 Zeile; macht das Feld idempotent statt beschreibbar. Gleiches gilt sinngemäß, wenn `#345`
   weitere Schreibpfade auf `catalog_item` ergänzt.
 - **Herkunft:** `/security-review` zu #59 (Hinweis-Ebene, kein Blocker – nicht erreichbar).
+
+### TOCTOU-Lücke zwischen Quell-Katalog-Prüfung und `duplicateCatalog`-Aufruf
+
+- **Wo:** [`app/verwaltung/katalog/actions.ts:203-210`](../../app/verwaltung/katalog/actions.ts) –
+  `getCatalogById(sourceId)`-Prüfung (Zeilen 203-205), danach `runWithUniqueCheck(() =>
+  duplicateCatalog(sourceId, parsed.data.name))` (Zeile 210) als separater Schritt (verifiziert
+  am 2026-09-22).
+- **Was:** Zwischen der Existenz-/Aktiv-Prüfung des Quell-Katalogs und dem eigentlichen
+  `duplicateCatalog`-Aufruf könnte (theoretisch, bei zwei gleichzeitigen Verwaltern) der
+  Quell-Katalog deaktiviert werden – die Kopie entstünde dann trotzdem, obwohl AK5 das für einen
+  bereits inaktiven Katalog ausschließen will. Bei der Nutzergröße dieses Projekts (ein Verein,
+  wenige Verwalter) vernachlässigbares Risiko, kein Merge-Blocker.
+- **Fix:** Prüfung und Duplizier-Aufruf innerhalb derselben `runAtomic`-Klammer ausführen (z. B.
+  `active`-Bedingung als zusätzliches `WHERE` im Katalog-Insert-Query oder ein guarded Read
+  innerhalb der Batch) statt zweier getrennter Schritte – Aufwand über „unter zehn Zeilen"
+  hinaus, da `runAtomic`s Neon-Zweig keine Cross-Query-Abhängigkeit erlaubt (Lesson
+  `db-drizzle.md`); deshalb hier vermerkt statt als Issue.
+- **Herkunft:** `/review` zu #345 (Runde 1, Nitpick, kein Merge-Blocker).
+
+### `db/catalog.test.ts`: Testdaten-Präfix-Konvention nicht als „ein Präfix für alle Filter" dokumentiert
+
+- **Wo:** [`db/catalog.test.ts:33`](../../db/catalog.test.ts) – `const TEST_PREFIX = "__test__";`
+  mit Kommentar „Präfix, damit Testdaten nie mit echten/geseedeten Bezeichnungen kollidieren."
+  (verifiziert am 2026-09-22).
+- **Was:** Derselbe Präfix wird in drei unabhängigen Filterwegen erwartet (Artikel, Kataloge,
+  Migration-Drift-Guard aus #347), der Kommentar an der Konstante selbst sagt das nicht explizit.
+  Ein Tippfehler beim Umbenennen von `__test__` an nur einer der drei Stellen würde still
+  fehlschlagen (Testdaten bleiben unentdeckt in der DB, statt dass ein Test rot wird).
+- **Fix:** Kommentar über `TEST_PREFIX` um einen Halbsatz ergänzen, z. B. „ … – alle
+  Filterwege (Artikel, Kataloge, Migration-Drift-Guard #347) nutzen denselben Wert, nie
+  getrennt ändern." Ein bis zwei Zeilen.
+- **Herkunft:** `/review` zu #345 (Runde 1, Nitpick, kein Merge-Blocker).
 
 ### `db/catalog.test.ts`-Dateikopf behauptet „nicht-destruktiv", der AK9-Replay macht DDL
 
