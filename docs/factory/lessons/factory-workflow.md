@@ -1254,7 +1254,7 @@ es ein echter Blocker. Unterscheidungskriterium: eine **Kommando-Allowlist-Lück
 den Wrapper-Ausweg; eine **Datei-Zugriffssperre auf Secrets/`.claude/**`** hat ihn nie – letztere
 ist bewusst so gebaut, dass kein Skript-Umweg sie umgeht.
 
-### Kleinfunde.md-Eintrag mit eigenen Zeilenankern braucht denselben Drift-Check wie ADR/Lesson/Spec – auch wenn er im selben PR entstand (aus #291, Review-Finding, erweitert #211/#176/#253)
+### Kleinfunde.md-Eintrag mit eigenen Zeilenankern braucht denselben Drift-Check wie ADR/Lesson/Spec – auch wenn er im selben PR entstand (aus #291, Review-Finding, erweitert #211/#176/#253; zweites Vorkommnis aus #351)
 
 `docs/factory/kleinfunde.md` verlangt in seinem eigenen Kopf „Fundstelle mit `Datei:Zeile`
 **verifiziert am Eintragsdatum**". Ein in Review-Runde 1 von #291 angelegter Eintrag zitierte
@@ -1277,6 +1277,16 @@ Einträge mit `Datei:Zeile`-Ankern, die im selben PR angelegt wurden**: vor dem 
 neu geschriebenen Kleinfund-Eintrag gegen den **aktuellen** Stand der zitierten Datei
 gegenprüfen (`sed -n '<n>,<m>p' <datei>` liest tatsächlich die behauptete Zeile?), nicht nur beim
 Anlegen einmalig verifizieren und dann als erledigt betrachten.
+
+**Zweites Vorkommnis (#351):** Ein in `/review` Runde 3 desselben PRs angelegter Kleinfund-Eintrag
+(`db/veranstaltung.test.ts`) zitierte `:112-116`; die eigene Rework-Runde davor hatte den
+Dateikopf der **zitierten** Datei nicht verändert – hier drifteten die Anker nicht durch eigene
+Folge-Commits, sondern weil die Anlage selbst schon einen falschen Bereich traf (die zweite Hälfte
+der „Was"-Behauptung lag bei `:109-111`, außerhalb des zitierten `:112-116`). Die Regel greift
+also nicht nur bei Drift **nach** der Anlage, sondern schon bei der **Erstverifikation**: die
+zitierte Zeilenspanne muss den **gesamten** im Eintrag beschriebenen Sachverhalt abdecken, nicht
+nur dessen auffälligsten Teil (hier: das `catalog`-`DELETE`, ohne den davorstehenden
+`catalog_item`-`DELETE`-Block).
 
 ### Fork-Subagent für eine Review-Runde: eigene Turns nach dem Spawn können in seinen Kontext bluten (aus #298, Selbstfund während `/review`)
 
@@ -1520,3 +1530,28 @@ ADR zur selben Frage, gehört der Unterschied **mit Begründung** in die neue AD
 Ruleset-Änderung braucht nach ADR-029 Adminrechte, also einen menschlichen Schritt – deshalb
 zunächst getragen und über ein Issue nachgezogen). Wird sie gar nicht bemerkt, wiederholt der
 Harness eine Lücke, die er schon einmal geschlossen hatte.
+
+### Stage-2-Skill außer der kanonischen Reihenfolge macht einen bereits fertigen Bericht stale (aus #351)
+
+Task #351 lief in Stage 2 (manuelle Einzelaufrufe, kein `run-pipeline.sh`). Die tatsächliche
+Commit-Reihenfolge war `/security-review` (PASSED) → `/codify` → `/refactor` (zwei Commits) –
+entgegen der in `CLAUDE.md` festgelegten Kette `/review → /test → /refactor → /security-review →
+/codify`. `/codify` und `/refactor` änderten danach noch fünf weitere Dateien (Lesson- und
+`kleinfunde.md`-Pflege, ein Task-Log-Nachtrag). Der bereits committete Security-Report deckte
+diese Dateien nie ab und war beim tatsächlichen Task-Abschluss inhaltlich überholt – bemerkt
+erst, als jemand den Diff-Umfang (5 vs. 10 Dateien) gegen den Report-Scope gegenprüfte. Der
+komplette `/security-review`-Lauf musste wiederholt werden, obwohl der ursprüngliche Code seit
+dem ersten Lauf gar nicht mehr verändert wurde.
+
+**Smell:** Ein bereits vorliegender `/security-review`- oder `/review`-Bericht wird nach seinem
+Commit noch von `/codify` oder `/refactor` berührten Dateien überholt, weil diese Skills in
+Stage 2 manuell und nicht in der kanonischen Reihenfolge aufgerufen wurden.
+
+**Regel:** Vor dem Aufruf eines Pipeline-Skills in Stage 2 die bereits vorhandenen Commits der
+Task gegen die kanonische Reihenfolge in `CLAUDE.md` (Abschnitt „Pipeline-Übersicht") prüfen.
+Liegt ein `/security-review`- oder `/review`-Commit bereits vor, aber `/refactor`/`/codify`
+folgen erst danach, gilt der vorherige Bericht als **stale**, sobald der nächste Skill auch nur
+eine Datei außerhalb des ursprünglich geprüften Diffs ändert – dann den betroffenen Bericht am
+Ende erneut laufen lassen, statt ihn unhinterfragt als „bereits bestanden" stehen zu lassen.
+Kanonisch bleibt die Reihenfolge in `CLAUDE.md`; kein automatisierter Gate erzwingt sie in
+Stage 2 (das leistet erst `run-pipeline.sh` in Stage 3).

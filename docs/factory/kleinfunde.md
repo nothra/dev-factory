@@ -383,17 +383,36 @@
   getrennt ändern." Ein bis zwei Zeilen.
 - **Herkunft:** `/review` zu #345 (Runde 1, Nitpick, kein Merge-Blocker).
 
-### `db/catalog.test.ts`-Dateikopf behauptet „nicht-destruktiv", der AK9-Replay macht DDL
+### `db/veranstaltung.test.ts`-Cleanup hat dieselbe FK-Lücke, die #351 in `catalog.test.ts` schließt
 
-- **Wo:** [`db/catalog.test.ts:22-23`](../../db/catalog.test.ts) – „Tests sind nicht-destruktiv: sie
-  räumen nur die selbst angelegten Zeilen per id wieder ab" (verifiziert am 2026-09-17).
-- **Was:** Der AK9-Replay legt seit #59 in derselben Verbindung ein Schema an und entfernt es
-  wieder (`:442` `CREATE SCHEMA`, `:505` `DROP SCHEMA … CASCADE`). Der Schemaname ist
-  generiert (`__test_ak9_${Date.now()}`, keine Fremdeingabe) und `search_path` schließt `public`
-  aus, der Radius ist also sauber begrenzt – aber die Suite braucht seither
-  `CREATE SCHEMA`-Rechte auf der per `DATABASE_URL` verbundenen DB, und der Dateikopf sagt das
-  Gegenteil. Wer den Kommentar als Freigabe liest, führt die Suite eher gegen eine fremde DB aus.
-- **Fix:** Halbsatz im Dateikopf ergänzen („…, mit Ausnahme des AK9-Replays, der ein
-  Wegwerf-Schema anlegt und wieder verwirft"), ca. 2 Zeilen.
-- **Herkunft:** `/security-review` zu #59 (Hinweis-Ebene, kein Blocker – Doku-Drift, kein
-  Verhaltensdefekt).
+- **Wo:** [`db/veranstaltung.test.ts:109-116`](../../db/veranstaltung.test.ts) – `afterEach`
+  löscht `catalog` über `createdCatalogs`, `catalog_item` aber ausschließlich über die
+  `createdItems`-ID-Liste (verifiziert am 2026-09-23).
+- **Was:** Strukturell identisch zu dem in #351 behobenen Defekt: Artikel-Zeilen, die eine
+  Data-Layer-Funktion selbst erzeugt (statt über `trackItem`), blockieren beim Aufräumen das
+  `DELETE` ihres Katalogs an der Pflicht-FK `catalog_item.catalog_id` (kein `ON DELETE`,
+  ADR-050 D2). **Heute folgenlos** – die Datei ruft keine artikel-erzeugende Funktion außer
+  `trackItem` auf (kein `duplicateCatalog`), also gibt es keinen auslösenden Pfad. Latent
+  bleibt es trotzdem: der nächste Testfall, der dort `duplicateCatalog` o. ä. nutzt, läuft in
+  genau denselben FK-Fehler, während die Schwesterdatei seit #351 generisch aufräumt.
+- **Fix:** Analog zu `db/catalog.test.ts:163-172` vor dem Katalog-`DELETE` ein
+  `db.delete(catalogItems).where(inArray(catalogItems.catalogId, catalogIds))` ergänzen und
+  `createdCatalogs.splice(0)` in eine lokale Variable ziehen, ca. 4 Zeilen.
+- **Herkunft:** `/review` zu #351 (Runde 3 Architektur/Konsistenz, out-of-scope – die Spec
+  begrenzt den Fix ausdrücklich auf `db/catalog.test.ts`).
+
+### `cleanupCreatedRows()` in `db/catalog.test.ts` hat keinen Fail-closed-Guard gegen `STANDARD_CATALOG_ID` in `createdCatalogs`
+
+- **Wo:** [`db/catalog.test.ts:163-172`](../../db/catalog.test.ts) – die generische Löschung
+  (`catalog_id IN createdCatalogs`) verlässt sich vollständig auf die Konvention, dass
+  `createdCatalogs` nie `STANDARD_CATALOG_ID` enthält; das ist per Kommentar (`:169-170`)
+  dokumentiert und aktuell an allen fünf `push`-Stellen (`:138`, `:481`, `:558`, `:588`, `:632`)
+  eingehalten, aber von nichts erzwungen (verifiziert am 2026-09-23).
+- **Was:** Gerät `STANDARD_CATALOG_ID` künftig doch in `createdCatalogs` (z. B. durch eine neue
+  Test-Helper-Funktion, die ihn versehentlich trackt), löscht `cleanupCreatedRows()` den
+  kompletten geseedeten Referenzbestand der Entwickler-DB, statt fail-closed zu stoppen. Heute
+  kein erreichbarer Auslöser.
+- **Fix:** Vor dem `DELETE` eine Assertion `expect(catalogIds).not.toContain(STANDARD_CATALOG_ID)`
+  ergänzen, ca. 1 Zeile.
+- **Herkunft:** `/review` zu #351 (Runde 2, Nitpick, bewusst kein Rework-Grund – kein
+  erreichbarer Auslöser).
