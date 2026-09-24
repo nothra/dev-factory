@@ -705,6 +705,31 @@ gleichem Turn-Limit-Risiko) – stattdessen Stage 2 manuell Skill für Skill for
 (`/review` → `/test` → `/refactor` → `/security-review` → `/codify` → `/pr-shepherd`), jeden
 Schritt einzeln über `bash scripts/factory-commit.sh` committen/pushen.
 
+**Nachtrag (aus #346): der manuelle Stage-2-Fortsatz verliert die komplette Telemetrie
+(ADR-049), nicht nur einen Teil davon.** Die OTEL-Instrumentierung
+(`CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=console`) setzt ausschließlich
+`run-pipeline.sh` um den eigenen `claude --print`-Subprozess-Aufruf in `run_skill()` – sie ist
+an diesen Wrapper gebunden, nicht an den Skill-Begriff selbst. Werden `/review`, `/test`,
+`/refactor`, `/security-review`, `/codify`, `/pr-shepherd` stattdessen als interaktive
+Skill-/Sub-Agent-Aufrufe **innerhalb** der laufenden Session ausgeführt (wie hier nach dem
+Turn-Limit-Fehlschlag empfohlen), entsteht **keinerlei** OTEL-Rohdaten für diese Schritte – es
+gibt nichts zu ernten, auch nicht nachträglich. Am Ende von #346 fehlte dadurch die komplette
+Task-Telemetrie-CSV, obwohl der Task selbst vollständig durchlief (Merge, alle Gates grün).
+
+**Smell:** „Ich setze eine als `run-pipeline.sh`-Stage-3-Ablauf dokumentierte Skill-Kette manuell
+über einzelne Skill-/Sub-Agent-Aufrufe in der aktuellen Session fort – verliere ich dadurch eine
+Dateninfrastruktur, die nur der Orchestrator-Wrapper bereitstellt (hier: OTEL-Telemetrie), ohne
+dass mir das auffällt, weil der fachliche Output identisch aussieht?"
+
+**Regel:** Ist Telemetrie für einen Task relevant (Standard-Fall, ADR-049 Default an) und wird
+Stage 2 nach einem Pipeline-Abbruch manuell fortgesetzt, dies **explizit als bekannte Lücke**
+in der Task-Datei vermerken (nicht stillschweigend "kein Zahlenwert" lassen) – eine rückwirkende
+Erhebung ist unmöglich, da die Rohdaten nie erzeugt wurden. Kein Workaround bekannt, der die
+Lücke schließt, ohne den fehlgeschlagenen `run-pipeline.sh`-Lauf ab dem gescheiterten Schritt neu
+zu starten (was wiederum das ursprüngliche Turn-Limit-Risiko zurückbringt) – die beiden Ziele
+„keine unnötige Wiederholung riskieren" und „vollständige Telemetrie" stehen hier im Konflikt;
+Issue #275 (Retry-Guard) würde beides zugleich lösen.
+
 ### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
 
 Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
