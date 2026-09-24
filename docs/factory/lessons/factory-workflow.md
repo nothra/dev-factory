@@ -685,6 +685,26 @@ damaligen Gate-Policy-Maximum 50 – keine Config-Änderung hätte geholfen. Sei
 Ceiling selbst auf 80 angehoben (ADR-051, Begründung: dieselbe Eskalationshistorie wie hier
 plus Task #49/#53). Issue #275 (Retry-Guard) bleibt davon unberührt und weiterhin offen.
 
+**Nachtrag (aus #346): viertes Vorkommnis, trotz der auf 80 angehobenen Ceiling (#348) und
+weiterhin offenem Issue #275.** `PR_SHEPHERD=true bash scripts/run-pipeline.sh 346` riss den
+`/implement`-Schritt erneut 3× am (jetzt 80er-)Turn-Limit und brach mit Exit 1 ab, obwohl der
+erste Versuch die Arbeit bereits vollständig abgeschlossen hatte: Commit auf dem Feature-Branch,
+gepusht, Task-Datei mit allen AK-Notizen inkl. Oberflächen-Verifikation befüllt, Draft-PR
+existent und mergeable. Die Ceiling-Anhebung aus #348 verkleinert die Trefferfläche, behebt aber
+nicht die Ursache (fehlender Retry-Guard, #275) – ein hinreichend großer Scope reißt sie weiterhin.
+
+**Konkrete Verifikations-Checkliste, bevor ein gemeldetes `/implement`-Scheitern als real gilt**
+(hier manuell angewendet, keine Skript-Änderung): (1) `git status` im Zielverzeichnis – sauberer
+Baum? (2) `git log --oneline -5` – liegt ein Commit zur Task auf dem Feature-Branch, der lokal
+gepusht ist (`git status` zeigt „up to date with origin")? (3) `gh pr list --head <branch>` –
+existiert bereits ein (Draft-)PR? (4) Task-Datei – sind die AK-Checkboxen und Umsetzungs-Notizen
+vollständig? Sind alle vier Fragen mit Ja beantwortet, war der Skill inhaltlich fertig; der
+Turn-Limit-Fehlschlag ist nur die Meldung, nicht der Zustand. In diesem Fall **nicht**
+`run-pipeline.sh` erneut ab Phase 1 starten (Risiko: erneutes, unnötiges `/implement` mit
+gleichem Turn-Limit-Risiko) – stattdessen Stage 2 manuell Skill für Skill fortsetzen
+(`/review` → `/test` → `/refactor` → `/security-review` → `/codify` → `/pr-shepherd`), jeden
+Schritt einzeln über `bash scripts/factory-commit.sh` committen/pushen.
+
 ### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
 
 Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
