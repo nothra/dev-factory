@@ -265,6 +265,24 @@ Kommentars selbst. Zeigt: die Regel „vor dem Schreiben den Enforcer öffnen" w
 übersprungen, weil der erste Blick nur dem Kopiervorgang gilt, nicht der Behauptung selbst –
 gerade das Kopieren verlangt die erneute Prüfung, nicht nur das Erstschreiben.
 
+**Rezidiv in einer sicherheitsrelevanten Risikoakzeptanz-Begründung (aus #352, Security-Review-Finding):**
+Ein WHY-Kommentar zu einer bewusst akzeptierten TOCTOU-Lücke (`deleteVeranstaltungAction`)
+benannte den nebenläufigen, unauthentifizierten Schreiber als
+„`adjustVerzehrByTokenAction`/`kassiereZeileAction` … kein `requireRole`". Zweiteres ist falsch:
+`kassiereZeileAction` ruft selbst `requireRole("veranstalter")` und ist nur unter einer
+authentifizierten Route verdrahtet, nie unter dem öffentlichen Theke-Link. Der Kommentar
+entstand in einer manuellen Rework-Runde unter Zeitdruck (Circuit-Breaker-Nachfolge) beim
+Zusammenfassen zweier ähnlicher Action-Namen zu einer Aufzählung – „beide betreffen den
+Theke-Kontext" wurde zu „beide sind über den Theke-Link erreichbar", ohne die zweite Funktion
+einzeln zu öffnen. Besonders bitter: die Behauptung stand in der Begründung für eine **bewusste
+Sicherheits-Risikoakzeptanz** – hätte ein Angreifer wirklich `kassiereZeileAction`
+unauthentifiziert erreichen können, wäre die Einstufung „Restrisiko vertretbar" falsch gewesen.
+Erst der `/security-review`-Schritt fand es, nicht das Schreiben selbst. Verschärfte Lesart der
+Regel oben: Bei **jeder** Aufzählung mehrerer Funktionen mit einer gemeinsamen
+Eigenschaftsbehauptung (hier: „kein `requireRole`") **jede einzeln** öffnen, nicht nur eine als
+Repräsentant der Gruppe – und wenn die Behauptung eine Sicherheitseinstufung trägt, wiegt eine
+falsche Aufzählung schwerer als anderswo.
+
 ### Massen-Ersetzung beim Extrahieren eines Helfers trifft den Rumpf des neuen Helfers (aus #319, /refactor-Selbstfund)
 
 Wer eine wiederholte Codefolge in einen Helfer zieht und die Aufrufstellen per Regex/`sed`

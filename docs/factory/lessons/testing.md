@@ -202,6 +202,19 @@ verschwunden") belegt die Verkabelung, nicht das Laufzeitverhalten der Gegenrich
 die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permissive Richtung
 („blockiert **nicht**") mindestens so wichtig zu testen wie die restriktive.
 
+**Rezidiv in neuer Domäne, außerhalb eines Spec-AK-Paars (aus #352, `/test`-Selbstfund):** Ein
+manueller Rework-Schritt verschob einen Reset-Handler von `onClick` auf `onSubmit`
+(`VeranstaltungMetaForm.tsx`, siehe `lessons/frontend-react.md`) und schrieb dazu **einen**
+Test – für den gemeldeten Bug-Pfad (ungültiges Pflichtfeld, Reset darf nicht feuern). Die
+Gegenrichtung (gültiges Pflichtfeld, Reset **muss** feuern) blieb ungetestet; der erst im
+`/test`-Schritt gelaufene Coverage-Report zeigte die `onSubmit`-Callback-Zeile selbst als nie
+ausgeführt. Zwei Lektionen: (1) die Symmetrie-Pflicht gilt nicht nur für Spec-AK-Paare, sondern
+für jeden Bugfix, der einen Code-Zweig in zwei Verhaltensweisen aufspaltet (hier: Submit
+blockiert vs. Submit gelingt) – „ich habe den gemeldeten Fall getestet" ist noch keine
+Abdeckung der Gegenrichtung; (2) ein Coverage-Lauf **nach** einem selbst geschriebenen Fix ist
+kein Nice-to-have, sondern deckt genau diese Art Lücke auf, die eine reine Verhaltensprüfung des
+gemeldeten Bugs übersieht.
+
 ### Deterministisches Gate/Backstop in einem Orchestrator-Skript braucht einen E2E-Verhaltenstest, nicht nur einen Wiring-Grep (aus #212, Review-Runde-2-Finding)
 
 #212 fügte `run-pipeline.sh` einen Endzustands-Verifikations-Backstop hinzu (Verletzung →

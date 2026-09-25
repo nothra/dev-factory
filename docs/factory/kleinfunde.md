@@ -416,3 +416,18 @@
   ergänzen, ca. 1 Zeile.
 - **Herkunft:** `/review` zu #351 (Runde 2, Nitpick, bewusst kein Rework-Grund – kein
   erreichbarer Auslöser).
+
+### `"Keine Veranstaltung angegeben."` steht in `app/veranstaltung/actions.ts` dreimal als Literal neben der Konstante
+
+- **Wo:** [`app/veranstaltung/actions.ts:158`, `:316`, `:375`](../../app/veranstaltung/actions.ts)
+  – Inline-Literale in `setVeranstaltungCatalogAction`, `createWalkInAction` und `setStatusAction`
+  neben `KEINE_VERANSTALTUNG` (`:69`), das #352 eingeführt und in seinen beiden neuen Actions
+  (`:196`, `:240`) verwendet hat (verifiziert am 2026-09-24).
+- **Was:** Die Datei hält ihre Fehlermeldungen sonst ausnahmslos als Konstanten in einem Block
+  (`:56-79`) – genau gegen die Drift, die drei verbliebene Kopien desselben Strings erzeugen.
+  Heute sind alle vier Vorkommen textgleich; eine Änderung an der Konstante erreicht die drei
+  Literale aber nicht.
+- **Fix:** Die drei Literale durch `KEINE_VERANSTALTUNG` ersetzen, 3 Zeilen. Rein kosmetisch,
+  identischer Text – berührt fremde Actions (#346/#51) nur im Wortlaut, nicht im Verhalten.
+- **Herkunft:** `/review` zu #352 (Runde 3 Backend/Logik, out-of-scope – die betroffenen Actions
+  gehören nicht zum #352-Scope).
