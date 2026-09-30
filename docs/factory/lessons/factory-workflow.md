@@ -1600,3 +1600,15 @@ eine Datei außerhalb des ursprünglich geprüften Diffs ändert – dann den be
 Ende erneut laufen lassen, statt ihn unhinterfragt als „bereits bestanden" stehen zu lassen.
 Kanonisch bleibt die Reihenfolge in `CLAUDE.md`; kein automatisierter Gate erzwingt sie in
 Stage 2 (das leistet erst `run-pipeline.sh` in Stage 3).
+
+### Akzeptanzkriterium mit Binär-Artefakt am PR (Screenshots) ist nicht agentenerfüllbar (aus #368, Review-Runde-1–3-Finding W2)
+
+AK5.3 forderte Screenshots als Nachweis am PR. `gh` kann keine Bilder hochladen; der PR-Body
+versprach sie trotzdem, die Task-Datei hakte AK5.3 ab, und das Finding blieb über drei
+Review-Runden offen, bis der Circuit Breaker es an einen Menschen eskalierte.
+
+**Regel:** Fordert ein AK ein Binär-Artefakt (Bild, Video) am PR, in `/requirements` als
+**menschlichen Schritt vor dem Merge** markieren (eigene Checkbox, nicht im Agenten-AK), und
+den PR-Body nie in der Vergangenheitsform formulieren, solange der Anhang fehlt. Vor dem
+Anhängen prüfen, dass die Bilder keine Zugangsdaten/echten Daten zeigen. **Laden bei:**
+`/requirements`, `/implement`, `/pr-shepherd` – bei AK mit Screenshot-/Medien-Nachweis am PR.

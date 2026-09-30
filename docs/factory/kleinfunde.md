@@ -35,6 +35,16 @@
 
 ## Offen
 
+### `.gitignore` deckt `*.tmp.md` nicht ab – Wegwerf-PR-Body landete im Commit
+
+- **Wo:** [`.gitignore:17-21`](../../.gitignore) – `*.tmp.txt`/`.sh`/`.py`/`.spec.ts`/`.spec.tsx`,
+  kein `*.tmp.md` (verifiziert am 2026-09-30).
+- **Was:** Die Wegwerf-Konvention `*.tmp.*` gilt nur für die aufgezählten Endungen. Eine
+  PR-Body-Vorlage `scripts/pr368-body.tmp.md` war deshalb nicht ignoriert und wurde in #368
+  mitcommittet (Review-Runde 2, W3).
+- **Fix:** `*.tmp.md` in `.gitignore` ergänzen – 1 Zeile.
+- **Herkunft:** `/review` Runde 2 zu #368.
+
 ### `db/catalog.ts`-Kommentar behauptet nach #345 nicht mehr zutreffend „kein fremder Katalog als Schreibziel"
 
 - **Wo:** [`db/catalog.ts:64-66`](../../db/catalog.ts) – Kommentar über `CatalogItemData`

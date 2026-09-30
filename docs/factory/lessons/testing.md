@@ -1034,3 +1034,35 @@ fehlende Beweis nicht die Existenz eines Branches ist, sondern die **Weiterleitu
 bereits validierten Werts an eine andere Komponente. **Laden bei:** `/implement`, `/test` bei
 Änderungen an `MAX_TURNS_CEILING`, `model_tiers`, `tier_by_size` oder anderen Gate-geprüften
 Config-Werten mit eigenem Konsumenten außerhalb des Gates selbst.
+
+### Regex-/Listen-Gate über ein externes Universum: Enumeration per Drift-Test aus der Quelle ableiten (aus #368, Review-Runde-1/2-Findings)
+
+Das Farb-Gate (`eslint/no-raw-color-classes.mjs`) zählte Tailwind-Paletten und
+Klassen-Präfix-Formen von Hand auf. Runde 1 fand vier fehlende Paletten (`mauve`, `mist`,
+`olive`, `taupe`), weitere Utilities (`inset-shadow`, `drop-shadow` …) und Präfixformen
+(`[…]`, `/name`, `@`, führendes `!`); Runde 2 nochmals verschachtelte Arbitrary-Varianten und
+`/(--a)`. Jede Runde fand eine Form, die die Testliste nicht kannte – Tests, die nur die
+selbst bedachten Formen prüfen, belegen die Vollständigkeit nicht.
+
+**Smell:** Ein Gate schließt eine Menge aus (Farbnamen, Präfixe), deren Universum **nicht im
+Repo** liegt (Tailwind-Theme, Framework-Syntax), und die Testfälle stammen aus derselben
+Überlegung wie die Regel.
+
+**Regel:** Die aufgezählte Menge per Drift-Test aus der echten Quelle ableiten (hier: Paletten
+aus `tailwindcss/theme.css` lesen, je Palette ein `invalid`-Fall) und fail-closed, wenn der
+Parser unplausibel wenig findet (< 20). Für Syntaxformen je Form genau einen `invalid`-Fall mit
+exakter `className` im `data` (erst rot, dann grün) plus je einen `valid`-Nachbarn
+(Wortgrenze, Token-Klasse). Grenzen bewusst im Kommentar und in der ADR benennen
+(„eine Verschachtelungsebene"). **Laden bei:** `/implement`, `/test`, `/review` – bei neuem
+oder erweitertem Regex-/Listen-Gate über ein externes Namens- oder Syntax-Universum.
+
+### Playwright `reuseExistingServer` kann gegen einen fremden Dev-Server laufen – E2E ist dann kein Beleg (aus #368, /implement-Selbstfund)
+
+Der erste E2E-Lauf hing an einem Dev-Server auf `:3000` aus einem **anderen Checkout**
+(alter Stand: blauer Button, Arial). Grün, aber ohne Aussage über den eigenen Branch; aufgefallen
+nur, weil die Screenshots den alten Stand zeigten.
+
+**Regel:** Vor einem UI-/E2E-Beleg in einem Worktree einen eigenen Dev-Server auf freiem Port
+starten (`next dev -p <port>`) und `PLAYWRIGHT_BASE_URL` darauf setzen; den Stand mit einem
+branch-spezifischen Merkmal gegenprüfen, bevor „grün" als Nachweis gilt. **Laden bei:**
+`/implement`, `/test` – bei E2E-/Screenshot-Nachweis in einem Worktree.
