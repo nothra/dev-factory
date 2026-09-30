@@ -41,8 +41,8 @@ schemaVersion: 1
 # künftig ausschließlich hier (Template-Update). model_tiers.light bleibt frei
 # override-bar.
 model_tiers:
-  heavy: claude-opus-5        # CLAUDE_MODEL_HEAVY
-  light: claude-sonnet-5      # CLAUDE_MODEL_LIGHT
+  heavy: claude-opus-5-5   # CLAUDE_MODEL_HEAVY
+  light: claude-sonnet-5-5 # CLAUDE_MODEL_LIGHT
 
 # Pro Skill: Tier (→ Modell) + max_turns (Kosten-Deckel). Jeder Wert hat eine
 # Begründung am Knopf — das ist der Sinn von YAML statt JSON (ADR-009 #2).
