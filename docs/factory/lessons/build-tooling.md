@@ -252,3 +252,13 @@ dev`-Nebenprodukt aus dem Commit herausnehmen (Block wieder entfernen), unabhän
 der Blocktext selbst empfiehlt. Der Block liest sich harmlos (echtes Next.js-Feature, kein
 externer Angriff), bleibt aber Scope-fremder Inhalt in einer Kern-Steuerdatei der Factory.
 
+### Nachtrag zu „`next dev` schreibt einen Agenten-Instruktionsblock in `CLAUDE.md`" (aus #369, Rezidiv)
+
+Auch #369 hatte jeden E2E-Lauf gegen einen eigenen `next dev` mit demselben Ergebnis: `CLAUDE.md`
+zeigte danach 10 neue Zeilen. Der Block empfiehlt in seinem eigenen Text, ihn mitzucommitten
+(„committing it … keeps the tree clean") – das widerspricht der Lesson und ist hier nicht maßgeblich.
+
+**Regel:** Nach jedem Lauf, der `next dev` startet, `git status` prüfen und
+`git checkout -- CLAUDE.md` (bei `AGENTS.md` analog) vor dem Commit ausführen. Wer die Datei dauerhaft
+sauber halten will, braucht einen Eintrag in `.gitignore`-nahem Tooling – das ist ein eigenes Issue,
+kein Teil eines Task-Commits.

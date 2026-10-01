@@ -1612,3 +1612,35 @@ Review-Runden offen, bis der Circuit Breaker es an einen Menschen eskalierte.
 den PR-Body nie in der Vergangenheitsform formulieren, solange der Anhang fehlt. Vor dem
 Anhängen prüfen, dass die Bilder keine Zugangsdaten/echten Daten zeigen. **Laden bei:**
 `/requirements`, `/implement`, `/pr-shepherd` – bei AK mit Screenshot-/Medien-Nachweis am PR.
+
+### Turn-Limit-Exhaustion, fünftes Vorkommnis: auch der Rework nach `/review` reißt das Budget, und die Pipeline bricht an der Stale-Verdict-Wache ab (aus #369)
+
+Bei einem sehr großen Task (31 AK + 6 FS, 54 Dateien im Diff) riss `/implement` zweimal das
+Turn-Limit (80), der dritte Versuch gelang; der Rework nach dem ersten `/review` riss es einmal,
+der zweite Versuch gelang. Nach `/review` Iteration 2 (`NEEDS_REWORK`, ein Wichtig-Finding) lief
+kein weiterer Rework-Lauf mehr, und der Review-Agent lehnte den nächsten Lauf auf unverändertem
+Code **zu Recht** ab – der
+Report-Guard von `run_skill()` wertet „Report unverändert" als Fehlschlag, nach drei Versuchen
+brach die Pipeline mit Exit 1 ab, `/security-review`, `/codify` und `/pr-shepherd` liefen nicht.
+Die Telemetrie fehlt für den manuellen Rest (Instrumentierung hängt am Wrapper).
+
+**Regel:** Überschreitet ein Task die Größe, die ein 80-Turn-Lauf fasst (Faustwerte aus #369:
+> 25 AK oder > 40 Dateien), vor `run-pipeline.sh` bewusst entscheiden: Task teilen
+(`/requirements`) oder `/implement` und Rework manuell in frischen Sessions fahren, statt auf
+Retries zu hoffen. Nach einem Abbruch an der Stale-Verdict-Wache zuerst den Stand prüfen
+(`git log`, `git status`, Task-Checkboxen, `gh pr list`), dann Rework manuell, danach `/review`
+als nächste Iteration – die Wache ist dann zufrieden, weil der Code sich geändert hat. Der Merge-
+Commit „Merge branch 'main' into …" auf dem Feature-Branch stammt in diesem Setup von
+`gh pr update-branch`/dem GitHub-Button (Committer „GitHub") und ist gewollt (ADR-019 §1; Squash-Merge
+flacht ihn ab) – kein Rebase-Verstoß, der vor dem Push bereinigt werden müsste.
+
+### Behauptung über den **eigenen** Beitrag des PRs in einem `kleinfunde.md`-Eintrag ebenso gegenprüfen wie Anker (aus #369, Review-Iteration 3)
+
+Ein Eintrag über ein E2E-Kopiermuster behauptete, der PR habe es „nicht vergrößert, sondern die
+eigenen Kopien reduziert". Tatsächlich war die Spec mit der dritten Kopie in diesem PR **neu**
+(`git cat-file -e origin/main:<pfad>` schlägt fehl). Die Anker waren korrekt, die Aussage über den
+eigenen Anteil nicht – ein weiterer Fall der #291/#351-Familie, nur an der Prosa statt an den Zeilen.
+
+**Regel:** Sätze der Form „dieser PR hat X (nicht) hinzugefügt/vergrößert/reduziert" in einem
+Kleinfund-Eintrag vor dem Commit mit `git diff --stat origin/main...HEAD -- <pfad>` und
+`git cat-file -e origin/main:<pfad>` belegen.

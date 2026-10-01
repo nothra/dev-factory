@@ -1066,3 +1066,23 @@ nur, weil die Screenshots den alten Stand zeigten.
 starten (`next dev -p <port>`) und `PLAYWRIGHT_BASE_URL` darauf setzen; den Stand mit einem
 branch-spezifischen Merkmal gegenprüfen, bevor „grün" als Nachweis gilt. **Laden bei:**
 `/implement`, `/test` – bei E2E-/Screenshot-Nachweis in einem Worktree.
+
+### Ein Stellvertreter, der den geprüften Zweig nicht unterscheiden kann, macht den Test zum reinen Abdeckungs-Test – Mutation belegen, und das Mutieren selbst prüfen (aus #369, Review-Iteration 3 + /refactor-Selbstfund)
+
+Ein Test sollte belegen, dass ein Rücksprungziel, das kein `HTMLElement` ist, keinen Fokus bekommt.
+Er nutzte ein `SVGElement` – in jsdom hat auch das eine (wirkungslose) `focus()`-Methode, `<body>`
+bleibt fokussiert. Der Test wäre ohne die `instanceof`-Prüfung grün geblieben und deckte nur die
+Zeile ab. Der Review fand das; der Umbau auf einen Stellvertreter mit `focus`-Spion
+(`{ focus } as unknown as HTMLElement`) machte ihn diskriminierend. Beim Mutationsbeleg dafür lief
+der erste Versuch über `sed -i` – auf macOS/BSD braucht `-i` ein Suffix-Argument, der Befehl
+scheiterte, **die Mutation wurde nie angewendet**, und der folgende grüne Testlauf sah wie ein
+Beleg aus.
+
+**Smell:** „Der Test ist grün und die Zeile ist abgedeckt" – ohne dass jemand gezeigt hat, dass er
+rot wird, wenn die Zeile fehlt; und: „Die Mutation scheint grün zu bleiben".
+
+**Regel:** (1) Das Test-Double muss sich in genau dem Merkmal unterscheiden, das der Guard prüft
+(Spion statt „ähnlicher" echter Typ). (2) Mutationsbeleg immer in drei Schritten: mutieren
+(`python3`-Replace mit `assert old in s`, nicht `sed -i`), **`git diff --stat` zeigt die Änderung**,
+Test muss rot sein; danach `git checkout -- <datei>` und grün gegenprüfen. Rot-Erwartung ohne
+sichtbare Diff-Zeile ist kein Beleg.

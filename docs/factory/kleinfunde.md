@@ -427,17 +427,53 @@
 - **Herkunft:** `/review` zu #351 (Runde 2, Nitpick, bewusst kein Rework-Grund – kein
   erreichbarer Auslöser).
 
-### `"Keine Veranstaltung angegeben."` steht in `app/veranstaltung/actions.ts` dreimal als Literal neben der Konstante
+### „Neuer Gast" baut die Felder von `TeilnehmerFields` nach, statt sie wiederzuverwenden
 
-- **Wo:** [`app/veranstaltung/actions.ts:158`, `:316`, `:375`](../../app/veranstaltung/actions.ts)
-  – Inline-Literale in `setVeranstaltungCatalogAction`, `createWalkInAction` und `setStatusAction`
-  neben `KEINE_VERANSTALTUNG` (`:69`), das #352 eingeführt und in seinen beiden neuen Actions
-  (`:196`, `:240`) verwendet hat (verifiziert am 2026-09-24).
-- **Was:** Die Datei hält ihre Fehlermeldungen sonst ausnahmslos als Konstanten in einem Block
-  (`:56-79`) – genau gegen die Drift, die drei verbliebene Kopien desselben Strings erzeugen.
-  Heute sind alle vier Vorkommen textgleich; eine Änderung an der Konstante erreicht die drei
-  Literale aber nicht.
-- **Fix:** Die drei Literale durch `KEINE_VERANSTALTUNG` ersetzen, 3 Zeilen. Rein kosmetisch,
-  identischer Text – berührt fremde Actions (#346/#51) nur im Wortlaut, nicht im Verhalten.
-- **Herkunft:** `/review` zu #352 (Runde 3 Backend/Logik, out-of-scope – die betroffenen Actions
-  gehören nicht zum #352-Scope).
+- **Wo:** [`app/veranstaltung/TeilnehmerHinzufuegenDialog.tsx:148-192`](../../app/veranstaltung/TeilnehmerHinzufuegenDialog.tsx)
+  (`GastBereich` samt WHY-Kommentar) gegen [`app/verwaltung/teilnehmer/TeilnehmerFields.tsx:9-41`](../../app/verwaltung/teilnehmer/TeilnehmerFields.tsx)
+  (verifiziert am 2026-10-01).
+- **Was:** Name, Typ und Mitglied existieren zweimal. Der frühere `WalkInForm` nutzte
+  `TeilnehmerFields` gerade gegen diese Duplikation; der neue Dialog darf es nicht, weil
+  `TeilnehmerFields` noch rohe Farbklassen (`inputClass` mit `zinc-*`/`dark:`) trägt und die neue
+  Oberfläche nur Bausteine und Tokens nutzen darf (spec-369 AK31, ADR-052). Die Beschriftung
+  weicht bereits ab („Name" im Dialog, „Anzeigename" in der Verwaltung); die Längengrenze ist seit
+  #369 über `TEILNEHMER_NAME_MAX` gekoppelt.
+- **Fix:** `TeilnehmerFields` auf `Field`/`SelectField` umstellen, Pfad in
+  `eslint/ui-token-files.mjs` eintragen und `GastBereich` darauf zurückführen; Beschriftung
+  dabei vereinheitlichen (E2E-Specs nutzen `getByLabel("Name")` bzw. `"Anzeigename"`). Etwa zehn
+  Zeilen plus Testanpassung – mitnehmen, wenn die Teilnehmer-Verwaltung ohnehin auf die
+  Bausteine umgestellt wird.
+- **Herkunft:** `/review` zu #369 (Runde 2, Wichtig-Finding), in der Rework-Runde klassifiziert.
+
+### Anleitungs-Screenshots `05`–`07` (und ggf. `10`–`12`) zeigen noch die alte Detailseite
+
+- **Wo:** [`docs/anleitung/veranstalter/anleitung.md:98`, `:113`, `:121`](../anleitung/veranstalter/anleitung.md)
+  – `bilder/05-veranstaltung-fuehren.png`, `06-teilnehmer-hinzufuegen.png`,
+  `07-zugang-teilen.png`; Erzeuger [`e2e/anleitung-veranstalter.spec.ts:138`, `:148`, `:226`](../../e2e/anleitung-veranstalter.spec.ts)
+  (verifiziert am 2026-10-01).
+- **Was:** Text und Alt-Texte beschreiben seit #369 Kacheln, „+ Teilnehmer"-Dialog und
+  „Link & QR teilen" im Dialog; die Bilder stammen aus dem alten Layout. Mitbetroffen sein können
+  `10`/`11` (Abschließen jetzt am Ende von Kassieren) und `12` (Bericht jetzt über den Kacheln).
+  Die Capture-Spec legt ihre Demo-Daten deterministisch an (`Artikel (1)` …) und braucht deshalb
+  eine **frisch geseedete** DB – gegen die geteilte Dev-DB lässt sie sich nicht fahren, ohne
+  deren Bestand zurückzusetzen.
+- **Fix:** Gegen eine frisch geseedete DB `CAPTURE_ANLEITUNG=1 pnpm exec dotenv -e .env.local --
+  playwright test e2e/anleitung-veranstalter.spec.ts` laufen lassen, die neuen PNGs sichten und
+  committen – kein Code, nur Bilder. Idealerweise noch vor dem Merge von #369.
+- **Herkunft:** `/review` zu #369 (Runde 2, Wichtig-Finding; vorher nur Task-Notiz).
+
+### E2E-Helfer `login` und `createVeranstaltung` liegen in drei Specs fast identisch kopiert
+
+- **Wo:** [`e2e/veranstaltung-detailseite.spec.ts:40-66`](../../e2e/veranstaltung-detailseite.spec.ts),
+  [`e2e/veranstaltung-bearbeiten-loeschen.spec.ts:33-61`](../../e2e/veranstaltung-bearbeiten-loeschen.spec.ts),
+  [`e2e/wechsel-verzehr-kassieren.spec.ts:25-55`](../../e2e/wechsel-verzehr-kassieren.spec.ts)
+  (verifiziert am 2026-10-01).
+- **Was:** `login` und `createVeranstaltung` (Link-Zuwachs-Identifikation) sind je Spec kopiert; sie
+  unterscheiden sich nur im Datum und in der Kommentierung. `e2e/helpers/detailseite.ts` (#369)
+  bündelt bislang nur die Detailseiten-Schritte. Das Kopiermuster ist älter als #369; der PR
+  fügt mit der neuen `veranstaltung-detailseite.spec.ts` allerdings die dritte Kopie hinzu und hat
+  nur die Gast- und Einstellungs-Schritte auf den gemeinsamen Helfer reduziert.
+- **Fix:** `e2e/helpers/veranstaltung.ts` mit `login(page)` und `createVeranstaltung(page,
+  bezeichnung, datum)` anlegen und die drei Specs umstellen. Braucht einen Lauf aller drei Specs
+  gegen eine lokale DB (`scripts/e2e-369.tmp.sh` als Vorlage) – deshalb nicht im Review-Rework.
+- **Herkunft:** `/review` zu #369 (Runde 2, Iteration 2, Nitpick), klassifiziert im Rework.
