@@ -445,22 +445,33 @@
   Bausteine umgestellt wird.
 - **Herkunft:** `/review` zu #369 (Runde 2, Wichtig-Finding), in der Rework-Runde klassifiziert.
 
-### Anleitungs-Screenshots `05`–`07` (und ggf. `10`–`12`) zeigen noch die alte Detailseite
+### Capture-Spec der Anleitung läuft nicht bis zum Ende durch – Bilder `10`–`12` ungeprüft
 
-- **Wo:** [`docs/anleitung/veranstalter/anleitung.md:98`, `:113`, `:121`](../anleitung/veranstalter/anleitung.md)
-  – `bilder/05-veranstaltung-fuehren.png`, `06-teilnehmer-hinzufuegen.png`,
-  `07-zugang-teilen.png`; Erzeuger [`e2e/anleitung-veranstalter.spec.ts:138`, `:148`, `:226`](../../e2e/anleitung-veranstalter.spec.ts)
+- **Wo:** [`e2e/anleitung-veranstalter.spec.ts:173`](../../e2e/anleitung-veranstalter.spec.ts)
+  (`verzehrPlus`), Aufrufe `:252`/`:259` (`"Bier"`), Schritt Kassieren `:197`/`:280`–`:294`;
+  Sortiment aus [`db/migrations/0004_seed_catalog_reference.sql:20-21`](../../db/migrations/0004_seed_catalog_reference.sql)
   (verifiziert am 2026-10-01).
-- **Was:** Text und Alt-Texte beschreiben seit #369 Kacheln, „+ Teilnehmer"-Dialog und
-  „Link & QR teilen" im Dialog; die Bilder stammen aus dem alten Layout. Mitbetroffen sein können
-  `10`/`11` (Abschließen jetzt am Ende von Kassieren) und `12` (Bericht jetzt über den Kacheln).
-  Die Capture-Spec legt ihre Demo-Daten deterministisch an (`Artikel (1)` …) und braucht deshalb
-  eine **frisch geseedete** DB – gegen die geteilte Dev-DB lässt sie sich nicht fahren, ohne
-  deren Bestand zurückzusetzen.
-- **Fix:** Gegen eine frisch geseedete DB `CAPTURE_ANLEITUNG=1 pnpm exec dotenv -e .env.local --
-  playwright test e2e/anleitung-veranstalter.spec.ts` laufen lassen, die neuen PNGs sichten und
-  committen – kein Code, nur Bilder. Idealerweise noch vor dem Merge von #369.
-- **Herkunft:** `/review` zu #369 (Runde 2, Wichtig-Finding; vorher nur Task-Notiz).
+- **Was:** Die Bilder `05`–`07` sind seit #388 neu (Detailseite, „+ Teilnehmer"-Dialog, „Link & QR
+  teilen"). Der Lauf scheitert danach im Schritt Kassieren. Ursache (gemessen an der DB des Laufs):
+  `verzehrPlus` wählt den Artikel über `hasText: "Bier"` + `.last()`, und `hasText` ist ein
+  Teilstring-Treffer – er trifft auch **„Weizenbier 0,5 l"** (3,00 €, Seed-Sortiment). Anna Becker hat
+  deshalb 2 × Weizenbier statt 2 × Demo-„Bier" (2,50 €), ihr Verzehr beträgt 7,50 € statt 7,00 €, und das
+  Badge „bezahlt" erscheint nach dem Kassieren von 7,00 € nie; bei Familie Klein trifft der Aufruf ebenfalls
+  Weizenbier, ihre Summe stimmt zufällig (3,00 + 9,00 = 12,00 €). Die übrigen Artikel (Alkoholfreies,
+  Filterkaffee, Schnitzel mit Pommes) sind eindeutig. Der Katalog-Zähler ist in #388 schon auf einen
+  relativen Startwert umgestellt. Dadurch sind `08`–`12` nicht aus einem sauberen Lauf und bleiben auf dem
+  Stand vor #369; **`12` (Bericht jetzt über den Kacheln) und `11`/`10` (Abschließen am Ende von
+  Kassieren) sind vermutlich veraltet**, das ist nicht geprüft.
+- **Fix:** `verzehrPlus` auf einen exakten Treffer des Artikelnamens umstellen (z. B. Regex mit Wortanfang
+  und -ende gegen das Label ohne Größen-Suffix statt Teilstring-`hasText`); danach Lauf auf frischer DB bis
+  `12`, `10`–`12` sichten und bei sichtbarer Abweichung ersetzen. Etwa zehn Zeilen plus ein bis zwei Läufe
+  (DB-Reset je Lauf: `docker exec tch-gastro-db psql … DROP/CREATE DATABASE tch_dev`, dann `db:migrate`
+  und `db:seed`).
+  Dabei die Zeile „(optional, für ganz saubere Bilder: DEV-Daten leeren, dann neu seeden)" in
+  `anleitung.md:236` auf „Pflicht" ändern: auf einer nicht frischen DB bricht die Spec ab (Demo-Daten
+  kollidieren, #388).
+- **Herkunft:** `/implement` zu #388 (Spec-FS1: kein Umbau der Spec im selben PR); davor
+  `/review` zu #369.
 
 ### E2E-Helfer `login` und `createVeranstaltung` liegen in drei Specs fast identisch kopiert
 
@@ -477,3 +488,16 @@
   bezeichnung, datum)` anlegen und die drei Specs umstellen. Braucht einen Lauf aller drei Specs
   gegen eine lokale DB (`scripts/e2e-369.tmp.sh` als Vorlage) – deshalb nicht im Review-Rework.
 - **Herkunft:** `/review` zu #369 (Runde 2, Iteration 2, Nitpick), klassifiziert im Rework.
+
+### `anleitung.pdf` ist seit #221 nicht neu erzeugt worden und passt nicht mehr zur Anleitung
+
+- **Wo:** [`docs/anleitung/veranstalter/anleitung.pdf`](../anleitung/veranstalter/anleitung.pdf) (letzter Commit
+  `9e21cde`, #221), Erzeugungsanleitung in [`anleitung.md`](../anleitung/veranstalter/anleitung.md) → „PDF erzeugen"
+  (verifiziert am 2026-10-01 per `git log -- docs/anleitung/veranstalter/anleitung.pdf`).
+- **Was:** Die druckbare Fassung entsteht von Hand per Browser-Druck aus der Markdown-Vorschau. Seit #221 haben #324 und
+  #369 den Text von `anleitung.md` und #388 drei Bilder geändert (`git log -- docs/anleitung/veranstalter/anleitung.md`),
+  das PDF nicht. Es zeigt damit noch die alte Detailseite.
+- **Fix:** Nach dem Neuerzeugen der Bilder (`10`–`12`, siehe Eintrag oben) das PDF in einem Zug neu drucken
+  (Schritte in `anleitung.md`, A4, Hochformat, Hintergrundgrafiken an) und committen. Manuell, etwa zehn Minuten.
+- **Herkunft:** `/implement` zu #388.
+

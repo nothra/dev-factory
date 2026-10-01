@@ -1086,3 +1086,41 @@ rot wird, wenn die Zeile fehlt; und: „Die Mutation scheint grün zu bleiben".
 (`python3`-Replace mit `assert old in s`, nicht `sed -i`), **`git diff --stat` zeigt die Änderung**,
 Test muss rot sein; danach `git checkout -- <datei>` und grün gegenprüfen. Rot-Erwartung ohne
 sichtbare Diff-Zeile ist kein Beleg.
+
+### Playwright-`hasText` mit String ist ein Teilstring-Treffer (case-insensitiv) – für Artikelnamen exakt matchen, und die Ursache eines Fehlschlags vor dem Dokumentieren an den echten Daten messen (aus #388, Review-Iteration 1)
+
+Die Capture-Spec wählte Verzehr-Artikel über `page.locator("li", { hasText: "Bier" }).…last()`. Das Seed-Sortiment
+enthält „Weizenbier 0,5 l"; `hasText` mit String trifft jeden Eintrag, der „bier" **irgendwo** enthält, und `.last()` nahm
+genau dieses. Annas Summe stimmte nicht (7,50 € statt 7,00 €), der Lauf brach beim Kassieren ab. Die Ursache wurde
+zunächst aus der Seed-Migration **gelesen** („Bier 0,33 l/0,5 l kollidieren") und so in Kleinfund und Task-Notiz
+geschrieben – falsch. Erst `/review` fragte die tatsächlichen Verzehr-Positionen des Laufs ab (`verzehr_position` ⨝
+`catalog_item`) und fand Weizenbier.
+
+**Smell:** `hasText: "<Name>"` / `getByText("<Name>")` ohne `exact` für einen Namen, der Teilstring eines anderen Eintrags sein
+kann; und: Eine Fehlerursache steht im Text, ohne dass der gemessene Ist-Zustand (DB-Zeilen, DOM) danebenliegt.
+
+**Regel:** (1) Für exakte Artikel-/Personennamen `getByText(name, { exact: true })` bzw. `hasText: new RegExp("^" + name + "$")`
+(Label ohne Größen-Suffix) benutzen – nie den nackten String, wenn das Sortiment ähnliche Namen führt (`Bier`/`Weizenbier`,
+`Kaffee`/`Filterkaffee`). (2) Bevor eine Ursache in Kleinfund, Task-Notiz oder Report steht, den Zustand **messen**, den der
+Fehlschlag erzeugt hat (read-only Abfrage der betroffenen Zeilen) – eine aus dem Quelltext gelesene Erklärung ist eine
+Hypothese. (Verwandt: „X erzwingt Y"-Behauptungen in `lessons/code-style.md`.)
+
+### Manuell gestartete Capture-/E2E-Spec (nicht in CI) rottet unbemerkt – Annahmen über den Startzustand relativ formulieren (aus #388, /implement)
+
+Die Capture-Spec für die Anleitungs-Bilder läuft nur mit `CAPTURE_ANLEITUNG=1`, also weder lokal im Standardlauf noch in CI.
+Beim ersten vollständigen Lauf nach #221 (in #369 wurde sie nur angepasst, nicht gefahren) lief sie in **zwei** Annahmen auf:
+(a) „frisch geseedete DB" hieß für die Spec „leerer Katalog" (`Artikel (1)` …), die frisch migrierte DB bringt aber 16
+Standard-Artikel mit (Migration `0004_seed_catalog_reference`, aus #49); wie der Lauf bei #221 damit durchkam, ist nicht
+geklärt; (b) die Artikelnamen der Demo-Daten sind Teilstrings des Seed-Sortiments (siehe oben). Beides fiel erst beim ersten
+vollständigen Lauf auf. Dazu
+kam ein Dialog-Effekt: Das native `<dialog>` fokussiert beim Öffnen das erste Bedienelement – das schreibgeschützte
+Link-Feld –, es scrollt ans Ende der URL und trägt einen Fokusring; das Bild zeigte nur „…ffb7cff344".
+
+**Smell:** Eine Spec/ein Skript hängt am Zustand „frisch geseedet" und zählt absolut (`(1)`, `(2)`), oder ein Screenshot wird
+direkt nach dem Öffnen eines Dialogs aufgenommen.
+
+**Regel:** Zählungen **relativ zum gelesenen Startwert** (`startAnzahl + i + 1`), nie absolut. Ändert ein PR Seeds oder
+Migrationen mit Default-Daten, per `grep -rn "(1)\|(2)\|Artikel (" e2e/` die manuell laufenden Specs auf absolute
+Startannahmen prüfen. Vor Dialog-Screenshots Fokus und Scrollposition des automatisch fokussierten Elements zurücksetzen
+(`blur()`, `scrollLeft = 0`). Jeder fehlgeschlagene Lauf legt Demo-Daten an – vor dem Wiederholen die DB neu aufsetzen, nie
+auf dem Rest weiterlaufen (Spec-FS2).

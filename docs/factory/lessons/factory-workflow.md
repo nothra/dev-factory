@@ -1644,3 +1644,18 @@ eigenen Anteil nicht – ein weiterer Fall der #291/#351-Familie, nur an der Pro
 **Regel:** Sätze der Form „dieser PR hat X (nicht) hinzugefügt/vergrößert/reduziert" in einem
 Kleinfund-Eintrag vor dem Commit mit `git diff --stat origin/main...HEAD -- <pfad>` und
 `git cat-file -e origin/main:<pfad>` belegen.
+
+### Kürzt der Mensch den Scope mitten in `/implement` (Rückfrage nach FS1), die Spec sofort nachziehen – nicht erst im Review (aus #388, Review-Iteration 1/2)
+
+Die Capture-Spec scheiterte an einer zweiten veralteten Annahme (FS1: „reicht eine kleine Reparatur nicht, abbrechen und
+melden"). Auf Rückfrage entschied Ralf „nur `05`–`07` liefern". Die Entscheidung stand danach im Chat und in der Task-Datei,
+aber **nicht in der Spec**: AK1/AK5/AK9 blieben als Pflicht stehen, Q3 fehlte, und die Task-Datei trug AK1/AK5/AK9 noch im
+Wortlaut vor der Kürzung. `/review` fand beides als Wichtig-Finding (Spec-Drift, Lesson #253/#55), ein ganzer
+Review-Rework-Zyklus für etwas, das in `/implement` drei Zeilen gewesen wäre.
+
+**Smell:** „Ralf hat den Umfang entschieden, ich mache weiter" – ohne dass die Spec den Beschluss trägt.
+
+**Regel:** Im selben Schritt, in dem die Entscheidung fällt: (1) in der Spec einen neuen Q-Eintrag mit Datum und Begründung
+ergänzen, (2) betroffene AK als „zurückgestellt (Q…)" bzw. „angepasst" kennzeichnen und die erfüllten abhaken, (3) die AK-Zeilen
+der Task-Datei im gleichen Wortlaut führen (sonst bleibt die Regel „keine offenen Checkboxen → kein Done" nur mit einer
+unerklärten Ausnahme erfüllbar) und (4) die zurückgestellte Folgearbeit kanonisch festhalten (`kleinfunde.md` oder Issue).
