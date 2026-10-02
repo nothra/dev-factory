@@ -1140,3 +1140,13 @@ die Datei enthält Tests mit nie aufgelösten Action-Promises.
 `afterEach` löst sie in `act(async …)` auf – **vor** `cleanup()`. Abwesenheits-Assertions zusätzlich an eine Anwesenheits-
 Vorbedingung koppeln (z. B. `toBeDisabled()` belegt, dass die Aktion überhaupt lief). Den Mutationsbeleg (Schutz entfernen →
 Test rot) für jeden Abwesenheits-Test fahren, nicht nur für den ersten.
+
+### Negativ-Fixture auf einem realen Pfad bricht, sobald dieser Pfad später gelistet wird (aus #371, /implement-Selbstfund)
+
+Der Gegenrichtungs-Test in `eslint/color-gate-wiring.test.ts` nutzte die Kassieren-Seite als
+„nicht gelisteten Nachbarn". #371 listete genau dieses Verzeichnis in `eslint/ui-token-files.mjs` –
+der Test wäre ohne Anpassung rot geworden.
+
+**Regel:** Wer eine Pfad-Liste (Token-Gate, Matcher) erweitert, greppt vorher alle Tests, die einen
+realen Pfad als „nicht enthalten" verwenden, und stellt sie auf einen weiterhin ungelisteten Nachbarn
+um; zusätzlich je neuem Eintrag einen Positivfall ergänzen.
