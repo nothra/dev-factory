@@ -262,3 +262,7 @@ zeigte danach 10 neue Zeilen. Der Block empfiehlt in seinem eigenen Text, ihn mi
 `git checkout -- CLAUDE.md` (bei `AGENTS.md` analog) vor dem Commit ausführen. Wer die Datei dauerhaft
 sauber halten will, braucht einen Eintrag in `.gitignore`-nahem Tooling – das ist ein eigenes Issue,
 kein Teil eines Task-Commits.
+
+**Rezidiv (aus #370, /test-Nachtest):** Auch der E2E-Lauf in #370 ließ `next dev` den Block in `CLAUDE.md` schreiben
+(`M CLAUDE.md` im `git status`); `git checkout -- CLAUDE.md` vor dem Commit genügte. Das vierte Vorkommnis zeigt: ohne
+Tooling-Fix (eigenes Issue) bleibt es ein manueller Schritt nach **jedem** E2E-/`next dev`-Lauf.

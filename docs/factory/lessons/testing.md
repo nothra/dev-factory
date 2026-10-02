@@ -1124,3 +1124,19 @@ Migrationen mit Default-Daten, per `grep -rn "(1)\|(2)\|Artikel (" e2e/` die man
 Startannahmen prüfen. Vor Dialog-Screenshots Fokus und Scrollposition des automatisch fokussierten Elements zurücksetzen
 (`blur()`, `scrollLeft = 0`). Jeder fehlgeschlagene Lauf legt Demo-Daten an – vor dem Wiederholen die DB neu aufsetzen, nie
 auf dem Rest weiterlaufen (Spec-FS2).
+
+### React-19-Async-Actions: nie auflösende Promises halten einen modulweiten Scope offen – spätere Tests derselben Datei sind „grün aus dem falschen Grund" (aus #370, /implement-Selbstfund beim Mutationsbeleg)
+
+Die Positionszustand-Tests von `VerzehrEinzelansicht` nutzen das echte `MengeControl` samt `useActionState`. Pending-Tests
+halten eine Action bewusst mit einem nie aufgelösten Promise offen (Lesson #369). React 19 bündelt laufende Async-Actions in
+einem **modulweiten** Scope: die offene Aktion lief über das Testende hinaus, und spätere Action-Ergebnisse der Datei wurden
+nie committet. Der Test „später eintreffender Fehler wird verworfen" war so auch **ohne** den schützenden `key` grün – isoliert
+belegt per Sonde: ohne die Vortests zeigte die Ansicht den Fehler bei der falschen Person.
+
+**Smell:** Ein Abwesenheits-Test („kein Fehler sichtbar") bleibt grün, obwohl der Mutationsbeleg ihn rot machen müsste, und
+die Datei enthält Tests mit nie aufgelösten Action-Promises.
+
+**Regel:** Jede in einer Testdatei offen gehaltene Action registriert ihre `resolve`-Funktion in einer Liste, und ein
+`afterEach` löst sie in `act(async …)` auf – **vor** `cleanup()`. Abwesenheits-Assertions zusätzlich an eine Anwesenheits-
+Vorbedingung koppeln (z. B. `toBeDisabled()` belegt, dass die Aktion überhaupt lief). Den Mutationsbeleg (Schutz entfernen →
+Test rot) für jeden Abwesenheits-Test fahren, nicht nur für den ersten.

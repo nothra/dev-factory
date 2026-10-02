@@ -1659,3 +1659,23 @@ Review-Rework-Zyklus für etwas, das in `/implement` drei Zeilen gewesen wäre.
 ergänzen, (2) betroffene AK als „zurückgestellt (Q…)" bzw. „angepasst" kennzeichnen und die erfüllten abhaken, (3) die AK-Zeilen
 der Task-Datei im gleichen Wortlaut führen (sonst bleibt die Regel „keine offenen Checkboxen → kein Done" nur mit einer
 unerklärten Ausnahme erfüllbar) und (4) die zurückgestellte Folgearbeit kanonisch festhalten (`kleinfunde.md` oder Issue).
+
+### Entfernt/ersetzt ein PR ein Modul oder einen Namen, **alle** Doku-Treffer im selben Schritt per Grep abräumen – sonst findet jede Review-Runde einen weiteren (aus #370, Review-Runde 1–3)
+
+#370 löschte `VerzehrErfassung`/`FokusListe`. Review-Runde 1 fand ADR-035/039, Runde 2 weitere Stellen, Runde 3 ADR-026 D3
+und ADR-034 D1/D4 – jedes Mal dieselbe Fund-Klasse (#211/#176/#253), jedes Mal ein weiterer Rework-Zyklus bis zum
+Circuit Breaker. Dazu blieb eine untracked Wegwerf-Sonde `app/_verzehr/tmp-debug.test.tsx` liegen: `.gitignore` deckt nur
+`*.tmp.*`, sie wäre per `git add -A` im Commit gelandet.
+
+**Regel:** Beim Löschen/Umbenennen sofort `grep -rn "<AlterName>" docs/ app/ e2e/ eslint/` und **jeden** Treffer in
+`docs/adr/` und `docs/specs/` mit Banner/Statuszeile versehen (und den Treffer in die Drift-Liste der neuen ADR aufnehmen)
+– nicht nur die in der Spec benannten ADRs. Wegwerf-Sonden heißen `*.tmp.*` (gitignoriert) und werden vor dem Commit
+gelöscht; `git status` vor jedem Commit auf `??`-Einträge prüfen.
+
+### E2E im frischen Worktree: vorhandene `.env.local` ≠ geseedete DB – `CredentialsSignin` vor „Regression" zuerst gegen `db:migrate` + `db:seed` prüfen (aus #370, /test-Nachtest)
+
+Ergänzt die #228-Lesson (fehlende `.env.local`): auch **mit** `.env.local` scheiterte der erste Lauf an
+`[auth][error] CredentialsSignin`, weil die lokale DB keinen Seed-Admin hatte. Nach `pnpm db:migrate` + `pnpm db:seed`
+(beide per Wegwerf-Skript `scripts/*.tmp.sh`, da `dotenv`) liefen alle Specs grün. Der dmTECH-Guardrail meldet
+`dotenv`-Aufrufe mit `.env.local` als Zugriff auf eine Secret-Datei (`cmd.secretfile.read`) – vor der Nutzung beim Menschen
+bestätigen lassen, Werte nie ausgeben.
