@@ -1679,3 +1679,23 @@ Ergänzt die #228-Lesson (fehlende `.env.local`): auch **mit** `.env.local` sche
 (beide per Wegwerf-Skript `scripts/*.tmp.sh`, da `dotenv`) liefen alle Specs grün. Der dmTECH-Guardrail meldet
 `dotenv`-Aufrufe mit `.env.local` als Zugriff auf eine Secret-Datei (`cmd.secretfile.read`) – vor der Nutzung beim Menschen
 bestätigen lassen, Werte nie ausgeben.
+
+### Rezidiv #251: Review-Nacharbeit lag nach Iteration 2 unkommittet im Working Tree – Rework-Ende = Commit, erst dann `/review` neu starten (aus #391, Review-Iteration 2)
+
+#391 lieferte nach Iteration 1 die Nacharbeit (E2E-Helfer, Anleitung, Screenshots), ließ sie aber ungecommittet; Iteration 2
+las `git diff origin/main...HEAD`, sah den alten Stand und meldete sie als Kritisch („Nacharbeit nicht committet") – ein Zyklus
+von dreien, verbrannt für einen `git commit`. Gleiche Iteration: Task-Datei ohne Häkchen/Review-Notizen (CLAUDE.md-Guardrail
+„Task-Datei final auf dem Feature-Branch").
+
+**Regel:** Ein Rework-Schritt endet erst mit sauberem `git status` (`??` und ` M` geprüft) und einem Commit, der Code **und**
+Task-Datei (Häkchen, Review-Findings, Nachweise) enthält. Erst danach den nächsten `/review` anstoßen.
+
+### Verschiebt ein PR den UI-Einstiegspunkt einer Funktion, E2E-Helfer, Capture-Spec, Screenshots und Anleitung im selben Schritt mitziehen (aus #391, Review-Iteration 1)
+
+Einstellungen wanderten vom Seitenende in einen Zahnrad-Dialog im Kopf. Die Unit-Tests waren sofort grün; Iteration 1 fand
+dennoch veraltete Screenshots 05/07, E2E-Helfer (`oeffneEinstellungen`) auf dem alten Weg und eine Anleitung mit dem alten
+Ort – Stellen, die weder Unit-Test noch Lint berühren.
+
+**Regel:** Bei „Funktion X ist jetzt woanders erreichbar" sofort `grep -rn "<altes Label/Selektor>" e2e/ docs/anleitung/`
+und die Treffer samt Screenshot-Capture in derselben Task abräumen; E2E nur gegen einen Dev-Server **dieses** Worktrees
+belegen (Lesson testing #368). Nebenbei neu erzeugte, nicht betroffene Bilder nicht mitcommitten.
