@@ -1150,3 +1150,11 @@ der Test wäre ohne Anpassung rot geworden.
 **Regel:** Wer eine Pfad-Liste (Token-Gate, Matcher) erweitert, greppt vorher alle Tests, die einen
 realen Pfad als „nicht enthalten" verwenden, und stellt sie auf einen weiterhin ungelisteten Nachbarn
 um; zusätzlich je neuem Eintrag einen Positivfall ergänzen.
+
+### E2E gegen den Dev-Server: `127.0.0.1` blockt HMR, Hydration bleibt aus (aus #374, /implement-Selbstfund)
+
+**Smell:** Gegen `127.0.0.1:<port>` blockt Next dev die HMR-Ressourcen (`allowedDevOrigins`). Ohne Hydration bleibt
+z. B. der Drawer zu – das sieht wie eine Regression im Produktcode aus.
+
+**Regel:** E2E-Nachweise gegen `localhost:<port>` fahren (eigener Server, freier Port, Lesson #368). Rotes
+Verhalten, das nur interaktive Client-Logik betrifft, zuerst auf die Host-Schreibweise prüfen.

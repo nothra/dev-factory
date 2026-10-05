@@ -32,6 +32,11 @@ Tatsachenbehauptung (vgl. `lessons/testing.md` #314-Learning zu unverifizierten
 Verhaltensbehauptungen) – vor dem Anlegen einer Wegwerf-Datei `git check-ignore -v <pfad>`
 gegen den geplanten Dateinamen laufen lassen, nicht das Muster erraten.
 
+**Nachtrag (aus #374): drittes Vorkommnis – Wegwerf-Playwright-Config.** `playwright.capture.tmp.config.ts` für
+die AK5.4-Aufnahmen stand im Review als `??` im `git status`; `*.tmp.spec.ts` deckte sie nicht ab. Das Muster
+`*.tmp.config.ts` fehlt in `.gitignore` noch (Edit wurde in der Session nicht freigegeben, offen). Regel unverändert: vor dem Anlegen eines Wegwerf-Artefakts mit
+`git check-ignore -v <pfad>` prüfen, dass ein Muster es deckt, nicht hinterher aufräumen.
+
 ### Lint/Vitest fangen keine Typfehler – Gate-Lücke bis zum manuellen `pnpm build` (aus #137)
 
 Review-Runde 1 fand einen Build-Break (fehlender `import type { CatalogCategory }`), den
