@@ -271,3 +271,22 @@ kein Teil eines Task-Commits.
 **Rezidiv (aus #370, /test-Nachtest):** Auch der E2E-Lauf in #370 ließ `next dev` den Block in `CLAUDE.md` schreiben
 (`M CLAUDE.md` im `git status`); `git checkout -- CLAUDE.md` vor dem Commit genügte. Das vierte Vorkommnis zeigt: ohne
 Tooling-Fix (eigenes Issue) bleibt es ein manueller Schritt nach **jedem** E2E-/`next dev`-Lauf.
+
+### Security-Deps-Durchgang: „Dependabot meldet nichts mehr" ist vor dem Merge nicht prüfbar – Ersatznachweis über die npm-Bulk-Advisory-API (aus #390, /security-review + /codify)
+
+**Vorfall:** Der Spec-AK „Dependabot meldet keine offenen Alerts mehr" konnte auf dem Feature-Branch nie
+grün werden: Dependabot wertet nur den Default-Branch aus. Die Task-Datei musste den Punkt offen lassen
+und nach dem Merge nachprüfen. Zusätzlich blieb eine vorbestehende Restausnahme (`braces@3.0.3`,
+GHSA-vfj7-8cjw-p6xm, kein Fix vorhanden) übrig, die der Durchgang nicht beheben konnte (Issue #396).
+
+**Regel:**
+1. Bei einem Deps-Durchgang den Alert-AK in zwei Teile trennen: *vor dem Merge* die aufgelösten Versionen
+   gegen die Floors prüfen, *nach dem Merge* `gh api repos/<owner>/<repo>/dependabot/alerts?state=open`.
+   Den Nachweis nicht als erledigt abhaken, solange der PR nicht gemergt ist.
+2. Als Vorab-Nachweis taugt, wenn `pnpm audit` ausfällt (#228), die Bulk-API
+   `registry.npmjs.org/-/npm/v1/security/advisories/bulk` gegen **alle** aufgelösten Versionen des Lockfiles.
+   Ein leeres Ergebnis `{}` braucht eine **Gegenprobe** mit den Altversionen, die Treffer liefern müssen.
+   Sonst ist es ein stilles Fehlsignal.
+3. Den ganzen Baum abgleichen, nicht nur die Alert-Pakete. So fiel `braces@3.0.3` auf, das weder die
+   Dependabot-Liste noch der Diff zeigten. Findet sich dabei ein Paket ohne Fix, ist eine begründete
+   Restausnahme mit Tracking-Issue die richtige Antwort, kein Override ins Leere.

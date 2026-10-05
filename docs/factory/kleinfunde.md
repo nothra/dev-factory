@@ -181,30 +181,6 @@
   `pnpm-workspace.yaml` über die alert-behafteten Einträge hinaus aus.
 - **Herkunft:** #291 (`/review`, Runde 1). Fundstelle verifiziert am 2026-08-13.
 
-### Override-Selektor ohne untere Schranke greift auf ältere Major-Linien über
-
-- **Wo:** [`pnpm-workspace.yaml:100`](../../pnpm-workspace.yaml) – `"undici@<7.29.0"`.
-  **Aktualisiert am 2026-09-16 (im Rahmen von #339):** `postcss`, `sharp` und `js-yaml` sind
-  seit #337 aus `overrides:` entfernt (No-op-Messung nach dem next-16.3.5-Bump) – die
-  ursprüngliche Formulierung „vier der sechs #291-Selektoren" nannte diese drei weiter, obwohl
-  sie nicht mehr existieren. Nur `undici` ist heute noch betroffen.
-- **Was:** `undici@<7.29.0` ist nach unten offen und passt damit auch auf ältere Major-Linien
-  desselben Pakets (`undici@5/6`). Zieht künftig ein Paket eine solche Kopie in den Baum, hebt
-  der Override sie über die Major-Grenze – der Caret-Ziel-Range (`^7.29.0`) verhindert das
-  **nicht**, er begrenzt nur nach oben. Exakt dieser Mechanismus ist in #291 bei
-  `brace-expansion` empirisch eingetreten und wurde dort mit einem disjunkten Selektor
-  (`>=2.0.0 <2.1.4`) behoben – `undici` blieb unbegrenzt, weil im aktuellen Baum keine ältere
-  Major-Kopie existiert (zuletzt am 2026-09-16 im Lockfile geprüft: genau eine aufgelöste
-  Kopie, in der Ziel-Major).
-- **Warum es zählt:** kein Sicherheitsrisiko und heute kein Defekt – der Auslöser (ältere
-  Major-Kopie im Baum) ist in diesem Repo derzeit nicht herstellbar, deshalb kein Issue.
-- **Fix:** untere Schranke ergänzen, analog zum `brace-expansion@2.x`-Eintrag – z. B.
-  `"undici@>=7.0.0 <7.29.0"` (eine Zeile). Die Vulnerable-Range der Advisory nennt die
-  Untergrenze bereits (`>= 7.0.0, < 7.29.0`). Danach einmal `install` + Gates, obwohl sich am
-  aufgelösten Baum nichts ändern sollte.
-- **Herkunft:** #291 (`/security-review`), Inhalt aktualisiert in #339 (`/codify`, Review-Runde
-  2 Nitpick). Fundstelle und Lockfile-Auflösung verifiziert am 2026-09-16.
-
 ### `start-work.sh` erkennt einen wiederverwendeten Worktree nicht hinter einem Pfad-Symlink
 
 - **Wo:** [`scripts/start-work.sh:208`](../../scripts/start-work.sh) –
@@ -487,4 +463,17 @@
 - **Fix:** Nach dem Neuerzeugen der Bilder (`10`–`12`, siehe Eintrag oben) das PDF in einem Zug neu drucken
   (Schritte in `anleitung.md`, A4, Hochformat, Hintergrundgrafiken an) und committen. Manuell, etwa zehn Minuten.
 - **Herkunft:** `/implement` zu #388.
+
+### Floor-Guard hat keinen Vorsorge-Fall für die undici-8.x-Linie
+
+- **Wo:** [`scripts/checks/tests/run-tests.sh:5638`](../../scripts/checks/tests/run-tests.sh) – die undici-Fälle in
+  `floor_cases_291` decken nur Major 6 und 7 ab (verifiziert am 2026-10-05).
+- **Was:** Alle sechs undici-Advisories aus #390 haben eine eigene 8.x-Linie mit Floor 8.10.2
+  (`gh api advisories/<ghsa>`, z. B. GHSA-w293-vg96-wgc3 `>= 8.0.0, < 8.10.2`). Der Override-Selektor
+  `>=7.0.0 <7.29.1` reicht nicht bis 8.x. Zieht ein Parent künftig eine `undici@8.x` unter 8.10.2 herein, sehen
+  Override und Guard beide weg. Heute liegt keine 8.x im Baum. Auch der Selektor vor #390 (`<7.29.0`) hat die
+  Linie nie gedeckt, es geht also keine bestehende Deckung verloren.
+- **Fix:** Fall `"undici|8|8.10.2|Vorsorge, …"` ergänzen, dazu einen Mutationsbeleg nach dem Muster des Major-6-Falls
+  (Fixture `undici@8.10.1` + Nachbarzeile `7.30.0`). Etwa zehn Zeilen.
+- **Herkunft:** `/implement` zu #390 (Rework nach Review-Iteration 1, bei der Floor-Messung über alle Major-Linien).
 
