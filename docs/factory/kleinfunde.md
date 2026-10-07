@@ -35,6 +35,20 @@
 
 ## Offen
 
+### `Dialog` meldet natives Schließen ohne `schliessbar`-Prüfung – Escape-Sperre ggf. umgehbar
+
+- **Wo:** [`app/components/ui/Dialog.tsx:75-81`](../../app/components/ui/Dialog.tsx) –
+  `handleClose` ruft `onClose()` ohne Blick auf `schliessbar`; nur `handleCancel` (Z. 68-73)
+  prüft es (verifiziert am 2026-10-07).
+- **Was:** Ungeprüfte Hypothese: Chromium (Close-Watcher) schließt einen modalen `<dialog>` beim
+  zweiten Escape ohne neue Nutzeraktivierung, ohne vorher `cancel` zu feuern. Dann käme nur
+  `close` an, und die Sperre während einer laufenden Action (`schliessbar={false}`, spec-373
+  Fehlerszenario „Doppeltes Absenden") wäre umgangen. Nicht im Browser nachgestellt.
+- **Fix:** Erst per Playwright nachstellen (Action offen halten, zweimal Escape). Bestätigt es
+  sich, in `handleClose` bei `!schliessbar` den Dialog per `showModal()` wieder öffnen statt
+  `onClose()` zu melden, und einen E2E-Test dazu – ca. 5 Zeilen + Test.
+- **Herkunft:** `/review` Runde 1 zu #373.
+
 ### `.gitignore` deckt `*.tmp.md` nicht ab – Wegwerf-PR-Body landete im Commit
 
 - **Wo:** [`.gitignore:17-21`](../../.gitignore) – `*.tmp.txt`/`.sh`/`.py`/`.spec.ts`/`.spec.tsx`,

@@ -1699,3 +1699,8 @@ Ort – Stellen, die weder Unit-Test noch Lint berühren.
 **Regel:** Bei „Funktion X ist jetzt woanders erreichbar" sofort `grep -rn "<altes Label/Selektor>" e2e/ docs/anleitung/`
 und die Treffer samt Screenshot-Capture in derselben Task abräumen; E2E nur gegen einen Dev-Server **dieses** Worktrees
 belegen (Lesson testing #368). Nebenbei neu erzeugte, nicht betroffene Bilder nicht mitcommitten.
+
+**Rezidiv (aus #373, Review-Iteration 1 W3):** Dieselbe Lücke in der menschlichen Vor-Merge-Checkbox: Sie nannte nur die
+Screenshots 03/04, Bild 02 (Kachelübersicht, die „Theke" verlor), Bildunterschrift und „Stand" fehlten. Wer Bilder nicht
+selbst erzeugen kann, listet in der Checkbox **jedes** betroffene Bild (Treffer des Greps oben) und zieht
+Unterschrift/„Stand" sofort im Text nach.
