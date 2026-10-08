@@ -1704,3 +1704,16 @@ belegen (Lesson testing #368). Nebenbei neu erzeugte, nicht betroffene Bilder ni
 Screenshots 03/04, Bild 02 (Kachelübersicht, die „Theke" verlor), Bildunterschrift und „Stand" fehlten. Wer Bilder nicht
 selbst erzeugen kann, listet in der Checkbox **jedes** betroffene Bild (Treffer des Greps oben) und zieht
 Unterschrift/„Stand" sofort im Text nach.
+
+### Normative Regel mit Abweichungsliste: Regelwortlaut gegen alle Treffer im Baum greppen, bevor er feststeht (aus #375, Review-Iteration 1/2)
+
+Das Glossar listete Ist → Soll je Datei. Iteration 1 fand `LinkKopieren.tsx:45` nicht gelistet, Iteration 2 drei
+Meldungen in `actions.ts` (`:101/:353/:357`), die die frisch verschärfte Regel „Doppelpunkt nur bei ‚nicht möglich'"
+verletzten. Der Rework von Iteration 1 hatte die Regel enger gefasst, ohne sie erneut gegen den Baum zu greppen –
+jede Regelverschärfung erzeugt neue Abweichungen.
+
+**Regel:** Nach **jeder** Änderung am Regelwortlaut (auch im Rework) das Kernmuster der Regel (hier: alle Meldungen mit
+`:`/„nicht möglich") per Grep über den ganzen Produktionsbaum laufen lassen und jeden Treffer entweder als konform
+belegen oder in die Abweichungsliste (mit Ziel-Issue) aufnehmen. Beispiele im Regeltext ersetzen den Grep nicht.
+Ebenso: Eine im Review genannte Fundstelle (hier „Name fehlt") vor dem Eintragen per Grep belegen – sie existierte
+im Produktionscode nicht.
