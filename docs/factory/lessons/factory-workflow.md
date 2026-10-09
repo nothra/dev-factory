@@ -1717,3 +1717,15 @@ jede Regelverschärfung erzeugt neue Abweichungen.
 belegen oder in die Abweichungsliste (mit Ziel-Issue) aufnehmen. Beispiele im Regeltext ersetzen den Grep nicht.
 Ebenso: Eine im Review genannte Fundstelle (hier „Name fehlt") vor dem Eintragen per Grep belegen – sie existierte
 im Produktionscode nicht.
+
+### Rezidiv #375/#345: Anker und Fix-Empfehlungen im selben PR gegen die eigene Rework-Historie und die Lessons des Zielbereichs prüfen (aus #404, Review-Iteration 2)
+
+Zwei Wichtig-Funde der Iteration 2 waren reine Doku-Drift, beide durch den Rework von Iteration 1 selbst erzeugt: (1) Der
+Glossar-Anker `TeilnehmerHinzufuegenDialog.tsx:29` rutschte durch die neuen Fokus-Zeilen auf `:36` (Rezidiv #375).
+(2) Der neu angelegte Kleinfund „`createWalkInAction` nicht atomar" empfahl `db.transaction()` – das Gegenteil von
+Lesson #345 (`runAtomic`, Neon-HTTP kennt keine Transaktionen), obwohl die Lesson im Index stand.
+
+**Regel:** (1) Jeder Rework, der Zeilen in einer Datei einfügt/löscht, auf die ein Doku-Anker zeigt, zieht die Anker im
+selben Commit nach (Grep auf `<Dateiname>:` über `docs/`). (2) Eine Fix-Empfehlung in `kleinfunde.md`/Issue vor dem
+Eintragen gegen die Lessons der berührten Schicht lesen (hier `db-drizzle.md`) – die Empfehlung ist Code-Vorgabe für
+später und trägt dieselbe Prüfpflicht wie Code.

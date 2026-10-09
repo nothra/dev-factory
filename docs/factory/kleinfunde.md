@@ -35,6 +35,22 @@
 
 ## Offen
 
+### `createWalkInAction`: Anlegen und Hinzufügen nicht atomar
+
+- **Wo:** [`app/veranstaltung/actions.ts:405-418`](../../app/veranstaltung/actions.ts) – verifiziert
+  am 2026-10-09.
+- **Was:** Statusprüfung (`:405-407`), `createTeilnehmer` (`:417`) und `addZeile` (`:418`) laufen
+  ohne gemeinsame Transaktion. Wird die Veranstaltung zwischen Prüfung und INSERT gelöscht, bleibt
+  ein Teilnehmer ohne Zeile zurück – ein Wiederholungsversuch läuft seit #404 dann in die
+  Duplikat-Warnung. Nur im Rennen zweier Geräte herstellbar; älter als #404.
+- **Fix:** Anlegen + Zeile in einer `db/`-Funktion über `runAtomic` (`db/atomic.ts`) bündeln –
+  **nie** `db.transaction()` direkt, das wirft unter dem Neon-HTTP-Treiber in INT/PRD (Lesson #345).
+  Die Teilnehmer-ID vorab per `crypto.randomUUID()` erzeugen, weil `.batch()` keine Abhängigkeit
+  zwischen den Abfragen erlaubt; der FK der Zeile lässt dann im Rennen den ganzen Batch scheitern.
+  Belegen per Treiber-Mock-Test analog `db/catalog.duplicateCatalog-driver.test.ts` plus
+  DB-Integrationstest. Aufwand: ~25 Zeilen + zwei Tests.
+- **Herkunft:** `/review` #404, Runde 1 (N1).
+
 ### `Dialog` meldet natives Schließen ohne `schliessbar`-Prüfung – Escape-Sperre ggf. umgehbar
 
 - **Wo:** [`app/components/ui/Dialog.tsx:75-81`](../../app/components/ui/Dialog.tsx) –
@@ -404,24 +420,6 @@
 - **Herkunft:** `/review` zu #351 (Runde 2, Nitpick, bewusst kein Rework-Grund – kein
   erreichbarer Auslöser).
 
-### „Neuer Gast" baut die Felder von `TeilnehmerFields` nach, statt sie wiederzuverwenden
-
-- **Wo:** [`app/veranstaltung/TeilnehmerHinzufuegenDialog.tsx:148-192`](../../app/veranstaltung/TeilnehmerHinzufuegenDialog.tsx)
-  (`GastBereich` samt WHY-Kommentar) gegen [`app/verwaltung/teilnehmer/TeilnehmerFields.tsx:9-41`](../../app/verwaltung/teilnehmer/TeilnehmerFields.tsx)
-  (verifiziert am 2026-10-01).
-- **Was:** Name, Typ und Mitglied existieren zweimal. Der frühere `WalkInForm` nutzte
-  `TeilnehmerFields` gerade gegen diese Duplikation; der neue Dialog darf es nicht, weil
-  `TeilnehmerFields` noch rohe Farbklassen (`inputClass` mit `zinc-*`/`dark:`) trägt und die neue
-  Oberfläche nur Bausteine und Tokens nutzen darf (spec-369 AK31, ADR-052). Die Beschriftung
-  weicht bereits ab („Name" im Dialog, „Anzeigename" in der Verwaltung); die Längengrenze ist seit
-  #369 über `TEILNEHMER_NAME_MAX` gekoppelt.
-- **Fix:** `TeilnehmerFields` auf `Field`/`SelectField` umstellen, Pfad in
-  `eslint/ui-token-files.mjs` eintragen und `GastBereich` darauf zurückführen; Beschriftung
-  dabei vereinheitlichen (E2E-Specs nutzen `getByLabel("Name")` bzw. `"Anzeigename"`). Etwa zehn
-  Zeilen plus Testanpassung – mitnehmen, wenn die Teilnehmer-Verwaltung ohnehin auf die
-  Bausteine umgestellt wird.
-- **Herkunft:** `/review` zu #369 (Runde 2, Wichtig-Finding), in der Rework-Runde klassifiziert.
-
 ### Capture-Spec der Anleitung läuft nicht bis zum Ende durch – Bilder `10`–`12` ungeprüft
 
 - **Wo:** [`e2e/anleitung-veranstalter.spec.ts:173`](../../e2e/anleitung-veranstalter.spec.ts)
@@ -479,7 +477,7 @@
   Teilnehmer-Zeile (dort nur in eine Konstante `sekundaerButtonClass` gezogen) blieben im Altstand.
 - **Fix:** Klassen auf Bausteine/Token-Klassen umstellen, die drei Pfade in
   `eslint/ui-token-files.mjs` eintragen. Je Datei wenige Zeilen; mitnehmen, wenn die Datei ohnehin
-  angefasst wird (für `TeilnehmerRow` zusammen mit dem Eintrag „Neuer Gast" oben).
+  angefasst wird.
 - **Herkunft:** `/review` zu #372 (Runde 1 + 2, Out-of-Scope).
 
 ### Bestätigungs-Steuerung in `ZeilenMenue` und `AbschlussAktion` handkopiert
