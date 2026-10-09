@@ -455,7 +455,9 @@
 - **Wo:** [`e2e/veranstaltung-detailseite.spec.ts:40-66`](../../e2e/veranstaltung-detailseite.spec.ts),
   [`e2e/veranstaltung-bearbeiten-loeschen.spec.ts:33-61`](../../e2e/veranstaltung-bearbeiten-loeschen.spec.ts),
   [`e2e/wechsel-verzehr-kassieren.spec.ts:25-55`](../../e2e/wechsel-verzehr-kassieren.spec.ts)
-  (verifiziert am 2026-10-01).
+  (verifiziert am 2026-10-01); vierte `login`-Kopie in
+  [`e2e/bestaetigen-rueckmelden.spec.ts:34`](../../e2e/bestaetigen-rueckmelden.spec.ts) (#372,
+  verifiziert am 2026-10-09).
 - **Was:** `login` und `createVeranstaltung` (Link-Zuwachs-Identifikation) sind je Spec kopiert; sie
   unterscheiden sich nur im Datum und in der Kommentierung. `e2e/helpers/detailseite.ts` (#369)
   bündelt bislang nur die Detailseiten-Schritte. Das Kopiermuster ist älter als #369; der PR
@@ -465,6 +467,57 @@
   bezeichnung, datum)` anlegen und die drei Specs umstellen. Braucht einen Lauf aller drei Specs
   gegen eine lokale DB (`scripts/e2e-369.tmp.sh` als Vorlage) – deshalb nicht im Review-Rework.
 - **Herkunft:** `/review` zu #369 (Runde 2, Iteration 2, Nitpick), klassifiziert im Rework.
+
+### Auslagen- und Teilnehmer-Dateien tragen noch rohe Farbklassen außerhalb des Farb-Gates
+
+- **Wo:** [`app/veranstaltung/AuslageForm.tsx:15, :61, :71`](../../app/veranstaltung/AuslageForm.tsx),
+  [`app/veranstaltung/[id]/auslagen/page.tsx:26, :75`](../../app/veranstaltung/[id]/auslagen/page.tsx),
+  [`app/verwaltung/teilnehmer/TeilnehmerRow.tsx:11, :27, :57`](../../app/verwaltung/teilnehmer/TeilnehmerRow.tsx)
+  (verifiziert am 2026-10-09).
+- **Was:** `zinc-*`- und `dark:`-Klassen statt Token-Klassen (ADR-052). #372 hat `AuslageRow.tsx`
+  umgestellt und ins Gate genommen (AK8); das Formular in derselben Zeile, die Auslagen-Seite und die
+  Teilnehmer-Zeile (dort nur in eine Konstante `sekundaerButtonClass` gezogen) blieben im Altstand.
+- **Fix:** Klassen auf Bausteine/Token-Klassen umstellen, die drei Pfade in
+  `eslint/ui-token-files.mjs` eintragen. Je Datei wenige Zeilen; mitnehmen, wenn die Datei ohnehin
+  angefasst wird (für `TeilnehmerRow` zusammen mit dem Eintrag „Neuer Gast" oben).
+- **Herkunft:** `/review` zu #372 (Runde 1 + 2, Out-of-Scope).
+
+### Bestätigungs-Steuerung in `ZeilenMenue` und `AbschlussAktion` handkopiert
+
+- **Wo:** [`app/veranstaltung/ZeilenMenue.tsx:21-96`](../../app/veranstaltung/ZeilenMenue.tsx),
+  [`app/veranstaltung/[id]/AbschlussAktion.tsx:61-76`](../../app/veranstaltung/[id]/AbschlussAktion.tsx)
+  (verifiziert am 2026-10-09).
+- **Was:** Offen-Zustand, `durchlauf`-Zähler als `key` und `returnFocusRef` um einen `ConfirmDialog`
+  stehen je Datei von Hand. Seit #372 gibt es dafür den Hook `useBestaetigung`
+  ([`app/components/useBestaetigung.ts`](../../app/components/useBestaetigung.ts)); `AuslageRow`,
+  `CatalogControls` und `VeranstaltungLoeschen` nutzen ihn bereits.
+- **Fix:** Die beiden Stellen auf `useBestaetigung` umstellen; je Datei unter zehn Zeilen.
+  `ZeilenMenue` öffnet die Bestätigung aus einem Menü heraus – vorher prüfen, ob der Auslöser dort
+  als `ausloeserRef` taugt.
+- **Herkunft:** `/review` zu #372 (Runde 2, Out-of-Scope); im Rework auf zwei Stellen reduziert.
+
+### „Theke angelegt" erscheint auch, wenn die Theke schon bestand
+
+- **Wo:** [`app/verwaltung/theke/ThekeSetup.tsx:17-18`](../../app/verwaltung/theke/ThekeSetup.tsx),
+  `ensureThekeAction` in [`app/veranstaltung/actions.ts`](../../app/veranstaltung/actions.ts)
+  (verifiziert am 2026-10-09).
+- **Was:** `ensureThekeAction` ist idempotent und meldet in beiden Fällen `{ ok: true }`; der Toast
+  sagt deshalb „Theke angelegt", auch wenn nichts angelegt wurde.
+- **Fix:** Die Action liefert `angelegt: boolean` (aus `ensureThekeForKasse`), der Client wählt
+  „Theke angelegt" bzw. „Theke besteht bereits". Etwa zehn Zeilen plus Test; passt zu #401, wo
+  die Theke-Texte ohnehin auf „Anlegen" umgestellt werden.
+- **Herkunft:** `/review` zu #372 (Iteration 1, Nitpick), klassifiziert im Rework.
+
+### Kein Lint-Gate gegen direkte `react-hot-toast`-Importe
+
+- **Wo:** [`docs/adr/058-toast-rueckmeldung-react-hot-toast-bestaetigen-sperrgruende.md`](../adr/058-toast-rueckmeldung-react-hot-toast-bestaetigen-sperrgruende.md)
+  `:222` (Implementierungs-Hinweise, Vorschlag `no-restricted-imports`), `eslint.config.mjs`
+  (verifiziert am 2026-10-09).
+- **Was:** Die Kapselung auf `app/components/ui/Toaster.tsx` und `ui/meldung.ts` hält heute nur per
+  Konvention; ein direkter Import an anderer Stelle fiele erst im Review auf.
+- **Fix:** `no-restricted-imports` für `react-hot-toast` mit Ausnahme der beiden Dateien (und
+  `Toaster.test.tsx`), dazu ein `invalid`-Fall im Lint-Test. Etwa zehn Zeilen.
+- **Herkunft:** `/review` zu #372 (Runde 1, Out-of-Scope).
 
 ### `anleitung.pdf` ist seit #221 nicht neu erzeugt worden und passt nicht mehr zur Anleitung
 

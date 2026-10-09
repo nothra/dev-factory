@@ -1158,3 +1158,12 @@ z. B. der Drawer zu – das sieht wie eine Regression im Produktcode aus.
 
 **Regel:** E2E-Nachweise gegen `localhost:<port>` fahren (eigener Server, freier Port, Lesson #368). Rotes
 Verhalten, das nur interaktive Client-Logik betrifft, zuerst auf die Host-Schreibweise prüfen.
+
+### Playwright `getByRole(name)` ist ebenfalls ein Teilstring-Treffer – nach neuem Element im Dialog `exact: true` (aus #372, /implement)
+
+Mit dem Toast-Portal im offenen Dialog traf `getByRole("button", { name: "Schließen" })` auch „Meldung schließen" und
+brach drei Specs (strict-mode-Verletzung). Wie `hasText` (Lesson #388) matcht `name` ohne `exact: true` Teilstrings,
+ohne Groß-/Kleinschreibung.
+
+**Regel:** Fügt ein PR einem Dialog/einer Seite ein neues Bedienelement hinzu (Toast, Hinweis, Schließen-Knopf), alle
+E2E-Locatoren auf dessen Namensraum greppen und auf `exact: true` umstellen – das fängt kein Unit-Test.
