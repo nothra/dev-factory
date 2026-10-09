@@ -466,18 +466,19 @@
   gegen eine lokale DB (`scripts/e2e-369.tmp.sh` als Vorlage) – deshalb nicht im Review-Rework.
 - **Herkunft:** `/review` zu #369 (Runde 2, Iteration 2, Nitpick), klassifiziert im Rework.
 
-### Auslagen- und Teilnehmer-Dateien tragen noch rohe Farbklassen außerhalb des Farb-Gates
+### Auslagen-Dateien tragen noch rohe Farbklassen außerhalb des Farb-Gates
 
 - **Wo:** [`app/veranstaltung/AuslageForm.tsx:15, :61, :71`](../../app/veranstaltung/AuslageForm.tsx),
-  [`app/veranstaltung/[id]/auslagen/page.tsx:26, :75`](../../app/veranstaltung/[id]/auslagen/page.tsx),
-  [`app/verwaltung/teilnehmer/TeilnehmerRow.tsx:11, :27, :57`](../../app/verwaltung/teilnehmer/TeilnehmerRow.tsx)
+  [`app/veranstaltung/[id]/auslagen/page.tsx:26, :75`](../../app/veranstaltung/[id]/auslagen/page.tsx)
   (verifiziert am 2026-10-09).
 - **Was:** `zinc-*`- und `dark:`-Klassen statt Token-Klassen (ADR-052). #372 hat `AuslageRow.tsx`
-  umgestellt und ins Gate genommen (AK8); das Formular in derselben Zeile, die Auslagen-Seite und die
-  Teilnehmer-Zeile (dort nur in eine Konstante `sekundaerButtonClass` gezogen) blieben im Altstand.
-- **Fix:** Klassen auf Bausteine/Token-Klassen umstellen, die drei Pfade in
+  umgestellt und ins Gate genommen (AK8); das Formular in derselben Zeile und die Auslagen-Seite
+  blieben im Altstand. Die Teilnehmer-Zeile ist seit #405 umgestellt (Verzeichnis-Eintrag
+  `app/verwaltung/teilnehmer/`).
+- **Fix:** Klassen auf Bausteine/Token-Klassen umstellen, die beiden Pfade in
   `eslint/ui-token-files.mjs` eintragen. Je Datei wenige Zeilen; mitnehmen, wenn die Datei ohnehin
-  angefasst wird.
+  angefasst wird. Dabei die Gegenprobe in `eslint/color-gate-wiring.test.ts` (nutzt
+  `AuslageForm.tsx` als ungelisteten Nachbarn) auf einen anderen Pfad umstellen (Lesson #371).
 - **Herkunft:** `/review` zu #372 (Runde 1 + 2, Out-of-Scope).
 
 ### Bestätigungs-Steuerung in `ZeilenMenue` und `AbschlussAktion` handkopiert
@@ -541,4 +542,21 @@
 - **Fix:** Fall `"undici|8|8.10.2|Vorsorge, …"` ergänzen, dazu einen Mutationsbeleg nach dem Muster des Major-6-Falls
   (Fixture `undici@8.10.1` + Nachbarzeile `7.30.0`). Etwa zehn Zeilen.
 - **Herkunft:** `/implement` zu #390 (Rework nach Review-Iteration 1, bei der Floor-Messung über alle Major-Linien).
+
+### Aktiv-Umschalten-Formular in `CatalogRow` und `TeilnehmerRow` handkopiert
+
+- **Wo:** [`app/verwaltung/katalog/CatalogRow.tsx:89-110`](../../app/verwaltung/katalog/CatalogRow.tsx)
+  (`ArtikelAktivUmschalten`) und
+  [`app/verwaltung/teilnehmer/TeilnehmerRow.tsx:79-102`](../../app/verwaltung/teilnehmer/TeilnehmerRow.tsx)
+  (`TeilnehmerAktivUmschalten`) – verifiziert am 2026-10-09.
+- **Was:** Beide Funktionen sind bis auf versteckte Zusatzfelder (`catalogId`), Toast-Texte und den
+  Wirkungssatz gleich: `useDialogFormular`, Formular mit Trennlinie, `id`/`active`-Felder,
+  `Notice`, Button mit Lauf-Label und Sperre über `steuerung.gesperrt`. #405 hat das Gerüst
+  bewusst übernommen (ADR-060 D3); eine dritte Dialog-Liste (z. B. Auslagen) würde es ein drittes
+  Mal kopieren.
+- **Fix:** Einen Baustein `AktivUmschaltenFormular` neben `DialogAktionen` in
+  `app/components/FormularDialog.tsx` ziehen (Props: Action, `steuerung`, `active`,
+  Erfolgsmeldungen, Wirkungssatz optional, Zusatzfelder als `children`) und beide Zeilen darauf
+  umstellen. Etwa zehn Zeilen netto; mitnehmen, wenn eine der Zeilen ohnehin angefasst wird.
+- **Herkunft:** `/review` zu #405 (Runde 2, Code-Qualität, Out-of-Scope weil `CatalogRow` betroffen).
 
