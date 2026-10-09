@@ -1167,3 +1167,15 @@ ohne Groß-/Kleinschreibung.
 
 **Regel:** Fügt ein PR einem Dialog/einer Seite ein neues Bedienelement hinzu (Toast, Hinweis, Schließen-Knopf), alle
 E2E-Locatoren auf dessen Namensraum greppen und auf `exact: true` umstellen – das fängt kein Unit-Test.
+
+### Opt-in-E2E-Spec, die nie lief, belegt nichts – und prüfte hier die falsche CSS-Eigenschaft (aus #403, Review-Iteration 1 K1 + Iteration 3)
+
+Die Spec `e2e/bausteine-listenzeile-aufklapper.spec.ts` ist per `E2E_BAUSTEINE_403=1` abgeschaltet und lief in allen
+drei Review-Iterationen nie: Der Pfeil-Test prüfte `transform`, Tailwind v4 setzt aber die Eigenschaft `rotate` – der
+Beleg für AK1.2 wäre rot bzw. aussagelos gewesen, und niemand hätte es bemerkt. Der Lauf braucht Freigabe des Menschen
+(lokale DB, `.env.local`, eigener Port) und blieb deshalb bis zum Circuit Breaker offen.
+
+**Regel:** (1) Eine nie gelaufene Spec gilt nicht als Beleg, auch wenn sie geschrieben ist; die Freigabe für den
+Lauf in `/implement` **früh** einholen, nicht erst nach drei Review-Runden. (2) CSS-Assertions in Playwright gegen die
+tatsächlich gesetzte Eigenschaft schreiben (Tailwind v4: `rotate`/`translate`/`scale` einzeln, nicht `transform`) und
+einmal gegen den echten Browser messen, bevor die AK-Checkbox hängt.

@@ -309,3 +309,13 @@ anlegen, oder das Muster so ankern, dass der Funktionsrumpf ausgenommen ist, ode
 Ersetzung gezielt gegenprüfen: „enthält der neue Helfer noch das Original?" (`sed -n
 '/^name() {/,/^}/p'`). Die reine Zählung der ersetzten Stellen genügt **nicht** – sie zählt den
 Selbsttreffer als Erfolg.
+
+### Rezidiv „X schützt vor Y": benannte Tailwind-Gruppe als Wirkungsbehauptung (aus #403, Review-Iteration 2 W1)
+
+ADR, Kopfkommentar und Testname behaupteten, `group/aufklapper` verhindere das Mitdrehen verschachtelter Aufklapper.
+Der Name schützt nur vor fremden `.group`-Vorfahren, nicht vor Verschachtelung desselben Bausteins (der Selektor trifft
+jeden Nachfahren der Gruppe). Gefunden erst im Review, an drei Stellen gleichlautend.
+
+**Regel:** Wirkungsbehauptung über einen CSS-/Selektor-Mechanismus (Schutz, Isolation, Scope) vor dem Schreiben gegen
+die tatsächliche Selektorsemantik prüfen und im Zweifel enger formulieren („schützt vor …, nicht vor …") – gleiche
+Fehlerklasse wie die Erzwingungs-Behauptung oben (#319).
