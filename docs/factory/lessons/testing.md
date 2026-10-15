@@ -1179,3 +1179,8 @@ Beleg für AK1.2 wäre rot bzw. aussagelos gewesen, und niemand hätte es bemerk
 Lauf in `/implement` **früh** einholen, nicht erst nach drei Review-Runden. (2) CSS-Assertions in Playwright gegen die
 tatsächlich gesetzte Eigenschaft schreiben (Tailwind v4: `rotate`/`translate`/`scale` einzeln, nicht `transform`) und
 einmal gegen den echten Browser messen, bevor die AK-Checkbox hängt.
+
+**Rezidiv (aus #406, Review-Iteration 2):** `e2e/auslagen.spec.ts` (`E2E_406=1`) lief ebenfalls erst im Rework nach dem
+Review-Finding. Beim Anlegen einer Opt-in-Spec den Lauf (eigener Port, `localhost`, `db:migrate` + `db:seed`) **im selben
+`/implement`-Schritt** ausführen, bevor die Oberflächentest-Checkbox hängt. Grenze mitschreiben: Eine verzögerte
+Server-Ablehnung lässt sich im E2E nicht ohne Eingriff in die Action erzeugen – solche Zustände bleiben jsdom-belegt.

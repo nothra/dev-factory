@@ -455,7 +455,8 @@
   [`e2e/wechsel-verzehr-kassieren.spec.ts:25-55`](../../e2e/wechsel-verzehr-kassieren.spec.ts)
   (verifiziert am 2026-10-01); vierte `login`-Kopie in
   [`e2e/bestaetigen-rueckmelden.spec.ts:34`](../../e2e/bestaetigen-rueckmelden.spec.ts) (#372,
-  verifiziert am 2026-10-09).
+  verifiziert am 2026-10-09); fünfte `login`-Kopie in
+  [`e2e/auslagen.spec.ts:33`](../../e2e/auslagen.spec.ts) (#406, verifiziert am 2026-10-15).
 - **Was:** `login` und `createVeranstaltung` (Link-Zuwachs-Identifikation) sind je Spec kopiert; sie
   unterscheiden sich nur im Datum und in der Kommentierung. `e2e/helpers/detailseite.ts` (#369)
   bündelt bislang nur die Detailseiten-Schritte. Das Kopiermuster ist älter als #369; der PR
@@ -466,34 +467,17 @@
   gegen eine lokale DB (`scripts/e2e-369.tmp.sh` als Vorlage) – deshalb nicht im Review-Rework.
 - **Herkunft:** `/review` zu #369 (Runde 2, Iteration 2, Nitpick), klassifiziert im Rework.
 
-### Auslagen-Dateien tragen noch rohe Farbklassen außerhalb des Farb-Gates
+### Bestätigungs-Steuerung in `AbschlussAktion` handkopiert
 
-- **Wo:** [`app/veranstaltung/AuslageForm.tsx:15, :61, :71`](../../app/veranstaltung/AuslageForm.tsx),
-  [`app/veranstaltung/[id]/auslagen/page.tsx:26, :75`](../../app/veranstaltung/[id]/auslagen/page.tsx)
-  (verifiziert am 2026-10-09).
-- **Was:** `zinc-*`- und `dark:`-Klassen statt Token-Klassen (ADR-052). #372 hat `AuslageRow.tsx`
-  umgestellt und ins Gate genommen (AK8); das Formular in derselben Zeile und die Auslagen-Seite
-  blieben im Altstand. Die Teilnehmer-Zeile ist seit #405 umgestellt (Verzeichnis-Eintrag
-  `app/verwaltung/teilnehmer/`).
-- **Fix:** Klassen auf Bausteine/Token-Klassen umstellen, die beiden Pfade in
-  `eslint/ui-token-files.mjs` eintragen. Je Datei wenige Zeilen; mitnehmen, wenn die Datei ohnehin
-  angefasst wird. Dabei die Gegenprobe in `eslint/color-gate-wiring.test.ts` (nutzt
-  `AuslageForm.tsx` als ungelisteten Nachbarn) auf einen anderen Pfad umstellen (Lesson #371).
-- **Herkunft:** `/review` zu #372 (Runde 1 + 2, Out-of-Scope).
-
-### Bestätigungs-Steuerung in `ZeilenMenue` und `AbschlussAktion` handkopiert
-
-- **Wo:** [`app/veranstaltung/ZeilenMenue.tsx:21-96`](../../app/veranstaltung/ZeilenMenue.tsx),
-  [`app/veranstaltung/[id]/AbschlussAktion.tsx:61-76`](../../app/veranstaltung/[id]/AbschlussAktion.tsx)
-  (verifiziert am 2026-10-09).
+- **Wo:** [`app/veranstaltung/[id]/AbschlussAktion.tsx:57-87`](../../app/veranstaltung/[id]/AbschlussAktion.tsx)
+  (verifiziert am 2026-10-16).
 - **Was:** Offen-Zustand, `durchlauf`-Zähler als `key` und `returnFocusRef` um einen `ConfirmDialog`
-  stehen je Datei von Hand. Seit #372 gibt es dafür den Hook `useBestaetigung`
+  stehen von Hand. Seit #372 gibt es dafür den Hook `useBestaetigung`
   ([`app/components/useBestaetigung.ts`](../../app/components/useBestaetigung.ts)); `AuslageRow`,
-  `CatalogControls` und `VeranstaltungLoeschen` nutzen ihn bereits.
-- **Fix:** Die beiden Stellen auf `useBestaetigung` umstellen; je Datei unter zehn Zeilen.
-  `ZeilenMenue` öffnet die Bestätigung aus einem Menü heraus – vorher prüfen, ob der Auslöser dort
-  als `ausloeserRef` taugt.
-- **Herkunft:** `/review` zu #372 (Runde 2, Out-of-Scope); im Rework auf zwei Stellen reduziert.
+  `CatalogControls`, `VeranstaltungLoeschen` und seit #406 `ZeilenMenue` nutzen ihn bereits.
+- **Fix:** Die Stelle auf `useBestaetigung` umstellen; unter zehn Zeilen.
+- **Herkunft:** `/review` zu #372 (Runde 2, Out-of-Scope); im Rework auf zwei Stellen reduziert,
+  `ZeilenMenue` mit #406 (ADR-061 D1) erledigt.
 
 ### „Theke angelegt" erscheint auch, wenn die Theke schon bestand
 
