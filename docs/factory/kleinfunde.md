@@ -474,7 +474,8 @@
 - **Was:** Offen-Zustand, `durchlauf`-Zähler als `key` und `returnFocusRef` um einen `ConfirmDialog`
   stehen von Hand. Seit #372 gibt es dafür den Hook `useBestaetigung`
   ([`app/components/useBestaetigung.ts`](../../app/components/useBestaetigung.ts)); `AuslageRow`,
-  `CatalogControls`, `VeranstaltungLoeschen` und seit #406 `ZeilenMenue` nutzen ihn bereits.
+  `VeranstaltungLoeschen` und seit #406 `ZeilenMenue` nutzen ihn bereits (`CatalogControls` bis
+  #407; dessen Rückfrage ist seitdem ein Schritt im Dialog „Katalog bearbeiten", ADR-062 D1).
 - **Fix:** Die Stelle auf `useBestaetigung` umstellen; unter zehn Zeilen.
 - **Herkunft:** `/review` zu #372 (Runde 2, Out-of-Scope); im Rework auf zwei Stellen reduziert,
   `ZeilenMenue` mit #406 (ADR-061 D1) erledigt.

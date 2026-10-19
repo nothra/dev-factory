@@ -1729,3 +1729,20 @@ Lesson #345 (`runAtomic`, Neon-HTTP kennt keine Transaktionen), obwohl die Lesso
 selben Commit nach (Grep auf `<Dateiname>:` über `docs/`). (2) Eine Fix-Empfehlung in `kleinfunde.md`/Issue vor dem
 Eintragen gegen die Lessons der berührten Schicht lesen (hier `db-drizzle.md`) – die Empfehlung ist Code-Vorgabe für
 später und trägt dieselbe Prüfpflicht wie Code.
+
+### Neues Zeilen-/Listenlayout gegen die Dichte-Vorgaben bestehender Specs messen, bevor es in die Spec kommt (aus #407, Review-Iteration 2/3)
+
+spec-407 setzte die Artikelzeile zweizeilig (Name, Größe als Untertitel). Erst der E2E-Lauf `listenseiten` in
+`/review` Iteration 2 zeigte, dass 20 Artikel dann 1796 px belegen, die Dichte-Grenze aus spec-373 AK4.6 aber 1624 px
+erlaubt. Weder `/requirements` noch `/implement` hatten diese Grenze gegen das neue Layout gehalten, weil sie nur als
+Messung in einer Opt-in-E2E-Spec stand. Der Fund kostete drei Review-Iterationen und eine Eskalation an Ralf
+(Circuit Breaker), obwohl die Frage („einzeilig oder spec-373 ablösen?") schon am Spec-Tisch entscheidbar war.
+
+**Regel:** Ändert eine Spec das Zeilen-, Karten- oder Listenlayout, greppt `/requirements` vorher die Specs und E2E-Tests
+nach Dichte-/Höhen-/Mess-Grenzen auf derselben Seite (`listenseiten`, `AK4.6`, `toBeLessThan`, `boundingBox`). Gibt es
+eine, steht die Wahl (Layout anpassen oder alte Grenze ausdrücklich ablösen) als Offene Frage in der Spec. `/implement`
+fährt die zuständige Mess-Spec in seinem ersten Lauf, nicht erst `/review`.
+
+Außerdem aus #407: „Wegwerf-Spec und Screenshots gelöscht" stand in der Task-Notiz, die Dateien lagen aber noch im
+Worktree (Review-Nitpick und Security-Hinweis). Eine Lösch-Aussage in einer Notiz erst nach `ls`/`git status --ignored`
+auf die Dateinamen schreiben (Rezidiv #372).
