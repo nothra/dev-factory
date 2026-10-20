@@ -1,14 +1,14 @@
 # ADR 063: Factory in eigenes Repo – versionierte Übernahme per Manifest
 
 ## Status
-Proposed
+Accepted (2026-10-19, mit T1a-1, #426)
 
 ## Date
 2026-10-19
 
 ## Kontext
 
-Spec [#424](../specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die dm Development
+Spec [#424](../../specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die dm Development
 Factory aus dem TCH-Repo in ein eigenes Repo auszulagern und als wiederverwendbares, versioniertes
 Werkzeug zu betreiben. Bereits entschieden (Spec, Entscheidungstabelle): Historie wird mitgenommen,
 neue Versionen kommen als automatischer Update-PR, lokale Änderungen an übernommenen Dateien sind
@@ -289,3 +289,39 @@ das Repo verlässt.
 - Lessons aus dem Index beachten: `db.transaction` irrelevant; relevant sind `factory-workflow.md`
   (Reihenfolge-/Präsenz-Guards an der echten Aufrufzeile, Fixture-Identität bei `git commit`,
   explizite `-c user.email` in Pipeline-Commits) und `bash-gotchas.md`.
+
+## Nachtrag 2026-10-19 · Detailentscheidungen aus T1a (Spec #426, Q1–Q6)
+
+Entschieden mit dem Entwickler; sie liegen **innerhalb** von D3/D8/D11 und ändern keine
+Grundsatzentscheidung.
+
+- **Q1 · Schnitt von T1a:** T1a ist mit 54 Akzeptanzkriterien zu groß für einen Pipeline-Lauf
+  (Turn-Limit-Schwelle > 25 AK / > 40 Dateien) und wird in drei nacheinander laufende PRs geteilt:
+  **T1a-1 · Dokumente sortieren (#426)** – Zuordnungstabelle, ADRs, Lessons, Kleinfunde;
+  **T1a-2 · Mischdateien & Gates (#431)** – `CLAUDE.md`/`FACTORY.md`, zusammengesetzte Dateien,
+  Workflows, Erweiterungspunkte, `commands.*`, Labels; **T1a-3 · Projekt-Orte & Texte (#432)** –
+  TCH-Skripte und -Tests nach `scripts/project/`, Factory-Texte generisch. Jeder PR ist für sich
+  verhaltensneutral und hält die Zuordnungstabelle aktuell.
+- **Q2 · Zusammensetzen vor T2:** `scripts/factory-sync.sh` entsteht in T1a-2 mit **nur** dem Modus
+  `--compose` (der in D3 genannte Aufruf); T2 ergänzt die übrigen Modi.
+- **Q3 · ADR-Zuordnung:** **Factory** (`docs/factory/adr/`): 001–013, 018, 019, 029, 030, 037, 038,
+  040 (beide), 041, 042, 043, 045, 047, 049, 051, 063. **Projekt** (`docs/adr/`): alle übrigen.
+  Grenzfälle: ADR-029 (Ruleset) ist ein generisches Factory-Prinzip mit TCH-Check-Namen → Factory;
+  ADR-063 regelt die Verteilung → Factory; ADR-015/017/032 (Deploy-Gate, Deploy-Freeze) → Projekt.
+  Nummern und Dateinamen bleiben, auch die Dubletten (#321 löst sie später je Seite).
+- **Q4 · Worktree-Vorbereitung:** die TCH-spezifischen Schritte von `start-work.sh` (`pnpm install`,
+  Hinweis „vor dem ersten E2E-Lauf seeden") kommen aus optionalen Schlüsseln `commands.install` und
+  `start_work.hint` in `factory.config.yml` (gleiches Muster wie `commands.*`); ohne Eintrag entfällt
+  der Schritt still.
+- **Q5 · Label-Validierung:** T1a verlegt nur die **Datenquelle** (`labels.aspects` /
+  `labels.aspects_extra`); das Verhalten bleibt unverändert (heute fail-open: ein unbekanntes Label
+  fällt weg). Eine harte Ablehnung gegen die Vereinigung kommt frühestens in T3 mit dem Label-Wechsel
+  – D3 („validieren gegen die Vereinigung") gilt bis dahin als Zielbild.
+- **Q6 · Kleinfunde:** `docs/factory/kleinfunde.md` wird nach betroffener Datei geteilt: Einträge zu
+  Projekt-Dateien liegen in `docs/project/kleinfunde.md`, Einträge zu Factory-Dateien bleiben. Skills
+  nennen beide Orte und die Zuordnungsregel („Datei laut `docs/factory/OWNERSHIP.md`"). Ab T2 gehen
+  Factory-Kleinfunde als Issue ins Factory-Repo (D7).
+- **Zuordnungstabelle:** `docs/factory/OWNERSHIP.md` ist maschinenlesbar (Zeilen
+  `| seite | `muster` | begründung |`); `scripts/checks/ownership-check.sh` ist ihr einziger Parser und
+  erzeugt über `--list factory` die `git filter-repo`-Allowlist für T1b (D5). Der Check läuft im
+  lokalen `pre-push.sh` und in der Self-Test-Suite (Required Check `factory-self-test`).

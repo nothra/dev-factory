@@ -11,7 +11,8 @@ Er ist der Meta-Loop: Was hat die Factory dieses Mal falsch gemacht?
 - `CLAUDE.md` – Aktuelle Regeln
 - `docs/factory/guidelines/` – Aktuelle Guidelines
 - `docs/factory/PROJECT-CONTEXT.md` – Index der Stolpersteine + Kern-Kurzregeln
-- `docs/factory/lessons/` – Volltext der ausgelagerten Stolperstein-Learnings (ADR-037)
+- `docs/factory/lessons/` (generisch) und `docs/project/lessons/` (projektspezifisch) – Volltext der
+  ausgelagerten Stolperstein-Learnings (ADR-037)
 
 ## Aufgabe
 
@@ -25,21 +26,28 @@ Analysiere alle Findings aus Review und Security-Review:
 Für jeden Fehler-Typ:
 - Ist er durch eine neue Regel in CLAUDE.md verhinderbar?
 - Ist er durch eine Ergänzung der Guidelines verhinderbar?
-- Ist er projektspezifisch → als Lesson unter `docs/factory/lessons/<thema>.md`
-  (Volltext) + eine Index-Zeile mit „Laden bei"-Trigger in `PROJECT-CONTEXT.md`?
+- Ist er eine Lesson → Volltext in `docs/factory/lessons/<thema>.md` **oder**
+  `docs/project/lessons/<thema>.md` (Zuordnungsregel in Schritt 3) + eine Index-Zeile mit
+  „Laden bei"-Trigger in `PROJECT-CONTEXT.md`?
 
 ### 3. Änderungen vornehmen
 
-**Neue projektspezifische Regel (häufig):**
-→ Schreibe den **Volltext** in die thematisch passende `docs/factory/lessons/<thema>.md`
+**Neue Lesson (häufig):**
+→ **Zwei Orte, eine Zuordnungsregel:** Betrifft das Learning eine **Factory-Datei** (Seite `factory` in
+[`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md): Pipeline-Skripte, Skills, Gates,
+Guidelines, Self-Tests) und ist es generisch, kommt es nach `docs/factory/lessons/<thema>.md`.
+Betrifft es App-/Projekt-Code (Seite `project`: `app/`, `db/`, `lib/`, E2E, Build/Abhängigkeiten der
+App), kommt es nach `docs/project/lessons/<thema>.md`; bei mehreren Dateien entscheidet die in der
+Lesson zuerst genannte. Schreibe den **Volltext** in die thematisch passende Datei der Seite
 (`frontend-react`, `next-auth`, `db-drizzle`, `testing`, `build-tooling`, `code-style`,
-`factory-workflow`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“
-in `docs/factory/PROJECT-CONTEXT.md` – **nicht** mehr in den @import-Volltext (ADR-037).
+`factory-workflow`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“ in
+`docs/factory/PROJECT-CONTEXT.md` (Gruppe „Factory-Lessons“ bzw. „Projekt-Lessons“) – **nicht** mehr
+in den @import-Volltext (ADR-037).
 Die Index-Zeile bekommt einen **„Laden bei"-Trigger** (welcher Skill + welche Situation die
 Lesson braucht), damit ein Skill sie bedarfsgesteuert lädt: bei homogener Domänen-Datei am
 Gruppen-Header, bei gemischten Auslösern (`factory-workflow.md`) als `→ <Trigger>` je Zeile.
 Nur eine wirklich taskübergreifende Data-Layer-/Validierungsregel darf zusätzlich als
-Kern-Kurzregel inline stehen. Passt kein Thema, eine neue `lessons/<thema>.md` anlegen.
+Kern-Kurzregel inline stehen. Passt kein Thema, eine neue `<thema>.md` im Lessons-Ordner der Seite anlegen.
 
 **Neue universelle Regel (seltener, nur wenn wirklich generisch):**
 → Ergänze die passende Guideline-Datei in `docs/factory/guidelines/`
@@ -70,7 +78,10 @@ Konvention (kanonisch in `docs/factory/guidelines/git-workflow.md` → „GitHub
 Report verlinken.
 
 **B – unterhalb der Schwelle:** Eintrag in
-[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,
+[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) (Fund an einer Factory-Datei) **oder**
+[`docs/project/kleinfunde.md`](../../docs/project/kleinfunde.md) (Fund an einer Projekt-Datei) ergänzen –
+welche Datei, entscheidet die betroffene Datei laut
+[`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md). Schema,
 Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.
 
 > **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt

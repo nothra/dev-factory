@@ -129,5 +129,5 @@ externe Abhängigkeit.
 - `scripts/lib/create-issue.sh` – neue Funktion `create_issue_idempotent` (Lookup + Delegation)
 - `.claude/commands/codify.md`, `review.md`, `security-review.md` – Snippet auf `create_issue_idempotent` umstellen
 - `scripts/checks/tests/run-tests.sh` – Tests für den Guard (offener Treffer, geschlossen ignoriert, Teilstring kein Treffer, Lookup-Fehler → fail-open, stdout=Nummer)
-- `docs/adr/018-central-issue-seam.md` – wird durch diese ADR erweitert (Querverweis)
+- `docs/factory/adr/018-central-issue-seam.md` – wird durch diese ADR erweitert (Querverweis)
 - ggf. `docs/factory/PROJECT-CONTEXT.md` (Index) via `/codify`

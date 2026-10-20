@@ -16,7 +16,7 @@ automatisch je Lauf ([ADR-045](045-prozess-messung-je-pipeline-lauf.md)). Die Te
 existiert dagegen nur als Beispiel-Datei mit Default aus – es entsteht **keine Historie**.
 
 Damit fehlt die Grundlage für eine Entscheidungsklasse, die die Factory laufend trifft:
-**welches Modell für welchen Schritt.** [ADR-038](038-modell-tiers-groessenabhaengig.md) vergibt
+**welches Modell für welchen Schritt.** [ADR-038](038-groessenabhaengige-modell-tier-wahl.md) vergibt
 Tiers größenabhängig, [ADR-009](009-factory-configuration.md) nennt als späteren
 Kalibrierungs-Input ausdrücklich „OTEL-Historie (ADR-006) → Pro-Skill-Verteilung → kalibrierte
 Defaults", und [ADR-047](047-import-kontext-guidelines-nach-erzwungenheit.md) musste ohne
@@ -25,7 +25,7 @@ Grenze, die ADR-006 zieht (Option B …) – das braucht eine eigene ADR und ein
 Issue = #334, ADR = diese.
 
 Anforderungen stehen in
-[`spec-334`](../specs/spec-334-otel-metriken-je-lauf-persistieren.md) (AK1–AK8). Zwei
+[`spec-334`](../../specs/spec-334-otel-metriken-je-lauf-persistieren.md) (AK1–AK8). Zwei
 Auftraggeber-Vorgaben prägen jede Option:
 
 1. **Keine Personendaten in den persistierten Werten** (AK5, präzisiert am 2026-09-11). Die
@@ -340,7 +340,7 @@ ADR-Ablehnung stillschweigend.
   (`scripts/checks/tests/fixtures/otel-console-sample.txt`), der Personendaten-Guard aus E5
   (verbotene Felder erscheinen nie in der CSV, auch nicht bei personenbehafteter Roh-Eingabe)
   und ein E2E-Verhaltenstest gegen den echten Orchestrator
-- `docs/adr/045-prozess-messung-je-pipeline-lauf.md` – überholte OTEL-Invariante korrigieren,
+- `docs/factory/adr/045-prozess-messung-je-pipeline-lauf.md` – überholte OTEL-Invariante korrigieren,
   Verweis auf diese ADR
 - `docs/specs/spec-334-*.md` – AK4 auf opt-out, AK7 auf die neue Ablage nachziehen
 - **Doku:** `CLAUDE.md` bzw. `docs/factory/OPERATING.md` – Default an, Abschalt-Parameter,

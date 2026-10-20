@@ -175,7 +175,7 @@ gegen unbekannte/entfernte Keys, fail-closed); die `models.yml`-Preistabelle rot
 ## Betroffene Stellen (bei Umsetzung)
 > **Verfeinert durch ADR-010** (Accepted): Das „JSON-Schema" und das Maximum „im Schema" (§6)
 > werden als **yq-natives Gate** umgesetzt — kein JSON-Schema-Validator in der Toolchain, die
-> erlaubte Key-Oberfläche wird aus `factory.defaults.yml` abgeleitet. Details: `docs/adr/010-config-validation-gate.md`.
+> erlaubte Key-Oberfläche wird aus `factory.defaults.yml` abgeleitet. Details: `docs/factory/adr/010-config-validation-gate.md`.
 
 - `factory.defaults.yml` / `factory.config.yml` (neu) + Validierung (yq-nativ, ADR-010)
 - `scripts/checks/` — Validierungs-Gate (schema-getestet, Positiv/Negativ-Fall)

@@ -26,7 +26,7 @@ MR-Beschreibung — End-to-End-Verifikation erst nach Spur B.
 > bei manuellem Dispatch – heute ohne Wirkung, weil nie ein `factory::run`-Issue existierte.
 > Job, `permissions`, `concurrency` und beide Steps bleiben unverändert – das
 > Scharfschalten trägt den `schedule`-Block in einem Schritt wieder ein (Checkliste in
-> [OPERATING.md §0.4](../factory/OPERATING.md#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci),
+> [OPERATING.md §0.4](../OPERATING.md#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci),
 > Vorbedingung: gepinnte claude-CLI, #290).
 
 ## Datum

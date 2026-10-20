@@ -69,15 +69,15 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
 **Stage 2 (manuell):** Jeder Schritt einzeln als Skill aufrufen.
 **Stage 3 (automatisiert):** `scripts/run-pipeline.sh <task-id>` orchestriert alles.
 
-**Messen (zwei Ebenen, ADR-006):**
+**Messen (zwei Ebenen, Factory-ADR-006):**
 - **Prozess:** läuft automatisch als Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs –
-  fail-open, per EXIT-Trap, auch bei Abbruch (ADR-045) – und bleibt zusätzlich manuell über
+  fail-open, per EXIT-Trap, auch bei Abbruch (Factory-ADR-045) – und bleibt zusätzlich manuell über
   `/daily-metrics` (bzw. `scripts/metrics.sh [--publish]`) aufrufbar. Kennzahlen: Lead-Time,
   Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitHub. Baut **kein**
   Token-Accounting nach. Veröffentlichung (`--publish`) optional an `$GITHUB_STEP_SUMMARY`
   (in CI) und als Kommentar an `FACTORY_METRICS_ISSUE` (Tracking-Issue) – lokal ohne beides
   bleibt es bei der Report-Datei.
-- **Telemetrie:** läuft seit #334 automatisch je Pipeline-Lauf ([ADR-049](docs/adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
+- **Telemetrie:** läuft seit #334 automatisch je Pipeline-Lauf ([Factory-ADR-049](docs/factory/adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
   Default **an**, Abschaltung per `--no-telemetry`. Der Lauf erntet die OTEL-Ist-Werte der CLI
   (Token/Kosten je Schritt, Modell und Sub-Agent – nie selbst gerechnet), schreibt sie
   **personenfrei** (Whitelist) nach `tasks/telemetry-<task-id>-<zeitstempel>.csv` und
@@ -88,9 +88,9 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
 **Nach dem Merge:** `/post-merge-verify` (CI-Stage `verify`, nur auf `main`) prüft das
 Verhalten der deployten Umgebung – CI-grün ≠ Produktion-grün. Check via
 `FACTORY_HEALTHCHECK_CMD` (beliebiger Smoke-Test, Vorrang) oder `FACTORY_HEALTHCHECK_URL`.
-Fehler → `POST_MERGE_FAIL`-Interrupt (ADR-007).
+Fehler → `POST_MERGE_FAIL`-Interrupt (Factory-ADR-007).
 
-**Async-Start (optional, ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`) startet
+**Async-Start (optional, Factory-ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`) startet
 die Pipeline für Issues mit Label `factory::run` – fail-closed hinter einem Budget-Guard
 (Label-Eintrittstür + Concurrency=1 + Tageskappe). Default aus; Aktivierung = Schedule + Labels
 + Auth-Variable (Spur B). Der `schedule`-Trigger ist seit #284 **stillgelegt** – der Workflow
@@ -107,13 +107,13 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 @docs/factory/guidelines/tdd-principles.md
 @docs/factory/guidelines/testing-standards.md
 
-> **Bedarfsgesteuert laden statt `@import` (ADR-047).** Eine Guideline verlässt den Dauerkontext,
+> **Bedarfsgesteuert laden statt `@import` (Factory-ADR-047).** Eine Guideline verlässt den Dauerkontext,
 > wenn ein Gate/Hook/Ruleset ihre Regeln fail-closed erzwingt – **oder** wenn ihr Adressatenkreis
 > so eng und namentlich benennbar ist, dass ein „Laden bei"-Trigger genügt (so
-> `architecture-principles.md`: nicht erzwungen, aber nur von zwei Skills gebraucht, ADR-047 §2).
+> `architecture-principles.md`: nicht erzwungen, aber nur von zwei Skills gebraucht, Factory-ADR-047 §2).
 > Wo eine nicht erzwungene Regel **jeden** Schritt treffen kann (Clean Code, TDD,
 > Testing-Standards), bleibt sie oben geladen – **oder** ihre schritt-relevanten Regeln werden als
-> Kern-Kurzregeln inline gespiegelt (so `git-workflow.md`, ADR-047 §3). „Laden bei" nennt Skill +
+> Kern-Kurzregeln inline gespiegelt (so `git-workflow.md`, Factory-ADR-047 §3). „Laden bei" nennt Skill +
 > Situation, im Format des Lessons-Index in `docs/factory/PROJECT-CONTEXT.md`:
 >
 > - [`guidelines/git-workflow.md`](docs/factory/guidelines/git-workflow.md) – Branches, PR/Issue,
@@ -130,13 +130,13 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 > - [`guidelines/bash-gotchas.md`](docs/factory/guidelines/bash-gotchas.md) – Bash-Fallstricke ·
 >   **Laden bei:** `/implement`, `/review`, `/refactor` beim Schreiben/Reviewen von Shell-Skripten
 > - Ausgelagerte `/codify`-Learnings (Stolpersteine, Volltext): `docs/factory/lessons/` – **nicht**
->   @importiert (ADR-037). Der Index + die Kern-Kurzregeln stehen in
+>   @importiert (Factory-ADR-037). Der Index + die Kern-Kurzregeln stehen in
 >   `docs/factory/PROJECT-CONTEXT.md`; die passende Lesson bei Bedarf lesen
 
 ### Kern-Kurzregeln Git-Workflow (immer geladen)
 
 > Die Regeln aus `git-workflow.md`, die **jeden** Pipeline-Schritt treffen können – damit kein
-> Agent sie durch Nicht-Laden still verletzt (ADR-047 §3). Volltext, Begründung und
+> Agent sie durch Nicht-Laden still verletzt (Factory-ADR-047 §3). Volltext, Begründung und
 > Vorfall-Historie stehen in der Datei selbst; sie bleibt die kanonische Quelle. Bewusst **nicht**
 > hier gespiegelt sind Regeln mit eigener kanonischer Quelle und eigenem Drift-Guard (Regel 7) –
 > eine zweite normative Kopie im Dauerkontext wäre die einzige, die kein Guard bewacht.
@@ -146,8 +146,8 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 3. **`Closes #<id>` im PR-Body** – eine bloße Erwähnung (`(#<id>)`, „Behebt #<id>") schließt das Issue nicht.
 4. **Rebase statt Merge:** vor dem Start `git checkout main && git pull --rebase origin main`, vor dem Push `git fetch origin` + `git rebase origin/main` – nie `git merge origin/main` in den Feature-Branch. Auf einem **bereits gepushten** Branch rebast kein Zwischenschritt eigenständig gegen `main`; das bleibt bei `/pr-shepherd` (sonst erzwingt es einen Force-Push, #249).
 5. **Commit-Message:** `<typ>: <kurze Beschreibung im Imperativ>` mit `typ` ∈ `feat` `fix` `docs` `refactor` `test` `chore`. Kein „WIP", kein „asdf". (Kein Hook prüft das Format – der `commit-msg`-Hook lehnt nur `--help`/`-h` als Message ab.)
-6. **Task-ID = GitHub-Issue-Nummer** (ADR-013): jede `tasks/task-<id>-*.md` hat ein Issue #`<id>`; Anlage Issue-first über `scripts/start-work.sh`.
-7. **Labels, Issue-Anlage und die Schwelle „Issue oder `kleinfunde.md`" nie aus dem Gedächtnis** – sie stehen **kanonisch in** `git-workflow.md` → „GitHub-Labels" bzw. „Zentraler Anlage-Weg (ADR-018)" (Schwelle: ADR-043) und werden dort von einem Drift-Guard bewacht. Vor jeder Issue-Anlage dort nachlesen; hier steht bewusst keine Kopie.
+6. **Task-ID = GitHub-Issue-Nummer** (Factory-ADR-013): jede `tasks/task-<id>-*.md` hat ein Issue #`<id>`; Anlage Issue-first über `scripts/start-work.sh`.
+7. **Labels, Issue-Anlage und die Schwelle „Issue oder `kleinfunde.md`" nie aus dem Gedächtnis** – sie stehen **kanonisch in** `git-workflow.md` → „GitHub-Labels" bzw. „Zentraler Anlage-Weg (Factory-ADR-018)" (Schwelle: Factory-ADR-043) und werden dort von einem Drift-Guard bewacht. Vor jeder Issue-Anlage dort nachlesen; hier steht bewusst keine Kopie.
 8. **Nach dem Merge aufräumen:** `git worktree remove <pfad>` + `git worktree prune`, lokale Branches via `git gone` – der Worktree enthält in der Regel eine Kopie von `.env.local` (Secret-Hygiene, nicht nur Plattenplatz; Ausnahmen: `FACTORY_WT_SKIP_ENV=1`, oder die Quelle hatte selbst keine).
 
 ---
@@ -184,9 +184,9 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 - Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen. Der Hook ist
   lokales Feedback; server-seitig ist `main` zusätzlich durch das GitHub-Ruleset
   `protect-main` fail-closed geschützt (kein Direkt-/Force-Push, PR-Pflicht, squash,
-  required Checks – [ADR-029](docs/adr/029-branch-protection-main-ruleset.md)).
+  required Checks – [Factory-ADR-029](docs/factory/adr/029-branch-protection-main-ruleset.md)).
 - **Git-Hooks kommen ausschließlich aus `bash scripts/install-hooks.sh`** (kanonische Quelle,
-  [ADR-042](docs/adr/042-hook-installation-single-source.md); idempotent, beliebig oft
+  [Factory-ADR-042](docs/factory/adr/042-hook-installation-single-source.md); idempotent, beliebig oft
   ausführbar). Installiert werden `pre-commit`, `pre-push` und der `commit-msg`-Hook – letzterer
   lehnt Commit-Messages ab, die in Wahrheit ein CLI-Flag sind (`--help`/`-h`, `commit-msg-check.sh`).
   In einem frischen Clone bzw. einem vor dieser Regel initialisierten Repo einmalig ausführen;
@@ -201,11 +201,11 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 - Keine offenen Checkboxen in der Task-Datei → kein Done
 - **Der `@import`-Dauerkontext ist gedeckelt.** `scripts/checks/import-context-limit-check.sh`
   summiert `CLAUDE.md` + die `@`-eingebundenen Dateien und blockiert den Push, wenn die Grenze
-  reißt ([ADR-047](docs/adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4). Wie jeder
+  reißt ([Factory-ADR-047](docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4). Wie jeder
   Hook ist er lokal und mit `--no-verify` umgehbar; server-seitig greift er bislang nur mittelbar
   über die Self-Test-Suite (Issue #328 zieht einen eigenen CI-Check nach). Neue Regeln also
   verdichten oder als Lesson auslagern (`docs/factory/lessons/` + Index-Zeile), nicht anhängen –
-  ADR-037 wollte das per Konvention erreichen und lief von ~80 auf 341 Zeilen.
+  Factory-ADR-037 wollte das per Konvention erreichen und lief von ~80 auf 341 Zeilen.
 - **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
   oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff
   geändert, ist [`docs/routes.md`](docs/routes.md) im selben PR mitzupflegen (Pfad, Funktion,

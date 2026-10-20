@@ -147,6 +147,24 @@ else
   echo -e "  ${YELLOW}⚠${NC}  @import-Kontext-Deckel fehlt ($IMPORT_CONTEXT_CHECK) – übersprungen"
 fi
 
+# ─── Check 6a: Zuordnung Factory/Projekt vollständig ──────────────────────────
+# Jede getrackte Datei gehört genau einer Seite (docs/factory/OWNERSHIP.md, ADR-063 D11).
+# Eine neue Datei ohne Zeile in der Tabelle blockiert den Push – dasselbe prüft CI über die
+# Self-Test-Suite (factory-self-test), damit ein umgangener Hook nicht reicht (#426).
+OWNERSHIP_CHECK="$FACTORY_DIR/scripts/checks/ownership-check.sh"
+if [ -f "$OWNERSHIP_CHECK" ]; then
+  echo -e "  ${YELLOW}→${NC} Zuordnung: jede getrackte Datei genau einer Seite (factory|project)?"
+  if OWNERSHIP_OUTPUT="$(FACTORY_DIR="$FACTORY_DIR" bash "$OWNERSHIP_CHECK" 2>&1)"; then
+    echo "$OWNERSHIP_OUTPUT" | sed 's/^/  /'
+  else
+    echo -e "  ${RED}✗${NC} Zuordnungstabelle unvollständig oder mehrdeutig – push blockiert"
+    echo "$OWNERSHIP_OUTPUT" | sed 's/^/     /'
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  Zuordnungs-Check fehlt ($OWNERSHIP_CHECK) – übersprungen"
+fi
+
 # ─── Check 7: Nicht auf main/master pushen ohne PR ───────────────────────────
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then

@@ -8,7 +8,7 @@ Spawne einen spezialisierten Architektur-Agenten mit der Persona aus
 Lies zuerst:
 - `docs/factory/PROJECT-CONTEXT.md`
 - Relevante Spec: `docs/specs/spec-$ARGUMENTS.md`
-- Vorhandene ADRs: `docs/adr/`
+- Vorhandene ADRs: `docs/adr/` (App) und `docs/factory/adr/` (Factory)
 - Bestehende Architektur-Patterns im Code (falls Brownfield)
 
 ## Aufgabe
@@ -29,7 +29,7 @@ Lies zuerst:
 
 5. **Implementierungs-Hinweise** für den Coding-Agenten dokumentieren.
 
-## Output: ADR-Format (docs/adr/<nummer>-<name>.md)
+## Output: ADR-Format (docs/adr/<nummer>-<name>.md; Entscheidungen zur Factory selbst: docs/factory/adr/)
 
 ```markdown
 # ADR <nummer>: [Titel]

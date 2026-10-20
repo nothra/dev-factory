@@ -18,9 +18,9 @@ Accepted
 
 ADR-018 §5 hält fest, dass die drei Skills Out-of-Scope-Funde **autonom** als GitHub-Issue
 anlegen dürfen, „statt nur eine Empfehlung in eine Datei zu schreiben". Die Skill-Dokus setzen
-das ohne Schwelle um ([`review.md:66`](../../.claude/commands/review.md),
-[`security-review.md:62`](../../.claude/commands/security-review.md),
-[`codify.md:53`](../../.claude/commands/codify.md)).
+das ohne Schwelle um ([`review.md:66`](../../../.claude/commands/review.md),
+[`security-review.md:62`](../../../.claude/commands/security-review.md),
+[`codify.md:53`](../../../.claude/commands/codify.md)).
 
 Bei sieben Skills pro Task erzeugt das im Schnitt mehr als ein neues Factory-Issue pro Task.
 Messung aus #286 (Stand 2026-08-06, `main`): Juli 2026 stehen 38 App-Commits gegen 57
@@ -32,7 +32,7 @@ Die Entscheidung ist architektonisch relevant, weil sie eine in einer ADR festge
 Mensch-Entscheidung einschränkt und weil die Frage „deterministischer Seam oder Agenten-Prosa"
 für den neuen Ablage-Pfad genauso gestellt werden muss, wie ADR-018 sie für die Issue-Anlage
 gestellt hat. Vorentschieden ist bereits (in `/requirements` mit dem Menschen abgestimmt, siehe
-[`spec-286`](../specs/spec-286-kleinfunde-sammeldatei.md)): die Schwellen-Tabelle lebt in
+[`spec-286`](../../specs/spec-286-kleinfunde-sammeldatei.md)): die Schwellen-Tabelle lebt in
 `docs/factory/guidelines/git-workflow.md`, das Eintrags-Schema trägt keine laufende Nummer, und
 es entsteht kein Mechanismus gegen „Datei, die niemand liest".
 
@@ -173,7 +173,7 @@ vorhandenen Einträge oder die Schwellen-Tabelle sich ändern müssten.
 - `docs/factory/guidelines/git-workflow.md` – Schwellen-Tabelle + Zweifelsregel als neuer
   Unterabschnitt; die bestehende Prosa bei `:157-158` („ebenso legen die Skills … autonom
   darüber an") auf den bedingten Stand nachziehen.
-- `docs/adr/018-central-issue-seam.md` – Hinweis im Statusblock, §5 auf diese ADR verweisen.
+- `docs/factory/adr/018-central-issue-seam.md` – Hinweis im Statusblock, §5 auf diese ADR verweisen.
 - `.claude/commands/{review,security-review,codify}.md` – Klassifikations-Anweisung **vor** dem
   `create_issue_idempotent`-Block, Verweis auf Schwelle und Sammeldatei. Änderung läuft über den
   Patch-Workflow (`Edit(.claude/**)` steht in `settings.json:72` auf `deny`).

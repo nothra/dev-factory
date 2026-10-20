@@ -82,7 +82,10 @@ trifft (Konvention kanonisch in `docs/factory/guidelines/git-workflow.md` → �
 Die Issue-Nummer erscheint auf stdout; im Security-Report referenzieren.
 
 **B – reiner Nitpick unterhalb der Schwelle:** Eintrag in
-[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) ergänzen – Schema,
+[`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) (Fund an einer Factory-Datei) **oder**
+[`docs/project/kleinfunde.md`](../../docs/project/kleinfunde.md) (Fund an einer Projekt-Datei) ergänzen –
+welche Datei, entscheidet die betroffene Datei laut
+[`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md). Schema,
 Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.
 
 **Kritische Findings im Scope** blockieren weiterhin den Merge und werden sofort behoben – sie

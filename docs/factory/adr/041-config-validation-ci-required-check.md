@@ -28,7 +28,7 @@ ADR-029 (`protect-main`-Ruleset) hält als Gegenmaßnahme zur eigenen Drift-Gefa
 bereits fest: *"Änderungen am Ruleset laufen über einen neuen ADR + den
 dokumentierten `gh api`-Befehl."* Da diese Task den Job zusätzlich in die
 `required_status_checks` aufnimmt (Entscheidung aus `/requirements`, s.
-[spec-255](../specs/spec-255-config-validation-check-ci-verdrahten.md) AK6), greift
+[spec-255](../../specs/spec-255-config-validation-check-ci-verdrahten.md) AK6), greift
 dieser Trigger — daher dieses ADR statt einer stillen Ruleset-Änderung.
 
 ## Entscheidung

@@ -15,7 +15,7 @@
 > **Verhältnis zu anderen Dokumenten:**
 > - **Was** die Factory ist und **warum** (Prinzipien, Pipeline-Übersicht): [`CLAUDE.md`](../../CLAUDE.md)
 > - **Betriebsumgebung** (Stages, Deploy-Gate, Vercel/Neon): [`README.md`](../../README.md)
-> - **Entscheidungen** (mit Alternativen): [`docs/adr/`](../adr/)
+> - **Entscheidungen** (mit Alternativen): [`docs/adr/`](../adr/) (App) und [`docs/factory/adr/`](adr/) (Factory)
 > - **Dieses Dokument** ist das prozedurale Bindeglied: die Reihenfolge der Handgriffe.
 
 ---
@@ -148,7 +148,7 @@ Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 ### 0.5 Telemetrie (Token/Kosten) – Default an, nichts einzurichten
 
 Seit #334 ist die Telemetrie **Teil jedes `run-pipeline.sh`-Laufs** und standardmäßig
-**eingeschaltet** ([ADR-049](../adr/049-telemetrie-persistenz-je-pipeline-lauf.md)). Es ist
+**eingeschaltet** ([ADR-049](adr/049-telemetrie-persistenz-je-pipeline-lauf.md)). Es ist
 nichts zu konfigurieren: Der Lauf setzt `CLAUDE_CODE_ENABLE_TELEMETRY=1` und
 `OTEL_METRICS_EXPORTER=console` selbst, erntet am Ende die **Ist-Werte der CLI** und legt sie ab.
 
@@ -429,14 +429,16 @@ Nie an reine Backlog-/Doku-Issues.
 > „Jeder Bug, den die KI einführt, wird zur Regel, die den nächsten verhindert."
 
 `/codify <id>` extrahiert Learnings → neue Regeln in `CLAUDE.md`, den Guidelines oder als
-ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` + Index-Zeile in
+ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` (generisch) bzw.
+`docs/project/lessons/` (projektspezifisch) + Index-Zeile in
 `docs/factory/PROJECT-CONTEXT.md` (ADR-037). **Achtung:** die beiden erstgenannten Ziele liegen im
 `@import`-Dauerkontext und stehen seit
-[ADR-047](../adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4 unter einem harten
+[ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4 unter einem harten
 Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln aus der Praxis:
 
 - **Stack-spezifisch** (Next/NextAuth/Drizzle/Vitest …) → Volltext nach
-  `docs/factory/lessons/<thema>.md` + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
+  `docs/project/lessons/<thema>.md` (generische Pipeline-/Skript-Learnings: `docs/factory/lessons/`;
+  Zuordnung nach der betroffenen Datei laut [`OWNERSHIP.md`](OWNERSHIP.md)) + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
   die stack-agnostischen Guidelines.
 - **Kanonische Quelle referenzieren:** taucht eine Regel mehrfach auf (Skill + Persona + Spec),
   jede Kopie auf die Quelle verweisen und beim Update **alle** synchronisieren.

@@ -109,7 +109,7 @@ Spätere Einzelanpassungen laufen über `/configure-factory`.
 - `scripts/checks/pre-push.sh` mit echten Befehlen
 - `factory.config.yml` (begründeter Vorschlag, Gate-grün) – oder bewusst keine, wenn
   Defaults passen / Gate fehlschlägt / bestehende Datei nicht überschrieben werden soll
-- Optional: `docs/adr/001-initial-architecture.md`
+- Optional: eine erste ADR unter `docs/adr/` (`NNN-initial-architecture.md`)
 
 ## Hinweis
 

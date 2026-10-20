@@ -88,7 +88,7 @@ erreichte bereits das Limit (50), bevor überhaupt ein Retry nötig war. Ein Tas
 6 Module braucht mehr als 50 Turns für eine vollständige TDD-Implementierung – daran ändert ein
 besseres Retry-Verhalten nichts. **Abgelehnt als Ersatz** (Issue #275 bleibt trotzdem sinnvoll,
 aber komplementär, nicht alternativ – bewusst außerhalb des Scopes dieser Task, siehe
-[spec-348](../specs/spec-348-max-turns-ceiling-implement.md) „Nicht inbegriffen").
+[spec-348](../../specs/spec-348-max-turns-ceiling-implement.md) „Nicht inbegriffen").
 
 ## Begründung
 
@@ -144,7 +144,7 @@ diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (#275) beste
     config-validation-check hart abgelehnt" ersetzen durch einen Verweis auf ADR-051 und die
     Eskalationshistorie (#49/#53/#324) – nicht nur den Zahlenwert ändern, sonst erklärt der
     Kommentar nicht mehr, warum 80 jetzt sicher ist.
-- **`docs/adr/010-config-validation-gate.md`:** kurze Blockquote-Notiz („Erweitert durch
+- **`docs/factory/adr/010-config-validation-gate.md`:** kurze Blockquote-Notiz („Erweitert durch
   ADR-051") direkt am Absatz „Heimat der Obergrenze … Es gibt in v1 genau eine Obergrenze"
   ergänzen (Muster: ADR-036 D1 ↔ ADR-046, siehe dortige Blockquote). **Kein** Rewrite des
   Bestandstexts, keine Status-Änderung.

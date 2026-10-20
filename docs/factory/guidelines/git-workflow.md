@@ -192,14 +192,16 @@ jeden Fund gegen diese Tabelle:
 | Merge-Blocker im aktuellen PR | sofort beheben – weder Issue noch Sammeldatei |
 | Echtes Sicherheitsrisiko (ausnutzbar, Secret-/Auth-/Zahlungs-Pfad) | Issue über den Seam (Aspekt-Label `security`) |
 | Funktionaler Defekt mit reproduzierbarem Auslöser | Issue über den Seam |
-| Alles andere (Nitpick, Doku-Drift, hypothetischer Zustand, „unter zehn Zeilen") | Eintrag in [`docs/factory/kleinfunde.md`](../kleinfunde.md) |
+| Alles andere (Nitpick, Doku-Drift, hypothetischer Zustand, „unter zehn Zeilen") | Eintrag in [`docs/factory/kleinfunde.md`](../kleinfunde.md) (Fund an einer Factory-Datei) bzw. [`docs/project/kleinfunde.md`](../../project/kleinfunde.md) (Projekt-Datei) |
 
 **Zweifelsregel:** Ist ein Fund nicht eindeutig zuzuordnen, gilt **„im Zweifel Issue"** – die
 Schwelle ist einseitig fail-safe zugunsten des Trackers, damit kein echter Sicherheitsfund in
 einer Textdatei verschwindet. Abgrenzungskriterium für die letzte Zeile: **„Ist der Auslöser
 in diesem Repo herstellbar?"** – eine Prämisse, die hier nicht existiert (z. B. eine Config,
 die in keinem Scope gesetzt ist), ist Sammeldatei-Eintrag, kein Issue. Das Eintrags-Schema für
-`kleinfunde.md` steht im Kopf dieser Datei, nicht hier.
+`kleinfunde.md` steht im Kopf dieser Datei, nicht hier. **Welche der beiden Dateien:** die
+betroffene Datei laut [`OWNERSHIP.md`](../OWNERSHIP.md) entscheidet (Seite `factory` →
+`docs/factory/kleinfunde.md`, Seite `project` → `docs/project/kleinfunde.md`).
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 

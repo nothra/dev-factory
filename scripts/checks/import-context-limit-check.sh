@@ -216,7 +216,7 @@ fi
 if [ "$total" -gt "$MAX_IMPORT_LINES" ]; then
   echo -e "${RED}✗${NC} @import-Dauerkontext zu groß: $total Zeilen (Grenze: $MAX_IMPORT_LINES, ADR-047 §4)"
   printf '%s' "$breakdown" | sort -rn | sed 's/^/     /'
-  echo "     Beheben: verdichten oder auslagern (Volltext → docs/factory/lessons/, Trigger in CLAUDE.md)."
+  echo "     Beheben: verdichten oder auslagern (Volltext → docs/factory/lessons/ bzw. docs/project/lessons/, Trigger in CLAUDE.md)."
   echo "     Grenze anheben ist eine bewusste Entscheidung: MAX_IMPORT_LINES in $SELF_PATH samt Herleitung anpassen."
   exit 1
 fi

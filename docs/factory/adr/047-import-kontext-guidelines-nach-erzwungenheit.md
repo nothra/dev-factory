@@ -26,7 +26,7 @@ Pfad nach `docs/factory/lessons/` ausgelagert, den Guidelines-Block aber ausdrü
 ausgenommen („Guidelines-Dateien und ihre `@import`-Einbindung bleiben unverändert") – und
 benennt „5 Guidelines … für jeden der ~7 sequenziellen Stage-3-Agenten" im eigenen Kontext als
 Teil des Problems, ohne es zu lösen. Der Punkt war unentschieden, nicht erledigt; Issue #319 löst
-ihn heraus. Spec: [`spec-319`](../specs/spec-319-adr-import-kontext-guidelines.md).
+ihn heraus. Spec: [`spec-319`](../../specs/spec-319-adr-import-kontext-guidelines.md).
 
 **Drei Befunde aus der Bestandsaufnahme, die die Entscheidung tragen:**
 
@@ -122,7 +122,7 @@ alle `@`-eingebundenen Dateien) auf eine Obergrenze:
 - **Warum jetzt und nicht bei #196:** Dort wurde ein Umfangs-Gate bewusst als YAGNI verworfen –
   gestützt auf die `/codify`-Faustregel „Kein Check-Skript aus Reflex: ein Gate nur, wenn der
   Fehler verlässlich grep-bar **und** wiederkehrend ist" (kanonisch in
-  [`OPERATING.md`](../factory/OPERATING.md) §5.1). Diese Begründung ist überholt, nicht die
+  [`OPERATING.md`](../OPERATING.md) §5.1). Diese Begründung ist überholt, nicht die
   Faustregel: das Problem ist seither eingetreten und gemessen (341 statt 80 Zeilen), der Fehler
   ist grep-bar (Zeilensumme) und wiederkehrend (zweites Mal nach ADR-037). YAGNI schützt vor
   spekulativen Gates, nicht vor eingetretenen Defekten.

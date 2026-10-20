@@ -9,7 +9,7 @@ Lies zuerst:
 - `docs/factory/PROJECT-CONTEXT.md` – Tech-Stack, Build-Befehle
 - `tasks/task-$ARGUMENTS.md` – Aufgaben-Details und Checkboxen
 - `docs/specs/spec-$ARGUMENTS.md` – Akzeptanzkriterien (falls vorhanden)
-- Relevante ADRs in `docs/adr/`
+- Relevante ADRs in `docs/adr/` (App) und `docs/factory/adr/` (Factory)
 
 ## Implementierungs-Prozess (strikt einhalten)
 
