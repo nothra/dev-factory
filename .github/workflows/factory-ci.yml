@@ -4,9 +4,8 @@
 # laufen hier automatisch bei jedem Push und Pull Request.
 #
 # Konfiguration für adoptierte Projekte (nach /setup-project):
-#   - FACTORY_LINT_COMMAND / FACTORY_TEST_COMMAND als Repository-Variablen setzen
-#     (Settings → Secrets and variables → Actions → Variables) – dieselben Werte,
-#     die die pre-commit/pre-push-Hooks lesen. Kein Doppel-Pflegen.
+#   - Lint/Test des Projekts laufen NICHT hier, sondern im projekteigenen ci.yml
+#     (Jobs `lint`/`test`, #431) – diese Datei enthält nur Factory-Jobs.
 #   - FACTORY_HEALTHCHECK_URL bzw. FACTORY_HEALTHCHECK_CMD für post-merge-verify
 #     (optional, nur wenn ein Deploy-Ziel existiert). Achtung Timing: post-merge-verify
 #     läuft parallel zum Deploy-Gate (vor dem Promote) – FACTORY_HEALTHCHECK_URL daher
@@ -58,7 +57,7 @@ jobs:
   # * factory.config.yml) als eigener, benannter Required-Check — bislang lief das
   # Gate in CI nur indirekt über eine Testzeile in run-tests.sh (Gate #249 AK5).
   # Ruft das Gate explizit gegen die realen Repo-Dateien auf, unabhängig von
-  # run-pipeline.sh oder einer Test-Fixture. Kein Node/pnpm nötig (analog issue-sync).
+  # run-pipeline.sh oder einer Test-Fixture. Kein Node-Setup nötig (analog issue-sync).
   config-validation:
     runs-on: ubuntu-latest
     steps:
@@ -94,60 +93,6 @@ jobs:
         run: bash scripts/install-hooks.sh
       - name: Self-Test-Suite
         run: bash scripts/checks/tests/run-tests.sh
-
-  # ─── Projekt-Lint ───────────────────────────────────────────────────────────
-  # Konfiguration über die Repository-Variable FACTORY_LINT_COMMAND – dieselbe
-  # Variable, die scripts/checks/pre-commit.sh liest. Kein Doppel-Pflegen.
-  #
-  # Bewusste "fail vs. allow"-Entscheidung: Hooks lassen bei fehlender Konfig durch
-  # (lokaler Komfort), CI failt (zentrale Schleuse) – genau "Gates statt Vertrauen".
-  # Ein grünes No-Op-Gate wäre gefährlicher als kein Gate.
-  lint:
-    runs-on: ubuntu-latest
-    env:
-      FACTORY_LINT_COMMAND: ${{ vars.FACTORY_LINT_COMMAND }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Abhängigkeiten installieren
-        run: pnpm install --frozen-lockfile
-      - name: Lint-Gate (fail-closed)
-        run: |
-          if [ -z "${FACTORY_LINT_COMMAND:-}" ]; then
-            echo "FACTORY_LINT_COMMAND nicht gesetzt – als Repository-Variable konfigurieren."
-            echo "Gleicher Wert wie in scripts/checks/pre-commit.sh (kein Doppel-Pflegen)."
-            exit 1
-          fi
-          eval "$FACTORY_LINT_COMMAND"
-
-  # ─── Projekt-Tests ──────────────────────────────────────────────────────────
-  # Konfiguration über die Repository-Variable FACTORY_TEST_COMMAND – dieselbe
-  # Variable, die scripts/checks/pre-push.sh liest. Kein Doppel-Pflegen.
-  test:
-    runs-on: ubuntu-latest
-    env:
-      FACTORY_TEST_COMMAND: ${{ vars.FACTORY_TEST_COMMAND }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Abhängigkeiten installieren
-        run: pnpm install --frozen-lockfile
-      - name: Test-Gate (fail-closed)
-        run: |
-          if [ -z "${FACTORY_TEST_COMMAND:-}" ]; then
-            echo "FACTORY_TEST_COMMAND nicht gesetzt – als Repository-Variable konfigurieren."
-            echo "Gleicher Wert wie in scripts/checks/pre-push.sh (kein Doppel-Pflegen)."
-            exit 1
-          fi
-          eval "$FACTORY_TEST_COMMAND"
 
   # ─── Post-Merge-Verifikation ─────────────────────────────────────────────────
   # Läuft NUR nach echtem Merge (push auf main) – CI-grün ≠ Produktion-grün

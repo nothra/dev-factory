@@ -1674,3 +1674,19 @@ Dateien (`git grep` auf ADR-Links) meldet sie als tot, solange der Patch im Bran
 **Regel:** Repo-weite Scanner schließen `tasks/patch-*.diff` per Pathspec aus (`-- . ':!tasks/patch-*.diff'`);
 die Wirkung des Patches prüft ein Test gegen die **angewendete** Live-Datei (Lesson #212). Gilt für jeden
 neuen Scanner über `git ls-files`/`git grep`, nicht nur für Link-Checks.
+
+### Libs relativ zum Skript sourcen, nicht zu `FACTORY_DIR`; beim Entfernen eines Defaults erst die Fixtures zählen (aus #431, /implement-Selbstfund)
+
+`start-work.sh` und die Gate-Skripte tragen ein per Env überschreibbares `FACTORY_DIR` (Tests zeigen es auf ein
+Wegwerf-Repo). Die neue Lib `gate-config.sh` wurde zuerst als `source "$FACTORY_DIR/scripts/lib/…"` eingebunden:
+im Wegwerf-Repo existiert sie nicht, das Skript brach unter `set -e` schon am `source` ab, und ~60 Tests wurden rot –
+aus dem falschen Grund. Der zweite Fehler derselben Änderung: das Entfernen der pnpm-Defaults ließ jeden
+Pipeline-Test in einem Wegwerf-Repo ohne `commands.*` rot werden (143 rote Assertions im ersten Lauf), weil niemand
+vorher gezählt hatte, wie viele Fixtures den Default implizit brauchten. Zusätzlich verlangt der #264-Guard bei jedem
+echten `run-pipeline.sh`-Aufruf in der Suite `env -u PR_SHEPHERD -u FACTORY_STAGE` als erste `env`-Option.
+
+**Regel:** (1) Code-Libs (`source`/`.`) immer relativ zum Skript (`$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/…`),
+**Daten** (Config, Defaults) relativ zu `FACTORY_DIR` – so wie `create-issue.sh` es schon tut. (2) Vor dem Entfernen
+eines impliziten Defaults per Grep alle Fixtures/Aufrufer zählen, die ihn nutzen, und die Ersatzquelle (Env/Config) im
+selben Schritt dort bereitstellen. (3) Neue Pipeline-Aufrufe in `run-tests.sh` vom nächstgelegenen bestehenden Aufruf
+kopieren, nicht neu schreiben.

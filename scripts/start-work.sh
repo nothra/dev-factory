@@ -21,7 +21,7 @@
 # (Ursache des Kollisionsvorfalls aus #71). Env-Schalter:
 #   FACTORY_NO_WORKTREE=1     altes In-Place-Verhalten (Branch im aktuellen Baum)
 #   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
-#   FACTORY_WT_SKIP_INSTALL=1 kein 'pnpm install' im neuen Worktree
+#   FACTORY_WT_SKIP_INSTALL=1 kein Install-Schritt (commands.install) im neuen Worktree
 #   FACTORY_WT_SKIP_ENV=1     kein Kopieren der '.env.local' in den neuen Worktree
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 #   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
@@ -37,6 +37,10 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
+
+# Install-Kommando (commands.install) und Seed-Hinweis (start_work.hint) kommen aus der Config (#431).
+# shellcheck source=lib/gate-config.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gate-config.sh"
 
 # ─── Argumente & Modus ───────────────────────────────────────────────────────
 # Zwei Modi (ADR-013 – Task-ID = GitHub-Issue-Nummer):
@@ -254,12 +258,14 @@ if [ "$WORKTREE_MODE" = true ]; then
   fi
 
   # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.
-  if [ "${FACTORY_WT_SKIP_INSTALL:-0}" != "1" ] && [ -f "$WORKDIR/package.json" ] && command -v pnpm >/dev/null 2>&1; then
-    echo -e "  ${YELLOW}→${NC} pnpm install im Worktree (FACTORY_WT_SKIP_INSTALL=1 überspringt)..."
-    if (cd "$WORKDIR" && pnpm install --frozen-lockfile >/dev/null 2>&1); then
+  # Kommando aus commands.install (Q4, #431); ohne Eintrag entfällt der Schritt still.
+  INSTALL_COMMAND="$(factory_cfg commands.install 2>/dev/null)" || INSTALL_COMMAND=""
+  if [ "${FACTORY_WT_SKIP_INSTALL:-0}" != "1" ] && [ -n "$INSTALL_COMMAND" ]; then
+    echo -e "  ${YELLOW}→${NC} $INSTALL_COMMAND im Worktree (FACTORY_WT_SKIP_INSTALL=1 überspringt)..."
+    if (cd "$WORKDIR" && eval "$INSTALL_COMMAND" >/dev/null 2>&1); then
       echo -e "  ${GREEN}✓${NC} Abhängigkeiten installiert"
     else
-      echo -e "  ${YELLOW}⚠  pnpm install fehlgeschlagen – im Worktree manuell nachziehen${NC}"
+      echo -e "  ${YELLOW}⚠  $INSTALL_COMMAND fehlgeschlagen – im Worktree manuell nachziehen${NC}"
     fi
   fi
 else
@@ -412,8 +418,9 @@ if [ "$ENV_COPIED" = true ]; then
   # ersten 'pnpm test:e2e' greifen, und das findet innerhalb von Schritt 2 statt. Die lokale
   # DEV-DB ist über alle Worktrees geteilt und kennt die gerade kopierten SEED_ADMIN_*-
   # Zugangsdaten evtl. noch nicht → sonst E2E-Login mit CredentialsSignin (#228).
-  echo "     Vor dem ersten 'pnpm test:e2e': pnpm db:seed"
-  echo "     (.env.local wurde kopiert – die geteilte lokale DB kennt die SEED_ADMIN_*-Daten evtl. noch nicht)"
+  # Der Wortlaut kommt aus start_work.hint (Q4, #431); ohne Eintrag entfällt der Hinweis still.
+  START_WORK_HINT="$(factory_cfg start_work.hint 2>/dev/null)" || START_WORK_HINT=""
+  [ -z "$START_WORK_HINT" ] || printf '%s\n' "$START_WORK_HINT" | sed 's/^/     /'
 fi
 echo ""
 echo -e "${YELLOW}⚡ Eigener Arbeitsbaum: parallele Sessions kollidieren nicht (kein geteilter HEAD).${NC}"

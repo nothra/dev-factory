@@ -234,3 +234,10 @@
 - **Fix:** Fall `"undici|8|8.10.2|Vorsorge, …"` ergänzen, dazu einen Mutationsbeleg nach dem Muster des Major-6-Falls
   (Fixture `undici@8.10.1` + Nachbarzeile `7.30.0`). Etwa zehn Zeilen.
 - **Herkunft:** `/implement` zu #390 (Rework nach Review-Iteration 1, bei der Floor-Messung über alle Major-Linien).
+
+### factory-sync --compose schreibt die Zieldateien mit Modus 0600
+
+- **Wo:** `scripts/factory-sync.sh:87` (`mv "$tmp" "$target"`), verifiziert am 2026-10-22.
+- **Was:** `mktemp` legt die Temp-Datei mit 0600 an, `mv` übernimmt den Modus. Nach `--compose` sind `.claude/settings.json` und `.gitignore` im Arbeitsbaum nur für den Besitzer lesbar (vorher 0644). Git trackt nur das Ausführbar-Bit, es entsteht also kein Diff und keine Lücke – aber ein anderer Benutzer oder ein Container-Mount liest die Dateien lokal nicht mehr.
+- **Fix:** vor dem `mv` ein `chmod 644 "$tmp"` (bzw. den Modus des bestehenden Ziels übernehmen), dazu ein Test auf den Modus nach `--compose`. Etwa drei Zeilen.
+- **Herkunft:** `/security-review` zu #431 (Befund beim Prüfen der Datei-Schreibwege von `factory-sync.sh`).

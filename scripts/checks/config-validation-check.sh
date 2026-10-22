@@ -25,6 +25,9 @@
 #      und review müssen tier == MIN_TIER_REQUIRED behalten; security-review darf zudem
 #      kein tier_by_size tragen (Task 241, s.u.).
 #   6. model_tiers.heavy ist nicht override-bar (Task 249).
+#   8. labels.kinds/aspects/aspects_extra sind Listen nichtleerer Strings ohne Komma/Leerraum (#431).
+#   7. commands.* und start_work.hint müssen Strings sein (#431) – ein Skalar anderen Typs
+#      (Zahl, Bool, null) wäre ein Gate-Kommando, das nie so gemeint war.
 #
 # MAX_TURNS_CEILING, MIN_TIER_REQUIRED und die zugehörigen Skill-Listen sind
 # Gate-Policy (ADR-009 §6 / ADR-010), bewusst NICHT in der merge-baren Config — sonst
@@ -70,7 +73,13 @@ command -v yq >/dev/null 2>&1 || fail "yq nicht gefunden (Factory-Prerequisite, 
 [ -f "$DEFAULTS" ] || fail "Defaults-Datei fehlt: $DEFAULTS"
 
 # Alle Blatt-Pfade (Skalare) einer YAML-Datei, ein Pfad pro Zeile (z.B. skills.implement.tier).
-leaf_paths() { yq eval '.. | select(tag != "!!map" and tag != "!!seq") | path | join(".")' "$1" 2>/dev/null; }
+# Listen-Elemente heißen `<pfad>.*` (Index normalisiert) und eine leere Liste in den Defaults erlaubt
+# Elemente im Override (labels.aspects_extra, #431) – sonst wäre eine Liste, die erst das Projekt füllt,
+# als unbekannter Key abgelehnt.
+leaf_paths() {
+  yq eval '(.. | select(tag != "!!map" and tag != "!!seq") | path | join(".")), (.. | select(tag == "!!seq" and length == 0) | path | join(".") + ".*")' "$1" 2>/dev/null \
+    | sed -e 's/\.[0-9][0-9]*\./.*./g' -e 's/\.[0-9][0-9]*$/.*/'
+}
 
 # 1. YAML-Parse + schemaVersion-Typ der Defaults (Single Source of Truth).
 yq eval '.' "$DEFAULTS" >/dev/null 2>&1 || fail "Defaults sind kein gültiges YAML: $DEFAULTS"
@@ -203,5 +212,34 @@ if override_present; then
   grep -qxF -- "$LOCKED_MODEL_TIER_PATH" <<< "$override_paths" \
     && fail "'$LOCKED_MODEL_TIER_PATH' ist nicht override-bar (Gate-Policy, Task 249). Modell-ID-Pflege für 'heavy' läuft ausschließlich über factory.defaults.yml (Template-Update)."
 fi
+
+# 7. Gate-Kommandos (#431): jeder Wert unter commands.* sowie start_work.hint ist ein String.
+#    Listen/Maps fängt Regel 2 bereits als unbekannten Blatt-Pfad ab; hier die Skalare falschen Typs.
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  name="${entry%%=*}"; tag="${entry#*=}"
+  [ "$tag" = "!!str" ] \
+    || fail "$name ist kein String (Typ: $tag) – Gate-Kommandos sind Zeichenketten (#431)."
+done < <(printf '%s' "$effective" | yq eval '((.commands // {}) | to_entries | .[] | "commands." + .key + "=" + (.value | tag)), (select(has("start_work")) | "start_work.hint=" + (.start_work.hint | tag))' -)
+
+# 8. Labels (#431): Die Listen landen als CSV im Issue-Seam – ein Eintrag mit Komma/Leerraum oder ein
+#    Nicht-String würde dort zu zwei Labels bzw. zu einer Fehlmeldung. Je Liste: Sequenz, jedes Element
+#    ein nichtleerer String ohne Komma und Leerraum (Regel 2 deckt unbekannte Listen-Pfade bereits ab).
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  name="${entry%%=*}"; value="${entry#*=}"
+  case "$value" in
+    '!!seq') ;;
+    *) fail "$name ist keine Liste (Typ: $value) – Labels sind Listen von Strings (#431)." ;;
+  esac
+done < <(printf '%s' "$effective" | yq eval '(.labels // {}) | to_entries | .[] | "labels." + .key + "=" + (.value | tag)' -)
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  name="${entry%%=*}"; rest="${entry#*=}"; tag="${rest%%|*}"; label="${rest#*|}"
+  [ "$tag" = "!!str" ] || fail "$name enthält ein Element vom Typ $tag – Labels sind Strings (#431)."
+  case "$label" in
+    ''|*[[:space:],]*) fail "$name enthält das ungültige Label '$label' (leer oder mit Komma/Leerraum, #431)." ;;
+  esac
+done < <(printf '%s' "$effective" | yq eval '(.labels // {}) | to_entries | .[] | select(.value | tag == "!!seq") | .key as $k | .value[] | "labels." + $k + "=" + tag + "|" + .' -)
 
 exit 0

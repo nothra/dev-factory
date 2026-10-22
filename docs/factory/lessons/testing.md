@@ -695,3 +695,28 @@ behauptet; erst der zweite CI-Lauf zeigte die Rezidiv-Stelle in `own_side_426`.
 **Regel:** Gegen eine **Datei** immer direkt `grep -qF -- … <datei>`; gegen eine **Variable** per Here-String
 (`grep -q … <<< "$var"`), nie `printf | grep -q`. Den Helfer nur für kurze Literale (Zeilen/Absätze) nutzen. Nach
 einem Test-Refactor die CI-Läufe abwarten, bevor „identisch grün" behauptet wird.
+
+### Rezidiv #348: Gate-Kommando „aus der Config" an einem dritten Konsumenten nur per Grep belegt – Review fand die Lücke (aus #431, Review-Iteration 1)
+
+`/implement` zu #431 verlegte die Gate-Kommandos (`commands.*`) aus hartkodierten pnpm-Defaults in
+`factory.config.yml`. Für `pre-commit.sh` und `pre-push.sh` entstanden Verhaltenstests (Config-Kommando läuft,
+Env hat Vorrang, fehlender Schlüssel → rot). Für den dritten Konsumenten `run-pipeline.sh` blieb es bei einem
+Grep auf `gate_command lint required` – der Struktur-Test blieb grün, auch wenn die Auflösung selbst falsch gewesen
+wäre. Erst `/review` Iteration 1 fand das; das Rezidiv der #348-Regel entstand, weil die Verhaltenstests zuerst für die
+beiden Hooks geschrieben und die Pipeline als „gleiche Lib, also gleich" abgehakt wurde.
+
+**Regel:** Wird eine Quelle (Config-Schlüssel) auf **mehrere** Konsumenten umgestellt, bekommt **jeder** Konsument
+seinen eigenen Verhaltenstest (Marker beweist die Ausführung des Config-Kommandos, Env-Vorrang, Abbruch bei fehlendem
+Pflichtwert **vor** der ersten teuren Aktion, Exit-Code mitassertiert). Eine gemeinsame Lib ersetzt das nicht.
+Beim Anlegen der Tests die Konsumenten-Liste aus der Spec (hier AK-H3: Hooks **und** Pipeline) abhaken, nicht aus
+dem Gedächtnis.
+
+### Die laufende Test-Suite nicht editieren – Bash liest ein Skript inkrementell (aus #431, /implement-Selbstfund)
+
+`run-tests.sh` (9 000+ Zeilen, ~6 Minuten) lief im Hintergrund, während ich dieselbe Datei per Python-Skript erweiterte.
+Bash liest ein laufendes Skript Stück für Stück von der Platte: Zeilenverschiebungen mitten im Lauf lassen es an einer
+falschen Stelle weiterlesen oder Fragmente ausführen – ein Ergebnis, das weder dem alten noch dem neuen Stand
+entspricht (hier nur durch Disziplin vermieden, kein beobachteter Schaden).
+
+**Regel:** Solange ein Hintergrund-Lauf von `run-tests.sh` (oder einem anderen langen Bash-Skript) läuft, wird die
+Datei **nicht** verändert; neue Tests in dieser Zeit in einer Scratch-Datei vorbereiten und nach dem Lauf einfügen.

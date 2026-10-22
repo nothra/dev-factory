@@ -1,0 +1,31 @@
+# Factory-Template .gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Temporäre Factory-Dateien
+tasks/pipeline-stuck-*.md
+*.tmp.txt
+*.tmp.sh
+*.tmp.py
+*.tmp.spec.ts
+*.tmp.spec.tsx
+*.tmp.config.ts
+coverage-*-tmp/
+.verify-*/
+
+# Generierte Metrik-Reports (Snapshots, jederzeit regenerierbar via /daily-metrics).
+# Das append-only tasks/interrupt-log.jsonl ist BEWUSST nicht ignoriert –
+# es ist die persistente Quelle der Autonomie-Rate und gehört in die Historie.
+tasks/metrics-*.md
+

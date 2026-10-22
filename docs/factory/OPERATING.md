@@ -513,6 +513,43 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
 - **Gates lokal vor dem Push:** `scripts/checks/pre-commit.sh` und `pre-push.sh` laufen bei
   installierten Hooks sowieso, aber Lint/Tests/Format vorab spart CI-Runden.
 
+### 5.5 Zusammengesetzte Dateien: `.claude/settings.json` und `.gitignore`
+
+Beide Dateien mischen Factory- und Projekt-Anteil und werden deshalb **nicht von Hand**
+bearbeitet, sondern aus Fragmenten zusammengesetzt (Factory-ADR-063 D3):
+
+| Ergebnis (committet) | Factory-Fragment | Projekt-Fragment |
+|---|---|---|
+| `.claude/settings.json` | `.claude/settings.factory.json` | `.claude/settings.project.json` |
+| `.gitignore` | `docs/factory/gitignore.factory` | `.gitignore.project` |
+
+**Projekt-Permission oder Ignore-Eintrag ergänzen:** Projekt-Fragment ändern →
+`bash scripts/factory-sync.sh --compose` → Fragment **und** Ergebnis beide committen. Ein Eintrag im
+Ergebnis ohne Fragment geht beim nächsten Zusammensetzen verloren; `--compose --check` (und die
+Self-Test-Suite) schlagen bei jeder Abweichung fehl. `.claude/**` ist für Agenten gesperrt – dort
+läuft die Änderung über den Patch-Workflow.
+
+### 5.6 Gate-Kommandos und Projekt-Erweiterungspunkte
+
+Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D3, #431):
+
+- **Kommandos** stehen in `factory.config.yml` unter `commands.lint|test|typecheck|format|coverage`
+  (dazu `commands.install` für `start-work.sh`). `factory.defaults.yml` trägt dafür bewusst
+  **keinen Default**. Ein Env-Override `FACTORY_<LINT|TEST|TYPECHECK|FORMAT|COVERAGE>_COMMAND` hat
+  Vorrang. Fehlt ein Pflicht-Kommando in Config **und** Env, bricht das Gate mit dem Schlüsselnamen
+  ab (`commands.test fehlt …`) – kein stiller Fallback. Ein leerer Format-Wert
+  (`commands.format: ""` oder `FACTORY_FORMAT_COMMAND=""`) überspringt das Format-Gate.
+  `config-validation-check.sh` lehnt Werte ab, die keine Strings sind.
+- **Projekt-Checks:** ausführbare Skripte in `scripts/project/checks/pre-commit.d/` bzw.
+  `pre-push.d/` laufen lexikalisch nach den Factory-Checks (Beispiel: `routes-doc-check.sh`).
+  Scheitert eines, ist das Gate rot und nennt den Skriptnamen; eine nicht ausführbare Datei ist
+  ebenfalls rot (`chmod +x`). Fehlt das Verzeichnis oder ist es leer, läuft das Gate normal weiter;
+  Punkt-Dateien (`.gitkeep`) zählen nicht.
+- **`start-work.sh`** liest den Install-Schritt aus `commands.install` und den Seed-Hinweis aus
+  `start_work.hint`; ohne Eintrag entfällt beides still.
+- **CI** liest `lint`/`test` weiter aus den Repo-Variablen `FACTORY_LINT_COMMAND` /
+  `FACTORY_TEST_COMMAND` (`ci.yml`, Q7) – beide Quellen müssen denselben Befehl tragen.
+
 ---
 
 ## Anhang: Branch-Protection richtig einordnen

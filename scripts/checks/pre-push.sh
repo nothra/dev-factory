@@ -4,7 +4,8 @@
 # Wird ausgeführt: git push (über .git/hooks/pre-push)
 # Blockiert den Push wenn Tests fehlschlagen.
 #
-# WICHTIG: Test-Befehl nach /setup-project mit echtem Befehl ersetzen.
+# Gate-Kommandos: factory.config.yml → commands.* (Env FACTORY_*_COMMAND hat Vorrang).
+# Projekteigene Checks: ausführbare Skripte in scripts/project/checks/pre-push.d/.
 
 set -euo pipefail
 
@@ -14,22 +15,17 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# shellcheck source=../lib/gate-config.sh
+source "$FACTORY_DIR/scripts/lib/gate-config.sh"
+
 echo ""
 echo -e "${YELLOW}Pre-Push Checks...${NC}"
 
 FAILED=0
 
 # ─── Check 1: Test-Suite ausführen ───────────────────────────────────────────
-# TODO nach /setup-project: Placeholder durch echten Befehl ersetzen
-# Beispiele:
-#   Java/Maven:     mvn test -q
-#   Java/Gradle:    ./gradlew test -q
-#   TypeScript:     npx vitest run
-#   Go:             go test ./...
-#   Python:         pytest -q
-
-TEST_COMMAND="${FACTORY_TEST_COMMAND:-pnpm test}"
-if [ -n "$TEST_COMMAND" ]; then
+# Kommando aus commands.test bzw. FACTORY_TEST_COMMAND – kein stiller Default.
+if TEST_COMMAND="$(gate_command test required)"; then
   echo -e "  ${YELLOW}→${NC} Tests: $TEST_COMMAND"
   if eval "$TEST_COMMAND"; then
     echo -e "  ${GREEN}✓${NC} Alle Tests grün"
@@ -40,9 +36,8 @@ if [ -n "$TEST_COMMAND" ]; then
     FAILED=1
   fi
 else
-  echo -e "  ${YELLOW}⚠${NC}  Tests: Noch nicht konfiguriert (nach /setup-project eintragen)"
-  echo -e "     Setze FACTORY_TEST_COMMAND in scripts/checks/pre-push.sh"
-  echo -e "  ${YELLOW}⚠${NC}  Push wird zugelassen (Konfiguration fehlt)"
+  echo -e "  ${RED}✗${NC} Tests: Kommando nicht konfiguriert – push blockiert (commands.test)"
+  FAILED=1
 fi
 
 # ─── Check 2: Typecheck ───────────────────────────────────────────────────────
@@ -51,8 +46,7 @@ fi
 # gestrippt, kein Type-Check) und das ESLint-Setup hier ist nicht typed-aware.
 # Nur `tsc`/`next build` sieht diese Fehler – aus #137 (Build-Break unbemerkt
 # bis zum manuellen `pnpm build` vor dem Merge).
-TYPECHECK_COMMAND="${FACTORY_TYPECHECK_COMMAND:-pnpm typecheck}"
-if [ -n "$TYPECHECK_COMMAND" ]; then
+if TYPECHECK_COMMAND="$(gate_command typecheck required)"; then
   echo -e "  ${YELLOW}→${NC} Typecheck: $TYPECHECK_COMMAND"
   if eval "$TYPECHECK_COMMAND" > /dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Typecheck bestanden"
@@ -62,8 +56,8 @@ if [ -n "$TYPECHECK_COMMAND" ]; then
     FAILED=1
   fi
 else
-  echo -e "  ${YELLOW}⚠${NC}  Typecheck: Noch nicht konfiguriert (nach /setup-project eintragen)"
-  echo -e "     Setze FACTORY_TYPECHECK_COMMAND in scripts/checks/pre-push.sh"
+  echo -e "  ${RED}✗${NC} Typecheck: Kommando nicht konfiguriert – push blockiert (commands.typecheck)"
+  FAILED=1
 fi
 
 # ─── Check 3: Format (Prettier) ──────────────────────────────────────────────
@@ -71,41 +65,28 @@ fi
 # 38 Dateien aus dem Format (#149) – weder pre-commit noch CI prüften `format:check`.
 # Ausgabe NICHT unterdrücken: `prettier --check` listet bei Drift die betroffenen
 # Dateien ([warn] …) – direkt umsetzbar mit `pnpm format` (anders als der verbose tsc).
-# Einfaches `-` statt `:-`: unset → fail-closed-Default (`pnpm format:check`); ein
-# BEWUSST leer gesetztes FACTORY_FORMAT_COMMAND="" deaktiviert das Gate (expliziter
-# Opt-out, unten der else-Zweig). Ein leerer Wert soll nicht still auf den Default
-# zurückfallen – das wäre ein irreführender Opt-out.
-FORMAT_COMMAND="${FACTORY_FORMAT_COMMAND-pnpm format:check}"
+# Optionales Kommando (commands.format bzw. FACTORY_FORMAT_COMMAND): ein BEWUSST leer gesetztes
+# FACTORY_FORMAT_COMMAND="" – oder ein leerer commands.format – deaktiviert das Gate (expliziter
+# Opt-out, unten der else-Zweig); ein leerer Env-Wert fällt nicht still auf die Config zurück.
+FORMAT_COMMAND="$(gate_command format optional)" || FAILED=1
 if [ -n "$FORMAT_COMMAND" ]; then
   echo -e "  ${YELLOW}→${NC} Format: $FORMAT_COMMAND"
   if eval "$FORMAT_COMMAND"; then
     echo -e "  ${GREEN}✓${NC} Format bestanden"
   else
     echo -e "  ${RED}✗${NC} Format-Drift – push blockiert"
-    echo -e "     Beheben mit: pnpm format"
+    echo -e "     Beheben mit dem Format-Kommando des Projekts (commands.format)"
     FAILED=1
   fi
 else
-  echo -e "  ${YELLOW}⚠${NC}  Format: deaktiviert (FACTORY_FORMAT_COMMAND leer)"
+  echo -e "  ${YELLOW}⚠${NC}  Format: deaktiviert (commands.format / FACTORY_FORMAT_COMMAND leer)"
 fi
 
-# ─── Check 4: Routen-Doku-Drift ──────────────────────────────────────────────
-# Erzwingt, dass docs/routes.md mit den tatsächlichen Route-Dateien (app/**/page.tsx
-# + app/api/**/route.ts) übereinstimmt. Fail-closed: driftende Route(n) blockieren den
-# Push (aus #145 – neue/geänderte Routen blieben sonst unbemerkt undokumentiert).
-ROUTES_DOC_CHECK="$FACTORY_DIR/scripts/checks/routes-doc-check.sh"
-if [ -f "$ROUTES_DOC_CHECK" ]; then
-  echo -e "  ${YELLOW}→${NC} Routen-Doku-Drift: docs/routes.md ↔ app/-Baum"
-  if FACTORY_DIR="$FACTORY_DIR" bash "$ROUTES_DOC_CHECK" > /dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${NC} Routen-Doku ist synchron"
-  else
-    echo -e "  ${RED}✗${NC} Routen-Doku driftet – push blockiert"
-    echo -e "     Ausführen für Details: bash scripts/checks/routes-doc-check.sh"
-    FAILED=1
-  fi
-else
-  echo -e "  ${YELLOW}⚠${NC}  Routen-Doku-Drift-Check fehlt ($ROUTES_DOC_CHECK) – übersprungen"
-fi
+# ─── Check 4: Projekt-Erweiterungspunkt ──────────────────────────────────────
+# Ausführbare Skripte aus scripts/project/checks/pre-push.d/ (lexikalisch), u. a. der
+# Routen-Doku-Drift-Check (#145). Fehlendes oder leeres Verzeichnis ist kein Fehler;
+# Fehlschlag oder fehlendes Ausführbar-Bit blockiert den Push (Skriptname in der Meldung).
+run_project_checks "$FACTORY_DIR/scripts/project/checks/pre-push.d" || FAILED=1
 
 # ─── Check 5: Git-Hooks installiert ──────────────────────────────────────────
 # Fail-closed-Verifikation, dass pre-commit/pre-push/commit-msg im gemeinsamen

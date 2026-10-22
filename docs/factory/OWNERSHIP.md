@@ -46,9 +46,10 @@ Parser und liest nichts anderes:
 | Seite | Muster | Begründung |
 |---|---|---|
 | factory | `.claude/commands/**` | Skills der Pipeline |
-| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs; die TCH-Jobs `lint`/`test` wandern in #431 in `ci.yml` |
+| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
+| factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, #431) |
 | factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; TCH-Abschnitte wandern in #432 nach `docs/project/` |
 | factory | `docs/factory/OWNERSHIP.md` | diese Tabelle |
 | factory | `docs/factory/kleinfunde.md` | Kleinfunde zu Factory-Dateien (Q6) |
@@ -70,9 +71,12 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/interrupt-check.sh` | Hook: Interrupt-Sentinel |
 | factory | `scripts/checks/ownership-check.sh` | Gate: diese Tabelle |
 | factory | `scripts/checks/pr-closes-keyword-check.sh` | Gate: `Closes #<id>` im PR-Body |
-| factory | `scripts/checks/pre-commit.sh` | Git-Hook (enthält bis #431 noch TCH-Anteile) |
-| factory | `scripts/checks/pre-push.sh` | Git-Hook (enthält bis #431 noch TCH-Anteile) |
+| factory | `scripts/checks/pre-commit.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-commit.d/` |
+| factory | `scripts/checks/pre-push.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-push.d/` |
 | factory | `scripts/checks/tests/**` | Self-Test-Suite (TCH-Tests wandern in #432 nach `scripts/project/tests/`) |
+| factory | `scripts/factory-sync.sh` | Setzt `settings.json`/`.gitignore` aus Fragmenten zusammen (`--compose`, ADR-063 Q2) |
+| factory | `.claude/settings.factory.json` | Factory-Anteil der Settings (Hooks, generische Permissions) |
+| factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |
 | factory | `scripts/factory-commit.sh` | Commit/Push-Seam (ADR-019) |
 | factory | `scripts/factory-poll.sh` | Poll-Skript (ADR-008) |
 | factory | `scripts/init-factory.sh` | Initialisierung |
@@ -91,15 +95,18 @@ Parser und liest nichts anderes:
 | Seite | Muster | Begründung |
 |---|---|---|
 | project | `.claude/launch.json` | Dev-Server-Konfiguration der App |
-| project | `.claude/settings.json` | Permissions/Hooks; wird in #431 aus Fragmenten zusammengesetzt, das Ergebnis ist projekteigen |
+| project | `.claude/settings.json` | Ergebnis von `factory-sync.sh --compose` aus Factory- + Projekt-Fragment; nicht von Hand ändern |
+| project | `.claude/settings.project.json` | Projekt-Fragment der Settings (App-Pfade, Lockfile-Deny) |
 | project | `.env.example` | App-Umgebungsvariablen |
+| project | `.github/workflows/ci.yml` | Projekt-CI: `lint` + `test` der App (aus `factory-ci.yml`, #431) |
 | project | `.github/workflows/deploy-gate.yml` | Vercel-Deploy-Gate (ADR-015/017) |
 | project | `.github/workflows/deploy-freeze-release.yml` | Deploy-Freeze (ADR-032) |
-| project | `.gitignore` | wird in #431 aus Fragmenten zusammengesetzt, das Ergebnis ist projekteigen |
+| project | `.gitignore` | Ergebnis von `factory-sync.sh --compose`; nicht von Hand ändern |
+| project | `.gitignore.project` | Projekt-Fragment der `.gitignore` (Node/Next/Playwright) |
 | project | `.issue-npm-pin.md` | verwaister Issue-Entwurf, kein Pipeline-Bestandteil |
 | project | `.prettierignore` | App-Formatierung |
 | project | `.prettierrc.json` | App-Formatierung |
-| project | `CLAUDE.md` | Projekt-Regeln; wird in #431 dünn und importiert `FACTORY.md` |
+| project | `CLAUDE.md` | Projekt-Regeln (TCH); importiert `FACTORY.md` und `PROJECT-CONTEXT.md` |
 | project | `LICENSE` | Lizenz des Projekts |
 | project | `app/**` | App-Code |
 | project | `db/**` | Schema, Migrationen, Data-Layer |
@@ -118,7 +125,7 @@ Parser und liest nichts anderes:
 | project | `pnpm-lock.yaml` | Abhängigkeiten der App |
 | project | `pnpm-workspace.yaml` | pnpm-Einstellungen der App |
 | project | `public/**` | statische App-Assets |
-| project | `scripts/checks/routes-doc-check.sh` | Routen-Doku-Drift der App (#145) |
+| project | `scripts/project/**` | Projekt-Erweiterungspunkte der Git-Gates (`checks/pre-commit.d/`, `checks/pre-push.d/`), u. a. Routen-Doku-Drift der App (#145) |
 | project | `scripts/deploy-freeze-notify.sh` | Deploy-Freeze der App |
 | project | `scripts/deploy-freeze.sh` | Deploy-Freeze der App |
 | project | `scripts/neon-reset-int.sh` | Neon-INT-Datenbank der App |

@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/checks/check.sh pre-tool"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/checks/check.sh post-tool"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/checks/completion-check.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/*)",
+      "Bash(bash scripts/checks/*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr update-branch:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr ready:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run rerun:*)",
+      "Edit(scripts/**)",
+      "Edit(docs/**)",
+      "Edit(tasks/**)",
+      "Edit(config/**)",
+      "Edit(.github/workflows/**)",
+      "Edit(*.json)",
+      "Edit(*.md)",
+      "Edit(/*.yml)",
+      "Edit(/*.yaml)"
+    ],
+    "deny": [
+      "Edit(.claude/**)",
+      "Edit(.env*)",
+      "Read(.env*)"
+    ]
+  }
+}

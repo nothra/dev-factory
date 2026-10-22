@@ -4,7 +4,8 @@
 # Wird ausgeführt: git commit (über .git/hooks/pre-commit)
 # Blockiert den Commit wenn ein Check fehlschlägt.
 #
-# WICHTIG: Lint-Befehl nach /setup-project mit echtem Befehl ersetzen.
+# Lint-Befehl: factory.config.yml → commands.lint (Env FACTORY_LINT_COMMAND hat Vorrang).
+# Projekteigene Checks: ausführbare Skripte in scripts/project/checks/pre-commit.d/.
 
 set -euo pipefail
 
@@ -13,6 +14,9 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+# shellcheck source=../lib/gate-config.sh
+source "$FACTORY_DIR/scripts/lib/gate-config.sh"
 
 echo ""
 echo -e "${YELLOW}Pre-Commit Checks...${NC}"
@@ -53,16 +57,9 @@ else
 fi
 
 # ─── Check 5: Linting ────────────────────────────────────────────────────────
-# TODO nach /setup-project: Placeholder durch echten Befehl ersetzen
-# Beispiele:
-#   Java/Maven:     mvn checkstyle:check -q
-#   Java/Gradle:    ./gradlew checkstyleMain -q
-#   TypeScript:     npx biome check src/
-#   Go:             golangci-lint run
-#   Python:         ruff check .
-
-LINT_COMMAND="${FACTORY_LINT_COMMAND:-pnpm lint}"
-if [ -n "$LINT_COMMAND" ]; then
+# Kommando aus factory.config.yml (commands.lint) bzw. FACTORY_LINT_COMMAND – kein
+# stiller Default: fehlt beides, blockiert das Gate und nennt den Schlüssel.
+if LINT_COMMAND="$(gate_command lint required)"; then
   echo -e "  ${YELLOW}→${NC} Lint: $LINT_COMMAND"
   if eval "$LINT_COMMAND" > /dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Lint bestanden"
@@ -72,9 +69,14 @@ if [ -n "$LINT_COMMAND" ]; then
     FAILED=1
   fi
 else
-  echo -e "  ${YELLOW}⚠${NC}  Lint: Noch nicht konfiguriert (nach /setup-project eintragen)"
-  echo -e "     Setze FACTORY_LINT_COMMAND in scripts/checks/pre-commit.sh"
+  echo -e "  ${RED}✗${NC} Lint: Kommando nicht konfiguriert – commit blockiert (commands.lint)"
+  FAILED=1
 fi
+
+# ─── Check 6: Projekt-Erweiterungspunkt ──────────────────────────────────────
+# Ausführbare Skripte aus scripts/project/checks/pre-commit.d/ (lexikalisch). Fehlendes
+# oder leeres Verzeichnis ist kein Fehler; Fehlschlag oder fehlendes Ausführbar-Bit blockiert.
+run_project_checks "$FACTORY_DIR/scripts/project/checks/pre-commit.d" || FAILED=1
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 echo ""

@@ -54,6 +54,9 @@ source "$FACTORY_DIR/scripts/lib/verify-final-state.sh"
 # ohne echten claude-Lauf prüfbar.
 # shellcheck source=scripts/lib/telemetry-harvest.sh
 source "$FACTORY_DIR/scripts/lib/telemetry-harvest.sh"
+# Gate-Kommandos aus factory.config.yml (commands.*), Env-Override vorrangig (#431).
+# shellcheck source=scripts/lib/gate-config.sh
+source "$FACTORY_DIR/scripts/lib/gate-config.sh"
 
 # ─── Argumente prüfen ────────────────────────────────────────────────────────
 
@@ -692,17 +695,17 @@ measure_process_metrics_on_exit() {
 }
 trap measure_process_metrics_on_exit EXIT
 
+# Quality-Gate-Befehle – echte Befehle, konsistent mit scripts/checks/pre-commit.sh und
+# pre-push.sh (dieselbe Quelle: commands.* in factory.config.yml, FACTORY_*_COMMAND hat
+# Vorrang). Kein Default: fehlt ein Kommando, bricht der Lauf VOR dem ersten Agenten-Schritt
+# ab (nicht erst nach /implement). Frühere echo-Platzhalter waren fail-open (#101).
+LINT_CMD="$(gate_command lint required)" || exit 1
+TEST_CMD="$(gate_command test required)" || exit 1
+COVERAGE_CMD="$(gate_command coverage required)" || exit 1
+
 # Phase 1: Implementieren
 echo -e "${BLUE}Phase 1: Implementierung${NC}"
 run_skill "implement" "$TASK_ID"
-
-# Quality-Gate-Befehle – echte Befehle, konsistent mit scripts/checks/pre-commit.sh
-# und pre-push.sh (dieselbe Env-Override-Konvention). Default = pnpm-Skripte aus
-# PROJECT-CONTEXT.md; CI-/Kosten-Hebel per FACTORY_*_COMMAND. Frühere echo-Platzhalter
-# waren fail-open (echo → immer Exit 0 → Gate meldete grün, ohne je zu prüfen; #101).
-LINT_CMD="${FACTORY_LINT_COMMAND:-pnpm lint}"
-TEST_CMD="${FACTORY_TEST_COMMAND:-pnpm test}"
-COVERAGE_CMD="${FACTORY_COVERAGE_COMMAND:-pnpm test:coverage}"
 
 # Quality Gate: Lint + Tests
 quality_gate "Lint" "$LINT_CMD"

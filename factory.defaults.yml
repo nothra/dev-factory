@@ -91,3 +91,42 @@ skills:
 default:
   tier: light
   max_turns: 10
+
+# Gate-Kommandos des Projekts (ADR-063 D3, #431): Lint/Test/Typecheck/Format/Coverage und der
+# Install-Schritt von start-work.sh. Bewusst OHNE Default-Werte – die Factory kennt keinen
+# Paketmanager; das Projekt trägt seine Kommandos in factory.config.yml ein. Die leeren Werte
+# machen die Schlüssel nur zur erlaubten Oberfläche (config-validation Regel 2). Env-Override:
+# FACTORY_<LINT|TEST|TYPECHECK|FORMAT|COVERAGE>_COMMAND hat Vorrang.
+# @reason: Ein pnpm-Default in der Factory wäre eine Projektannahme, die jedem anderen Stack
+#   stillschweigend ein falsches Gate unterschöbe – fehlt ein Pflicht-Kommando, bricht das Gate
+#   stattdessen mit dem Schlüsselnamen ab.
+# @tradeoff: Ein frisch adoptiertes Projekt hat rote Gates, bis es commands.* einträgt; dafür
+#   läuft nie ein Gate gegen das falsche Werkzeug. Leerer Format-Wert = Format-Gate übersprungen.
+commands:
+  lint: ""
+  test: ""
+  typecheck: ""
+  format: ""
+  coverage: ""
+  install: ""
+
+# Hinweis, den start-work.sh nach dem Kopieren der .env.local ausgibt (Q4, #431). Leer = kein Hinweis.
+# @reason: Projektspezifische Nacharbeit (z. B. DB-Seed) gehört nicht in das generische Skript.
+# @tradeoff: keiner – ohne Eintrag entfällt der Hinweis still.
+start_work:
+  hint: ""
+
+# GitHub-Labels (ADR-063 D3, #431): `kinds` = Art-Labels (genau eines je Issue), `aspects` = generische
+# Aspekt-Labels (null bis mehrere). Projekteigene Aspekte trägt das Projekt in factory.config.yml unter
+# `labels.aspects_extra` (leere Liste hier = erlaubte Oberfläche); Bedeutung und Zuordnungsregel stehen
+# in PROJECT-CONTEXT.md. Schema und generische Labels beschreibt docs/factory/guidelines/git-workflow.md.
+# Der Issue-Seam validiert Labels bewusst nicht (ADR-018 §3, fail-open) – die Listen sind die Quelle der
+# Doku und ihres Drift-Guards, nicht ein Filter.
+# @reason: Eine Quelle für die Label-Menge statt Aufzählungen, die einzeln driften; die Factory kennt
+#   nur die generischen Labels, projekteigene gehören dem Projekt.
+# @tradeoff: Ein neues Label braucht einen Eintrag hier bzw. in aspects_extra UND die Beschreibung in der
+#   Doku – der Drift-Guard in der Self-Test-Suite meldet, wenn eines von beiden fehlt.
+labels:
+  kinds: [bug, enhancement, documentation]
+  aspects: [security, tech-debt, test]
+  aspects_extra: []
