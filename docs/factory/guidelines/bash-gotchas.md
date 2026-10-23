@@ -187,17 +187,17 @@ korrekten Wert; beobachtet bei Task 67.
 
 ## 7. Substring-Match in strukturellen Guards: spezifischen String verwenden
 
-`grep -q 'pnpm test'` trifft auch die Zeile `COVERAGE_CMD="…:-pnpm test:coverage"` als
-Substring. Wird der Coverage-Befehl auf z. B. `pnpm coverage` geändert, bleibt der Guard
+`grep -q 'make test'` trifft auch die Zeile `COVERAGE_CMD="…:-make test-coverage"` als
+Substring. Wird der Coverage-Befehl auf z. B. `make coverage` geändert, bleibt der Guard
 fälschlich grün (false positive). Das Gate prüft dann nicht mehr, was es zu prüfen vorgibt.
 
 ```bash
-# FALSCH – 'pnpm test' trifft als Substring auch 'pnpm test:coverage':
-grep -q 'pnpm test' run-pipeline.sh      # schlägt nicht an, obwohl coverage-Zeile fehlt
+# FALSCH – 'make test' trifft als Substring auch 'make test-coverage':
+grep -q 'make test' run-pipeline.sh      # schlägt nicht an, obwohl coverage-Zeile fehlt
 
 # RICHTIG – immer den spezifischsten (längsten) String verwenden:
-grep -q 'pnpm test:coverage' run-pipeline.sh   # trifft nur die Coverage-Zeile
-grep -qF -- 'pnpm test:coverage' run-pipeline.sh  # -F: kein Regex, kein Fehlinterpretieren
+grep -q 'make test-coverage' run-pipeline.sh   # trifft nur die Coverage-Zeile
+grep -qF -- 'make test-coverage' run-pipeline.sh  # -F: kein Regex, kein Fehlinterpretieren
 ```
 
 **Faustregel:** Prüft ein Guard auf einen Befehlsstring, immer **den vollständigen,
@@ -205,7 +205,7 @@ spezifischsten String** nehmen – nie eine Abkürzung, die als Substring einer 
 Variante aufgehen könnte. Zur Absicherung: einen Test mit Negativ-Beispiel schreiben
 (geänderter Befehl → Guard schlägt an).
 
-**Bit uns:** #101 – `grep -q 'pnpm test'` im Default-Guard deckte `pnpm test:coverage`
+**Bit uns:** #101 – `grep -q 'make test'` im Default-Guard deckte `make test-coverage`
 implizit ab; eine Änderung des Coverage-Befehls wäre unentdeckt geblieben.
 
 ---
@@ -222,10 +222,10 @@ enforcing Default zurück – der vermeintliche Opt-out verpufft, das Gate bleib
 # Ziel: unset → Default-Gate scharf; FACTORY_X="" → Gate bewusst aus.
 
 # FALSCH – :- behandelt "" wie unset, fällt auf den Default zurück (kein Opt-out):
-CMD="${FACTORY_X:-pnpm gate}"     # FACTORY_X="" → CMD="pnpm gate" (Gate läuft doch)
+CMD="${FACTORY_X:-make gate}"     # FACTORY_X="" → CMD="make gate" (Gate läuft doch)
 
 # RICHTIG – einfaches - : unset → Default (fail-closed), "" → leer → else-Zweig (aus):
-CMD="${FACTORY_X-pnpm gate}"      # FACTORY_X="" → CMD="" → Gate deaktiviert
+CMD="${FACTORY_X-make gate}"      # FACTORY_X="" → CMD="" → Gate deaktiviert
 if [ -n "$CMD" ]; then eval "$CMD"; else echo "Gate deaktiviert (FACTORY_X leer)"; fi
 ```
 
@@ -235,7 +235,7 @@ Die Wahl explizit im WHY-Kommentar begründen; sie ist auf den ersten Blick unsi
 
 **Struktur-Guard darauf abstimmen (Querbezug §7 + PROJECT-CONTEXT #114):** Ein Struktur-Test,
 der so ein Gate absichert, muss den **vollständigen `${VAR-default}`-Ausdruck** pinnen
-(`grep -qF '${FACTORY_X-pnpm gate}'`), nicht nur den Bezeichner `FACTORY_X` – der steht meist
+(`grep -qF '${FACTORY_X-make gate}'`), nicht nur den Bezeichner `FACTORY_X` – der steht meist
 auch in der Kommentar-Prosa und matcht dann fälschlich. Das pinnt zugleich den **Default-Literal**,
 den ein Verhaltens-Test **nicht** abdeckt: wer im Test den Override immer explizit setzt
 (`FACTORY_X=false/true/""`), prüft nie den unset-Default. Ein versehentlich auf `true` geänderter
@@ -243,7 +243,7 @@ Default (Gate per Default aus) bliebe sonst grün.
 
 **Bit uns:** #149 – Format-Gate in `pre-push.sh`. Erst `:-` gewählt (leerer Override sollte
 deaktivieren, tat es aber nicht → Test rot); auf `-` korrigiert. Der Struktur-Grep matchte
-anfangs die Kommentar-Prosa (`format:check`); erst der Grep auf `${FACTORY_FORMAT_COMMAND-pnpm format:check}`
+anfangs die Kommentar-Prosa (`format:check`); erst der Grep auf `${FACTORY_FORMAT_COMMAND-make format-check}`
 pinnte Default + Semantik code-eindeutig.
 
 ---

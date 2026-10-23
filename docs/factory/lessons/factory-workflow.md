@@ -1690,3 +1690,19 @@ echten `run-pipeline.sh`-Aufruf in der Suite `env -u PR_SHEPHERD -u FACTORY_STAG
 eines impliziten Defaults per Grep alle Fixtures/Aufrufer zählen, die ihn nutzen, und die Ersatzquelle (Env/Config) im
 selben Schritt dort bereitstellen. (3) Neue Pipeline-Aufrufe in `run-tests.sh` vom nächstgelegenen bestehenden Aufruf
 kopieren, nicht neu schreiben.
+
+### Tests zwischen Suiten umziehen: Verweise auf den alten Testort und tote Patch-Zweige im selben PR abräumen (aus #432, Review-Iteration 1)
+
+Der Split von `run-tests.sh` in Factory- und Projekt-Suite zog 87 Tests um. Die Review fand zwei Folgen, die weder
+Lint noch Suite sehen: (1) eine ADR und eine Lesson nannten den Test im Präsens weiter „in `run-tests.sh`“ – der
+Umzug ist eine Mechanik-Änderung im Sinn von #211/#176, nur dass der Auslöser hier kein Code-, sondern ein Testort
+war. (2) Ein Test zu einer `.claude/**`-Patch-Lieferung (#212) behielt seinen „Patch auf Temp-Kopie anwenden“-Zweig,
+obwohl der Mensch den Patch inzwischen angewendet hatte; der Zweig war toter Code und wurde mit dem Löschen der
+Patch-Datei nie mehr betreten. Ein dritter Nachzügler im `/refactor`: ein Test-Anker (`pnpm db:seed`) war nur durch
+einen später als redundant entfernten Doku-Block erfüllt – der Test prüfte den Block, nicht den übernommenen Text.
+
+**Regel:** (1) Beim Umziehen von Tests per Grep alle Prosa-Treffer auf den alten Ort (`run-tests.sh`, Testdatei- und
+Skriptnamen) in ADRs, Lessons und Doku im selben PR nachziehen. (2) Ein Patch-Test hat nach dem Anwenden nur noch den
+Direktcheck der Live-Datei; den Patch-Zweig im selben Rework entfernen, in dem die Patch-Datei gelöscht wird.
+(3) Anker gegen den **ursprünglichen** Wortlaut der übernommenen Quelle (`git show origin/main:<datei>`) setzen, nicht
+gegen neu hinzugefügte Zusammenfassungen.

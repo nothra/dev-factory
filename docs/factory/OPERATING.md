@@ -14,7 +14,7 @@
 >
 > **Verhältnis zu anderen Dokumenten:**
 > - **Was** die Factory ist und **warum** (Prinzipien, Pipeline-Übersicht): [`CLAUDE.md`](../../CLAUDE.md)
-> - **Betriebsumgebung** (Stages, Deploy-Gate, Vercel/Neon): [`README.md`](../../README.md)
+> - **Betriebsumgebung** des Projekts (Werkzeuge, Stages, Deploy-Gate): [`docs/project/betrieb.md`](../project/betrieb.md)
 > - **Entscheidungen** (mit Alternativen): [`docs/adr/`](../adr/) (App) und [`docs/factory/adr/`](adr/) (Factory)
 > - **Dieses Dokument** ist das prozedurale Bindeglied: die Reihenfolge der Handgriffe.
 
@@ -79,49 +79,22 @@ Diese Schritte sind einmalig. Danach greift die Automatik.
 
 | Werkzeug | Zweck | Prüfen |
 |----------|-------|--------|
-| Node ≥ 24 + `pnpm` | Build/Test/DB-Scripts | `node -v`, `pnpm -v` |
+| Laufzeit + Paketmanager des Projekts | Build/Test | siehe `docs/project/betrieb.md` → 0.1 |
 | `gh` (authentifiziert) | Issues, PRs, Auto-Merge | `gh auth status` |
 | `yq` | Config-Merge in `run-pipeline.sh` (Prerequisite) | `yq --version` |
 | `claude` CLI (authentifiziert) | Skills, Stage-3-Pipeline | `claude --version` |
-| Docker (Compose v2) | lokale DEV-Postgres | `docker compose version` |
 
-Projekt aufsetzen: siehe [README → DEV](../../README.md#dev--lokale-entwicklung)
-(`pnpm install` · `install-hooks.sh` · `.env.local` · `pnpm db:up` · `db:migrate` · `db:seed` · `pnpm dev`).
+Projekt aufsetzen (Install, `.env.local`, lokale DB, Dev-Server): siehe [`docs/project/betrieb.md`](../project/betrieb.md) → 0.1.
 
-### 0.2 GitHub-Repository-Secrets (für das Deploy-Gate)
+### 0.2 Secrets für das Deploy-Gate (projektspezifisch)
 
-Das Deploy-Gate (`.github/workflows/deploy-gate.yml`) migriert und promotet **fail-closed** –
-fehlt ein Pflicht-Secret, bricht es ab (nie stilles Überspringen). Setzen unter
-**Repo → Settings → Secrets and variables → Actions → Secrets**:
+Ob und welche Repository-Secrets ein Deploy-Gate braucht, ist Sache des Projekts. TCH: siehe
+[`docs/project/betrieb.md`](../project/betrieb.md) → 0.2.
 
-| Secret | Wofür | Pflicht? |
-|--------|-------|----------|
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | E2E dürfen an Vercels Deployment-Protection vorbei (INT) | **Pflicht** |
-| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | INT-Admin-Login der E2E-Tests | **Pflicht** |
-| `PRD_DATABASE_URL` | Prod-Neon-Connection-String (Auto-Migration, ADR-017) | **Pflicht** |
-| `PRD_ADMIN_EMAIL` / `PRD_ADMIN_PASSWORD` | Prod-Login idempotent seeden | **Pflicht** |
-| `NEON_API_KEY`, `NEON_PROJECT_ID`, `NEON_INT_BRANCH_ID`, `NEON_PRD_BRANCH_ID`, `INT_DATABASE_URL` | INT-Refresh von PRD (Reset → anonymisieren → migrieren) | **Pflicht** — Absicherungs-Vorstufe der PRD-Migration (seit ADR-017) |
-| `ANTHROPIC_API_KEY` (oder `ANTHROPIC_BASE_URL` für ein Gateway) | nur für den **Async-Trigger** (Stage 3 in CI) | Optional (siehe 0.4) |
+### 0.3 Production-Branch scharfschalten (projektspezifisch)
 
-> Warum die Neon-Secrets **Pflicht** sind: Der INT-Refresh migriert dieselbe Migration zuerst
-> gegen prod-nahe, anonymisierte Daten und fährt E2E dagegen. Solange das Gate PRD **automatisch**
-> migriert, darf diese Vorstufe nicht fehlen – sonst liefe die Prod-Migration ohne den bewiesenen
-> INT-Lauf (die Lücke, die ADR-017 schließt). Details: [README → Deploy-Gate](../../README.md#deploy-gate-e2e-vor-production).
-
-### 0.3 Vercel Production-Branch (Scharfschalten – Reihenfolge zwingend)
-
-Production ist vom `main`-Push **entkoppelt** und hängt am `production`-Branch, den nur das Gate
-bewegt. Aktivierungsreihenfolge (aus README/ADR-017):
-
-1. **Alle Pflicht-Secrets** aus 0.2 setzen.
-2. Das Gate **einmal grün** laufen lassen (ein `main`-Push) → es legt/aktualisiert den `production`-Branch.
-3. **Erst danach** in **Vercel → Project → Settings → Git → Production Branch = `production`** setzen.
-
-Ab jetzt: `main`-Push → nur INT-Preview; **Prod deployt ausschließlich** über den vom Gate
-promoteten `production`-Branch (nur bei grünem INT-E2E **und** grüner PRD-Migration).
-
-Vercel-Env je Scope: `NEXT_PUBLIC_STAGE`, `DATABASE_URL`, `AUTH_SECRET` für *Preview/int* und
-*Production* getrennt setzen (siehe [README → Stages](../../README.md#umgebungen-stages)).
+Die Aktivierungsreihenfolge für die Production-Entkopplung steht in
+[`docs/project/betrieb.md`](../project/betrieb.md) → 0.3.
 
 ### 0.4 Async-Trigger scharfschalten (unbeaufsichtigte Pipeline in CI)
 
@@ -270,18 +243,9 @@ Concurrency=1 + Tageskappe). Voraussetzung: Async-Trigger scharfgeschaltet ([0.4
 
 ### 1.4 Was nach dem Merge automatisch passiert
 
-Kein Handgriff mehr – der Merge auf `main` löst die Kette nach Production aus:
-
-```
-Merge auf main
-   └─▶ Deploy-Gate (.github/workflows/deploy-gate.yml)
-        INT auf Commit → INT-DB von PRD auffrischen (Reset→anonymisieren→migrieren→seed)
-        → auf INT-Build warten → Playwright-E2E gegen INT
-        → (nur grün) PRD-DB migrieren + seeden  → Promote main→production
-        → Vercel deployt Production → /api/health-Check (DB-Read)
-```
-
-E2E **oder** Prod-Migration rot → **kein** Promote → Production bleibt auf dem letzten Stand.
+Kein Handgriff mehr – der Merge auf `main` löst die Kette nach Production aus: das **Deploy-Gate
+des Projekts** prüft (Gate rot → **kein** Promote, Production bleibt auf dem letzten Stand).
+Ablauf im Einzelnen für TCH: [`docs/project/betrieb.md`](../project/betrieb.md) → 1.4.
 
 ---
 
@@ -403,16 +367,9 @@ als Backlog-Issue heraus – nie stillschweigend.
 
 ### 4.3 Destruktive Produktions-Migrationen
 
-Automatisch im Gate laufen nur **additive/geprüfte** Migrationen (auf INT gegen prod-nahe,
-anonymisierte Daten bewiesen, dann PRD, ADR-017). **Nicht** dem Automatismus überlassen:
-
-- `DROP`/`TRUNCATE`/Spalten-Umbenennung/Typ-Wechsel mit **echtem Prod-Datenbestand**.
-- Alles, was Daten verliert oder nicht idempotent rückspielbar ist.
-
-→ Solche Migrationen als **eigene ADR** entscheiden, Datensicherung/Rücklaufplan festhalten und
-**manuell** kontrolliert fahren (`.env.prd` ist ausdrücklich für solche Sonderfälle gedacht,
-README). Der drop-and-recreate-Trick aus den Migrations-Learnings gilt nur, **solange kein
-Prod-Datenbestand betroffen ist** (PROJECT-CONTEXT).
+Automatisch laufen nur **additive/geprüfte** Migrationen. Destruktive Migrationen mit echtem
+Produktions-Datenbestand sind ein **Menschen-Gate**: eigene ADR, Datensicherung/Rücklaufplan,
+manuell kontrolliert fahren. Die TCH-Regeln dazu: [`docs/project/betrieb.md`](../project/betrieb.md) → 4.3.
 
 ### 4.4 Auslöser des Auto-Triggers
 
@@ -436,7 +393,7 @@ ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` (generisch) bz
 [ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4 unter einem harten
 Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln aus der Praxis:
 
-- **Stack-spezifisch** (Next/NextAuth/Drizzle/Vitest …) → Volltext nach
+- **Stack-spezifisch** (Framework-, Datenbank-, Test-Stack des Projekts …) → Volltext nach
   `docs/project/lessons/<thema>.md` (generische Pipeline-/Skript-Learnings: `docs/factory/lessons/`;
   Zuordnung nach der betroffenen Datei laut [`OWNERSHIP.md`](OWNERSHIP.md)) + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
   die stack-agnostischen Guidelines.

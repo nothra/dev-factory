@@ -28,7 +28,7 @@ Du reviewst wie ein erfahrener Kollege: sachlich, konstruktiv, klar priorisiert.
 - Keine unerwarteten Abhängigkeiten eingeführt?
 - **Treiber-/Infrastruktur-Kompatibilität:** Verhält sich neuer Code in der Zielumgebung
   (INT/PRD) identisch zum lokalen/CI-Testpfad, oder unterscheiden sich die dort eingesetzten
-  Treiber/Runtimes strukturell (z. B. Neon-HTTP vs. node-postgres)? Nutzt eine neue
+  Treiber/Runtimes strukturell (z. B. HTTP- vs. TCP-Datenbanktreiber)? Nutzt eine neue
   Mehrfach-Write-Data-Layer-Funktion die projektweite Atomaritäts-Klammer (`runAtomic`,
   `db/atomic.ts`), nicht `db.transaction()` direkt? Ein grünes lokales/CI-Testergebnis beweist
   hier nichts, wenn der Test über einen anderen Treiber läuft als die Produktion (Lesson

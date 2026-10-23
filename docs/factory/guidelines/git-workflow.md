@@ -345,7 +345,7 @@ cd <ausgegebener-worktree-pfad>                    # dort arbeiten (eigene Sessi
 
 - **Env-Schalter:** `FACTORY_NO_WORKTREE=1` = altes In-Place-Verhalten (nur bewusst nutzen);
   `FACTORY_WORKTREE_BASE=<dir>` = Basisordner der Worktrees; `FACTORY_WT_SKIP_INSTALL=1` = kein
-  `pnpm install` im neuen Worktree; `FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`
+  Install-Schritt (`commands.install`) im neuen Worktree; `FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`
   **nicht** in den neuen Worktree kopieren (Default: kopieren, #236 – eine dort vorhandene Datei
   wird nie überschrieben). **Quelle** ist der Baum, in dem `start-work.sh` liegt (`$FACTORY_DIR`) –
   üblicherweise, aber nicht zwingend der Haupt-Baum: startet man die Task aus einem Worktree, der

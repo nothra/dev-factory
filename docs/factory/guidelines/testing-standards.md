@@ -90,6 +90,6 @@ Verlassen auf Netzwerk-Verbindungen in Unit Tests, keine Test-Reihenfolge-Abhän
 - Minimum: siehe `PROJECT-CONTEXT.md`. **Neuer Code: 100 % Coverage erwartet** (wird im Review geprüft)
 - Coverage ist ein Hinweis auf ungetestete Pfade – kein Qualitätsbeweis. Lieber 80 % mit guten
   Tests als 100 % mit sinnlosen Tests
-- **Coverage-Ausgabe nur in `.gitignore`-abgedeckte Pfade** schreiben – `coverage/` (Default von
-  `pnpm test:coverage`) bzw. `.coverage-tmp<id>/` für isolierte Läufe, nie ein Ad-hoc-Pfad im
+- **Coverage-Ausgabe nur in `.gitignore`-abgedeckte Pfade** schreiben – `coverage/` (Default des
+  Coverage-Kommandos) bzw. `.coverage-tmp<id>/` für isolierte Läufe, nie ein Ad-hoc-Pfad im
   Projektbaum (ADR-040). Begründung + Vorfall: [`lessons/testing.md`](../lessons/testing.md)

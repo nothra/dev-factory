@@ -50,7 +50,7 @@ Parser und liest nichts anderes:
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
 | factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, #431) |
-| factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; TCH-Abschnitte wandern in #432 nach `docs/project/` |
+| factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; TCH-Abschnitte stehen in `docs/project/betrieb.md` |
 | factory | `docs/factory/OWNERSHIP.md` | diese Tabelle |
 | factory | `docs/factory/kleinfunde.md` | Kleinfunde zu Factory-Dateien (Q6) |
 | factory | `docs/factory/agents/**` | Agenten-Personas |
@@ -73,7 +73,8 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/pr-closes-keyword-check.sh` | Gate: `Closes #<id>` im PR-Body |
 | factory | `scripts/checks/pre-commit.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-commit.d/` |
 | factory | `scripts/checks/pre-push.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-push.d/` |
-| factory | `scripts/checks/tests/**` | Self-Test-Suite (TCH-Tests wandern in #432 nach `scripts/project/tests/`) |
+| factory | `scripts/checks/tests/**` | Self-Test-Suite der Factory |
+| factory | `scripts/checks/tests/lib/**` | gemeinsame Prüf-Helfer der Test-Suiten; Factory- und Projekt-Suite sourcen sie (#432, Q10) |
 | factory | `scripts/factory-sync.sh` | Setzt `settings.json`/`.gitignore` aus Fragmenten zusammen (`--compose`, ADR-063 Q2) |
 | factory | `.claude/settings.factory.json` | Factory-Anteil der Settings (Hooks, generische Permissions) |
 | factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |
@@ -115,6 +116,7 @@ Parser und liest nichts anderes:
 | project | `docs/anleitung/**` | Anwender-Anleitung der App |
 | project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis (Anpassungsstelle) |
 | project | `docs/project/**` | projekteigene Doku (App-Lessons, Kleinfunde) |
+| project | `docs/project/betrieb.md` | TCH-Betrieb: Werkzeuge, lokale Umgebung, Deploy-Gate-Secrets, Vercel, destruktive Migrationen (#432) |
 | project | `docs/specs/**` | Spec-Archiv des Projekts |
 | project | `docs/ux/**` | UX-Glossar und -Entwürfe der App |
 | project | `docker-compose.yml` | lokale Datenbank |
@@ -126,9 +128,8 @@ Parser und liest nichts anderes:
 | project | `pnpm-workspace.yaml` | pnpm-Einstellungen der App |
 | project | `public/**` | statische App-Assets |
 | project | `scripts/project/**` | Projekt-Erweiterungspunkte der Git-Gates (`checks/pre-commit.d/`, `checks/pre-push.d/`), u. a. Routen-Doku-Drift der App (#145) |
-| project | `scripts/deploy-freeze-notify.sh` | Deploy-Freeze der App |
-| project | `scripts/deploy-freeze.sh` | Deploy-Freeze der App |
-| project | `scripts/neon-reset-int.sh` | Neon-INT-Datenbank der App |
+| project | `scripts/project/*.sh` | TCH-Skripte: Deploy-Freeze (`deploy-freeze.sh`, `deploy-freeze-notify.sh`), Neon-INT-Reset (`neon-reset-int.sh`) |
+| project | `scripts/project/tests/**` | Projekt-Suite (`run-project-tests.sh`); läuft im Required Check `test` des `ci.yml` (#432) |
 | project | `tasks/**` | Task-, Review- und Telemetrie-Archiv des Projekts |
 | project | `types/**` | App-Typdeklarationen |
 | project | `*.json` | Wurzel-Konfiguration der App (`package.json`, `tsconfig.json`, `vercel.json`) |

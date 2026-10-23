@@ -87,19 +87,20 @@ Nur wenn beide grün: Schritt als abgeschlossen markieren.
 Sobald eine Task die Oberfläche berührt, wird das Verhalten gegen einen **lokal
 gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-/Proxy-grün (vgl. #63, wo ein
 Handler-Direktaufruf die `proxy.ts`-Ebene umging):
-1. Voraussetzung: lokale DB hochfahren (`pnpm db:up`) + `.env.local`.
+1. Voraussetzung: lokale Umgebung läuft (DB, `.env.local`) – Details und Kommandos:
+   `PROJECT-CONTEXT.md` → „Lokale Umgebung & Oberflächentests".
 2. Automatisiert: je Akzeptanzkriterium eine Playwright-Spec unter `e2e/*.spec.ts`;
-   `pnpm test:e2e` startet den Dev-Server via `webServer`-Config selbst
+   das E2E-Kommando des Projekts startet den Dev-Server via `webServer`-Config selbst
    (`reuseExistingServer` außerhalb CI).
-3. Interaktiv: `pnpm dev` (bzw. Preview-Config `dev`) starten und die betroffene
+3. Interaktiv: den Dev-Server des Projekts (bzw. Preview-Config `dev`) starten und die betroffene
    Oberfläche im Browser durchklicken/screenshotten (deckt sich mit `/verify`).
 
-Oberflächentests sind **nicht** in den pre-push-Gates verankert (Gates = Lint + `pnpm test`);
+Oberflächentests sind **nicht** in den pre-push-Gates verankert (Gates = Lint + Tests);
 sie laufen zusätzlich und werden in der Task-Datei als erledigt vermerkt.
 
 **Stage 3 (`FACTORY_STAGE=3`, nicht-interaktiv):** Kein Mensch, meist keine DB und kein
 Browser vorhanden. Die interaktive Browser-Verifikation entfällt; automatisierte E2E
-(`pnpm test:e2e`) nur ausführen, wenn DB (`pnpm db:up`) und Dev-Server verfügbar sind. Ist
+(E2E-Kommando des Projekts) nur ausführen, wenn DB und Dev-Server verfügbar sind. Ist
 das nicht gegeben, die offene UI-Verifikation als Blocker/Nachtest in der Task-Datei
 protokollieren (Nachweis später über `/post-merge-verify`) – nicht still überspringen.
 

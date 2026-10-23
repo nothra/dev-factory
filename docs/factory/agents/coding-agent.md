@@ -37,9 +37,9 @@ Architektur-Vorgaben des Projekts.
 6. Nächsten Test, weiter bis alle Kriterien erfüllt
 7. Lokale Quality Gates ausführen (Lint + Tests). **Bei UI-berührenden Tasks zusätzlich
    Oberflächentests gegen einen lokal gestarteten Dev-Server** – kanonisch beschrieben in
-   `/implement` (`.claude/commands/implement.md`, Schritt 4): Playwright-E2E (`pnpm test:e2e`,
-   startet den Dev-Server selbst) + interaktive Browser-Verifikation. Voraussetzung `pnpm db:up`
-   + `.env.local`. In Stage 3 (`FACTORY_STAGE=3`) siehe die dortige Stage-3-Regel.
+   `/implement` (`.claude/commands/implement.md`, Schritt 4): Playwright-E2E (startet den Dev-Server
+   selbst) + interaktive Browser-Verifikation. Voraussetzungen und Kommandos:
+   `PROJECT-CONTEXT.md` → „Lokale Umgebung & Oberflächentests". In Stage 3 (`FACTORY_STAGE=3`) siehe die dortige Stage-3-Regel.
 8. Task-Checkboxen abhaken
 
 ## Tools
