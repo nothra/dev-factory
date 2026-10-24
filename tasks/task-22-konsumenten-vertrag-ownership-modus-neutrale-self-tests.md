@@ -10,17 +10,31 @@
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
-<!-- Was soll implementiert werden? -->
+Konsumenten-Vertrag der Factory (T2a-1): `ownership-check.sh` mit zwei Modi (Lock / `OWNERSHIP.md`),
+`OWNERSHIP.md` projekteigen, Self-Test-Suite konsumenten-neutral. Spec: `docs/specs/spec-22-konsumenten-vertrag.md`.
+Kein Release in #22.
 
 ## Akzeptanzkriterien
-<!-- Von /requirements befüllt oder manuell eingeben -->
-- [ ] GIVEN ... WHEN ... THEN ...
+- [ ] AK2.15a Lock-Modus: Seite `factory` = Lock-Pfadmenge, keine `OWNERSHIP.md` nötig
+- [ ] AK2.15a-2 `--list factory|project` im Lock-Modus
+- [ ] AK2.15a-3 Lock entscheidet allein, wenn auch `OWNERSHIP.md` existiert; Modus wird ausgegeben
+- [ ] AK2.15b Fehlender Lock-Pfad oder Anpassungsstelle im Lock → Exit 1 mit Pfad
+- [ ] AK2.15b-2 Mitgelieferte Anpassungsstellen-Liste, Drift-Guard gegen `OWNERSHIP.md`
+- [ ] AK2.15c Factory-Repo ohne Lock: Tabellenmodus unverändert
+- [ ] AK2.15d-0 `OWNERSHIP.md` nicht mehr im Release-Manifest (Seite `project`)
+- [ ] AK2.16a Ausgelieferte Self-Test-Suite läuft im Konsumenten grün
+- [ ] AK2.16b Factory-spezifische Prüfungen nach `scripts/project/tests/`, nichts ersatzlos entfallen
+- [ ] AK2.16b-2 CI und `pre-push.sh` führen `scripts/project/tests/` mit aus
+- [ ] AK2.16b-3 Neue Dateien in `OWNERSHIP.md` zugeordnet
+- [ ] F-22.1 bis F-22.5 Fehlerszenarien (siehe Spec)
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
 
 ## Offene Fragen
-<!-- Fragen, die noch geklärt werden müssen -->
+- [ ] Q-22.4 Lock-Format (Syntax) – blockiert `/implement`, klärt `/architecture`
+- [ ] Q-22.5 #23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten
+- [ ] Issue-Body #22 nennt „je Factory-Task ein Release", die Spec entscheidet „kein Release in #22" – Issue anpassen
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
