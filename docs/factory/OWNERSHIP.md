@@ -102,6 +102,7 @@ Parser und liest nichts anderes:
 | project | `CHANGELOG.md` | Versionshistorie (Release-PR, Factory-ADR-063 D6) |
 | project | `CLAUDE.md` | Projekt-Regeln dieses Repos; importiert `FACTORY.md` und `PROJECT-CONTEXT.md` |
 | project | `CONTRIBUTING.md` | Beitragsleitfaden |
+| project | `LICENSE` | Lizenz des Repos (Apache-2.0, wie das Ursprungs-Projekt) |
 | project | `README.md` | Zweck, Herkunftshinweis, Verweis auf `CHANGELOG.md` |
 | project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis dieses Repos (Anpassungsstelle) |
 | project | `docs/specs/**` | Spec-Archiv des Repos |

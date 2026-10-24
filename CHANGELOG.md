@@ -5,6 +5,8 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ## Unreleased
 
+- Lizenz Apache-2.0 ergänzt (`LICENSE`).
+
 ## v0.6.0 – 2026-10-24
 
 Erste Version der Factory als eigenständiges Repo. Sie wurde mit ihrer Historie aus
