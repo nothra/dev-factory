@@ -12,6 +12,14 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Repo-lokale Git-Variablen neutralisieren (Factory-Issue #6): Läuft eine Suite aus einem Git-Hook (z. B. als
+# commands.test im pre-push-Hook eines Worktrees), exportiert Git GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE. Sie würden
+# in jedes Wegwerf-Repo der Tests durchschlagen und den echten Worktree verändern (Branch, Remote, Dateien).
+# Bewusst eine feste Liste statt `git rev-parse --local-env-vars`: GIT_CONFIG_* bleibt erhalten (kein Repo-Bezug).
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_IMPLICIT_WORK_TREE \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
+
 PASS=0
 FAIL=0
 

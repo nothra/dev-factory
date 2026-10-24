@@ -8405,6 +8405,24 @@ done
 
 # (AK-K1a – Abschnitt „Lokale Umgebung & Oberflächentests" in PROJECT-CONTEXT.md – entfällt: das Factory-Repo hat keine App-Umgebung.)
 
+# ─── Hook-Umgebung: GIT_DIR & Co. schlagen nicht in Wegwerf-Repos durch (Factory-Issue #6) ───────
+# Läuft die Suite als commands.test aus dem pre-push-Hook eines Worktrees, exportiert Git GIT_DIR/GIT_WORK_TREE/
+# GIT_INDEX_FILE – ohne Neutralisierung ändern die Wegwerf-Repos der Tests den echten Worktree (Branch, Remote, Dateien).
+echo ""
+echo "Hook-Umgebung (Factory-Issue #6): Suite-Helfer neutralisieren repo-lokale Git-Variablen:"
+TMP_ENV_6="$(mktemp -d)"
+git init -q "$TMP_ENV_6/decoy"
+git init -q "$TMP_ENV_6/probe"
+env_toplevel_6="$(GIT_DIR="$TMP_ENV_6/decoy/.git" GIT_WORK_TREE="$TMP_ENV_6/decoy" GIT_INDEX_FILE="$TMP_ENV_6/decoy/.git/index" \
+  bash -c 'source "$1/tests/lib/assert-helpers.sh"; cd "$2" && git rev-parse --show-toplevel' _ "$CHECKS_DIR" "$TMP_ENV_6/probe")"
+assert_true "$([ "$(cd "$env_toplevel_6" && pwd -P)" = "$(cd "$TMP_ENV_6/probe" && pwd -P)" ]; echo $?)" \
+  "Hook-Umgebung: mit gesetztem GIT_DIR löst git nach dem Sourcen der Helfer das Wegwerf-Repo auf, nicht das Original"
+for var_env_6 in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY; do
+  left_env_6="$(env "$var_env_6=/nicht/da" bash -c 'source "$1/tests/lib/assert-helpers.sh"; printf %s "${!2-unset}"' _ "$CHECKS_DIR" "$var_env_6")"
+  assert_true "$([ "$left_env_6" = unset ]; echo $?)" "Hook-Umgebung: $var_env_6 ist nach dem Sourcen der Helfer nicht mehr gesetzt"
+done
+rm -rf "$TMP_ENV_6"
+
 # ─── C1: Herkunftsbegriffe nur an dokumentierten erlaubten Stellen ───────────────────────────
 echo ""
 echo "C1 Herkunftsbegriffe (PROJECT-CONTEXT.md → Konventionen → erlaubte Stellen):"
