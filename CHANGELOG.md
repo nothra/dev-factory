@@ -3,9 +3,14 @@
 Format: ein Abschnitt je Version (`## vX.Y.Z – <Datum>`), neueste oben. Ein Abschnitt zum Tag ist
 Voraussetzung für das Release (Factory-ADR-063 D6).
 
-## Unreleased
+## v0.6.1 – 2026-10-24
+
+Patch-Release ohne Verhaltensänderung.
+
+### Geändert
 
 - Lizenz Apache-2.0 ergänzt (`LICENSE`).
+- Bezeichnung der Factory in Doku, Workflows und Skripten neutralisiert (#18).
 
 ## v0.6.0 – 2026-10-24
 
