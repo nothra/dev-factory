@@ -1,4 +1,4 @@
-# dm Development Factory – Async-Trigger (ADR-008, Option A: Scheduled-Poll).
+# Development Factory – Async-Trigger (ADR-008, Option A: Scheduled-Poll).
 #
 # Läuft ausschließlich auf manuelles `workflow_dispatch`. Sucht Issues mit Label
 # `factory::run` und startet fail-closed hinter dem Budget-Guard die

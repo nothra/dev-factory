@@ -7144,7 +7144,7 @@ assert_contains_286 "$tele_persist_code" 'git -C "$FACTORY_DIR" add -- "$TELEMET
 # liefert git anstandslos eine Fallback-Identität und verdeckt eine fehlende Absicherung).
 assert_contains_286 "$tele_persist_code" '-c user.email="factory-pipeline@localhost"' \
   "#334 (Review-Runde 2): der Commit trägt eine explizite user.email, unabhängig von ambienter Konfiguration"
-assert_contains_286 "$tele_persist_code" '-c user.name="dm Development Factory"' \
+assert_contains_286 "$tele_persist_code" '-c user.name="Development Factory"' \
   "#334 (Review-Runde 2): der Commit trägt auch einen expliziten user.name"
 assert_contains_286 "$tele_persist_code" 'git -C "$FACTORY_DIR" push -q origin HEAD' \
   "#334 AK7: telemetry_persist() pusht den Commit auch (verify_final_state prüft ungepushte Commits)"
@@ -7897,7 +7897,7 @@ for sec_431 in '## Kernprinzip' '## Nicht verhandelbare Prinzipien' '## Pipeline
   grep -qxF -- "$sec_431" "$FACTORY_MD_431"
   assert_exit 0 "$?" "#431 AK-D1: FACTORY.md enthält den generischen Abschnitt '$sec_431'"
 done
-grep -qE '^# dm Development Factory · v[0-9]+\.[0-9]+\.[0-9]+$' "$FACTORY_MD_431"
+grep -qE '^# Development Factory · v[0-9]+\.[0-9]+\.[0-9]+$' "$FACTORY_MD_431"
 assert_exit 0 "$?" "#431 AK-D1: FACTORY.md trägt die Versionsangabe"
 imports_431="$(grep -E '^@' "$CLAUDE_MD_431" | sort | tr '\n' ' ')"
 assert_true "$([ "$imports_431" = "@docs/factory/FACTORY.md @docs/factory/PROJECT-CONTEXT.md " ]; echo $?)" \
@@ -8471,7 +8471,7 @@ RC_SCRIPT_10="$SCRIPTS_DIR/factory-release-check.sh"
 assert_true "$([ -f "$RC_SCRIPT_10" ]; echo $?)" "Release-Prüfung: scripts/factory-release-check.sh vorhanden"
 if [ -f "$RC_SCRIPT_10" ]; then
   TMP_RC_10="$(mktemp -d)"; mkdir -p "$TMP_RC_10/docs/factory"
-  printf '# dm Development Factory · v1.2.3\n\ntext\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  printf '# Development Factory · v1.2.3\n\ntext\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
   printf '# Changelog\n\n## Unreleased\n\n- später\n\n## v1.2.3 – 2026-01-01\n\n### Breaking\n\n- keine\n\n## v1.2.2 – 2025-12-01\n\n- alt\n' > "$TMP_RC_10/CHANGELOG.md"
   rc_10() { FACTORY_DIR="$TMP_RC_10" bash "$RC_SCRIPT_10" "$@"; }
   rc_10 v1.2.3 >/dev/null 2>&1
@@ -8479,7 +8479,7 @@ if [ -f "$RC_SCRIPT_10" ]; then
   out_rc_10="$(rc_10 v1.2.4 2>&1)"; rc_rc_10=$?
   assert_exit 1 "$rc_rc_10" "Release-Prüfung: Tag ≠ Version in FACTORY.md → Exit 1"
   assert_contains_286 "$out_rc_10" 'v1.2.3' "Release-Prüfung: die Meldung nennt die Version aus FACTORY.md"
-  printf '# dm Development Factory · v1.2.4\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  printf '# Development Factory · v1.2.4\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
   out_rc_10="$(rc_10 v1.2.4 2>&1)"; rc_rc_10=$?
   assert_exit 1 "$rc_rc_10" "Release-Prüfung: Version passt, aber kein CHANGELOG-Abschnitt zum Tag → Exit 1"
   assert_contains_286 "$out_rc_10" 'CHANGELOG' "Release-Prüfung: die Meldung nennt den fehlenden CHANGELOG-Abschnitt"
@@ -8487,7 +8487,7 @@ if [ -f "$RC_SCRIPT_10" ]; then
   assert_exit 2 "$?" "Release-Prüfung: ein Tag ohne führendes v → Exit 2 (Aufruffehler)"
   rc_10 >/dev/null 2>&1
   assert_exit 2 "$?" "Release-Prüfung: ohne Tag → Exit 2"
-  printf '# dm Development Factory · v1.2.3\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  printf '# Development Factory · v1.2.3\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
   notes_rc_10="$(rc_10 --notes v1.2.3 2>&1)"; rc_rc_10=$?
   assert_exit 0 "$rc_rc_10" "Release-Prüfung: --notes liefert den Abschnitt zum Tag"
   assert_contains_286 "$notes_rc_10" '### Breaking' "Release-Prüfung: die Notes enthalten den Abschnitt „Breaking“"

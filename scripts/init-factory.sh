@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${BLUE}╔═══════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     dm Development Factory Setup      ║${NC}"
+echo -e "${BLUE}║     Development Factory Setup      ║${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
 echo ""
 

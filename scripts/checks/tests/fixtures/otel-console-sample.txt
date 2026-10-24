@@ -11,7 +11,7 @@
   dataPoints: [
     {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -31,7 +31,7 @@
       value: 0.0924215,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -66,7 +66,7 @@
   dataPoints: [
     {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -87,7 +87,7 @@
       value: 30,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -108,7 +108,7 @@
       value: 592,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -129,7 +129,7 @@
       value: 155975,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -150,7 +150,7 @@
       value: 36917,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -172,7 +172,7 @@
       value: 18,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -194,7 +194,7 @@
       value: 540,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",
@@ -216,7 +216,7 @@
       value: 13147,
     }, {
       attributes: {
-        "dm-costcenter": "ANONYMISIERT-costcenter",
+        "costcenter": "ANONYMISIERT-costcenter",
         env: "prod",
         team: "anon-team",
         scope: "anon-scope",

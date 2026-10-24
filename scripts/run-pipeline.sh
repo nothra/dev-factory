@@ -211,7 +211,7 @@ telemetry_persist() {
   if [ -z "$head_before" ] \
      || ! git -C "$FACTORY_DIR" add -- "$TELEMETRY_CSV" 2>/dev/null \
      || ! git -C "$FACTORY_DIR" -c user.email="factory-pipeline@localhost" \
-              -c user.name="dm Development Factory" \
+              -c user.name="Development Factory" \
               commit -q -m "chore: telemetrie-messwerte lauf ${RUN_TIMESTAMP} (task ${TASK_ID})" 2>/dev/null; then
     # `git reset` unstaged nur (bringt die Datei zurück auf untracked) – löscht sie NICHT von
     # der Platte. Ohne das anschließende telemetry_discard_csv bliebe genau dieselbe Lücke
