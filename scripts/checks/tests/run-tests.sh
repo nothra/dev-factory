@@ -202,10 +202,16 @@ assert_true "$?" "bug-fix eskaliert nicht-reproduzierbare Bugs via raise-interru
 grep -q 'gh pr update-branch' "$SHEPHERD"
 assert_true "$?" "pr-shepherd nutzt server-seitiges 'gh pr update-branch'"
 
-# CI-Gates fail-closed: FACTORY_*_COMMAND-Variable, exit 1 wenn unkonfiguriert
+# CI-Lint des Factory-Repos: der Job `lint` in ci.yml führt exakt commands.lint aus factory.config.yml aus
+# (eine Quelle – ändert eine Seite ihren Wortlaut allein, schlägt dieser Guard an).
 PROJECT_CI_FILE="$FACTORY_ROOT/.github/workflows/ci.yml"
-{ grep -q 'FACTORY_LINT_COMMAND' "$PROJECT_CI_FILE" && grep -q 'FACTORY_TEST_COMMAND' "$PROJECT_CI_FILE" && grep -q 'exit 1' "$PROJECT_CI_FILE"; }
-assert_true "$?" "CI lint/test sind echte Gates (FACTORY_*_COMMAND, fail-closed)"
+if [ "$HAS_YQ" = 1 ]; then
+  ci_lint_cmd="$(yq '.commands.lint' "$FACTORY_ROOT/factory.config.yml")"
+  { [ -n "$ci_lint_cmd" ] && grep -qF -- "run: $ci_lint_cmd" "$PROJECT_CI_FILE"; }
+  assert_true "$?" "CI-Lint-Job führt commands.lint aus factory.config.yml aus (eine Quelle)"
+else
+  skip_yq "CI-Lint-Job führt commands.lint aus factory.config.yml aus"
+fi
 
 # ─── Stufe-2: OTEL-ready Bauchladen (#17) ────────────────────────────────────
 echo ""
@@ -1361,14 +1367,15 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
 
-  # #348/ADR-051: der REALE Team-Override aus dem Repo-Root löst end-to-end zu 80 auf
-  # (nicht nur ein synthetischer Testwert wie oben) – belegt, dass die effektive Config
-  # für /implement tatsächlich den neuen Wert trägt, kein stiller Fallback auf 20/50.
+  # Der REALE Team-Override des Factory-Repos setzt keine skills.*-Knöpfe: die effektive Config löst
+  # /implement end-to-end auf den Default aus factory.defaults.yml auf (kein stiller Fallback, kein
+  # fremder Wert aus einem adoptierenden Projekt).
   cp "$FACTORY_ROOT/factory.config.yml" "$TMP_CFG/factory.config.yml"
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m real-override
   real_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$real_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5-5, max 80 turns)'
-  assert_true "$?" "#348: realer Repo-Override löst implement end-to-end zu max 80 turns auf"
+  def_turns_348="$(yq '.skills.implement.max_turns' "$DEFAULTS")"
+  printf '%s' "$real_out" | grep -qE "Starte: /implement 1 \(model: [^,]+, max ${def_turns_348} turns\)"
+  assert_true "$?" "#348: realer Repo-Override löst implement end-to-end auf den Default (max ${def_turns_348} turns) auf"
   rm -rf "$TMP_CFG"
 
   # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
@@ -2231,33 +2238,8 @@ assert_true "$?" "#236 AK9(d): start-work.sh nennt FACTORY_WT_SKIP_ENV im Kopf-K
 assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`' \
   "#236 AK9(c): git-workflow.md listet FACTORY_WT_SKIP_ENV in der Env-Schalter-Liste"
 
-# Die beiden Positiv-Kontrollen laufen über denselben Lesepfad wie die Guards (flat_286), nicht
-# über ein handgeschriebenes printf gegen den nackten grep. Ihre Fixtures geben den Alt-Wortlaut
-# aus `git show origin/main:<datei>` wieder – dort stand die Lesson-Stelle UMBROCHEN (nur mit
-# flat_286 treffbar), die PROJECT-CONTEXT-Zeile dagegen EINZEILIG. Die zweite Kontrolle belegt
-# deshalb ehrlich nur Quoting und Fixed-String-Treffer, nicht die Umbruch-Toleranz.
-ALT_DOC="$TMP_SW/alt-wortlaut.md"
-
-lesson_flat_236="$(flat_286 "$FACTORY_ROOT/docs/project/lessons/factory-workflow.md")"
-assert_contains_286 "$lesson_flat_236" 'seit #236 automatisch' \
-  "#236 AK9(a): Lesson beschreibt den Kopier-Schritt als automatisiert"
-# Abwesenheits-Anker MIT Issue-Nummer: „als eigener Task ausgelagert" allein ist die etablierte
-# Repo-Wendung für vertagte Arbeit – ein künftiges, völlig unabhängiges /codify-Learning mit
-# derselben Formulierung machte den Guard sonst rot und blockierte einen Fremd-PR.
-assert_absent "$lesson_flat_236" 'als eigener Task ausgelagert: [#236]' \
-  "#236 AK9(a): Lesson nennt #236 nicht mehr als offenen Follow-up"
-printf 'ist als eigener Task ausgelagert:\n[#236](https://github.com/nothra/tch-gastro-services/issues/236).\n' > "$ALT_DOC"
-assert_contains_286 "$(flat_286 "$ALT_DOC")" 'als eigener Task ausgelagert: [#236]' \
-  "#236 AK9(a): Positiv-Kontrolle – das Abwesenheits-Muster matcht den alten, über zwei Zeilen umbrochenen Wortlaut"
-
-pc_flat_236="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
-assert_contains_286 "$pc_flat_236" 'Root-Cause-Fix in #236 umgesetzt' \
-  "#236 AK9(b): PROJECT-CONTEXT-Index weist #236 als umgesetzt aus"
-assert_absent "$pc_flat_236" 'Root-Cause-Fix ausgelagert: #236' \
-  "#236 AK9(b): PROJECT-CONTEXT-Index nennt #236 nicht mehr als ausgelagert"
-printf -- '- Neuer Worktree hat kein `.env.local` … (aus #228, /implement-Selbstfund; Root-Cause-Fix ausgelagert: #236) → `/implement`\n' > "$ALT_DOC"
-assert_contains_286 "$(flat_286 "$ALT_DOC")" 'Root-Cause-Fix ausgelagert: #236' \
-  "#236 AK9(b): Positiv-Kontrolle – das Abwesenheits-Muster matcht den alten (einzeiligen) Wortlaut"
+# (AK9(a)/(b) – Lesson und Index-Zeile zur .env.local-Spiegelung – entfallen im Factory-Repo: die Lesson
+# gehört dem adoptierenden Projekt, nicht der Factory-Auslieferung.)
 
 # ─── #267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
 # Läuft hier (vor dem TMP_SW-Aufräumen unten), weil AK5 die gh-Stub/REPO_SW-Fixtures aus dem
@@ -2983,10 +2965,10 @@ echo "#224 Top-Level-YAML-Freigabe (.claude/settings.json):"
 # (weiter unten, außerhalb des HAS_JQ-Blocks) – als geteilte Konstante statt zweimal ausgeschrieben,
 # damit beide Stellen nicht auseinanderdriften können (lessons/testing.md: Literale, die an zwei
 # Stellen identisch bleiben müssen, sofort als geteilte Konstante einführen).
+# Im Factory-Repo nur die Edit-Freigaben des Factory-Fragments (die App-Pfade gehören adoptierenden Projekten).
 EDIT_ALLOW_88=(
-  'Edit(app/**)' 'Edit(lib/**)' 'Edit(db/**)' 'Edit(e2e/**)' 'Edit(types/**)'
-  'Edit(scripts/**)' 'Edit(docs/**)' 'Edit(tasks/**)' 'Edit(config/**)' 'Edit(public/**)'
-  'Edit(.github/workflows/**)' 'Edit(*.ts)' 'Edit(*.tsx)' 'Edit(*.mjs)' 'Edit(*.json)' 'Edit(*.md)'
+  'Edit(scripts/**)' 'Edit(docs/**)' 'Edit(tasks/**)' 'Edit(config/**)'
+  'Edit(.github/workflows/**)' 'Edit(*.json)' 'Edit(*.md)'
 )
 
 if [ "$HAS_JQ" -eq 1 ]; then
@@ -3026,10 +3008,6 @@ if [ "$HAS_JQ" -eq 1 ]; then
     jq -e --arg v "$entry" '.permissions.allow | index($v) == null' "$SETTINGS" >/dev/null 2>&1
     assert_true "$?" "#240: allow (geparst) enthält NICHT mehr '$entry'"
   done
-
-  # AK3 (Gegenrichtung): pnpm-lock.yaml bleibt trotz generischer YAML-Freigabe per deny gesperrt.
-  jq -e --arg v 'Edit(pnpm-lock.yaml)' '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
-  assert_true "$?" "#224: deny (geparst) enthält 'Edit(pnpm-lock.yaml)'"
 
   # AK4 (Gegenrichtung): #88-Grenze unverändert – bestehende Edit(...)-Deny-Einträge bleiben
   # erhalten. Die Write(...)-Pendants waren wirkungslos und sind seit #240 entfernt (separat
@@ -5126,317 +5104,8 @@ ADR043="$FACTORY_ROOT/docs/factory/adr/043-schwelle-fuer-autonome-issue-anlage.m
 adr043_status_line="$(awk '/^## Status/{found=1; next} found && NF {print; exit}' "$ADR043")"
 assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-043 Status ist auf 'Accepted' geflippt"
 
-# ─── #291/#337: Dependency-Security-Floors (Dependabot-Alerts) ───────────────
-# Die Alerts aus #291 sind über einen next-Bump plus konditionale Overrides in
-# pnpm-workspace.yaml geschlossen. Ohne Guard rutscht eine dieser Auflösungen bei der
-# nächsten Lockfile-Erneuerung lautlos wieder unter ihren Patch-Floor zurück. Geprüft wird
-# deshalb die im Lockfile AUFGELÖSTE Version (Spec-291: ein Override wirkt erst, wenn er im
-# Lockfile ankommt), nicht die Deklaration in package.json.
-# #337 hat denselben Guard weitergenutzt statt einen zweiten daneben zu stellen: die Floors
-# von sharp und js-yaml sind ANGEHOBEN (Muster „Floor angehoben statt zweiter Eintrag daneben",
-# #169/#291), browserslist/baseline-browser-mapping/vitest/@vitest/mocker sind als Fälle
-# ergänzt, und der next-Pin-Floor steht auf 16.3.3 (GHSA-2xp9-vwfh-vxw4, GHSA-p293-qw3h-jr36).
-# #339 nutzt denselben Guard ebenso weiter: drei brace-expansion-Fälle für die 3er- und die
-# 4.x/5.x-Linie. Die Floors kommen beide aus GHSA-rgw5-rvv9-x895 (5.0.9 bzw. 3.0.6);
-# GHSA-mh99-v99m-4gvg liegt mit 5.0.8 / 3.0.3 darunter und ist damit mitgedeckt.
-# #390 hebt die Floors erneut statt Fälle daneben zu stellen: brace-expansion auf
-# 1.1.21 / 2.1.7 / 3.0.9 / 5.0.12 (GHSA-q2hr-2g5m-vwhr; schließt GHSA-qhr7-859c-m2p7 und
-# GHSA-6j4f-fj2g-mc7p mit niedrigeren Floors ein), undici auf 7.29.1 (GHSA-w293-vg96-wgc3 u. a.)
-# und den next-Pin-Floor auf 16.3.6 (GHSA-vcvr-r3jv-pc5j, kritische RCE in next/og).
-echo "#291/#337 Dependency-Security-Floors (aufgelöste Lockfile-Versionen):"
-
-LOCKFILE_291="$FACTORY_ROOT/pnpm-lock.yaml"
-PKG_JSON_291="$FACTORY_ROOT/package.json"
-WORKSPACE_YAML_291="$FACTORY_ROOT/pnpm-workspace.yaml"
-
-# Fail-closed: ohne lesbare Quellen ist keine Aussage möglich – ein stiller Leer-Durchlauf
-# wäre grün aus dem falschen Grund (Lesson testing.md, #214).
-assert_true "$([ -r "$LOCKFILE_291" ] && [ -r "$PKG_JSON_291" ] && [ -r "$WORKSPACE_YAML_291" ]; echo $?)" \
-  "#291: pnpm-lock.yaml, package.json und pnpm-workspace.yaml sind lesbar (Voraussetzung der Floor-Prüfung)"
-
-# lock_versions_291 <paket> <major> <lockfile> – alle aufgelösten Versionen des Pakets
-# innerhalb EINER Major-Linie, aufsteigend sortiert, eine je Zeile. Die Major-Linie gehört zum
-# Schlüssel, weil derselbe Paketname mehrfach mit unterschiedlichen Floors im Baum liegt
-# (brace-expansion trägt in 1.x, 2.x, 3.x und 4.x/5.x je eigene Floors). Peer-Suffixe wie
-# "(react@19.2.4)" und der abschließende Doppelpunkt werden abgeschnitten.
-# Scoped-Pakete schreibt pnpm quotiert ('@vitest/mocker@4.1.11':) – die Quotes fallen vorab
-# aus dem Strom, sonst liefe der Fall lautlos ins Leere (kein Treffer = scheinbar sauber, #337).
-lock_versions_291() {
-  tr -d "'" < "$3" | grep -E "^  $1@$2\." | sed -E "s|^  $1@||; s|[(:].*$||" | sort -u -V
-}
-
-# version_below_291 <version> <floor> – 0, wenn version echt kleiner als floor ist.
-version_below_291() {
-  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
-}
-
-# versions_below_floor_291 <paket> <major> <floor> <lockfile> – gibt die aufgelösten
-# Versionen unterhalb des Floors aus (leer = sauber). Kein Fund bei komplett fehlendem Paket
-# ist korrekt: dann existiert auch keine verwundbare Kopie mehr.
-versions_below_floor_291() {
-  local v below=""
-  while read -r v; do
-    [ -n "$v" ] || continue
-    version_below_291 "$v" "$3" && below="$below $v"
-  done <<< "$(lock_versions_291 "$1" "$2" "$4")"
-  printf '%s' "$below"
-}
-
-# Format: "<paket>|<major>|<floor>|<herkunft im Baum>"
-# #339: die 4.x/5.x-Linie deckt EIN Override-Selektor (seit #390 >=4.0.0 <5.0.12) ab, hier stehen aber
-# DREI Fälle, weil lock_versions_291 je Major-Linie filtert (grep "^  <paket>@<major>\.") und
-# ein Fall damit nur seine eigene Linie sieht. Gemessen wird allein vom Major-5-Fall: er traf
-# im RED-Lauf die real aufgelöste 5.0.7, während der Major-4-Fall prompt grün war. Die Fälle
-# für Major 4 und 3 sind Vorsorge gegen ein künftiges Hereinziehen – heute löst der Baum in
-# beiden Linien keine Kopie auf (minimatch@10 deklariert ^5.0.5 und kann selbst keine 4.x
-# ziehen). Für Major 3 ist dieser Fall die EINZIGE Deckung: die 3er-Linie hat bewusst keinen
-# Override-Selektor (Begründung in pnpm-workspace.yaml), eine 3.0.x zöge sonst still ein.
-# #390: dieselbe Lage für undici@6.x – der Selektor ist seit #390 auf >=7.0.0 begrenzt, der
-# Major-6-Fall ist damit die EINZIGE Deckung der 6er-Linie (eigener Fix 6.28.1, GHSA-r53p-7pc4-xj5r;
-# die übrigen fünf undici-Advisories aus #390 betreffen 6.x nicht).
-floor_cases_291=(
-  "postcss|8|8.5.23|runtime, via next"
-  "nanoid|3|3.3.17|runtime, via postcss"
-  "brace-expansion|1|1.1.21|runtime, via minimatch@3, Floor aus #390"
-  "brace-expansion|2|2.1.7|runtime, via minimatch@5, Floor aus #390"
-  "brace-expansion|3|3.0.9|Vorsorge, heute keine 3.x-Kopie im Baum, kein Override-Selektor (#339/#390)"
-  "brace-expansion|4|5.0.12|Vorsorge, heute keine 4.x-Kopie im Baum, Floor in der 5er-Linie (#339/#390)"
-  "brace-expansion|5|5.0.12|development, via minimatch@10 (typescript-eslint), Floor aus #390"
-  "sharp|0|0.35.4|runtime, via next (Bildoptimierung), Floor aus #337"
-  "undici|6|6.28.1|Vorsorge, heute keine 6.x-Kopie im Baum, kein Override-Selektor (#390)"
-  "undici|7|7.29.1|development, via jsdom, Floor aus #390"
-  "js-yaml|4|4.3.2|development, via eslint, Floor aus #337"
-  "browserslist|4|4.28.7|runtime, via next, Floor aus #337/#329"
-  "baseline-browser-mapping|2|2.11.0|runtime, via browserslist/caniuse, Floor aus #337"
-  "vitest|4|4.1.11|development, direkt deklariert, Floor aus #337"
-  "@vitest/mocker|4|4.1.11|development, via vitest, Floor aus #337"
-)
-
-for case_291 in "${floor_cases_291[@]}"; do
-  IFS='|' read -r pkg_291 major_291 floor_291 herkunft_291 <<< "$case_291"
-  below_291="$(versions_below_floor_291 "$pkg_291" "$major_291" "$floor_291" "$LOCKFILE_291")"
-  assert_true "$([ -z "$below_291" ]; echo $?)" \
-    "#291/#337 AK3/AK4/AK6: keine aufgelöste ${pkg_291}@${major_291}.x-Kopie unter ${floor_291} (${herkunft_291})${below_291:+ – gefunden:${below_291}}"
-done
-
-# Mutationsbeleg für den Floor-Vergleich: dieselbe Extraktions-/Vergleichskette gegen eine
-# Fixture mit einer bewusst zu alten Kopie MUSS anschlagen. Ohne diesen Beleg wiese ein
-# tippfehlerhaftes Extraktionsmuster (das nie etwas findet) sieben grüne, vakuose Tests aus.
-mut_lock_291="$(mktemp)"
-printf '  postcss@8.5.16:\n  postcss@8.5.23:\n' > "$mut_lock_291"
-mut_below_291="$(versions_below_floor_291 postcss 8 8.5.23 "$mut_lock_291")"
-assert_true "$([ "$mut_below_291" = " 8.5.16" ]; echo $?)" \
-  "#291 Mutationsbeleg: Floor-Kette meldet auf einer Fixture mit postcss@8.5.16 genau diese Version (ist: '${mut_below_291}')"
-rm -f "$mut_lock_291"
-
-# Mutationsbeleg für die #339-Vorsorge-Fälle (Major 3 und Major 4): der Baum löst heute in
-# beiden Linien keine Kopie auf, die Fälle sind im Ist-Lauf also zwangsläufig grün, ohne etwas
-# zu messen (Lesson testing.md, #319 – In-Suite-Diskriminierungs-Kontrolle statt nur behaupteter
-# Deckung). Je Fall eine Fixture mit einer Kopie unter dem Floor MUSS anschlagen, sonst wäre ein
-# Tippfehler in Paketname/Major dauerhaft unsichtbar.
-mut_vorsorge3_339="$(mktemp)"
-printf '  brace-expansion@3.0.1:\n  brace-expansion@3.0.6:\n' > "$mut_vorsorge3_339"
-mut_vorsorge3_below_339="$(versions_below_floor_291 brace-expansion 3 3.0.6 "$mut_vorsorge3_339")"
-assert_true "$([ "$mut_vorsorge3_below_339" = " 3.0.1" ]; echo $?)" \
-  "#339 Mutationsbeleg: Major-3-Vorsorge-Fall meldet auf einer Fixture mit brace-expansion@3.0.1 genau diese Version (ist: '${mut_vorsorge3_below_339}')"
-mut_vorsorge3_clean_339="$(versions_below_floor_291 brace-expansion 3 3.0.1 "$mut_vorsorge3_339")"
-assert_true "$([ -z "$mut_vorsorge3_clean_339" ]; echo $?)" \
-  "#339 Diskriminierungs-Kontrolle: dieselbe Fixture ist gegen Floor 3.0.1 sauber (ist: '${mut_vorsorge3_clean_339}')"
-rm -f "$mut_vorsorge3_339"
-
-# Major-4-Fall zusätzlich mit einer 5.x-Nachbarzeile in derselben Fixture: belegt neben dem
-# Floor-Vergleich auch, dass lock_versions_291 die Major-Linien trennt (die 5.0.12-Zeile darf
-# beim Major-4-Filter nicht mitzählen, sonst wäre die Vorsorge-Zeile aus dem falschen Grund grün).
-mut_vorsorge4_339="$(mktemp)"
-printf '  brace-expansion@4.0.0:\n  brace-expansion@5.0.12:\n' > "$mut_vorsorge4_339"
-mut_vorsorge4_below_339="$(versions_below_floor_291 brace-expansion 4 5.0.9 "$mut_vorsorge4_339")"
-assert_true "$([ "$mut_vorsorge4_below_339" = " 4.0.0" ]; echo $?)" \
-  "#339 Mutationsbeleg: Major-4-Vorsorge-Fall meldet auf einer Fixture mit brace-expansion@4.0.0 genau diese Version, nicht die 5.x-Nachbarzeile (ist: '${mut_vorsorge4_below_339}')"
-mut_vorsorge4_clean_339="$(versions_below_floor_291 brace-expansion 5 5.0.9 "$mut_vorsorge4_339")"
-assert_true "$([ -z "$mut_vorsorge4_clean_339" ]; echo $?)" \
-  "#339 Diskriminierungs-Kontrolle: dieselbe Fixture ist für den Major-5-Filter gegen Floor 5.0.9 sauber (5.0.12 liegt darüber) (ist: '${mut_vorsorge4_clean_339}')"
-rm -f "$mut_vorsorge4_339"
-
-# Mutationsbeleg für den #390-Vorsorge-Fall undici@6.x, nach dem Muster des Major-4-Falls: die
-# 7.30.0-Nachbarzeile belegt zusätzlich die Trennung der Major-Linien – sie darf beim Major-6-
-# Filter nicht mitzählen, sonst wäre der Ist-Lauf aus dem falschen Grund grün.
-mut_vorsorge6_390="$(mktemp)"
-printf '  undici@6.28.0:\n  undici@7.30.0:\n' > "$mut_vorsorge6_390"
-mut_vorsorge6_below_390="$(versions_below_floor_291 undici 6 6.28.1 "$mut_vorsorge6_390")"
-assert_true "$([ "$mut_vorsorge6_below_390" = " 6.28.0" ]; echo $?)" \
-  "#390 Mutationsbeleg: undici-Major-6-Vorsorge-Fall meldet auf einer Fixture mit undici@6.28.0 genau diese Version, nicht die 7.x-Nachbarzeile (ist: '${mut_vorsorge6_below_390}')"
-mut_vorsorge6_clean_390="$(versions_below_floor_291 undici 6 6.28.0 "$mut_vorsorge6_390")"
-assert_true "$([ -z "$mut_vorsorge6_clean_390" ]; echo $?)" \
-  "#390 Diskriminierungs-Kontrolle: dieselbe Fixture ist für den Major-6-Filter gegen Floor 6.28.0 sauber (ist: '${mut_vorsorge6_clean_390}')"
-rm -f "$mut_vorsorge6_390"
-
-# Mutationsbeleg für den QUOTIERTEN Scoped-Schlüssel (#337): @vitest/mocker steht im Lockfile
-# als '@vitest/mocker@4.1.11': – ohne die Quote-Entfernung in lock_versions_291 fände die Kette
-# nie einen Treffer und der zugehörige Floor-Fall wäre dauerhaft grün, ohne etwas zu messen.
-# Die Gegenrichtung (gleiche Fixture, Version ÜBER dem Floor) belegt, dass der Treffer aus dem
-# Vergleich kommt und nicht daraus, dass das Muster auf jede quotierte Zeile passt.
-mut_scoped_337="$(mktemp)"
-printf "  '@vitest/mocker@4.1.9':\n  '@vitest/mocker@4.1.11':\n" > "$mut_scoped_337"
-mut_scoped_below_337="$(versions_below_floor_291 '@vitest/mocker' 4 4.1.11 "$mut_scoped_337")"
-assert_true "$([ "$mut_scoped_below_337" = " 4.1.9" ]; echo $?)" \
-  "#337 Mutationsbeleg: Floor-Kette liest quotierte Scoped-Schlüssel und meldet genau @vitest/mocker@4.1.9 (ist: '${mut_scoped_below_337}')"
-mut_scoped_clean_337="$(versions_below_floor_291 '@vitest/mocker' 4 4.1.9 "$mut_scoped_337")"
-assert_true "$([ -z "$mut_scoped_clean_337" ]; echo $?)" \
-  "#337 Diskriminierungs-Kontrolle: dieselbe Fixture ist gegen Floor 4.1.9 sauber (ist: '${mut_scoped_clean_337}')"
-rm -f "$mut_scoped_337"
-
-# AK-1/AK-2: next exakt gepinnt, oberhalb des Floors, und eslint-config-next im Lockstep.
-# pkg_pin_291 <paket> <package.json> – die deklarierte Version, ohne Range-Präfix zu raten.
-pkg_pin_291() {
-  grep -oE "\"$1\": \"[^\"]+\"" "$2" | head -1 | sed -E 's/^[^:]*: "//; s/"$//'
-}
-
-next_pin_291="$(pkg_pin_291 next "$PKG_JSON_291")"
-eslint_next_pin_291="$(pkg_pin_291 eslint-config-next "$PKG_JSON_291")"
-
-# Exakter Pin zuerst prüfen: gegen "^16.2.12" wäre der nachfolgende Floor-Vergleich bedeutungslos.
-assert_true "$(printf '%s' "$next_pin_291" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; echo $?)" \
-  "#291 AK1: package.json pinnt next exakt, ohne ^/~ (ist: '${next_pin_291}')"
-# Floor angehoben 16.2.12 → 16.3.3 (#337): unterhalb 16.3.3 stehen zwei kritische unauth.
-# RCE-Advisories offen (GHSA-2xp9-vwfh-vxw4 Image-Optimization/AVIF, GHSA-p293-qw3h-jr36).
-# Erneut angehoben 16.3.3 → 16.3.6 (#390): GHSA-vcvr-r3jv-pc5j (kritische RCE in next/og).
-assert_true "$([ -n "$next_pin_291" ] && ! version_below_291 "$next_pin_291" "16.3.6"; echo $?)" \
-  "#291/#337/#390 AK1: package.json pinnt next auf >= 16.3.6 (ist: '${next_pin_291}')"
-assert_true "$([ -n "$eslint_next_pin_291" ] && [ "$eslint_next_pin_291" = "$next_pin_291" ]; echo $?)" \
-  "#291 AK2: eslint-config-next trägt dieselbe Version wie next (ist: '${eslint_next_pin_291}')"
-
-# Der Pin allein genügt nicht (AK-1 verlangt dieselbe Version im Lockfile): genau eine
-# aufgelöste next-Version, und die deckungsgleich mit der Deklaration.
-lock_next_291="$(lock_versions_291 next "${next_pin_291%%.*}" "$LOCKFILE_291")"
-assert_true "$([ -n "$lock_next_291" ] && [ "$lock_next_291" = "$next_pin_291" ]; echo $?)" \
-  "#291 AK1: pnpm-lock.yaml löst next auf genau die deklarierte Version auf (ist: '$(printf '%s' "$lock_next_291" | tr '\n' ' ')')"
-
-# AK-5: jeder Override ist konditional, trägt also eine obere Schranke (@<floor bzw.
-# @>=x <floor) – ein unbedingter Eintrag würde auch spätere legitime Upgrades der Parents
-# festnageln (Muster aus #167).
-# override_keys_291 <workspace-yaml> – alle Eintragszeilen des overrides:-Blocks. Bewusst
-# NICHT auf /^  "/ verengt: YAML erlaubt unquotierte Schlüssel und Prettier ergänzt keine
-# Quotes, ein solcher Eintrag fiele sonst aus der Extraktion und liefe damit lautlos an der
-# Konditionalitäts-Prüfung vorbei, statt als Verstoß gemeldet zu werden.
-override_keys_291() {
-  awk '/^overrides:/{f=1; next} /^[^[:space:]#]/{f=0} f && /^  [^ #]/ {print}' "$1"
-}
-
-# unconditional_overrides_291 <eintragszeilen> – die Einträge OHNE obere Schranke im Selektor.
-# `"?` und `[^:"]` decken quotierte wie unquotierte Schlüssel ab; die Zeichenklasse endet am
-# Doppelpunkt, damit die Ziel-Range rechts davon den Selektor nicht scheinbar konditional macht.
-unconditional_overrides_291() {
-  printf '%s\n' "$1" | grep -vE '^  "?[^:"]*@[^:"]*<[0-9]' || true
-}
-
-overrides_keys_291="$(override_keys_291 "$WORKSPACE_YAML_291")"
-assert_true "$([ -n "$overrides_keys_291" ]; echo $?)" \
-  "#291 AK5: overrides:-Block in pnpm-workspace.yaml ist auslesbar und nicht leer"
-unconditional_291="$(unconditional_overrides_291 "$overrides_keys_291")"
-assert_true "$([ -z "$unconditional_291" ]; echo $?)" \
-  "#291 AK5: alle overrides-Einträge sind konditional (obere Schranke im Selektor)${unconditional_291:+ – unbedingt: $(printf '%s' "$unconditional_291" | tr -d ' ')}"
-
-# Negativ-Kontrolle zum Konditionalitäts-Guard: derselbe Ausdruck MUSS einen unbedingten
-# Eintrag melden. Ohne sie wäre nicht unterscheidbar, ob der Guard prüft oder das Muster nur
-# auf jede Zeile passt (Lesson testing.md: Mutationsbeleg mit demselben Assert-Ausdruck).
-mut_ovr_291='  "postcss": "^8.5.23"'
-assert_true "$([ -n "$(unconditional_overrides_291 "$mut_ovr_291")" ]; echo $?)" \
-  "#291 Mutationsbeleg AK5: derselbe Ausdruck meldet einen unbedingten Eintrag ('postcss' ohne @<floor) als Verstoß"
-
-# Blindfleck-Kontrolle für den unquotierten Fall, in beide Richtungen: die Extraktion muss
-# beide Zeilen sehen, und der Konditionalitäts-Ausdruck darf davon GENAU den unbedingten
-# Eintrag melden – sonst wäre nicht unterscheidbar, ob er unquotierte Schlüssel prüft oder
-# pauschal durchwinkt bzw. pauschal meldet (Lesson testing.md, Diskriminierungs-Kontrolle).
-mut_ws_291="$(mktemp)"
-printf 'overrides:\n  nanoid@<3.3.17: "^3.3.17"\n  nanoid: "^3.3.17"\n' > "$mut_ws_291"
-mut_keys_291="$(override_keys_291 "$mut_ws_291")"
-assert_true "$([ "$(printf '%s\n' "$mut_keys_291" | grep -c .)" = "2" ]; echo $?)" \
-  "#291 Mutationsbeleg AK5: die Extraktion sieht auch UNQUOTIERTE Override-Schlüssel (2 Einträge erwartet)"
-assert_true "$([ "$(unconditional_overrides_291 "$mut_keys_291")" = '  nanoid: "^3.3.17"' ]; echo $?)" \
-  "#291 Mutationsbeleg AK5: derselbe Ausdruck meldet vom unquotierten Paar nur den unbedingten Eintrag"
-rm -f "$mut_ws_291"
-
-# AK-5 zweite Hälfte: die Ziel-Range bleibt in derselben Major-Linie (Caret), sonst hebt pnpm
-# über die Major-Grenze – in #291 empirisch passiert, als ">=2.1.4" die von minimatch@3
-# erwartete brace-expansion@1.1.15 auf 2.x zog.
-assert_true "$(grep -qxF -- '  "brace-expansion@<1.1.21": "^1.1.21"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#291/#390 AK5: brace-expansion@1.x-Override hebt innerhalb der 1er-Linie (^1.1.21)"
-assert_true "$(grep -qxF -- '  "brace-expansion@>=2.0.0 <2.1.7": "^2.1.7"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#291/#390 AK5: brace-expansion@2.x-Override ist nach unten begrenzt (>=2.0.0) und greift nicht auf 1.x über"
-# #339 AK1: dritter Selektor für die 4.x/5.x-Linie. Die untere Schranke prüft nur diese Zeile –
-# der projektweite Konditionalitäts-Guard oben sieht ausschließlich die OBERE Schranke, ein
-# versehentliches "brace-expansion@<5.0.9" (das auch 1.x/2.x über die Major-Grenze höbe)
-# käme dort also unauffällig durch.
-assert_true "$(grep -qxF -- '  "brace-expansion@>=4.0.0 <5.0.12": "^5.0.12"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#339/#390 AK1: brace-expansion@4.x/5.x-Override ist nach unten begrenzt (>=4.0.0) und hebt in die Fix-Linie (5er, ^5.0.12) – 4.x hat keinen eigenen Fix"
-# #390: undici-Selektor nach unten auf die 7er-Linie begrenzt. Das bisherige "undici@<7.29.0"
-# griffe auch auf eine 6.x-Kopie und höbe sie über die Major-Grenze auf ^7 – dieselbe Klasse
-# wie der 2er-brace-expansion-Selektor (#291). Die 6er-Linie trägt einen eigenen Fix (6.28.1,
-# GHSA-r53p-7pc4-xj5r); heute löst der Baum keine 6.x-Kopie auf.
-assert_true "$(grep -qxF -- '  "undici@>=7.0.0 <7.29.1": "^7.29.1"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#390 AK3: undici-Override ist auf die 7er-Linie begrenzt (>=7.0.0) und hebt auf ^7.29.1"
-
-# Caret-Regel projektweit für ALLE neuen #291-Einträge, nicht nur brace-expansion – sharp/
-# undici/js-yaml tragen dieselbe Ziel-Range-Form und dürfen bei einem künftigen Umstellen auf
-# ">=" nicht unbemerkt durchrutschen. Die Alt-Einträge esbuild/uuid behalten bewusst die offene
-# Form (Kleinfund docs/factory/kleinfunde.md) und sind darum explizit ausgenommen.
-# caret_violations_291 <eintragszeilen> – Einträge (außer esbuild/uuid), deren Ziel-Range
-# NICHT als Caret geschrieben ist.
-caret_violations_291() {
-  printf '%s\n' "$1" | grep -vE '^  "?(esbuild|uuid)@' | grep -vE ': "\^[0-9]' || true
-}
-
-caret_violations_291="$(caret_violations_291 "$overrides_keys_291")"
-assert_true "$([ -z "$caret_violations_291" ]; echo $?)" \
-  "#291 AK5: alle Ziel-Ranges außer esbuild/uuid sind Caret-gebunden${caret_violations_291:+ – offen:${caret_violations_291}}"
-
-# Diskriminierungs-Kontrolle: der Guard muss einen echten Verstoß melden UND die esbuild-
-# Ausnahme unauffällig lassen – sonst wäre nicht unterscheidbar, ob er wirklich prüft oder
-# die Ausnahmeliste einfach alles durchwinkt (Lesson testing.md, #286).
-mut_caret_291='  "foo@<1.0.0": ">=1.0.0"
-  "esbuild@<0.25.0": ">=0.25.0"'
-mut_caret_viol_291="$(caret_violations_291 "$mut_caret_291")"
-assert_true "$([ "$mut_caret_viol_291" = '  "foo@<1.0.0": ">=1.0.0"' ]; echo $?)" \
-  "#291 Mutationsbeleg AK5: Caret-Guard meldet nur den nicht ausgenommenen Verstoß, esbuild-Ausnahme bleibt unauffällig (ist: '${mut_caret_viol_291}')"
-
-# AK-7/AK-8 (#169/#337): postcss, sharp und js-yaml sind ENTFERNT, nicht mehr nur angehoben.
-# next 16.3.5 pinnt postcss exakt auf 8.5.23 (= Floor, vorher 8.4.31) und verlangt sharp selbst
-# als ^0.35.4; eslint zieht js-yaml auf 4.3.2. Alle drei sind damit messbar No-ops geworden
-# (#337: Eintrag streichen, ohne Alt-Lockfile neu auflösen, aufgelöste Version prüfen) – das in
-# #169/#291 als unerreichbar notierte Entfern-Kriterium ist für postcss erreicht. Dass die
-# Floors OHNE die Einträge weiter halten, prüft die Floor-Schleife oben; hier steht nur, dass
-# die Einträge wirklich verschwunden sind. Der esbuild-Eintrag BLEIBT: er ist nachweislich kein
-# No-op (ohne ihn löst der Baum esbuild@0.18.20 auf, in #291 durch Entfernen + Neuinstallation
-# verifiziert).
-ovr_count_337() {
-  printf '%s\n' "$overrides_keys_291" | grep -cE "^  \"?$1@" || true
-}
-
-for pkg_337 in postcss sharp js-yaml; do
-  count_337="$(ovr_count_337 "$pkg_337")"
-  assert_true "$([ "$count_337" = "0" ]; echo $?)" \
-    "#337 AK7/AK8: kein ${pkg_337}-Override mehr in pnpm-workspace.yaml (gemessener No-op nach dem next-16.3.5-Bump, ist: $count_337)"
-done
-
-# Diskriminierungs-Kontrolle zu den drei Null-Zählungen: derselbe Ausdruck MUSS die weiterhin
-# nötigen Einträge finden – sonst wären sie grün, weil die Extraktion gar nichts liefert.
-undici_ovr_count_337="$(ovr_count_337 undici)"
-assert_true "$([ "$undici_ovr_count_337" = "1" ]; echo $?)" \
-  "#337 Diskriminierungs-Kontrolle: derselbe Zähl-Ausdruck findet den weiterhin nötigen undici-Override (ist: $undici_ovr_count_337)"
-
-# Mutationsbeleg für die drei Null-Zählungen (Review-Runde-1-Finding #337): die undici-Kontrolle
-# oben belegt nur, dass IRGENDEIN vorhandener Override gefunden wird – nicht spezifisch, dass ein
-# postcss-Override (falls er zurückkäme) ebenfalls träfe. Synthetische Fixture mit genau einer
-# postcss-Zeile schließt das.
-overrides_keys_291_saved_337="$overrides_keys_291"
-overrides_keys_291='  "postcss@<8.5.23": "^8.5.23"
-  "undici@<7.29.0": "^7.29.0"'
-mut_postcss_ovr_count_337="$(ovr_count_337 postcss)"
-overrides_keys_291="$overrides_keys_291_saved_337"
-assert_true "$([ "$mut_postcss_ovr_count_337" = "1" ]; echo $?)" \
-  "#337 Mutationsbeleg: derselbe Zähl-Ausdruck findet einen zurückgekehrten postcss-Override auf einer Fixture (ist: $mut_postcss_ovr_count_337)"
-assert_true "$(grep -qE '^  "esbuild@<0\.25\.0"' "$WORKSPACE_YAML_291"; echo $?)" \
-  "#291 AK7: esbuild-Override bleibt erhalten (kein No-op – ohne ihn kommt esbuild@0.18.20 zurück)"
+# ─── #291/#337: Dependency-Security-Floors ───────────────────────────────────
+# Entfällt im Factory-Repo: es hat kein Lockfile, kein package.json und keine npm-Abhängigkeiten.
 
 # ─── #267/#322: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ──
 echo ""
@@ -6711,302 +6380,10 @@ assert_contains_286 "$operating_flat_314" 'Läuft automatisch (ADR-045' \
 assert_contains_286 "$operating_flat_314" 'pull-requests: read' \
   "#314 AK12: OPERATING.md nennt den erweiterten factory-poll.yml-Scope (AK15)"
 
-# ─── #315: Aspekt-Label factory-pipeline in allen Label-Aufzählungen ─────────
-# Warum ein Grep-Guard: Der Seam scripts/lib/create-issue.sh validiert Labels bewusst nicht
-# gegen eine eigene Liste (ADR-018 §3) – die Doku ist damit die EINZIGE Instanz, die ein Label
-# überhaupt anbietet. Fällt eine der Aufzählungen zurück, vergibt weder Mensch noch Skill das
-# Label mehr (beobachtet an #314, das manuell nachgelabelt werden musste).
-echo ""
-echo "#315: Aspekt-Label factory-pipeline in allen sieben Fundstellen (AK2–AK9):"
+# ─── #315: Aspekt-Label factory-pipeline ─────────────────────────────────────
+# Entfällt im Factory-Repo: das Label trennt in adoptierenden Projekten „Werkzeug vs. Produkt"; im
+# Factory-Repo ist alles Factory-Arbeit (labels.aspects_extra ist leer, siehe PROJECT-CONTEXT.md).
 
-NEW_LABEL_315="factory-pipeline"
-# Der ALTE Name wird zur Laufzeit zusammengesetzt (\137 = Unterstrich), damit diese Datei ihn
-# nicht selbst im Klartext trägt. Sonst müsste der Regressions-Scan aus AK10 run-tests.sh
-# allowlisten – und wäre gerade für die Datei blind, die ihn ausführt.
-OLD_LABEL_315="factory$(printf '\137')pipeline"
-
-# Die sieben Fundstellen der Label-Konvention: eine kanonische (git-workflow.md) und sechs
-# abgeleitete (die letzten drei sind die AK8-Skill-Dokus). Reihenfolge = Sweep-Reihenfolge der
-# Task, damit ein Rot direkt zeigt, welche Ebene zurückgefallen ist.
-#
-# Drei parallel indizierte Arrays je Fundstelle:
-#   FILES   – die Datei.
-#   PHRASES – geprüft wird die Phrase, die das Label AN SEINE BESCHREIBUNG bindet, nicht der
-#             nackte Label-Name: ein Ganzdatei-Grep bliebe grün, wenn `factory-pipeline`
-#             irgendwo sonst in der Datei steht statt in der Aspekt-Aufzählung. Geprüft wird
-#             gegen flat_286, die Phrase darf also über Zeilenumbrüche laufen – aber nicht über
-#             Blockquote-Präfixe und nicht über Mehrfach-Leerzeichen (flat_286 squeezt sie).
-#   ANCHORS – Ankerzeile der Mutation. Bewusst die BESCHREIBENDE Hälfte der Fundstelle, in der
-#             der Label-Name selbst nicht vorkommt. Damit sind Mutations-Prädikat und
-#             Assertions-Prädikat verschieden – eine Mutation über den Suchbegriff selbst wäre
-#             nur die Negation ihrer eigenen Definition und belegte nichts
-#             (testing-standards.md → „nicht gegen das Objekt-under-Test selbst", Lesson #286).
-LABEL_DOC_FILES_315=(
-  "docs/factory/PROJECT-CONTEXT.md"
-  "CONTRIBUTING.md"
-  "docs/factory/OPERATING.md"
-  "scripts/start-work.sh"
-  ".claude/commands/codify.md"
-  ".claude/commands/review.md"
-  ".claude/commands/security-review.md"
-)
-LABEL_DOC_PHRASES_315=(
-  '| `factory-pipeline` | Arbeit am **Factory-Harness**'
-  'Aspekt-Label: `factory-pipeline`.'
-  '**null bis mehrere Aspekt-Labels** (`security` · `tech-debt` · `test` · `factory-pipeline`)'
-  'FACTORY_ASPECT_LABELS=… optionale Aspekt-Labels (CSV: security,tech-debt,test,factory-pipeline)'
-  '**Aspekt-Labels** (`security`/`tech-debt`/`test`/`factory-pipeline`)'
-  '**Aspekt-Labels** (`security`/`tech-debt`/`test`/`factory-pipeline`)'
-  '`security` – dazu `factory-pipeline`, wenn der Fund den Factory-Harness'
-)
-LABEL_DOC_ANCHORS_315=(
-  'Arbeit am **Factory-Harness** (Pipeline'
-  'Aspekt-Label: '
-  'null bis mehrere Aspekt-Labels'
-  'FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels'
-  '+ passende **Aspekt-Labels**'
-  '+ passende **Aspekt-Labels**'
-  'wenn der Fund den Factory-Harness und nicht die App'
-)
-
-TMP_315="$(mktemp -d)"
-
-i_315=0
-while [ "$i_315" -lt "${#LABEL_DOC_FILES_315[@]}" ]; do
-  rel_315="${LABEL_DOC_FILES_315[$i_315]}"
-  phrase_315="${LABEL_DOC_PHRASES_315[$i_315]}"
-  anchor_315="${LABEL_DOC_ANCHORS_315[$i_315]}"
-  src_315="$FACTORY_ROOT/$rel_315"
-  i_315=$((i_315 + 1))
-
-  # Gelesen wird die committete Live-Datei, auch bei den drei .claude/**-Dateien, die per
-  # Patch-Workflow geliefert wurden – nicht das transiente Patch-Artefakt (Lesson #212).
-  assert_contains_286 "$(flat_286 "$src_315")" "$phrase_315" \
-    "#315 AK9: $rel_315 bindet das Label an seine Beschreibung"
-
-  # Mutationsbeleg je Fundstelle: die beschreibende Zeile fällt weg, geprüft wird die Bindung.
-  mut_315="$TMP_315/mut-$(printf '%s' "$rel_315" | tr '/' '_')"
-  grep -vF -- "$anchor_315" "$src_315" > "$mut_315"
-  # Positivkontrolle, dass die Mutation überhaupt greift – gemessen an der Zeilenzahl und
-  # damit unabhängig von beiden Suchmustern. Ohne sie bliebe ein ins Leere laufender Anker
-  # (Zeile umformuliert) unbemerkt und die Abwesenheits-Assertion darunter grün aus dem
-  # falschen Grund (Lesson #214).
-  assert_true "$([ "$(wc -l < "$mut_315")" -lt "$(wc -l < "$src_315")" ]; echo $?)" \
-    "#315 AK9: Mutation greift wirklich ($rel_315 verliert die beschreibende Zeile)"
-  assert_absent "$(flat_286 "$mut_315")" "$phrase_315" \
-    "#315 AK9 (Mutation): ohne sie ist die Aspekt-Aufzählung in $rel_315 rot"
-done
-
-# ── AK2/AK3/AK4: die kanonische Quelle trägt Abgrenzungskriterium, Pfad-Anker (beide Seiten),
-# die Zweifelsregel für den Mischfall und beide abgeleiteten Aufzählungen derselben Datei.
-# Die Tabellenzeile selbst deckt bereits die Schleife oben ab (Fundstelle 1).
-# Seit #431 (AK-I2) steht die Beschreibung des TCH-eigenen Aspekt-Labels samt Pfad-Ankern in
-# PROJECT-CONTEXT.md → „Projekt-Labels"; git-workflow.md hält nur Schema + generische Labels.
-pcx_flat_315=$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")
-gwf_flat_315=$(flat_286 "$GITWF")
-assert_contains_286 "$pcx_flat_315" 'statt an der TCH-Applikation' \
-  "#315 AK2: die Tabellenzeile nennt das Abgrenzungskriterium Harness vs. Applikation"
-# Je Seite EINE Phrase auf EINER Zeile: der Begleittext steht im Blockquote, und `> `-Präfixe
-# überleben flat_286 nicht (der Helper toleriert nur Leerzeichen-Einrückung).
-assert_contains_286 "$pcx_flat_315" \
-  '**Factory-Harness → Label setzen.** Pfad-Anker: `scripts/`, `.claude/`, `.github/workflows/`, `docs/factory/`.' \
-  "#315 AK3: die Factory-Seite der Grenze ist mit Pfad-Ankern benannt"
-assert_contains_286 "$pcx_flat_315" \
-  '**TCH-Applikation → Label weglassen.** Pfad-Anker: `app/`, `db/`, `lib/`.' \
-  "#315 AK3: die Applikations-Seite der Grenze ist mit Pfad-Ankern benannt"
-# Ohne Auflösung des Mischfalls wäre die Zuordnung genau dort zirkulär, wo sie gebraucht wird
-# („entscheidet die Seite, auf der die Änderung landet" – wenn sie auf beiden landet, sagt der
-# Satz nichts). AK3 verlangt aber eine Zuordnung ohne Rückfrage.
-assert_contains_286 "$pcx_flat_315" \
-  '**Im Zweifel Label setzen.**' \
-  "#315 AK3: der Mischfall ist einseitig fail-safe aufgelöst"
-assert_contains_286 "$pcx_flat_315" \
-  'Repo-Wurzel (`CONTRIBUTING.md`, `README.md`, `CLAUDE.md`), `docs/adr/`, `tasks/`, `e2e/`' \
-  "#315 AK3: die Zweifelsregel benennt die ungedeckten Pfade (Repo-Wurzel, ADR, tasks, e2e)"
-# Eigene Assertion für `docs/specs/` (Runde-5-Review-Finding W1): die vorige Assertion prüft
-# nur bis `e2e/`, während `docs/specs/` erst auf der nächsten Blockquote-Zeile steht – ein
-# Rückfall auf den Zustand vor dem W1-Fix (Runde 4) bliebe sonst unbemerkt grün.
-assert_contains_286 "$pcx_flat_315" \
-  '`docs/specs/` (Ablagekonvention statt Subsystem-Grenze' \
-  "#315 AK3: die Zweifelsregel nennt auch docs/specs/ als ungedeckten Pfad"
-# Seit #431 nennen die Faustregel- und der start-work.sh-Absatz die projekteigenen Aspekte über die
-# Konfigurationsschlüssel statt einer Aufzählung (AK-I2); die Menge selbst prüft der Drift-Guard unten.
-assert_contains_286 "$gwf_flat_315" \
-  'ein projekteigenes Aspekt-Label für einen Defekt im Projekt-Werkzeug' \
-  "#315/#431 AK4: der Faustregel-Absatz verweist auf projekteigene Aspekt-Labels"
-assert_contains_286 "$gwf_flat_315" \
-  '(`labels.aspects` + `labels.aspects_extra`, z. B. `security`/`tech-debt`/`test`) gibt' \
-  "#315/#431 AK4: der start-work.sh-Absatz verweist auf die Label-Konfiguration"
-
-# ── AK5: CONTRIBUTING.md nennt die Beitragsart – und behält den Verweis auf die kanonische
-# Quelle (keine zweite kanonische Liste).
-contrib_flat_315=$(flat_286 "$CONTRIBUTING_MD")
-assert_contains_286 "$contrib_flat_315" '**🏭 Factory / Harness**' \
-  "#315 AK5: CONTRIBUTING.md führt Factory-/Harness-Beiträge als Beitragsart"
-assert_contains_286 "$contrib_flat_315" \
-  '[`docs/factory/guidelines/git-workflow.md`](docs/factory/guidelines/git-workflow.md) beschrieben;' \
-  "#315 AK5: der Verweis auf die kanonische Quelle bleibt bestehen"
-# „Keine zweite kanonische Liste" gilt auch für die PFAD-ANKER der Grenze, nicht nur für die
-# Label-Menge: eine wörtliche zweite Kopie driftet still, sobald die Anker-Liste in der
-# kanonischen Quelle wächst oder schrumpft – genau die Fehlerklasse, die diese Task für die
-# Label-Aufzählungen gerade abschafft. Dieselbe Phrase gegen beide Dateien: die Kontrolle
-# belegt, dass der Ausdruck überhaupt findet, die Abwesenheits-Assertion, dass er es nur an
-# der kanonischen Stelle tut.
-anchors_315='`scripts/`, `.claude/`, `.github/workflows/`, `docs/factory/`'
-assert_contains_286 "$pcx_flat_315" "$anchors_315" \
-  "#315 AK5 (Kontrolle): die Anker-Liste ist über genau diesen Ausdruck auffindbar"
-assert_absent "$contrib_flat_315" "$anchors_315" \
-  "#315 AK5: CONTRIBUTING.md verweist auf die Pfad-Anker, statt sie zu kopieren"
-# Symmetrisch für die App-Seite (Lesson #197: Guard symmetrisch auf alle Inputs) – eine
-# wörtliche Kopie der App-Anker nach CONTRIBUTING.md wäre sonst unbemerkt geblieben.
-app_anchors_315='`app/`, `db/`, `lib/`'
-assert_contains_286 "$pcx_flat_315" "$app_anchors_315" \
-  "#315 AK5 (Kontrolle): die App-Anker-Liste ist über genau diesen Ausdruck auffindbar"
-assert_absent "$contrib_flat_315" "$app_anchors_315" \
-  "#315 AK5: CONTRIBUTING.md verweist auch bei den App-Ankern, statt sie zu kopieren"
-
-# ── AK6: OPERATING.md §1.1 Schritt 3 trennt die beiden Achsen (vorbestehende Drift: die
-# frühere flache Liste führte „genau eins" über Art- UND Aspekt-Labels).
-operating_flat_315=$(flat_286 "$OPERATING_MD")
-assert_contains_286 "$operating_flat_315" \
-  '**genau ein Art-Label** (`bug` · `enhancement` · `documentation`)' \
-  "#315 AK6: Schritt 3 führt „genau eines\" nur noch über die Art-Achse"
-# Die Aspekt-Achse („null bis mehrere", inkl. factory-pipeline) deckt Fundstelle 3 der
-# Schleife oben ab.
-
-# ── AK7: die --labels-Usage-Meldung bleibt ein explizit gekennzeichnetes Beispiel und wird
-# NICHT zur Vollmenge aufgebläht (die Vollmenge steht im Kopfkommentar – Fundstelle 4 oben).
-SW_315="$FACTORY_ROOT/scripts/start-work.sh"
-usage_msg_315="$(grep -F -- '--labels erwartet einen Wert' "$SW_315")"
-assert_contains_286 "$usage_msg_315" 'CSV, z. B. security,test)' \
-  "#315 AK7: die --labels-Usage-Meldung bleibt als Beispiel unverändert"
-assert_absent "$usage_msg_315" "$NEW_LABEL_315" \
-  "#315 AK7: das Usage-Beispiel wird nicht zur vollständigen Menge aufgebläht"
-
-# (Die AK8-Fundstellen selbst – codify.md, review.md, security-review.md – sind die
-# Fundstellen 5–7 der Schleife oben.)
-
-# ── AK10: Regressions-Scan gegen den ALTEN Label-Namen über die getrackten Dateien.
-echo ""
-echo "#315 AK10: der alte Label-Name kommt in keiner getrackten Datei mehr vor:"
-
-# `git grep` liest per Definition nur getrackte Dateien im Arbeitsbaum – damit erbt der Scan
-# die AK10-Forderung „über git ls-files, nicht über das Verzeichnis" und färbt sich nicht an
-# einem ungetrackten Scratch-Artefakt rot (Lesson #312).
-#
-# Ausgenommen ist die vollständige Papierspur DIESER Task: Spec plus alles unter `tasks/`, das
-# die Task-ID trägt (Task-Datei, Review-, Security-, Coverage-, Codify-Report – alle werden am
-# Ende mitcommittet). Sie halten den Rename selbst fest und müssen den alten Namen deshalb im
-# Klartext nennen dürfen – dieselbe Begründung, mit der die Spec ADR-018 §30 und spec-82 als
-# historisches Narrativ unangetastet lässt. Wäre die Ausnahme enger, würde der Guard die eigene
-# Pipeline blockieren, sobald ein Folge-Skill seinen Report schreibt.
-# NICHT ausgenommen sind `docs/factory/lessons/*` und `PROJECT-CONTEXT.md`: das sind lebende
-# Konventions-Dokumente: eine `/codify`-Lesson zu dieser Task verweist auf Task/Spec, statt den
-# alten Namen selbst zu buchstabieren.
-name_hits_315() {
-  git -C "$1" grep -lI -F -e "$2" -- \
-    ':(exclude)docs/specs/spec-315-*' ':(exclude)tasks/*315*'
-}
-
-# Fail-closed-Kontrolle VOR der Abwesenheits-Assertion: dieselbe Aufrufform muss den NEUEN
-# Namen finden. Liest `git grep` nichts (falsches Verzeichnis, kein Repo, kaputtes git), ist
-# seine Ausgabe leer – und eine Abwesenheits-Assertion darauf wäre grün, ohne dass je eine
-# Datei gelesen wurde (Lesson #214: fail-closed bei unlesbarer Quelle).
-assert_true "$([ -n "$(name_hits_315 "$FACTORY_ROOT" "$NEW_LABEL_315")" ]; echo $?)" \
-  "#315 AK10: der Scan liest wirklich getrackte Dateien (findet den neuen Namen)"
-
-hits_315="$(name_hits_315 "$FACTORY_ROOT" "$OLD_LABEL_315")"
-assert_true "$([ -z "$hits_315" ]; echo $?)" \
-  "#315 AK10: keine getrackte Datei außerhalb der #315-Papierspur nennt den alten Namen"
-
-# tracked_repo_315 <name> <datei> <inhalt> → Wegwerf-Repo mit genau einer getrackten Datei.
-# Bewusst NICHT über _mk_pipe_repo/scaffold_310 (die bauen ein vollständiges Factory-Repo für
-# run-pipeline.sh-E2E und hängen an HAS_YQ) und nicht über hi_repo: dessen Repos liegen unter
-# der hartkodierten Basis $TMP_HI, die oberhalb (nach dem #268-Block) bereits per `rm -rf`
-# abgeräumt ist. Lokale Identität, weil ohne sie in einer identitätslosen Umgebung schon der
-# Commit scheitert (Lesson #265).
-tracked_repo_315() {
-  local wt="$TMP_315/$1" rel="$2" content="$3"
-  mkdir -p "$wt/$(dirname "$rel")"
-  printf '%s\n' "$content" > "$wt/$rel"
-  git init -q -b main "$wt" >/dev/null 2>&1
-  git -C "$wt" config user.email t@t
-  git -C "$wt" config user.name t
-  git -C "$wt" add -A >/dev/null 2>&1
-  git -C "$wt" commit -q -m init >/dev/null 2>&1
-  printf '%s\n' "$wt"
-}
-
-# assert_scan_clean_315 <repo> <erwartete getrackte datei> <beschreibung>
-# Fail-closed-Kontrolle für jede auf LEERE prüfende Fixture-Assertion – symmetrisch zu der des
-# Live-Scans oben (Lesson #197: Guard symmetrisch auf alle Inputs; #214: fail-closed bei
-# unlesbarer Quelle). tracked_repo_315 schluckt in jedem git-Kommando stderr: scheitert das
-# Scaffolding still, liefert name_hits_315 leeren Output und die Abwesenheits-Assertion wäre
-# grün, ohne dass je eine Datei gelesen wurde. Geprüft wird deshalb zuerst, dass genau die
-# Fixture-Datei getrackt ist, und erst danach die Abwesenheit des alten Namens.
-assert_scan_clean_315() {
-  assert_true "$([ -n "$(git -C "$1" ls-files -- "$2")" ]; echo $?)" \
-    "#315 AK10 (fail-closed): das Fixture-Repo trägt $2 wirklich getrackt"
-  assert_true "$([ -z "$(name_hits_315 "$1" "$OLD_LABEL_315")" ]; echo $?)" "$3"
-}
-
-# Mutationsbeleg: derselbe Assert-Ausdruck gegen ein Repo, in dem eine getrackte, NICHT
-# allowlistete Datei den alten Namen trägt.
-REPO_OLD_315="$(tracked_repo_315 old-name docs/factory/guidelines/git-workflow.md \
-  "| \`$OLD_LABEL_315\` | Arbeit am Factory-Harness |")"
-hits_mut_315="$(name_hits_315 "$REPO_OLD_315" "$OLD_LABEL_315")"
-assert_true "$([ -n "$hits_mut_315" ]; echo $?)" \
-  "#315 AK10 (Mutation): der alte Name in einer getrackten Doku-Datei macht den Scan rot"
-assert_contains_286 "$hits_mut_315" "docs/factory/guidelines/git-workflow.md" \
-  "#315 AK10 (Mutation): der Scan benennt die Fundstelle"
-
-# Diskriminierungs-Kontrolle: dasselbe Repo ohne den alten Namen bleibt grün – der Scan
-# reagiert auf den Namen, nicht auf die Existenz der Datei.
-REPO_NEW_315="$(tracked_repo_315 new-name docs/factory/guidelines/git-workflow.md \
-  "| \`$NEW_LABEL_315\` | Arbeit am Factory-Harness |")"
-assert_scan_clean_315 "$REPO_NEW_315" docs/factory/guidelines/git-workflow.md \
-  "#315 AK10: derselbe Inhalt mit dem NEUEN Namen bleibt grün"
-
-# Allowlist-Kontrolle in beide Richtungen, je Ausnahme-Pfadspec eine: in der #315-Papierspur
-# darf der alte Name stehen, in einer fremden Spec bzw. einem fremden Task-Report nicht (sonst
-# wäre die Ausnahme ein Loch über ganz docs/specs/ bzw. tasks/).
-REPO_ALLOW_315="$(tracked_repo_315 allow "docs/specs/spec-315-x.md" \
-  "Rename von $OLD_LABEL_315 auf $NEW_LABEL_315")"
-assert_scan_clean_315 "$REPO_ALLOW_315" "docs/specs/spec-315-x.md" \
-  "#315 AK10: der alte Name im #315-Anforderungsdokument bleibt zulässig"
-REPO_OTHER_315="$(tracked_repo_315 other-spec "docs/specs/spec-999-x.md" \
-  "Rename von $OLD_LABEL_315 auf $NEW_LABEL_315")"
-assert_true "$([ -n "$(name_hits_315 "$REPO_OTHER_315" "$OLD_LABEL_315")" ]; echo $?)" \
-  "#315 AK10: derselbe Satz in einer FREMDEN Spec macht den Scan rot (Allowlist ist kein Loch)"
-REPO_REPORT_315="$(tracked_repo_315 report "tasks/review-315.md" \
-  "Rename von $OLD_LABEL_315 auf $NEW_LABEL_315")"
-assert_scan_clean_315 "$REPO_REPORT_315" "tasks/review-315.md" \
-  "#315 AK10: der alte Name in einem #315-Pipeline-Report bleibt zulässig"
-REPO_OTHERTASK_315="$(tracked_repo_315 other-task "tasks/review-999.md" \
-  "Rename von $OLD_LABEL_315 auf $NEW_LABEL_315")"
-assert_true "$([ -n "$(name_hits_315 "$REPO_OTHERTASK_315" "$OLD_LABEL_315")" ]; echo $?)" \
-  "#315 AK10: derselbe Satz in einem FREMDEN Task-Report macht den Scan rot"
-
-# Lesson #312: ein ungetracktes Scratch-Artefakt mit dem alten Namen darf den Scan nicht
-# rot färben – genau deshalb liest er getrackte Dateien statt das Verzeichnis.
-printf '%s\n' "$OLD_LABEL_315" > "$REPO_NEW_315/scratch.tmp.md"
-assert_scan_clean_315 "$REPO_NEW_315" docs/factory/guidelines/git-workflow.md \
-  "#315 AK10: ein ungetracktes Scratch-Artefakt mit dem alten Namen lässt den Scan grün"
-
-# Mutationsbeleg für die Fail-closed-Kontrolle selbst: ein Repo, in dem `add`/`commit` still
-# gescheitert sind (hier nachgestellt: initialisiert, aber nichts getrackt), während die Datei
-# mit dem VERBOTENEN Namen im Baum liegt. Genau dort laufen die beiden Prädikate auseinander –
-# der Scan bleibt leer (die Abwesenheits-Assertion allein wäre grün), die Kontrolle wird rot.
-REPO_UNSCAFFOLDED_315="$TMP_315/kein-commit"
-mkdir -p "$REPO_UNSCAFFOLDED_315/docs/factory/guidelines"
-printf '%s\n' "$OLD_LABEL_315" > "$REPO_UNSCAFFOLDED_315/docs/factory/guidelines/git-workflow.md"
-git init -q -b main "$REPO_UNSCAFFOLDED_315" >/dev/null 2>&1
-assert_true "$([ -z "$(name_hits_315 "$REPO_UNSCAFFOLDED_315" "$OLD_LABEL_315")" ]; echo $?)" \
-  "#315 AK10 (Mutation): ohne getrackte Datei bliebe die Abwesenheits-Assertion grün – obwohl der alte Name im Baum liegt"
-assert_true "$([ -z "$(git -C "$REPO_UNSCAFFOLDED_315" ls-files -- docs/factory/guidelines/git-workflow.md)" ]; echo $?)" \
-  "#315 AK10 (Mutation): genau dort wird die Fail-closed-Kontrolle rot"
-
-rm -rf "$TMP_315"
 # ─── #319: Deckel für den @import-Dauerkontext (ADR-047 §4) ──────────────────
 echo ""
 echo "#319 @import-Kontext-Deckel (ADR-047):"
@@ -7334,14 +6711,15 @@ assert_absent "$IC_CLAUDE_MUT_319" "$IC_TRIGGER_AP_319" \
 
 # 20. Die drei aus testing-standards.md verschobenen Abschnitte liegen in der Lesson und sind
 #     im Index referenziert – verlustfreie Migration statt Streichung (spec-319 AC5/AC8).
-# Seit #426 verteilen sich die drei Abschnitte auf die Factory- und die Projekt-Lesson testing.md
-TESTING_LESSON_319="$(flat_286 "$FACTORY_ROOT/docs/factory/lessons/testing.md") $(flat_286 "$FACTORY_ROOT/docs/project/lessons/testing.md")"
+# Im Factory-Repo liegt nur der ADR-040-Abschnitt (Coverage-Ausgabe); Exhaustiveness-Guards und Mock-Default
+# sind App-Lessons des adoptierenden Projekts.
+TESTING_LESSON_319="$(flat_286 "$FACTORY_ROOT/docs/factory/lessons/testing.md")"
 PC_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
-for phrase in "Exhaustiveness-Guards" "Mock-Default mit leerem Array" "Coverage-Ausgabe nur in ignorierte Pfade"; do
+for phrase in "Coverage-Ausgabe nur in ignorierte Pfade"; do
   assert_contains_286 "$TESTING_LESSON_319" "$phrase" \
     "#319: „$phrase\" steht in lessons/testing.md"
 done
-for phrase in "Exhaustiveness-Guard" "Mock-Default" "Coverage-Ausgabe nur in"; do
+for phrase in "Coverage-Ausgabe nur in"; do
   assert_contains_286 "$PC_FLAT_319" "$phrase" \
     "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
 done
@@ -7354,12 +6732,8 @@ ic_body_bytes_319() {  # $1 = Titel-Präfix des ### -Abschnitts
     index($0, "### ") == 1 && index($0, anchor) > 0 { found = 1; next }
     found && index($0, "### ") == 1 { exit }
     found { print }
-  ' "$FACTORY_ROOT/docs/factory/lessons/testing.md" "$FACTORY_ROOT/docs/project/lessons/testing.md" | wc -c | tr -d ' '
+  ' "$FACTORY_ROOT/docs/factory/lessons/testing.md" | wc -c | tr -d ' '
 }
-assert_true "$([ "$(ic_body_bytes_319 'Exhaustiveness-Guards')" -ge 1190 ]; echo $?)" \
-  "#319: der Exhaustiveness-Abschnitt ist vollständig migriert (≥ 1190 Bytes Rumpf)"
-assert_true "$([ "$(ic_body_bytes_319 'Mock-Default mit leerem Array')" -ge 1520 ]; echo $?)" \
-  "#319: der Mock-Default-Abschnitt ist vollständig migriert (≥ 1520 Bytes Rumpf)"
 assert_true "$([ "$(ic_body_bytes_319 'Coverage-Ausgabe nur in ignorierte Pfade')" -ge 910 ]; echo $?)" \
   "#319: der ADR-040-Abschnitt ist vollständig migriert (≥ 910 Bytes Rumpf)"
 # Der verschobene Text darf nicht auf seinen alten Kontext zeigen („siehe unten" zeigte in der
@@ -7567,15 +6941,13 @@ assert_true "$([ -n "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
 rm -rf "$TMP_LNK_319"
 # Der eigentliche Guard über die Dateien dieses Tasks.
 ic_dead_links_found_319=""
-for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md docs/factory/OPERATING.md \
-         docs/factory/kleinfunde.md docs/factory/lessons/testing.md \
-         docs/factory/lessons/code-style.md docs/project/lessons/frontend-react.md \
+# OPERATING.md, ADR-047, kleinfunde.md und lessons/{code-style,testing}.md fehlen bewusst: ihre Links auf Dateien des
+# Ursprungs-Repos (betrieb.md, App-ADRs, Spec, App-Lessons, Projekt-Kleinfunde) löst der Bereinigungs-PR auf und nimmt
+# die Dateien dann wieder in diese Liste auf.
+for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md \
          docs/factory/guidelines/tdd-principles.md docs/factory/guidelines/testing-standards.md \
          docs/factory/guidelines/token-efficiency.md \
-         docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md \
-         docs/factory/adr/037-lessons-auslagern-aus-import-kontext.md \
-         docs/specs/spec-319-adr-import-kontext-guidelines.md \
-         tasks/task-319-adr-import-kontext-guidelines.md tasks/review-319.md; do
+         docs/factory/adr/037-lessons-auslagern-aus-import-kontext.md; do
   ic_dead_links_found_319="$ic_dead_links_found_319$(ic_dead_links_319 "$FACTORY_ROOT/$f")"
 done
 assert_true "$([ -z "$ic_dead_links_found_319" ]; echo $?)" \
@@ -8266,9 +7638,7 @@ assert_exit 0 "$own_real_rc" "#426 AK-A1/A6: jede getrackte Datei hat genau eine
 # aus dem SIGPIPE des Schreibers ein falsches Rot (Exit 141) – nur auf dem CI-Runner sichtbar (bash-gotchas #3).
 own_side_426() { local l; l="$(bash "$OWN_CHECK_426" --list "$1" 2>/dev/null)"; grep -qxF -- "$2" <<< "$l"; }
 for f_426 in CLAUDE.md factory.config.yml docs/factory/PROJECT-CONTEXT.md .gitignore \
-    .claude/settings.json docs/specs/spec-426-trennlinie-factory-projekt-ziehen.md \
-    tasks/task-426-trennlinie-factory-projekt-ziehen.md docs/adr/014-tech-stack-selection.md \
-    app/layout.tsx; do
+    .claude/settings.json README.md CONTRIBUTING.md CHANGELOG.md; do
   own_side_426 project "$f_426"
   assert_exit 0 $? "#426 AK-A4: $f_426 ist 'project' zugeordnet"
 done
@@ -8346,8 +7716,7 @@ for n_426 in $FACTORY_ADR_NUMS_426; do
 done
 assert_true "$([ -z "$leaked_426" ]; echo $?)" \
   "#426 AK-B2: keine Factory-ADR liegt noch in docs/adr/ (Reste:${leaked_426:- keine})"
-assert_true "$([ "$(adr_nums_426 "$FACTORY_ROOT/docs/adr" | wc -l | tr -d ' ')" -gt 0 ]; echo $?)" \
-  "#426 AK-B2: die App-ADRs bleiben in docs/adr/"
+# (Die App-ADRs liegen im adoptierenden Projekt, nicht in der Factory-Auslieferung.)
 # `git mv` statt Kopie: die Historie vor dem Umzug ist über --follow erreichbar. Ein flacher
 # Klon (CI) hat nur einen Commit – dort bleibt der Beleg lokal, der Rest oben gilt überall.
 if [ "$(git -C "$FACTORY_ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
@@ -8367,8 +7736,6 @@ adr_readme_matches_426() { # $1 = Verzeichnis
 }
 adr_readme_matches_426 "$FACTORY_ROOT/docs/factory/adr"
 assert_exit 0 $? "#426 AK-B4: docs/factory/adr/README.md listet genau die Factory-ADRs"
-adr_readme_matches_426 "$FACTORY_ROOT/docs/adr"
-assert_exit 0 $? "#426 AK-B4: docs/adr/README.md listet genau die App-ADRs"
 TMP_RM_426="$(mktemp -d)"; : > "$TMP_RM_426/001-a.md"; : > "$TMP_RM_426/002-b.md"
 printf '[a](001-a.md)\n' > "$TMP_RM_426/README.md"
 adr_readme_matches_426 "$TMP_RM_426"
@@ -8377,8 +7744,6 @@ printf '[a](001-a.md) [b](002-b.md) [c](003-c.md)\n' > "$TMP_RM_426/README.md"
 adr_readme_matches_426 "$TMP_RM_426"
 assert_exit 1 $? "#426 AK-B4 (Kontrolle): ein gelisteter Geisterverweis macht den Vergleich rot"
 rm -rf "$TMP_RM_426"
-assert_true "$(grep -q 'docs/factory/adr/' "$FACTORY_ROOT/docs/adr/README.md"; echo $?)" \
-  "#426 AK-B4: das Projekt-README weist auf docs/factory/adr/ hin"
 
 # AK-B5: aktive Projekt-Dateien nennen Factory-ADRs als `Factory-ADR-NNN`
 bare_factory_adr_426() { # $1 = Datei, $2 = Nummernliste (Leerzeichen) → Treffer `ADR-NNN` ohne Präfix
@@ -8393,7 +7758,7 @@ assert_absent "$out_426" 'ADR-043' "#426 AK-B5 (Kontrolle): Factory-ADR-043 ist 
 assert_absent "$out_426" 'ADR-014' "#426 AK-B5 (Kontrolle): eine App-ADR (014) ist kein Treffer"
 rm -rf "$TMP_B5_426"
 bare_426=""
-for f_426 in CLAUDE.md docs/factory/PROJECT-CONTEXT.md README.md CONTRIBUTING.md docs/adr/*.md; do
+for f_426 in CLAUDE.md docs/factory/PROJECT-CONTEXT.md README.md CONTRIBUTING.md; do
   hits_426="$(bare_factory_adr_426 "$FACTORY_ROOT/$f_426" "$FACTORY_ADR_NUMS_426" | head -3)"
   [ -z "$hits_426" ] || bare_426="$bare_426
 $f_426: $hits_426"
@@ -8434,11 +7799,7 @@ lessons_split_check_426() {
   return $bad
 }
 
-# AK-C1: die App-Lessons liegen unter docs/project/lessons/ (git mv), nicht mehr bei der Factory
-for l_426 in frontend-react db-drizzle next-auth; do
-  assert_true "$([ -f "$FACTORY_ROOT/docs/project/lessons/$l_426.md" ] && [ ! -e "$FACTORY_ROOT/docs/factory/lessons/$l_426.md" ]; echo $?)" \
-    "#426 AK-C1: $l_426.md liegt unter docs/project/lessons/ und nicht mehr unter docs/factory/lessons/"
-done
+# (AK-C1 – die App-Lessons liegen unter docs/project/lessons/ – entfällt: sie gehören dem adoptierenden Projekt.)
 
 # AK-C2 / F-3: Kontrollen für die Prüfung selbst (Fixture), dann der echte Bestand
 TMP_LS_426="$(mktemp -d)"; mkdir -p "$TMP_LS_426/f" "$TMP_LS_426/p"
@@ -8461,8 +7822,12 @@ lessons_split_check_426 "$TMP_LS_426/t.tsv" "$TMP_LS_426/f" "$TMP_LS_426/p" > /d
 assert_exit 1 $? "#426 F-3: ein Eintrag auf der falschen Seite macht die Prüfung rot"
 rm -rf "$TMP_LS_426"
 
-out_426="$(lessons_split_check_426 "$LESSONS_TSV_426" "$FACTORY_ROOT/docs/factory/lessons" "$FACTORY_ROOT/docs/project/lessons")"
+# Nur die Factory-Zeilen gegen die Factory-Lessons; die Projekt-Zeilen der Fixture betreffen die App-Lessons
+# des adoptierenden Projekts (die Fixture selbst bleibt unverändert, siehe PROJECT-CONTEXT.md → erlaubte Stellen).
+LESSONS_TSV_FAC_426="$(mktemp)"; awk -F'\t' '$1 == "factory" || /^#/' "$LESSONS_TSV_426" > "$LESSONS_TSV_FAC_426"
+out_426="$(lessons_split_check_426 "$LESSONS_TSV_FAC_426" "$FACTORY_ROOT/docs/factory/lessons" "$(mktemp -d)")"
 lessons_rc_426=$?
+rm -f "$LESSONS_TSV_FAC_426"
 assert_exit 0 "$lessons_rc_426" "#426 AK-C2: jeder Lesson-Eintrag steht genau einmal, auf seiner Seite (Rekonstruktion gegen den Stand der Trennung)"
 [ "$lessons_rc_426" -eq 0 ] || echo "$out_426" | head -10 | sed 's/^/      /'
 assert_true "$([ "$(grep -vc '^#' "$LESSONS_TSV_426")" -eq 175 ]; echo $?)" \
@@ -8472,7 +7837,6 @@ assert_true "$([ "$(grep -vc '^#' "$LESSONS_TSV_426")" -eq 175 ]; echo $?)" \
 CTX_426="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
 ctx_flat_426="$(flat_286 "$CTX_426")"
 assert_contains_286 "$ctx_flat_426" '#### Factory-Lessons (`docs/factory/lessons/`)' "#426 AK-C3: der Index hat eine Gruppe „Factory-Lessons“"
-assert_contains_286 "$ctx_flat_426" '#### Projekt-Lessons (`docs/project/lessons/`)' "#426 AK-C3: der Index hat eine Gruppe „Projekt-Lessons“"
 ctx_dead_426=""; ctx_noload_426=""
 while IFS= read -r hdr_426; do
   tgt_426="$(printf '%s' "$hdr_426" | sed -E 's/^\*\*\[`[^`]*`\]\(([^)]*)\).*/\1/')"
@@ -8486,20 +7850,8 @@ for f_426 in "$FACTORY_ROOT"/docs/factory/lessons/*.md; do
   assert_true "$(grep -qF -- "](lessons/$(basename "$f_426"))" "$CTX_426"; echo $?)" \
     "#426 AK-C3: Factory-Lesson $(basename "$f_426") steht im Index"
 done
-for f_426 in "$FACTORY_ROOT"/docs/project/lessons/*.md; do
-  assert_true "$(grep -qF -- "](../project/lessons/$(basename "$f_426"))" "$CTX_426"; echo $?)" \
-    "#426 AK-C3: Projekt-Lesson $(basename "$f_426") steht im Index"
-done
 
-# AK-C4: die Kern-Kurzregeln verlinken den NEUEN Ort der Lesson
-core_426="$(awk '/^### Kern-Kurzregeln/{f=1;next} /^### Index der/{f=0} f' "$CTX_426")"
-assert_contains_286 "$core_426" '(../project/lessons/db-drizzle.md)' "#426 AK-C4: die Kern-Kurzregeln verlinken docs/project/lessons/db-drizzle.md"
-assert_absent "$core_426" '](lessons/db-drizzle.md)' "#426 AK-C4: kein Kern-Kurzregel-Link zeigt mehr auf den alten Ort"
-core_dead_426=""
-for t_426 in $(printf '%s' "$core_426" | grep -oE '\]\([^)]*\.md\)' | sed -E 's/^\]\(//; s/\)$//'); do
-  [ -f "$FACTORY_ROOT/docs/factory/$t_426" ] || core_dead_426="$core_dead_426 $t_426"
-done
-assert_true "$([ -z "$core_dead_426" ]; echo $?)" "#426 AK-C4: jeder Kern-Kurzregel-Link zeigt auf eine existierende Datei (tot:${core_dead_426:- keine})"
+# (AK-C4 – Kern-Kurzregeln mit Verweis auf die App-Lessons – entfällt: der Index des Factory-Repos hat keine.)
 
 # AK-C5: /codify nennt beide Orte und die Zuordnungsregel (Live-Datei; Patch-Lieferung, siehe Task)
 codify_flat_426="$(flat_286 "$SKILLS_DIR_426/codify.md")"
@@ -8520,10 +7872,6 @@ kf_side_426() { # $1 = Kleinfunde-Datei, $2 = erwartete Seite → Anzahl Einträ
 out_426="$(kf_side_426 "$FACTORY_ROOT/docs/factory/kleinfunde.md" factory)"
 assert_exit 0 $? "#426 AK-L1: jeder Eintrag in docs/factory/kleinfunde.md betrifft eine Factory-Datei"
 [ -z "$out_426" ] || echo "$out_426" | head -5 | sed 's/^/      /'
-out_426="$(kf_side_426 "$FACTORY_ROOT/docs/project/kleinfunde.md" project)"
-assert_exit 0 $? "#426 AK-L1: jeder Eintrag in docs/project/kleinfunde.md betrifft eine Projekt-Datei"
-[ -z "$out_426" ] || echo "$out_426" | head -5 | sed 's/^/      /'
-assert_true "$([ "$(grep -c '^### ' "$FACTORY_ROOT/docs/project/kleinfunde.md")" -ge 1 ]; echo $?)" "#426 AK-L1: die Projekt-Kleinfunde sind nicht leer"
 for sk_426 in review security-review codify; do
   sk_flat_426="$(flat_286 "$SKILLS_DIR_426/$sk_426.md")"
   assert_contains_286 "$sk_flat_426" 'docs/factory/kleinfunde.md' "#426 AK-L1: /$sk_426 nennt den Factory-Ort der Kleinfunde"
@@ -8536,7 +7884,6 @@ echo ""
 echo "#431 AK-D: generischer Teil in FACTORY.md, CLAUDE.md dünn:"
 FACTORY_MD_431="$FACTORY_ROOT/docs/factory/FACTORY.md"
 CLAUDE_MD_431="$FACTORY_ROOT/CLAUDE.md"
-BASELINE_COMMIT_431="bcba043"  # main vor T1a-2 – Referenz für AK-D3 (Rekonstruktion der alten CLAUDE.md)
 
 # AK-D1/AK-D2: Datei-Anteile
 assert_true "$([[ -f "$FACTORY_MD_431" ]]; echo $?)" "#431 AK-D1: docs/factory/FACTORY.md existiert"
@@ -8552,7 +7899,7 @@ imports_431="$(grep -E '^@' "$CLAUDE_MD_431" | sort | tr '\n' ' ')"
 assert_true "$([ "$imports_431" = "@docs/factory/FACTORY.md @docs/factory/PROJECT-CONTEXT.md " ]; echo $?)" \
   "#431 AK-D2: CLAUDE.md importiert genau FACTORY.md und PROJECT-CONTEXT.md (Ist: $imports_431)"
 claude_flat_431="$(flat_286 "$CLAUDE_MD_431")"
-assert_contains_286 "$claude_flat_431" 'Routen-Doku bei jeder Routen-Änderung aktualisieren' "#431 AK-D2: CLAUDE.md trägt die TCH-Regel Routen-Doku (#145)"
+assert_contains_286 "$claude_flat_431" 'Ownership pflegen' "#431 AK-D2: CLAUDE.md trägt die Projekt-Regel des Factory-Repos (Ownership pflegen)"
 for gen_431 in '## Kernprinzip' '## Guardrails' '## Pipeline-Übersicht' '## Agent-Rollen'; do
   assert_absent "$claude_flat_431" "$gen_431" "#431 AK-D2: CLAUDE.md enthält den generischen Abschnitt '$gen_431' nicht mehr"
 done
@@ -8647,31 +7994,14 @@ FACTORY_DIR="$FX_431" bash "$SYNC_431" >/dev/null 2>&1
 assert_exit 1 "$?" "#431 AK-E3: ohne Modus → exit 1 (nur --compose existiert)"
 rm -rf "$FX_431"
 
-# AK-E1: inhaltsgleich zum Stand vor T1a (Hooks + Reihenfolge, Allow/Deny-Menge). Historienlesend → Skip im flachen Klon.
-if git -C "$FACTORY_ROOT" cat-file -e "$BASELINE_COMMIT_431:.claude/settings.json" 2>/dev/null; then
-  old_set_431="$(mktemp)"; git -C "$FACTORY_ROOT" show "$BASELINE_COMMIT_431:.claude/settings.json" > "$old_set_431"
-  norm_431='{hooks: .hooks, allow: (.permissions.allow|sort), deny: (.permissions.deny|sort), ask: ((.permissions.ask // [])|sort)}'
-  assert_true "$([ "$(jq -cS "$norm_431" "$old_set_431")" = "$(jq -cS "$norm_431" "$FACTORY_ROOT/.claude/settings.json")" ]; echo $?)" \
-    "#431 AK-E1: settings.json inhaltsgleich zu vorher (Hooks + Reihenfolge, Allow/Deny/Ask-Menge)"
-  # Zerlegung ist verlustfrei und disjunkt: Factory ∪ Projekt == alt, Schnitt leer.
-  union_431="$(jq -cS -s '{allow: ([.[].permissions.allow // []] | add | sort), deny: ([.[].permissions.deny // []] | add | sort)}' \
-    "$FACTORY_ROOT/.claude/settings.factory.json" "$FACTORY_ROOT/.claude/settings.project.json")"
-  assert_true "$([ "$union_431" = "$(jq -cS '{allow: (.permissions.allow|sort), deny: (.permissions.deny|sort)}' "$old_set_431")" ]; echo $?)" \
-    "#431 AK-E1: Factory- + Projekt-Fragment ergeben genau die alte Regelmenge (keine Regel doppelt, keine verloren)"
-  rm -f "$old_set_431"
-else
-  echo "  ⏭  #431 AK-E1: Baseline-Commit $BASELINE_COMMIT_431 nicht verfügbar (flacher Klon) – übersprungen"
-fi
-# Projekt-Fragment trägt die App-Regeln, Factory-Fragment keine App-Pfade.
-jq -e '.permissions.allow | index("Edit(app/**)")' "$FACTORY_ROOT/.claude/settings.project.json" >/dev/null 2>&1
-assert_exit 0 "$?" "#431 AK-E1: Edit(app/**) steht im Projekt-Fragment"
+# AK-E1: Das Factory-Fragment trägt keine App-Pfade (die gehören dem Projekt-Fragment adoptierender Projekte).
 jq -e '.permissions.allow | index("Edit(app/**)")' "$FACTORY_ROOT/.claude/settings.factory.json" >/dev/null 2>&1
 assert_exit 1 "$?" "#431 AK-E1: Edit(app/**) steht nicht im Factory-Fragment"
 
 # AK-E2: ignorierte Pfade unverändert – feste Probenliste gegen die committete .gitignore (Temp-Repo, --no-index).
 TMP_GI_431="$(mktemp -d)"; git -C "$TMP_GI_431" init -q; cp "$FACTORY_ROOT/.gitignore" "$TMP_GI_431/"
-ign_431="node_modules/x .next/x coverage/x .coverage-tmp431/x .env.local .DS_Store logs/a.log tasks/metrics-1.md tasks/pipeline-stuck-1.md foo.tmp.sh foo.tmp.config.ts .verify-x/a test-results/a playwright-report/a .vercel/a tsconfig.tsbuildinfo next-env.d.ts cert.pem"
-keep_431=".env.example app/page.tsx tasks/interrupt-log.jsonl docs/routes.md package.json"
+ign_431="coverage/x .coverage-tmp431/x .env.local .DS_Store logs/a.log tasks/metrics-1.md tasks/pipeline-stuck-1.md foo.tmp.sh foo.tmp.config.ts .verify-x/a"
+keep_431=".env.example tasks/interrupt-log.jsonl scripts/start-work.sh README.md"
 for pr_431 in $ign_431; do
   git -C "$TMP_GI_431" check-ignore -q --no-index -- "$pr_431"
   assert_exit 0 "$?" "#431 AK-E2: $pr_431 bleibt ignoriert"
@@ -8681,11 +8011,6 @@ for pr_431 in $keep_431; do
   assert_exit 1 "$?" "#431 AK-E2: $pr_431 bleibt nicht ignoriert"
 done
 rm -rf "$TMP_GI_431"
-if git -C "$FACTORY_ROOT" cat-file -e "$BASELINE_COMMIT_431:.gitignore" 2>/dev/null; then
-  git -C "$FACTORY_ROOT" show "$BASELINE_COMMIT_431:.gitignore" | cmp -s - "$FACTORY_ROOT/.gitignore"
-  assert_exit 0 "$?" "#431 AK-E2: .gitignore byte-identisch zu vorher (ignorierte Menge unverändert)"
-fi
-
 # AK-E4: Doku nennt den Änderungsweg.
 own_doc_431="$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")"
 assert_contains_286 "$own_doc_431" 'Projekt-Fragment ändern' "#431 AK-E4: OPERATING.md: Projekt-Fragment ändern"
@@ -8704,16 +8029,11 @@ assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-self-t
   "#431 AK-F1: factory-ci.yml enthält genau die fünf Factory-Jobs (Ist: $(jobs_of_431 "$FCI_431"))"
 grep -q 'pnpm' "$FCI_431"
 assert_exit 1 "$?" "#431 AK-F1: factory-ci.yml enthält keinen pnpm-Aufruf"
-assert_true "$([ "$(jobs_of_431 "$PCI_431")" = "lint test " ]; echo $?)" \
-  "#431 AK-F2: ci.yml enthält genau lint + test (Ist: $(jobs_of_431 "$PCI_431"))"
+assert_true "$([ "$(jobs_of_431 "$PCI_431")" = "lint " ]; echo $?)" \
+  "#431 AK-F2: ci.yml enthält genau den Job lint (Ist: $(jobs_of_431 "$PCI_431"))"
 { grep -q '^  push:' "$PCI_431" && grep -q 'branches: \[main\]' "$PCI_431" && grep -q '^  pull_request:' "$PCI_431"; }
 assert_exit 0 "$?" "#431 AK-F2: ci.yml hat denselben Trigger wie vorher (push main + pull_request)"
-for cmd_431 in LINT TEST; do
-  grep -q "FACTORY_${cmd_431}_COMMAND: \${{ vars.FACTORY_${cmd_431}_COMMAND }}" "$PCI_431"
-  assert_exit 0 "$?" "#431 AK-F2: ci.yml liest FACTORY_${cmd_431}_COMMAND aus der Repo-Variable (Q7)"
-done
-grep -q 'eval "\$FACTORY_LINT_COMMAND"' "$PCI_431" && grep -q 'eval "\$FACTORY_TEST_COMMAND"' "$PCI_431"
-assert_exit 0 "$?" "#431 AK-F2: ci.yml führt beide Kommandos fail-closed aus"
+# (Die Quelle des Lint-Kommandos prüft der Guard „CI-Lint-Job führt commands.lint aus" weiter oben.)
 if command -v yq >/dev/null 2>&1; then
   yq '.' "$PCI_431" >/dev/null 2>&1
   assert_exit 0 "$?" "#431 AK-F2: ci.yml ist valides YAML"
@@ -8723,7 +8043,7 @@ fi
 
 # AK-F3/F-7: Required-Check-Namen (protect-main) = Menge der Job-Namen beider Factory-/Projekt-CI.
 all_jobs_431="$(jobs_of_431 "$FCI_431") $(jobs_of_431 "$PCI_431")"
-for chk_431 in lint test issue-sync factory-self-test pr-closes-issue config-validation; do
+for chk_431 in lint issue-sync factory-self-test pr-closes-issue config-validation; do
   assert_contains_286 "$all_jobs_431" "$chk_431 " "#431 AK-F3: Required Check '$chk_431' wird von einem Workflow gemeldet"
 done
 
@@ -8844,12 +8164,19 @@ echo "#431 AK-H: commands.* in factory.config.yml:"
 if [ "$HAS_YQ" = 1 ]; then
   for k_431 in lint test typecheck format coverage; do
     v_431="$(yq ".commands.$k_431" "$FACTORY_ROOT/factory.config.yml")"
-    assert_true "$([ -n "$v_431" ] && [ "$v_431" != null ]; echo $?)" "#431 AK-H1: factory.config.yml trägt commands.$k_431 (Ist: $v_431)"
+    # format ist im Factory-Repo bewusst leer (Format-Gate deaktiviert); alle anderen tragen ein Kommando.
+    if [ "$k_431" = format ]; then
+      assert_true "$([ -z "$(yq '.commands.format // ""' "$FACTORY_ROOT/factory.config.yml")" ]; echo $?)" "#431 AK-H1: factory.config.yml hält commands.format bewusst leer"
+    else
+      assert_true "$([ -n "$v_431" ] && [ "$v_431" != null ]; echo $?)" "#431 AK-H1: factory.config.yml trägt commands.$k_431 (Ist: $v_431)"
+    fi
     d_431="$(yq ".commands.$k_431 // \"\"" "$FACTORY_ROOT/factory.defaults.yml")"
     assert_true "$([ -z "$d_431" ]; echo $?)" "#431 AK-H2: factory.defaults.yml hat keinen Default für commands.$k_431 (Ist: '$d_431')"
   done
-  assert_true "$([ "$(yq '.commands.lint' "$FACTORY_ROOT/factory.config.yml")" = "pnpm lint" ] && [ "$(yq '.commands.test' "$FACTORY_ROOT/factory.config.yml")" = "pnpm test" ] && [ "$(yq '.commands.typecheck' "$FACTORY_ROOT/factory.config.yml")" = "pnpm typecheck" ] && [ "$(yq '.commands.format' "$FACTORY_ROOT/factory.config.yml")" = "pnpm format:check" ] && [ "$(yq '.commands.coverage' "$FACTORY_ROOT/factory.config.yml")" = "pnpm test:coverage" ]; echo $?)" \
-    "#431 AK-H1: commands.* tragen die heutigen TCH-Werte"
+  # Die Werte des Factory-Repos (ADR-063 D9): Syntaxprüfung per `bash -n`, Self-Test-Suite, kein install, kein pnpm.
+  cfg_431="$FACTORY_ROOT/factory.config.yml"
+  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/checks/tests/run-tests.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep -v '^[[:space:]]*#' "$cfg_431" | grep -q pnpm; echo $?)" \
+    "#431 AK-H1: commands.* tragen die Werte des Factory-Repos (bash -n, Self-Test-Suite, kein install, kein pnpm)"
   assert_true "$(! yq '.commands' "$FACTORY_ROOT/factory.defaults.yml" | grep -q pnpm; echo $?)" "#431 AK-H2: kein pnpm im commands-Block der Defaults"
 
   # AK-H3: die Gates lesen aus der Konfiguration; Env hat Vorrang.
@@ -8955,7 +8282,7 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$([ "$(yq -o=json -I=0 '.labels.kinds' "$DEF_431")" = '["bug","enhancement","documentation"]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.kinds (bug, enhancement, documentation)"
   assert_true "$([ "$(yq -o=json -I=0 '.labels.aspects' "$DEF_431")" = '["security","tech-debt","test"]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.aspects (security, tech-debt, test)"
   assert_true "$([ "$(yq -o=json -I=0 '.labels.aspects_extra' "$DEF_431")" = '[]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.aspects_extra als leere Liste (keine projekteigenen Labels)"
-  assert_true "$([ "$(yq '.labels.aspects_extra | contains(["factory-pipeline"])' "$CFG_431")" = true ]; echo $?)" "#431 AK-I1: factory.config.yml trägt labels.aspects_extra mit factory-pipeline"
+  assert_true "$([ "$(yq '.labels.aspects_extra // []' -o=json -I=0 "$CFG_431")" = '[]' ]; echo $?)" "#431 AK-I1: das Factory-Repo trägt keine projekteigenen Aspekt-Labels (labels.aspects_extra leer)"
 
   # Validierung (Regel 2 für Listen + Regel 8).
   TMP_I1="$(mktemp -d)"; CVC_I_431="$CHECKS_DIR/config-validation-check.sh"
@@ -8992,12 +8319,13 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$([ -z "$drift_431" ]; echo $?)" "#431 AK-I2: Label-Doku und Konfiguration stimmen überein (Abweichung:${drift_431:- keine})"
   # Mutationen: je Seite eine eigene Assertion mit demselben Ausdruck.
   TMP_I2="$(mktemp -d)"
-  printf 'labels:\n  aspects_extra: [factory-pipeline, zzz-neu]\n' > "$TMP_I2/cfg.yml"
+  printf 'labels:\n  aspects_extra: [zzz-neu]\n' > "$TMP_I2/cfg.yml"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg.yml" "$GW_431" "$PCX_431")" 'projekt-fehlt-in-PROJECT-CONTEXT:zzz-neu' "#431 AK-I2 (Mutation): ein Config-Label ohne Beschreibung in PROJECT-CONTEXT.md macht den Guard rot"
   grep -vF -- '| `security` |' "$GW_431" > "$TMP_I2/gw.md"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$CFG_431" "$TMP_I2/gw.md" "$PCX_431")" 'generisch-fehlt-in-git-workflow:security' "#431 AK-I2 (Mutation): ein generisches Label ohne Tabellenzeile in git-workflow.md macht den Guard rot"
-  { cat "$GW_431"; printf '| `factory-pipeline` | doppelt |\n'; } > "$TMP_I2/gw2.md"
-  assert_contains_286 "$(label_drift_431 "$DEF_431" "$CFG_431" "$TMP_I2/gw2.md" "$PCX_431")" 'projekt-steht-in-git-workflow:factory-pipeline' "#431 AK-I2 (Mutation): ein projekteigenes Label in der generischen Tabelle macht den Guard rot"
+  { cat "$GW_431"; printf '| `zzz-neu` | doppelt |\n'; } > "$TMP_I2/gw2.md"
+  { cat "$PCX_431"; printf '| `zzz-neu` | beschrieben |\n'; } > "$TMP_I2/pc2.md"
+  assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg.yml" "$TMP_I2/gw2.md" "$TMP_I2/pc2.md")" 'projekt-steht-in-git-workflow:zzz-neu' "#431 AK-I2 (Mutation): ein projekteigenes Label in der generischen Tabelle macht den Guard rot"
   rm -rf "$TMP_I2"
   gw_flat_431="$(flat_286 "$GW_431")"
   assert_contains_286 "$gw_flat_431" 'PROJECT-CONTEXT.md' "#431 AK-I2: git-workflow.md verweist für projekteigene Labels auf PROJECT-CONTEXT.md"
@@ -9064,23 +8392,13 @@ IMPL_432="$FACTORY_ROOT/.claude/commands/implement.md"
 grep -qE "$STACK_RE_432" "$IMPL_432"
 assert_exit 1 "$?" "#432 AK-K1: .claude/commands/implement.md nennt pnpm/Neon/Vercel/db:seed/Drizzle nicht mehr (Endzustand der Live-Datei)"
 
-BETRIEB_432="$FACTORY_ROOT/docs/project/betrieb.md"
-betrieb_flat_432="$(flat_286 "$BETRIEB_432")"
-for sec_432 in '## 0.2 GitHub-Repository-Secrets' '## 0.3 Vercel Production-Branch' '## 4.3 Destruktive Produktions-Migrationen' \
-    '## 1.4 Was nach dem Merge automatisch passiert' 'PRD_DATABASE_URL' 'VERCEL_AUTOMATION_BYPASS_SECRET' \
-    'Production Branch = `production`' 'DROP`/`TRUNCATE`' 'Docker (Compose v2)' '`db:seed`'; do
-  assert_contains_286 "$betrieb_flat_432" "$sec_432" "#432 AK-K2: betrieb.md enthält '$sec_432'"
-done
+# (AK-K2 – Inhalt von docs/project/betrieb.md – entfällt: das Betriebsdokument gehört dem adoptierenden Projekt.)
 operating_flat_432="$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")"
 for ref_432 in '0.1' '0.2' '0.3' '1.4' '4.3'; do
   assert_contains_286 "$operating_flat_432" "project/betrieb.md) → $ref_432" "#432 AK-K2: OPERATING.md verweist für $ref_432 auf betrieb.md"
 done
 
-PCTX_432="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
-assert_contains_286 "$PCTX_432" '## Lokale Umgebung & Oberflächentests' "#432 AK-K1a: PROJECT-CONTEXT.md hat den Abschnitt „Lokale Umgebung & Oberflächentests“"
-k1a_lines_432="$(awk '/^## Lokale Umgebung & Oberflächentests/{f=1;next} /^---$/{if(f)exit} /^## /{if(f)exit} f && NF' "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md" | wc -l)"
-assert_true "$([ "$k1a_lines_432" -le 10 ]; echo $?)" "#432 AK-K1a: der Abschnitt hat höchstens 10 Zeilen (Ist: $k1a_lines_432)"
-assert_contains_286 "$PCTX_432" 'docs/project/betrieb.md' "#432 AK-K1a: der Abschnitt verweist auf docs/project/betrieb.md"
+# (AK-K1a – Abschnitt „Lokale Umgebung & Oberflächentests" in PROJECT-CONTEXT.md – entfällt: das Factory-Repo hat keine App-Umgebung.)
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# factory.config.yml — Team-Override des Factory-Repos selbst (ADR-009, Factory-ADR-063 D9)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Das Factory-Repo nutzt sich selbst (Dogfooding): dieselbe Config-Schicht wie jedes adoptierende
+# Projekt. Begründung/Trade-off der Knöpfe: siehe factory.defaults.yml (Tags @reason/@tradeoff).
+#
+# ── Knöpfe: commands.* ───────────────────────────────────────────────────────
+# Die Gate-Kommandos des Factory-Repos. Es gibt weder pnpm noch Node noch eine Datenbank:
+#   lint      Syntaxprüfung `bash -n` über alle getrackten Shell-Skripte (ShellCheck folgt als Issue).
+#   test      Self-Test-Suite der Factory.
+#   typecheck Shell kennt keinen Typecheck – die Syntaxprüfung steht stellvertretend, damit das
+#             Pflicht-Kommando des pre-push-Gates gesetzt ist.
+#   coverage  Eine Abdeckungsmessung gibt es nicht – die Self-Test-Suite steht stellvertretend
+#             (run-pipeline.sh verlangt das Kommando).
+#   format    leer = Format-Gate deaktiviert (kein Formatierer für Shell/Markdown eingerichtet).
+#   install   leer = kein Install-Schritt im neuen Worktree.
+# Env-Overrides FACTORY_*_COMMAND haben Vorrang. CI liest lint aus ci.yml (gleicher Wortlaut).
+commands:
+  lint: "git ls-files -z '*.sh' | xargs -0 -n1 bash -n"
+  test: "bash scripts/checks/tests/run-tests.sh"
+  typecheck: "git ls-files -z '*.sh' | xargs -0 -n1 bash -n"
+  format: ""
+  coverage: "bash scripts/checks/tests/run-tests.sh"
+  install: ""

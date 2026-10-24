@@ -1,8 +1,8 @@
-# TCH Gastro Services
+# dev-factory
 
-Projekt-Regeln für Claude Code. Der generische Teil (Factory-Prinzipien, Pipeline, Guidelines,
-Guardrails) steht in `docs/factory/FACTORY.md` und gehört der Factory (`docs/factory/OWNERSHIP.md`);
-hier stehen nur die Regeln, die TCH-spezifisch sind.
+Projekt-Regeln für Claude Code im **Factory-Repo selbst**. Der generische Teil (Factory-Prinzipien,
+Pipeline, Guidelines, Guardrails) steht in `docs/factory/FACTORY.md` und gehört der Factory
+(`docs/factory/OWNERSHIP.md`); hier stehen nur die Regeln dieses Repos.
 
 @docs/factory/FACTORY.md
 
@@ -14,10 +14,13 @@ hier stehen nur die Regeln, die TCH-spezifisch sind.
 
 ---
 
-## Projekt-Regeln (TCH)
+## Projekt-Regeln (dev-factory)
 
-- **Routen-Doku bei jeder Routen-Änderung aktualisieren.** Wird eine Seite (`app/**/page.tsx`)
-  oder ein API-Route-Handler (`app/api/**/route.ts`) hinzugefügt, entfernt oder in Pfad/Zugriff
-  geändert, ist [`docs/routes.md`](docs/routes.md) im selben PR mitzupflegen (Pfad, Funktion,
-  Zugriff). Der Drift-Check `scripts/project/checks/pre-push.d/routes-doc-check.sh` blockiert einen Push fail-closed,
-  wenn Doku und `app/`-Baum auseinanderlaufen. Analog zu „Entscheidungen dokumentieren". (aus #145)
+- **Das Repo nutzt sich selbst:** Änderungen laufen über Issue → `start-work.sh` → Feature-Branch → PR
+  (Squash). Direkt auf `main` zu pushen lehnt das Ruleset `protect-main` serverseitig ab.
+- **Ownership pflegen:** Jede neue getrackte Datei braucht im selben PR eine Zeile in
+  `docs/factory/OWNERSHIP.md` (Seite `factory` = wird ausgeliefert, `project` = gehört dem Repo).
+- **Referenzen qualifizieren:** ein Verweis auf `nothra/tch-gastro-services` steht immer als
+  `nothra/tch-gastro-services#<nr>`; unqualifiziertes `#<nr>` meint dieses Repo.
+- **Keine projektspezifischen Begriffe** aus adoptierenden Projekten in Skripten, Skills, Guidelines,
+  ADRs und Lessons (Liste und erlaubte Stellen: `PROJECT-CONTEXT.md` → „Konventionen").
