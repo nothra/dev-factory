@@ -29,10 +29,16 @@ Kein Release in #22.
 - [ ] F-22.1 bis F-22.5 Fehlerszenarien (siehe Spec)
 
 ## Technische Notizen
-<!-- Von /architecture befüllt oder eigene Notizen -->
+ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`, Proposed → mit Umsetzung auf Accepted):
+- Lock = Release-Manifest (JSON, `schema` 1), gelesen per `jq`; Lock-Modus wenn `factory.lock` existiert, kein Mischmodus.
+- Fail-closed: Exit 2 bei unlesbarem/ungültigem Lock, fehlendem `jq` oder fehlender Anpassungsstellen-Liste; Exit 1 bei fehlendem/doppeltem Lock-Pfad oder Anpassungsstelle im Lock.
+- Anpassungsstellen: `scripts/checks/customization-points.txt` (Seite `factory`), Teilmenge der `project`-Zeilen.
+- `OWNERSHIP.md` → Seite `project`; `scripts/project/**` braucht eine `project`-Zeile.
+- Test-Schnitt nach `scripts/project/tests/`; Aufruf über `pre-push.d/` und `ci.yml`. Zuerst Inventar (Testgruppe → Assertions), dann verschieben.
+- Commit-Reihenfolge: Lock-Modus mit Tests → `OWNERSHIP.md` → Test-Schnitt → Verdrahtung.
 
 ## Offene Fragen
-- [ ] Q-22.4 Lock-Format (Syntax) – blockiert `/implement`, klärt `/architecture`
+- [x] Q-22.4 Lock-Format: JSON wie `factory-release.json` (ADR 064 D1)
 - [ ] Q-22.5 #23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten
 - [ ] Issue-Body #22 nennt „je Factory-Task ein Release", die Spec entscheidet „kein Release in #22" – Issue anpassen
 

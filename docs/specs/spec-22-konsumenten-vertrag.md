@@ -61,12 +61,14 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
 - [ ] **AK2.15b** GIVEN dasselbe WHEN ein Lock-Pfad nicht existiert oder ein Pfad einer Anpassungsstelle
   im Lock steht THEN schlägt der Check fehl (Exit 1) und nennt den Pfad. *Beleg: zwei Negativtests,
   je einer pro Fall, jeder mit pfadspezifischem Signal.*
-- [ ] **AK2.15b-2** GIVEN die mitgelieferte Liste der Anpassungsstellen WHEN sie gelesen wird THEN
-  enthält sie mindestens `CLAUDE.md`, `factory.config.yml`, `docs/factory/PROJECT-CONTEXT.md`,
-  `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`, `.gitignore.project`,
-  `.github/workflows/ci.yml` und `.github/workflows/release.yml` (Stand `PROJECT-CONTEXT.md`
-  „Eigene Anpassungsstellen"), und sie stimmt mit den `project`-Zeilen von `OWNERSHIP.md` überein.
-  *Beleg: Drift-Guard in beide Richtungen (Liste brechen / Tabelle brechen).*
+- [ ] **AK2.15b-2** GIVEN die mitgelieferte Liste der Anpassungsstellen (`scripts/checks/customization-points.txt`,
+  ADR 064 D4) WHEN sie gelesen wird THEN enthält sie mindestens `CLAUDE.md`, `factory.config.yml`,
+  `docs/factory/PROJECT-CONTEXT.md`, `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`,
+  `.gitignore.project`, `.github/workflows/ci.yml` und `.github/workflows/release.yml` (Stand
+  `PROJECT-CONTEXT.md` „Eigene Anpassungsstellen"); jeder Eintrag steht in `OWNERSHIP.md` auf Seite
+  `project`. Die Liste ist eine **Teilmenge** der `project`-Zeilen, nicht deren Gesamtheit (`tasks/**`,
+  `docs/specs/**` sind keine Anpassungsstellen). *Beleg: Drift-Guard je Richtung (Eintrag aus der
+  Liste auf `factory` setzen / Anpassungsstelle aus der Liste streichen).*
 - [ ] **AK2.15c** GIVEN das Factory-Repo (kein Lock) WHEN der Check läuft THEN gilt weiter die Tabelle
   `OWNERSHIP.md` wie bisher (gleiche Meldungen, gleiche Exit-Codes, `--list` unverändert).
   *Beleg: alle bestehenden Ownership-Tests bleiben unverändert grün.*
@@ -86,7 +88,8 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
   *Beleg: Vorher/Nachher-Liste der Testgruppen im PR und Zählvergleich der Assertions
   (Summe vorher = Summe ausgelieferte Suite + `scripts/project/tests/`).*
 - [ ] **AK2.16b-2** GIVEN `scripts/project/tests/` WHEN CI und `pre-push.sh` im Factory-Repo laufen THEN
-  führen beide diese Tests mit aus, sodass der Schnitt im Factory-Repo keinen Gate-Verlust bedeutet.
+  führen beide diese Tests mit aus (lokal über `scripts/project/checks/pre-push.d/`, in CI über einen Job
+  in `ci.yml`; ADR 064 D6), sodass der Schnitt im Factory-Repo keinen Gate-Verlust bedeutet.
   *Beleg: Wiring-Test an der echten Aufrufzeile, nicht am Dateinamen-Fragment.*
 - [ ] **AK2.16b-3** GIVEN `scripts/project/tests/` WHEN das Release-Manifest erzeugt wird THEN steht
   dort nichts auf Seite `factory`; jede neue Datei hat eine Zeile in `OWNERSHIP.md`. *Beleg:
@@ -107,8 +110,8 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
 
 ## Offene Fragen
 
-- [x] **Q-22.1 · Anpassungsstellen im Lock-Modus:** → feste Liste im Factory-Release, vom Check gelesen
-  (entschieden 2026-10-24). Dateiformat und Ablageort der Liste legt `/architecture` fest.
+- [x] **Q-22.1 · Anpassungsstellen im Lock-Modus:** → feste Liste im Factory-Release (entschieden 2026-10-24);
+  Ort und Format: `scripts/checks/customization-points.txt`, ein Pfad je Zeile (ADR 064 D4).
 - [x] **Q-22.2 · Beleg für AK2.16b:** → Testgruppen-Liste und Zählvergleich im PR (entschieden
   2026-10-24). Ein zusätzlicher Konsumenten-Fixture-Lauf bleibt bei AK2.16a und ist kein eigener
   Aufwandsblock.
@@ -117,10 +120,9 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
   spec-428 Q1 (Release `v0.7.0` vor dem TCH-PR): Der Issue-Body von #22 muss angepasst werden, sonst
   steht dort eine Regel, die diese Spec überstimmt. Wann das Release kommt (nach #23 oder #24), ist
   für #23/#24 zu klären.
-- [ ] **Q-22.4 · Lock-Format:** AK2.1a legt den Inhalt fest (Quell-Repo, Tag, Commit-SHA, je Datei Pfad
-  und SHA-256), nicht die Syntax. #22 liest den Lock, #23 schreibt ihn – das Format muss in beiden
-  Tasks gleich sein. Vorschlag: `/architecture` entscheidet das Format hier einmal und #23 übernimmt
-  es. Blockiert `/implement`.
+- [x] **Q-22.4 · Lock-Format:** → JSON, identisch mit dem Release-Manifest `factory-release.json`
+  (`schema` 1); #23 schreibt den Lock als Kopie, #22 liest `files[].path` per `jq` (ADR 064 D1).
+  Ohne `jq` im Lock-Modus Exit 2 (F-22.1).
 - [ ] **Q-22.5 · Abstimmung mit dem Update-Weg:** Ändert ein Konsument seine `OWNERSHIP.md` nach
   AK2.15d weg (Lock-Modus), muss die Abholung (#23) wissen, dass `OWNERSHIP.md` im Release nicht mehr
   geliefert wird. Prüfen, dass #23 `OWNERSHIP.md` nicht als zu liefernde Datei erwartet.

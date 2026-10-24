@@ -118,3 +118,4 @@ directory). Duplicate numbers (040) are known, see nothra/tch-gastro-services#32
 | 049 | [Telemetrie-Persistenz je Pipeline-Lauf – in `run-pipeline.sh` integriert, Default an, personenfrei getrackt in Git](049-telemetrie-persistenz-je-pipeline-lauf.md) | Accepted |
 | 051 | [Turn-Limit-Ceiling für `/implement` von 50 auf 80 anheben (erweitert ADR-009 §6 / ADR-010)](051-turn-limit-ceiling-implement-80.md) | Accepted |
 | 063 | [Factory in eigenes Repo – versionierte Übernahme per Manifest](063-factory-eigenes-repo-vendored-manifest.md) | Accepted |
+| 064 | [Konsumenten-Vertrag – `factory.lock` als Ownership-Quelle, Lock-Format](064-konsumenten-vertrag-lock-als-ownership-quelle.md) | Proposed |
