@@ -43,6 +43,10 @@ bash scripts/checks/tests/run-tests.sh         # Self-Test-Suite
 Neue Aufgaben starten mit `bash scripts/start-work.sh <beschreibung> [branch-typ]` (eigener Worktree,
 Branch und Draft-PR). Details: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## Lizenz
+
+Apache License 2.0 – siehe [`LICENSE`](LICENSE).
+
 ## Versionen
 
 SemVer-Tags `vX.Y.Z` mit GitHub Release und Manifest `factory-release.json`; die Änderungen je
