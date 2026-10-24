@@ -3,6 +3,20 @@
 Format: ein Abschnitt je Version (`## vX.Y.Z – <Datum>`), neueste oben. Ein Abschnitt zum Tag ist
 Voraussetzung für das Release (Factory-ADR-063 D6).
 
+## Unreleased
+
+### Neu
+
+- **Konsumenten-Vertrag (Factory-ADR-064):** `ownership-check.sh` kennt zwei Modi. Mit `factory.lock` im Wurzelverzeichnis
+  gilt allein der Lock (Seite `factory` = seine Pfadmenge), ohne Lock weiter `OWNERSHIP.md`. Die Liste der
+  Anpassungsstellen liefert die Factory als `scripts/checks/customization-points.txt` mit.
+
+### Geändert
+
+- `docs/factory/OWNERSHIP.md` gehört dem Repo (Seite `project`) und ist nicht mehr Teil des Release-Manifests.
+- Die ausgelieferte Self-Test-Suite ist konsumenten-neutral; Prüfungen, die das Factory-Repo voraussetzen, laufen in
+  `scripts/project/tests/` (lokal über `pre-push.d/`, in CI als Job `project-self-test`).
+
 ## v0.6.1 – 2026-10-24
 
 Patch-Release ohne Verhaltensänderung.

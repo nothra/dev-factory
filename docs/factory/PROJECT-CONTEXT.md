@@ -30,7 +30,8 @@
 ## Build, Test, Lint
 
 ```bash
-bash scripts/checks/tests/run-tests.sh                 # Self-Test-Suite (commands.test)
+bash scripts/checks/tests/run-tests.sh                 # ausgelieferte Self-Test-Suite (commands.test)
+bash scripts/project/tests/run-tests.sh                # Projekt-Suite: Prüfungen, die dieses Repo voraussetzen
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n          # Syntaxprüfung (commands.lint)
 bash scripts/install-hooks.sh                          # Git-Hooks einmalig installieren
 ```
@@ -68,7 +69,9 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
   (Rekonstruktions-Daten der Lesson-Aufteilung, unverändert), (4) dieser Datei.
 - **`#<nr>` in Shell-Strings** (Testnamen und Meldungen in `scripts/checks/tests/run-tests.sh`) bezeichnet das Issue
   des Ursprungs-Repos, aus dem der jeweilige Test stammt; in Kommentaren und Dokumenten steht der Verweis qualifiziert.
-- **Self-Tests prüfen das Factory-Repo**, nicht den Zustand eines adoptierenden Projekts.
+- **Zwei Suiten (Factory-ADR-064 D6):** die ausgelieferte Suite `scripts/checks/tests/run-tests.sh` ist konsumenten-neutral und
+  setzt weder `ci.yml`, `release.yml` noch `OWNERSHIP.md` dieses Repos voraus; was dieses Repo voraussetzt, steht in
+  `scripts/project/tests/run-tests.sh` (lokal über `pre-push.d/`, in CI als Job `project-self-test`).
 
 ---
 

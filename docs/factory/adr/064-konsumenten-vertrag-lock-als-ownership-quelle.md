@@ -1,7 +1,7 @@
 # ADR 064: Konsumenten-Vertrag – `factory.lock` als Ownership-Quelle, Lock-Format
 
 ## Status
-Proposed (2026-10-24, aus Spec `docs/specs/spec-22-konsumenten-vertrag.md`; wird mit der Umsetzung in #22 auf Accepted gesetzt)
+Accepted (2026-10-24, aus Spec `docs/specs/spec-22-konsumenten-vertrag.md`; mit der Umsetzung in #22 angenommen)
 
 ## Date
 2026-10-24

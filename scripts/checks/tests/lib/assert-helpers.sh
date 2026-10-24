@@ -2,11 +2,11 @@
 # assert-helpers.sh – gemeinsame Prüf-Helfer der Test-Suiten (Factory-Datei, nothra/tch-gastro-services#432 / Q10)
 #
 # Wird gesourct – nie direkt ausgeführt – von `scripts/checks/tests/run-tests.sh` (Factory-Suite)
-# und `scripts/project/tests/run-project-tests.sh` (Projekt-Suite). Es gibt genau eine Kopie:
+# und `scripts/project/tests/run-tests.sh` (Projekt-Suite). Es gibt genau eine Kopie:
 # die Helfer gehören der Factory und kommen ab T2 mit Factory-Updates.
 #
 # Stellt bereit: die Zähler PASS/FAIL, die Farben, assert_exit/assert_true/assert_contains_286/
-# assert_absent, flat_286, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block und
+# assert_absent, flat_286, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426 und
 # print_summary (Ergebnis-Fußzeile samt Exit-Code).
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -118,6 +118,29 @@ skip_yq() { echo "  • ${1} – übersprungen (yq fehlt, ADR-009)"; }
 # des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen (Lesson nothra/tch-gastro-services#255).
 ci_job_block() {
   awk -v j="$1" '$0 ~ "^  " j ":" {f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$2"
+}
+
+# cp_pipeline_libs <repo-root> – legt ALLE von run-pipeline.sh gesourcten scripts/lib/-Dateien
+# in eine Temp-Repo-Kopie. Einziger Ort, an dem eine neu gesourcte Lib nachzutragen ist: fehlt
+# sie, bricht run-pipeline.sh unter `set -euo pipefail` schon am `source` ab und der Test wird
+# rot aus dem falschen Grund (bash-gotchas.md §5; Vorfälle nothra/tch-gastro-services#91, nothra/tch-gastro-services#197). Vor nothra/tch-gastro-services#334 stand dieselbe
+# cp-Gruppe achtmal kopiert in der Suite – jede Kopie eine Stelle, die man beim nächsten Seam
+# vergessen kann.
+cp_pipeline_libs() {
+  mkdir -p "$1/scripts/lib"
+  cp "$SCRIPTS_DIR/lib/report-verdict.sh" \
+     "$SCRIPTS_DIR/lib/tier-select.sh" \
+     "$SCRIPTS_DIR/lib/verify-final-state.sh" \
+     "$SCRIPTS_DIR/lib/telemetry-harvest.sh" \
+     "$SCRIPTS_DIR/lib/gate-config.sh" \
+     "$1/scripts/lib/"
+}
+
+# bare_factory_adr_426 <datei> <nummernliste> – Treffer `ADR-NNN` ohne Präfix (Spec nothra/tch-gastro-services#426 AK-B5); geteilt zwischen
+# der ausgelieferten Suite (Kontrollen) und der Projekt-Suite (Prüfung der Projekt-Dateien).
+bare_factory_adr_426() { # $1 = Datei, $2 = Nummernliste (Leerzeichen) → Treffer `ADR-NNN` ohne Präfix
+  local alt; alt="$(printf '%s' "$2" | tr ' ' '|')"
+  grep -noE "(^|[^A-Za-z-])ADR-($alt)([^0-9]|$)" "$1"
 }
 
 # print_summary – Ergebnis-Fußzeile; der Rückgabewert (0 nur ohne Rot) ist der Exit-Code der Suite.
