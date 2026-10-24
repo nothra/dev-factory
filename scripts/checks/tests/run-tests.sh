@@ -7656,6 +7656,124 @@ assert_true "$(grep -q 'ownership-check.sh' "$CHECKS_DIR/pre-push.sh"; echo $?)"
   "#426 AK-A6: pre-push.sh ruft ownership-check.sh auf (lokales Gate)"
 assert_true "$(grep -q 'bash scripts/checks/tests/run-tests.sh' "$FACTORY_ROOT/.github/workflows/factory-ci.yml"; echo $?)" \
   "#426 AK-A6: factory-self-test (CI) führt diese Suite aus – damit auch den Check oben"
+# ── Factory-Issue #22 · Konsumenten-Vertrag: ownership-check.sh im Lock-Modus (AK2.15a/b, F-22.1/3/4) ──────────────────
+# Mit `factory.lock` im Repo-Wurzelverzeichnis gilt allein der Lock (ADR 064 D2/D3); ohne Lock bleibt der
+# Tabellenmodus oben unverändert. Der Lock ist das Release-Manifest (JSON); gelesen wird nur die Pfadmenge.
+OWN_CHECK_22="$CHECKS_DIR/ownership-check.sh"
+
+# Wegwerf-Konsument: $1 = Lock-Pfade (\n-getrennt), $2 = getrackte Dateien, $3 = Anpassungsstellen-Liste, $4.. = Argumente.
+# Die Zuordnungstabelle fehlt absichtlich (OWNERSHIP_FILE zeigt ins Leere): der Lock-Modus darf sie nicht brauchen.
+lock_run_22() {
+  local dir; dir="$(mktemp -d)"
+  printf '%b' "$1" | jq -R . | jq -s '{schema: 1, repo: "x/y", version: "v0", commit: "0", files: map({path: ., sha256: "0"})}' > "$dir/factory.lock"
+  printf '%b' "$2" > "$dir/files.txt"
+  printf '%b' "$3" > "$dir/points.txt"
+  FACTORY_LOCK_FILE="$dir/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir/points.txt" OWNERSHIP_FILE=/nicht/vorhanden/OWNERSHIP.md \
+    OWNERSHIP_FILE_LIST="$dir/files.txt" bash "$OWN_CHECK_22" "${@:4}" 2>&1
+  local rc=$?
+  rm -rf "$dir"
+  return $rc
+}
+
+# AK2.15a: Lock ohne OWNERSHIP.md → grün, Seite `factory` = Lock-Pfadmenge, Rest `project`
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nscripts/b.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 0 $? "#22 AK2.15a: Lock ohne OWNERSHIP.md → Exit 0"
+assert_contains_286 "$out_22" 'factory: 2, project: 1' "#22 AK2.15a: Verteilung = Lock-Pfadmenge gegen den Rest"
+assert_contains_286 "$out_22" 'Modus: Lock' "#22 AK2.15a-3: die Ausgabe nennt den Modus"
+
+# AK2.15a-2: --list je Seite, jede Datei genau einer Seite
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nCLAUDE.md\nscripts/b.sh\ndocs/x.md\n' 'CLAUDE.md\n' --list factory)"
+assert_exit 0 $? "#22 AK2.15a-2: --list factory im Lock-Modus"
+assert_true "$([ "$out_22" = "$(printf 'scripts/a.sh\nscripts/b.sh')" ]; echo $?)" "#22 AK2.15a-2: --list factory nennt genau die Lock-Pfade"
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nCLAUDE.md\nscripts/b.sh\ndocs/x.md\n' 'CLAUDE.md\n' --list project)"
+assert_exit 0 $? "#22 AK2.15a-2: --list project im Lock-Modus"
+assert_true "$([ "$out_22" = "$(printf 'CLAUDE.md\ndocs/x.md')" ]; echo $?)" "#22 AK2.15a-2: --list project nennt genau das Komplement"
+
+# AK2.15a-3: Lock UND widersprüchliche Tabelle → allein der Lock entscheidet (kein Mischmodus)
+dir_22="$(mktemp -d)"
+printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `scripts/**` | widerspricht dem Lock |\n' > "$dir_22/OWNERSHIP.md"
+printf '{"schema":1,"files":[{"path":"scripts/a.sh","sha256":"0"}]}' > "$dir_22/factory.lock"
+printf 'scripts/a.sh\nREADME.md\n' > "$dir_22/files.txt"; printf 'README.md\n' > "$dir_22/points.txt"
+out_22="$(FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" OWNERSHIP_FILE="$dir_22/OWNERSHIP.md" \
+  OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 0 $? "#22 AK2.15a-3: widersprüchliche Tabelle neben dem Lock stört nicht (README.md ist in der Tabelle unzugeordnet)"
+assert_contains_286 "$out_22" 'factory: 1, project: 1' "#22 AK2.15a-3: Ergebnis folgt dem Lock, nicht der Tabelle"
+rm -rf "$dir_22"
+
+# AK2.15b (Fall 1): Lock-Pfad nicht getrackt → Exit 1, Pfad + Signal „nicht getrackt“
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/weg.sh\n' 'scripts/a.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: Lock-Pfad ohne Datei → Exit 1"
+assert_contains_286 "$out_22" 'scripts/weg.sh: nicht getrackt' "#22 AK2.15b: der fehlende Lock-Pfad wird namentlich genannt"
+assert_absent "$out_22" 'Anpassungsstelle' "#22 AK2.15b: Fall 1 löst nicht das Signal von Fall 2 aus"
+# AK2.15b (Fall 2): Anpassungsstelle im Lock → Exit 1, Pfad + Signal „Anpassungsstelle“
+out_22="$(lock_run_22 'scripts/a.sh\nCLAUDE.md\n' 'scripts/a.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: Anpassungsstelle im Lock → Exit 1"
+assert_contains_286 "$out_22" 'CLAUDE.md: Anpassungsstelle steht im Lock' "#22 AK2.15b: die Anpassungsstelle wird namentlich genannt"
+assert_absent "$out_22" 'nicht getrackt' "#22 AK2.15b: Fall 2 löst nicht das Signal von Fall 1 aus"
+
+# F-22.4: doppelter Lock-Pfad → Exit 1 mit Pfad, nicht still zusammengefasst
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/a.sh\n' 'scripts/a.sh\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.4: doppelter Lock-Pfad → Exit 1"
+assert_contains_286 "$out_22" 'scripts/a.sh: mehrfach im Lock' "#22 F-22.4: der doppelte Pfad wird namentlich genannt"
+
+# F-22.3: Sonderzeichen und Leerzeichen wörtlich, keine Muster-Auswertung
+out_22="$(lock_run_22 'a+b.sh\nx[1].md\ndir/mit leerzeichen.txt\n' 'a+b.sh\nx[1].md\ndir/mit leerzeichen.txt\nrest.md\n' 'CLAUDE.md\n' --list factory)"
+assert_exit 0 $? "#22 F-22.3: Pfade mit '+', '[', Leerzeichen sind gültige Lock-Pfade"
+assert_true "$([ "$out_22" = "$(printf 'a+b.sh\ndir/mit leerzeichen.txt\nx[1].md')" ]; echo $?)" "#22 F-22.3: genau diese Pfade stehen auf Seite factory"
+out_22="$(lock_run_22 'a.b\n' 'aXb\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.3: '.' im Lock-Pfad ist kein Joker (aXb ≠ a.b)"
+assert_contains_286 "$out_22" 'a.b: nicht getrackt' "#22 F-22.3: der Joker-Kandidat bleibt ein fehlender Pfad"
+out_22="$(lock_run_22 'x*\n' 'xyz\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.3: '*' im Lock-Pfad ist kein Glob"
+
+# F-22.1: unlesbarer / leerer / ungültiger Lock → Exit 2 (fail-closed), kein Rückfall in den Tabellenmodus
+lock_bad_22() { # $1 = Lock-Inhalt; gültige Tabelle liegt daneben – ein Rückfall ergäbe Exit 0
+  local dir rc; dir="$(mktemp -d)"
+  printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$dir/OWNERSHIP.md"
+  printf '%s' "$1" > "$dir/factory.lock"; printf 'a.md\n' > "$dir/files.txt"; printf 'CLAUDE.md\n' > "$dir/points.txt"
+  FACTORY_LOCK_FILE="$dir/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir/points.txt" OWNERSHIP_FILE="$dir/OWNERSHIP.md" \
+    OWNERSHIP_FILE_LIST="$dir/files.txt" bash "$OWN_CHECK_22" > "$dir/out.txt" 2>&1
+  rc=$?; cat "$dir/out.txt"; rm -rf "$dir"; return $rc
+}
+lock_bad_22 '' > /dev/null;                                          assert_exit 2 $? "#22 F-22.1: leerer Lock → Exit 2, kein Tabellenmodus"
+lock_bad_22 'das ist kein json' > /dev/null;                         assert_exit 2 $? "#22 F-22.1: Lock ohne gültiges JSON → Exit 2"
+lock_bad_22 '{"schema":1,"files":[]}' > /dev/null;                   assert_exit 2 $? "#22 F-22.1: Lock ohne Pfadeintrag → Exit 2"
+lock_bad_22 '{"schema":2,"files":[{"path":"a.md"}]}' > /dev/null;    assert_exit 2 $? "#22 F-22.1: unbekanntes Schema → Exit 2"
+lock_bad_22 '{"schema":1,"files":[{"sha256":"0"}]}' > /dev/null;     assert_exit 2 $? "#22 F-22.1: Eintrag ohne Pfad → Exit 2"
+out_22="$(lock_bad_22 '{"schema":2,"files":[{"path":"a.md"}]}')"
+assert_contains_286 "$out_22" 'schema' "#22 F-22.1: die Meldung nennt das Schema als Ursache"
+dir_22="$(mktemp -d)"; printf '{"schema":1,"files":[{"path":"a.md"}]}' > "$dir_22/factory.lock"; chmod 000 "$dir_22/factory.lock"
+if [ -r "$dir_22/factory.lock" ]; then
+  echo "  (übersprungen: Lock trotz chmod 000 lesbar – Lauf als Superuser)"
+else
+  printf 'a.md\n' > "$dir_22/files.txt"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
+  FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" > /dev/null 2>&1
+  assert_exit 2 $? "#22 F-22.1: nicht lesbarer Lock → Exit 2"
+fi
+chmod 600 "$dir_22/factory.lock"; rm -rf "$dir_22"
+
+# F-22.1 (Messung): ohne jq im PATH → Exit 2 mit klarer Meldung, nicht Exit 0 (Stub bricht die Messung, nicht nur den Input)
+nojq_22="$(mktemp -d)"
+for t_22 in bash dirname cat sort uniq comm grep awk sed mktemp rm tr git head; do
+  p_22="$(command -v "$t_22" 2>/dev/null)" && ln -s "$p_22" "$nojq_22/$t_22"
+done
+dir_22="$(mktemp -d)"; printf '{"schema":1,"files":[{"path":"a.md"}]}' > "$dir_22/factory.lock"; printf 'a.md\n' > "$dir_22/files.txt"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
+out_22="$(PATH="$nojq_22" FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" OWNERSHIP_FILE_LIST="$dir_22/files.txt" "$nojq_22/bash" "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 F-22.1: Lock-Modus ohne jq → Exit 2"
+assert_contains_286 "$out_22" 'jq' "#22 F-22.1: die Meldung nennt jq"
+rm -rf "$nojq_22" "$dir_22"
+
+# F-22.2: Liste der Anpassungsstellen fehlt → Exit 2 (nicht „keine Anpassungsstelle verletzt“)
+dir_22="$(mktemp -d)"; printf '{"schema":1,"files":[{"path":"a.md"}]}' > "$dir_22/factory.lock"; printf 'a.md\n' > "$dir_22/files.txt"
+out_22="$(FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/fehlt.txt" OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 F-22.2: fehlende Anpassungsstellen-Liste → Exit 2"
+assert_contains_286 "$out_22" 'Anpassungsstellen' "#22 F-22.2: die Meldung nennt die Liste der Anpassungsstellen"
+rm -rf "$dir_22"
+
+# AK2.15c: ohne Lock bleibt der Tabellenmodus – keine Moduszeile, Meldungen unverändert (Kontrolle zu den Tests oben)
+out_22="$(own_run_426 '| project | `**` | alles |\n' 'a.md\n')"
+assert_exit 0 $? "#22 AK2.15c: ohne Lock gilt die Tabelle (Exit 0)"
+assert_absent "$out_22" 'Modus:' "#22 AK2.15c: der Tabellenmodus trägt keine Moduszeile (Ausgabe unverändert)"
 # ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
@@ -7706,7 +7824,7 @@ assert_exit 0 "$adr_links_rc_426" "#426 AK-B3: im ganzen Repo zeigt kein ADR-Lin
 [ "$adr_links_rc_426" -eq 0 ] || echo "$out_426" | grep '^✗' | head -20 | sed 's/^/      /'
 
 # AK-B1/B2: Zuordnung der ADR-Dateien (Anhang 1 der Spec, final in ADR-063 Nachtrag Q3)
-FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063"
+FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063 064"
 adr_nums_426() { # $1 = Verzeichnis → Nummern der ADR-Dateien, eindeutig sortiert
   local f; for f in "$1"/[0-9][0-9][0-9]-*.md; do [ -e "$f" ] && basename "$f" | cut -c1-3; done | sort -u
 }

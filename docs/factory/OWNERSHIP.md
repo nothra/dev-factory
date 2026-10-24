@@ -61,6 +61,7 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/commit-msg-check.sh` | Hook: Commit-Message-Flag-Guard |
 | factory | `scripts/checks/completion-check.sh` | Hook: Task-Abschluss |
 | factory | `scripts/checks/config-validation-check.sh` | Gate: `factory.config.yml` (ADR-010) |
+| factory | `scripts/checks/customization-points.txt` | Liste der Anpassungsstellen, die ein Projekt selbst besitzt (Factory-ADR-064 D4) |
 | factory | `scripts/checks/git-context-check.sh` | Hook: Git-Kontext |
 | factory | `scripts/checks/hooks-installed-check.sh` | Gate: Git-Hooks installiert (ADR-042) |
 | factory | `scripts/checks/import-context-limit-check.sh` | Gate: `@import`-Deckel (ADR-047) |

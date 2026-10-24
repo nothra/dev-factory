@@ -4,7 +4,7 @@
 > Kriterien-Quelle ist `spec-428-factory-versioniert-per-factory-lock-einbinden.md` im Ursprungs-Repo
 > (Branch `feature/428-factory-split-t2-factory-lock-einbinden`, bis zum Merge dort). Hier stehen die
 > Kriterien AK2.15a–c und AK2.16a–b, verfeinert auf den Ist-Stand von v0.6.1. Entscheidung:
-> Factory-ADR-063 (Nachtrag 2026-10-24, Q7/Q8). Reihenfolge strikt A → B → C → TCH-Erst-Einbindung;
+> Factory-ADR-063 (Nachtrag 2026-10-24, Q7/Q8). Reihenfolge strikt A → B → C → Erst-Einbindung im ersten Konsumenten (`nothra/tch-gastro-services`);
 > diese Task ist **A**.
 
 ## Kontext
@@ -19,7 +19,7 @@ Repo nicht lauffähig:
   (`ci.yml`, `release.yml`, Dateizahlen, `OWNERSHIP.md`). In einem Konsumenten ist sie damit rot,
   ohne dass dort etwas kaputt wäre.
 
-Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden Stellen rot.
+Ohne diese Task bleibt jede spätere Einbindung (T2a-4, erster Konsument) an diesen beiden Stellen rot.
 `factory.lock` selbst und das Abhol-Werkzeug entstehen erst in T2a-2 (#23); hier wird nur der
 **lesende** Vertrag festgelegt.
 
@@ -39,7 +39,7 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
 - Erzeugen, Schreiben und Aktualisieren von `factory.lock`, Abholen einer Version, Release-Manifest-
   Format, Änderungs-Gate `factory-integrity` (T2a-2, #23).
 - Update-PR-Workflow (T2a-3, #24).
-- Erst-Einbindung in TCH, Entfernen von TCHs `OWNERSHIP.md` (AK2.15d, T2a-4, `nothra/tch-gastro-services#428`).
+- Erst-Einbindung im ersten Konsumenten, Entfernen von dessen `OWNERSHIP.md` (AK2.15d, T2a-4, `nothra/tch-gastro-services#428`).
 - Hash-Prüfung der Dateien gegen den Lock. Der Ownership-Check liest nur die **Pfadmenge**.
 - Ein Release. In #22 wird keine Version veröffentlicht (Entscheidung 2026-10-24, Q-22.3).
 - Neue Prüfungen oder neues Verhalten der Factory über Konsumenten-Vertrag hinaus.
@@ -117,7 +117,7 @@ Ohne diese Task bleibt jede spätere Einbindung (T2a-4, TCH) an diesen beiden St
   Aufwandsblock.
 - [x] **Q-22.3 · Release:** → in #22 wird kein Release veröffentlicht (entschieden 2026-10-24).
   **Widerspruch zum Issue-Text** (#22: „Je Factory-Task ein Release (nächste MINOR-Version)") und zu
-  spec-428 Q1 (Release `v0.7.0` vor dem TCH-PR): Der Issue-Body von #22 muss angepasst werden, sonst
+  spec-428 Q1 (Release `v0.7.0` vor dem Einbindungs-PR im Konsumenten): Der Issue-Body von #22 muss angepasst werden, sonst
   steht dort eine Regel, die diese Spec überstimmt. Wann das Release kommt (nach #23 oder #24), ist
   für #23/#24 zu klären.
 - [x] **Q-22.4 · Lock-Format:** → JSON, identisch mit dem Release-Manifest `factory-release.json`
