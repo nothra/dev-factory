@@ -6,7 +6,7 @@
 > Neue Learnings kommen in die Lesson-Datei **ihrer Seite** (Zuordnungsregel: betrifft das Learning eine
 > Datei der Factory laut `docs/factory/OWNERSHIP.md` → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
 > siehe `/codify` + ADR-037).
-> Projekt-Anteil dieses Themas: [`docs/project/lessons/factory-workflow.md`](../../project/lessons/factory-workflow.md).
+> Projekt-Anteil dieses Themas: `docs/project/lessons/factory-workflow.md`.
 
 ### Agenten-Blockerverhalten (aus Task 002 / K-01, K-02)
 
@@ -22,7 +22,7 @@ Wenn eine Regel oder Liste an mehreren Stellen auftaucht (Skill + Persona + Spec
 
 **Regel:** Bei Änderungen an Regel-Listen: (1) Kanonische Quelle aktualisieren, (2) alle Kopien synchronisieren, (3) alte Formulierungen vollständig ersetzen – nie neben neuen stehen lassen.
 
-### Fast-Forward-Pushes aus CI brauchen vollen Verlauf (aus Task 42, bei Live-Verifikation #40)
+### Fast-Forward-Pushes aus CI brauchen vollen Verlauf (aus Task 42, bei Live-Verifikation nothra/tch-gastro-services#40)
 
 `actions/checkout@v4` klont per Default **shallow** (`fetch-depth: 1`). Ein normaler
 `git push origin HEAD:<ziel>` auf ein **bereits existierendes** Branch-Ref wird dann serverseitig
@@ -35,9 +35,9 @@ Konkret aufgetreten im Deploy-Gate beim Promote `main`→`production`.
 Checkout setzen (voller Verlauf → echter FF-Guard, fail-closed). `--force` nur für **Wegwerf-Refs**
 verwenden (z. B. `int`), nie für Deployment-/Prod-Refs.
 
-### Branch-Typ und Label korrigieren wenn Scope über die initiale Annahme hinauswächst (aus #120)
+### Branch-Typ und Label korrigieren wenn Scope über die initiale Annahme hinauswächst (aus nothra/tch-gastro-services#120)
 
-Task #120 startete als `docs/`-Branch mit Label `documentation` (reine ADR-Frage), aber
+Task nothra/tch-gastro-services#120 startete als `docs/`-Branch mit Label `documentation` (reine ADR-Frage), aber
 `/architecture` bündelte zwei gekoppelte Concerns: ADR + konkreter Code (Enum-Migration,
 Verzeichnis-Move, Tests). Branch-Typ und Label passten danach nicht mehr – was erst im
 Review explizit auffiel.
@@ -57,11 +57,11 @@ gh issue edit <id> --add-label enhancement --remove-label documentation
 Der PR-Body und die Task-Datei müssen den neuen Branch-Namen spiegeln. Kein Merge mit
 irreführendem Branch-Typ – das verzerrt Metriken und die `git-workflow.md`-Konvention.
 
-**Ergänzung (aus #155): Ist der Draft-PR schon offen, schließt *jede* Rename-Variante ihn.**
+**Ergänzung (aus nothra/tch-gastro-services#155): Ist der Draft-PR schon offen, schließt *jede* Rename-Variante ihn.**
 `start-work.sh` legt den Draft-PR sofort an – bei einer Branch-Typ-Korrektur ist er also meist
 bereits offen. Sowohl das obige `git push origin --delete <old>` **als auch** die GitHub-
 Branch-Rename-API (`gh api -X POST repos/<owner>/<repo>/branches/<old>/rename -f new_name=<new>`)
-**retargeten den offenen PR nicht**, sondern schließen ihn (beobachtet in #155: Draft-PR #156
+**retargeten den offenen PR nicht**, sondern schließen ihn (beobachtet in nothra/tch-gastro-services#155: Draft-PR nothra/tch-gastro-services#156
 wurde geschlossen, sein Head zeigte weiter auf `<old>`; ein `gh pr reopen` scheitert, weil das
 Head-Ref weg ist). **Regel:** Bei bereits offenem PR die Umbenennung als **PR-Ersatz** einplanen:
 (1) Remote-Branch umbenennen bzw. neu pushen, (2) **neuen** PR aus `<new>` erstellen – Draft +
@@ -70,7 +70,7 @@ Head-Ref weg ist). **Regel:** Bei bereits offenem PR die Umbenennung als **PR-Er
 -u origin/<new>`), (5) Task-Datei + neuen PR-Body auf den neuen Branch-Namen ziehen. Nicht darauf
 verlassen, dass ein Rename den PR erhält.
 
-### Branch-Protection required Checks: nur `pull_request`-getriggerte Jobs (aus #155)
+### Branch-Protection required Checks: nur `pull_request`-getriggerte Jobs (aus nothra/tch-gastro-services#155)
 
 Beim Einrichten des `main`-Rulesets (bzw. Classic Branch Protection) darf ein CI-Job, der **nur
 auf `push`→`main`** läuft (hier `gate`/Deploy-Gate und `post-merge-verify`, per `on:`/`if:` auf
@@ -89,7 +89,7 @@ Workflow-YAML: `gh api repos/<owner>/<repo>/commits/<pr-head-sha>/check-runs --j
 Post-Merge-/Deploy-Gates gehören in `/post-merge-verify` bzw. das Deploy-Gate, nicht in die
 required-Checks-Liste. Kanonische Entscheidung: [ADR-029](../adr/029-branch-protection-main-ruleset.md).
 
-### Report-Guard: Stale-Verdict bei Pipeline-Re-Lauf und Review-Iteration (aus #91/#310, in #310 behoben, in #312 auf den Exit-0-Pfad ausgeweitet)
+### Report-Guard: Stale-Verdict bei Pipeline-Re-Lauf und Review-Iteration (aus nothra/tch-gastro-services#91/#310, in nothra/tch-gastro-services#310 behoben, in nothra/tch-gastro-services#312 auf den Exit-0-Pfad ausgeweitet)
 
 Der `run_skill()`-Report-Guard in `run-pipeline.sh` las bei non-zero Exit die Report-Datei
 (`tasks/review-<id>.md` / `tasks/security-<id>.md`) und akzeptierte den Verdict **ohne zu prüfen,
@@ -98,7 +98,7 @@ kann ein älterer `APPROVED`/`PASSED` bereits committet sein. Schlug der `claude
 fehl (Rate-Limit, Auth-Fehler, Crash), las der Guard den **alten** Verdict und gab `return 0` –
 ohne dass in diesem Lauf ein Review stattfand (fail-open statt fail-closed).
 
-**Within-Run-Variante (Issue #310, Task 308):** Derselbe Fehlmechanismus trat auch **innerhalb
+**Within-Run-Variante (Issue nothra/tch-gastro-services#310, Task 308):** Derselbe Fehlmechanismus trat auch **innerhalb
 eines einzigen Pipeline-Laufs** auf, nicht nur bei einem Re-Lauf des Skripts: Die
 `REVIEW_ITERATION`-Schleife in Phase 2 ruft `/review` mehrfach hintereinander auf und liest jedes
 Mal dieselbe Report-Datei. Erreichte `/review` in Iteration 2 (oder 3) das Turn-Limit, **bevor** es
@@ -108,25 +108,25 @@ Review stattfand. In Task 308 führte das dazu, dass der Circuit Breaker nach zw
 auslöste, obwohl der Rework nach Iteration 1 bereits vollständig und unabhängig verifiziert grün
 war.
 
-**In #310 umgesetzt (behebt beide Varianten):** `run_skill()` erhebt **einmal vor dem ersten
+**In nothra/tch-gastro-services#310 umgesetzt (behebt beide Varianten):** `run_skill()` erhebt **einmal vor dem ersten
 Versuch jedes Aufrufs** einen Inhalts-Fingerprint der Report-Datei (`report_fingerprint`,
 POSIX-`cksum`, in derselben Lib wie `report_verdict`) und honoriert einen Verdict nur bei
 **verändertem** Fingerprint. Weil der Snapshot pro Aufruf entsteht, greift die Prüfung in jedem
-Schleifendurchlauf von Phase 2 (#310) genauso wie beim Re-Lauf mit committetem Report (#91). Ein
+Schleifendurchlauf von Phase 2 (nothra/tch-gastro-services#310) genauso wie beim Re-Lauf mit committetem Report (nothra/tch-gastro-services#91). Ein
 stale Verdict ist ein regulärer Fehlversuch im bestehenden Retry-Pfad (3 Versuche, dann
-`exit 1`) – nicht-destruktiv, also ohne Preflight-Löschen der Reports, wie in #92 zunächst
+`exit 1`) – nicht-destruktiv, also ohne Preflight-Löschen der Reports, wie in nothra/tch-gastro-services#92 zunächst
 angedacht. Der Übergang „Datei fehlt → vorhanden" zählt als Veränderung; ein nicht ermittelbarer
 Fingerprint gilt fail-closed als nicht belegbar frisch. Kanonische Beschreibung: ADR-019 §4.
 
-**Exit-0-Variante (Issue #312):** Die #310-Prüfung saß ausschließlich im **non-zero-Exit-Zweig**.
+**Exit-0-Variante (Issue nothra/tch-gastro-services#312):** Die nothra/tch-gastro-services#310-Prüfung saß ausschließlich im **non-zero-Exit-Zweig**.
 Endete `claude --print` mit **Exit 0**, kehrte `run_skill()` mit `return 0` zurück, ohne den
-erhobenen Fingerprint je anzusehen – derselbe fail-open-Mechanismus wie #91/#310, nur über den
+erhobenen Fingerprint je anzusehen – derselbe fail-open-Mechanismus wie nothra/tch-gastro-services#91/#310, nur über den
 Erfolgs- statt den Fehlerpfad: ein `/review`, das mit Exit 0 endete, ohne seinen Report zu
 schreiben, ließ Phase 2 den stehengebliebenen `APPROVED` lesen und den Review-Loop verlassen,
 ohne dass in diesem Lauf ein Review stattfand. Ein Guard, der nur einen von zwei Rückkehrpfaden
 absichert, ist damit kein Guard – der ungeprüfte Pfad ist die ganze Lücke.
 
-**In #312 auf den Exit-0-Pfad ausgeweitet:** Beide Rückkehrpfade werten dieselbe Bedingung über
+**In nothra/tch-gastro-services#312 auf den Exit-0-Pfad ausgeweitet:** Beide Rückkehrpfade werten dieselbe Bedingung über
 **eine** Hilfsfunktion (`report_is_fresh_and_valid`) mit demselben Snapshot aus – Erfolg nur bei
 **verändertem** Fingerprint **und** **eindeutigem Verdict**. Die zweite Hälfte ist kein Beiwerk:
 ein frisch geschriebener Report ohne auswertbaren Verdict-Anker war zuvor ebenfalls ein Erfolg.
@@ -144,18 +144,18 @@ Exit-Code misst, braucht immer zusätzlich einen Frische-Nachweis für dieses Ar
 belegt er nur, dass die Datei existiert, nicht dass der aktuelle Aufruf sie erzeugt hat. Dieser
 Nachweis gehört **auf allen Rückkehrpfaden, nicht nur im Fehlerpfad** ausgewertet: der
 Erfolgspfad ist der wahrscheinlichere Weg zum stale Artefakt, weil dort der saubere Exit-Code
-die Prüfung „überflüssig" wirken lässt (#312). Und er verlangt zusätzlich, dass das Artefakt
+die Prüfung „überflüssig" wirken lässt (nothra/tch-gastro-services#312). Und er verlangt zusätzlich, dass das Artefakt
 **auswertbar** ist – frisch, aber inhaltlich leer, ist genauso wenig ein Beleg.
 
-### `.claude/**`-Änderungen erfordern Patch-Workflow (aus #91)
+### `.claude/**`-Änderungen erfordern Patch-Workflow (aus nothra/tch-gastro-services#91)
 
 Änderungen an `.claude/settings.json` und `.claude/commands/*.md` sind für einen Agenten hard
-denied (`Edit(.claude/**)` – #88-Grenze; das frühere zusätzliche `Write(.claude/**)`-Deny war
-wirkungslos und ist seit #240 entfernt).
+denied (`Edit(.claude/**)` – nothra/tch-gastro-services#88-Grenze; das frühere zusätzliche `Write(.claude/**)`-Deny war
+wirkungslos und ist seit nothra/tch-gastro-services#240 entfernt).
 
-Top-Level-YAML wie `factory.defaults.yml` ist seit #224 über eine generische `Edit(*.yml)`-Regel
+Top-Level-YAML wie `factory.defaults.yml` ist seit nothra/tch-gastro-services#224 über eine generische `Edit(*.yml)`-Regel
 freigegeben (das ehemalige `Write(*.yml)`-Pendant war aus demselben Grund wirkungslos und ist
-ebenfalls seit #240 entfernt; `pnpm-lock.yaml` bleibt als generiertes Lockfile explizit per
+ebenfalls seit nothra/tch-gastro-services#240 entfernt; `pnpm-lock.yaml` bleibt als generiertes Lockfile explizit per
 `deny` gesperrt); andere Top-Level-Konfigurationsdateien ohne passende Extension (z. B.
 `LICENSE`, `.prettierignore`) haben weiterhin keine Allow-Regel und lösen einen Interrupt aus.
 
@@ -166,7 +166,7 @@ Agenten danach ggf. einen expliziten Bash-Grant für die Ausführung. Kein still
 Blocker immer mit Datum + Grund + erforderliche Aktion des Menschen notieren
 (Muster: `Blocker [Datum]: [Grund] – [was der Mensch tun muss]`).
 
-**Patch NICHT von Hand schreiben (aus #94).** Der Agent kann die `.claude/**`-Datei nicht
+**Patch NICHT von Hand schreiben (aus nothra/tch-gastro-services#94).** Der Agent kann die `.claude/**`-Datei nicht
 editieren – der Reflex, den Unified-Diff dann direkt zu tippen, produziert **korrupte Patches**:
 falsche Hunk-Header-Zählung (`@@ -a,b +c,d @@`) und leere Kontextzeilen ohne führendes Leerzeichen
 brechen `git apply` („corrupt patch at line N"). Stattdessen den Diff **programmatisch** erzeugen:
@@ -179,7 +179,7 @@ er dem Menschen übergeben wird; zusätzlich auf Temp-Kopien anwenden und die Ak
 (Grep/JSON-Validität) dagegen laufen lassen – so ist „Green nach Apply" belegt, ohne die
 hard-denied Datei anzufassen.
 
-**Nach dem Anwenden: Task-Datei + Patch-Datei abgleichen (aus #145, Review-Finding W1).** Wird der
+**Nach dem Anwenden: Task-Datei + Patch-Datei abgleichen (aus nothra/tch-gastro-services#145, Review-Finding W1).** Wird der
 gelieferte Patch vom Menschen **angewendet und committet**, ist der Branch-Zustand nicht mehr
 identisch mit dem, was die Task-Datei behauptet: Die AC-Checkboxen stehen weiter auf `[~]` „als
 Patch geliefert – Mensch wendet an", der Blocker fordert weiter `git apply`, und `tasks/patch-<id>.diff`
@@ -191,7 +191,7 @@ Branch ist (per `git diff origin/main...HEAD` an der `.claude/**`-Datei sichtbar
 die stale `tasks/patch-<id>.diff` **entfernen** – alles vor `/pr-shepherd`/Merge, committet über
 `factory-commit.sh`.
 
-**Programmatischer Patch: UTF-8 nutzen + bei Semantik-Änderung die ganze Datei sweepen (aus #158).**
+**Programmatischer Patch: UTF-8 nutzen + bei Semantik-Änderung die ganze Datei sweepen (aus nothra/tch-gastro-services#158).**
 Zwei Fallen tauchten beim `.claude/**`-Patch von `pr-shepherd.md` auf und kosteten einen **zweiten**
 Human-Apply-Zyklus (Review-Findings W1/N2/N7):
 1. **ASCII-Faltung in den Replacement-Strings.** Beim Tippen des difflib-Skripts entstand der Reflex,
@@ -206,7 +206,7 @@ Human-Apply-Zyklus (Review-Findings W1/N2/N7):
    Datei** stehen: das committete Notiz-Template (`Auto-Merge freigegeben – alle Gates grün`), die
    `## Output`- und `## Hinweis für Stage 3`-Abschnitte, eine Regel-Zeile. Im neuen Direct-Merge-Pfad
    ist „Auto-Merge freigegeben" **faktisch falsch** – und das Notiz-Template landet per Squash-Merge
-   auf `main` (dort nur per neuem PR korrigierbar). Verwandt mit dem #144-Terminologie-Sweep, aber der
+   auf `main` (dort nur per neuem PR korrigierbar). Verwandt mit dem nothra/tch-gastro-services#144-Terminologie-Sweep, aber der
    Auslöser ist hier eine **Verhaltens-/Semantik-Änderung** (nicht nur ein Term-Rename): Ändert ein
    Patch, **was** ein Schritt tut oder wie er heißt, die ganze Skill-Datei nach nun veralteten
    Beschreibungen dieses Schritts durchsuchen – **Header, Zusammenfassungs-/Output-Abschnitte,
@@ -214,10 +214,10 @@ Human-Apply-Zyklus (Review-Findings W1/N2/N7):
    zweiter Patch-/Apply-Zyklus. Faustregel: `git grep -n <alter-Begriff> <skill-datei>` nach dem
    ersten Draft, bewusste Ausnahmen (z. B. Skill-Titel „…bis Auto-Merge" = Gesamtziel) begründen.
 
-### Permission-Regeln in `.claude/settings.json`: Pfad-Semantik und `Write`-Wirkungslosigkeit vorab prüfen (aus #224)
+### Permission-Regeln in `.claude/settings.json`: Pfad-Semantik und `Write`-Wirkungslosigkeit vorab prüfen (aus nothra/tch-gastro-services#224)
 
 Beim Hinzufügen neuer `Edit(...)`/`Write(...)`-Allow-/Deny-Einträge (Top-Level-YAML-Freigabe,
-#224) zwei nicht offensichtliche Verhaltensweisen der Claude-Code-Permission-Engine per
+nothra/tch-gastro-services#224) zwei nicht offensichtliche Verhaltensweisen der Claude-Code-Permission-Engine per
 `claude --print`-Verhaltensprobe (Positiv/Negativ, `FACTORY_STAGE=3`) verifiziert – beide waren
 vor der Probe reine Annahmen im Task-File:
 
@@ -228,14 +228,14 @@ vor der Probe reine Annahmen im Task-File:
    braucht einen **führenden Slash**: `Edit(/*.yml)`. Für eine `deny`-Regel ist die breitere (nicht
    verankerte) Variante meist erwünscht (schützt auch verschachtelte Treffer); für eine
    `allow`-Regel ist sie ein Least-Privilege-Risiko, wenn nur Top-Level-Dateien gemeint waren –
-   in #224 erst im `/security-review` bemerkt (Wichtiges Finding), nicht schon in `/implement`.
+   in nothra/tch-gastro-services#224 erst im `/security-review` bemerkt (Wichtiges Finding), nicht schon in `/implement`.
 2. **`Write(pfad)`-Regeln werden von der installierten Claude-Code-Version (2.1.218) gar nicht
    ausgewertet** – weder in `allow` noch in `deny`. Jeder `claude --print`-Aufruf gibt dafür eine
    Warnung aus: „Write(<pfad>) is not matched by file permission checks — only Edit(path) rules
    are … (Edit rules cover all file-editing tools)". Ein `Edit(pfad)`-Eintrag deckt bereits **Edit
-   und Write** für diesen Pfad ab; eine separate `Write(...)`-Liste existierte seit #88 in diesem
+   und Write** für diesen Pfad ab; eine separate `Write(...)`-Liste existierte seit nothra/tch-gastro-services#88 in diesem
    Repo und war **komplett wirkungslos**, in beide Richtungen – per erneuter
-   `claude --print`-Probe auf CLI 2.1.220 bestätigt und in **#240 entfernt** (`allow`/`deny`
+   `claude --print`-Probe auf CLI 2.1.220 bestätigt und in **nothra/tch-gastro-services#240 entfernt** (`allow`/`deny`
    enthalten seither keine `Write(...)`-Einträge mehr, nur noch `Edit(...)`).
 
 **Regel:** Vor jeder neuen `.claude/settings.json`-Permission-Änderung, die auf Datei-Pfad-Muster
@@ -243,23 +243,23 @@ setzt (nicht auf Verzeichnis-Globs mit `**`):
 - Slash-freie `*.ext`-Muster nur für **absichtlich repo-weite** Freigaben verwenden; ist nur eine
   Root-Datei gemeint, `/*.ext` (führender Slash) schreiben.
 - **Keine neuen `Write(...)`-Einträge mehr hinzufügen** – ein `Edit(...)`-Eintrag reicht (deckt
-  beide Tools ab). Die vormals bestehenden `Write(...)`-Einträge wurden in #240 entfernt – nicht
+  beide Tools ab). Die vormals bestehenden `Write(...)`-Einträge wurden in nothra/tch-gastro-services#240 entfernt – nicht
   wieder einführen, auch nicht als Vorbild für neue Einträge.
 - Beide Verhaltensweisen sind Eigenschaften der Claude-Code-Version, nicht des Repos – bei einem
   größeren Claude-Code-Update (Changelog prüfen) erneut per `claude --print`-Probe verifizieren,
   ob sie noch gelten, bevor man sich weiter darauf verlässt.
 
-### Neue Edit-Freigabe auf bislang gesperrter Config-Klasse: Selbstschwächungs-Check für Review-/Security-Review-Parameter (aus #224, Security-Review-Finding)
+### Neue Edit-Freigabe auf bislang gesperrter Config-Klasse: Selbstschwächungs-Check für Review-/Security-Review-Parameter (aus nothra/tch-gastro-services#224, Security-Review-Finding)
 
 Wird `.claude/settings.json` so erweitert, dass ein Stage-3-Agent erstmals eine bislang
 hard-denied Top-Level-Config-Datei per `Edit` erreichen kann (hier: `factory.config.yml` /
-`factory.defaults.yml`, vorher komplett ohne Allow-Regel), reicht die übliche #88-Prüfung
+`factory.defaults.yml`, vorher komplett ohne Allow-Regel), reicht die übliche nothra/tch-gastro-services#88-Prüfung
 („`.claude/**`/`.env*` bleiben gesperrt?") allein nicht – zusätzlich prüfen, **was** die neu
 erreichbare Datei steuert. `factory.config.yml` überschreibt u. a. `skills.security-review.tier`/
 `max_turns` (ADR-009); `scripts/checks/config-validation-check.sh` validiert dort nur Struktur/
 Wertebereich (`tier ∈ model_tiers`, `max_turns ∈ [1, MAX_TURNS_CEILING]`), **ohne** eine
 Mindest-Tier-Schwelle für sicherheitsrelevante Skills zu erzwingen – ein Agent könnte die eigene
-`/security-review`-Schärfe künftig autonom herabsetzen, bevor sie läuft (Issue #241).
+`/security-review`-Schärfe künftig autonom herabsetzen, bevor sie läuft (Issue nothra/tch-gastro-services#241).
 
 **Regel:** Öffnet eine Task erstmals Edit-Zugriff auf eine Config-Datei, die Pipeline-Parameter
 (Modell-Tier, Turn-Budget, Gate-Schwellen) steuert, im `/security-review`-Schritt explizit prüfen,
@@ -269,7 +269,7 @@ auslagern statt nur als Randnotiz zu vermerken – die neue Zugriffsmöglichkeit
 Scope der ursprünglichen Task (hier bewusst gewünscht), die fehlende Floor-Absicherung ist ein
 eigenständiger Härtungs-Task.
 
-### Ein Floor auf einen Lookup-Key ist kein Floor auf das, wofür er steht (aus #241, Security-Review-Finding)
+### Ein Floor auf einen Lookup-Key ist kein Floor auf das, wofür er steht (aus nothra/tch-gastro-services#241, Security-Review-Finding)
 
 Task 241 hat `config-validation-check.sh` um eine Mindest-Tier-Regel erweitert: `tier` von
 `security-review`/`review` darf effektiv nicht unter `heavy` liegen. Der Fail-Safe wirkt aber
@@ -279,7 +279,7 @@ Lookup-Pfad (`model_tiers.heavy`) blieb weiterhin frei override-bar. Ein Overrid
 `heavy`, `tier_by_size` bleibt unbenutzt) und hebelt exakt den Fail-Safe aus, den die neue Regel
 herstellen sollte – nur über einen zweiten, nicht enumerierten Pfad. Belegt per PoC: Override auf
 `model_tiers.heavy` → Gate `exit 0`, obwohl `security-review.tier` unverändert `heavy` zeigt
-(Issue #249, aus #241 ausgelagert statt Merge-Blocker).
+(Issue nothra/tch-gastro-services#249, aus nothra/tch-gastro-services#241 ausgelagert statt Merge-Blocker).
 
 **Regel:** Pinnt ein Gate einen Wert, der selbst nur ein Schlüssel in eine weitere,
 override-bare Config-Sektion ist (Tier-Label → `model_tiers`, Rollen-Name → Rechte-Tabelle,
@@ -289,9 +289,9 @@ Schlüssels allein nicht. Zusätzlich prüfen (oder als eigenes Issue benennen),
 Floor eine Fassade, die im Diff plausibel aussieht, aber den Bypass nur verschiebt statt
 schließt.
 
-### Existenz-Guard auf eine Security-Pin-Konstante beweist nicht ihre Verdrahtung an den Vergleichsaufruf (aus #258, Review-Runde-2-Finding)
+### Existenz-Guard auf eine Security-Pin-Konstante beweist nicht ihre Verdrahtung an den Vergleichsaufruf (aus nothra/tch-gastro-services#258, Review-Runde-2-Finding)
 
-#258 führte einen zweiten, im Repo gepinnten Anker `YQ_SHA256` ein (gegen den der aus den
+nothra/tch-gastro-services#258 führte einen zweiten, im Repo gepinnten Anker `YQ_SHA256` ein (gegen den der aus den
 Release-`checksums` gelesene Wert geprüft wird – Verteidigung gegen einen kompromittierten
 Publisher, der Binary **und** Checksum-Datei gleichzeitig austauscht). Der erste Self-Test prüfte
 nur, dass die Konstante mit korrektem Format existiert (`grep -qE '^YQ_SHA256="[0-9a-f]{64}"$'`),
@@ -311,19 +311,19 @@ irgendein anderes Signal (insbesondere den gerade erst extern gelesenen, ungepr�
 Existenz-/Format-Guard nicht – ein zweiter Guard muss an der **echten Aufrufzeile** ankern (z. B.
 `grep -qE '^verify_sha256 .*"\$YQ_SHA256"$'`, nicht nur `grep -q YQ_SHA256`) und per Mutation
 belegen, dass ein Vertauschen der Vergleichsseiten (externer Wert statt Pin an beiden Seiten)
-den Guard rot macht. Spezialfall von „Existenz beweist nicht Verhalten/Verdrahtung" (#212) und
-verwandt mit „Floor auf einen Lookup-Key ist kein Floor auf die Zielseite der Indirektion" (#241,
+den Guard rot macht. Spezialfall von „Existenz beweist nicht Verhalten/Verdrahtung" (nothra/tch-gastro-services#212) und
+verwandt mit „Floor auf einen Lookup-Key ist kein Floor auf die Zielseite der Indirektion" (nothra/tch-gastro-services#241,
 direkt oberhalb) – hier ist die „Zielseite" nicht eine weitere Config-Sektion, sondern die
 Argumentidentität am Vergleichsaufruf selbst.
 
-### Notiz-vor-Merge bei Squash-Strategie (aus #114)
+### Notiz-vor-Merge bei Squash-Strategie (aus nothra/tch-gastro-services#114)
 
 Ein Skill-Schritt, der eine Notiz in eine versionierte Datei (Task-Datei, Changelog) schreibt
 und **danach** `gh pr merge --auto --squash` ausführt, produziert einen Verlust: Bei
 Squash-Merge landet nur committeter+gepushter Inhalt auf `main`. Eine nur lokal geschriebene
 Abschlussnotiz wird durch den Merge nie übernommen – und nach dem Merge liegt die Datei auf
 `main`, wo Direkt-Commits verboten sind (Änderung nur noch über einen neuen PR, für ein Häkchen
-unverhältnismäßig). Aufgetreten bei #112/#114 in `/pr-shepherd` Schritt 6, wo das Merge-Kommando
+unverhältnismäßig). Aufgetreten bei nothra/tch-gastro-services#112/#114 in `/pr-shepherd` Schritt 6, wo das Merge-Kommando
 sogar **vor** der Notiz stand.
 
 **Regel:** Schreibt ein Schritt eine Notiz, die mit-gemergt werden soll, gilt die Reihenfolge
@@ -332,14 +332,14 @@ nicht rohes `git commit`/`git push`, ADR-019) → (3) erst dann Auto-Merge freig
 commit+push-Schritt muss im Skill sichtbar **vor** dem `gh pr merge --auto --squash`-Kommando
 stehen. Ein Konsistenz-Test in `scripts/checks/tests/run-tests.sh` sichert die Reihenfolge ab
 (grep auf `factory-commit.sh` vor dem Freigabe-Kommando). Verwandt mit der CLAUDE.md-Guardrail
-„Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge" (aus #63).
+„Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge" (aus nothra/tch-gastro-services#63).
 
-### Reihenfolge-Guards: Kommando ≠ Prosa-Erwähnung (aus #114, Implement-Selbstfund)
+### Reihenfolge-Guards: Kommando ≠ Prosa-Erwähnung (aus nothra/tch-gastro-services#114, Implement-Selbstfund)
 
 Ein Self-Test, der die **Reihenfolge** zweier Elemente in einer Skill-Doku prüft (Kommando A
 vor Kommando B), greppt naheliegend nach der kurzen Kommandoform. Kommt dieselbe Zeichenkette
 im Dokument aber **auch als Prosa-Verweis** vor, matcht `grep -n … | head -1` den *frühesten*
-Treffer – und das ist womöglich die Erwähnung, nicht das Kommando. Konkret in #114: die
+Treffer – und das ist womöglich die Erwähnung, nicht das Kommando. Konkret in nothra/tch-gastro-services#114: die
 Reihenfolge-Assertion prüfte gegen `gh pr merge --auto`; diese kurze Form steht schon in
 `pr-shepherd.md` Schritt 4 als Prosa-Hinweis (Zeile 68), lange **vor** dem echten Freigabe-
 Kommando in Schritt 6 → falsches FAIL. Aufgefallen erst bei der Verifikation gegen die
@@ -353,7 +353,7 @@ der zufällig trotzdem rot war. Ergänzt `clean-code.md` „Ein Gate-Regex gehö
 abgesichert … Positiv- **und** Negativ-Beispiel"; der subtile Fall hier ist ein *legitimer*
 Prosa-Treffer, der nicht matchen darf.
 
-**Nachtrag (aus #265, Selbstfund im selben Skill – Rezidiv trotz vorhandener Lesson):** Die Falle
+**Nachtrag (aus nothra/tch-gastro-services#265, Selbstfund im selben Skill – Rezidiv trotz vorhandener Lesson):** Die Falle
 ist nicht auf Skill-Doku beschränkt. Ein neuer Reihenfolge-Test für einen CI-YAML-Job-Block
 („Schritt A steht vor Schritt B") geriet an genau demselben Muster ins Straucheln: der
 erklärende Kommentar **über** dem neuen Workflow-Schritt erwähnte den Namen des zweiten Schritts
@@ -367,9 +367,9 @@ scripts/install-hooks.sh`), nie ein bloßer Dateiname/Kommando-Fragment, das auc
 selbst verfassten Kommentar direkt daneben stehen könnte – gerade eigene, erklärende Kommentare
 oberhalb eines neuen Schritts sind eine unterschätzte Quelle für genau diesen Fehl-Treffer.
 
-**Nachtrag 2 (aus #261, Review-Runde-2/3-Selbstfund – drittes Rezidiv, diesmal außerhalb von
+**Nachtrag 2 (aus nothra/tch-gastro-services#261, Review-Runde-2/3-Selbstfund – drittes Rezidiv, diesmal außerhalb von
 Reihenfolge-Checks):** Die Falle betrifft nicht nur Reihenfolge-Assertions, sondern jeden
-Präsenz-/Idiom-Guard. Ein neuer Test für Task #261 (`run-tests.sh`, prüft ob `run-pipeline.sh`
+Präsenz-/Idiom-Guard. Ein neuer Test für Task nothra/tch-gastro-services#261 (`run-tests.sh`, prüft ob `run-pipeline.sh`
 das Fix-Idiom `|| true` an der richtigen Stelle nutzt) griff anfangs auf
 `grep -qE 'done \|\| true' "$PIPELINE"` zurück – ein **datei-weites** Kommando-Fragment, das an
 jeder beliebigen Stelle im Skript hätte auftauchen können, nicht nur an der konkreten, zu
@@ -385,14 +385,14 @@ Codify-Block selbst nicht mehr abgesichert wäre.
 mehrere Zeilen erstreckt (keine Single-Line-`grep -E`-Bindung möglich), nicht auf ein kürzeres,
 datei-weit matchendes Fragment ausweichen. Stattdessen den bereits etablierten
 `awk`-Block-Extraktions-Ansatz nutzen (`awk '/start-muster/{f=1} f{print} f&&/end-muster/{exit}'`,
-siehe `cv_job_block`/`ci_selftest_block` aus #255), der die Prüfung auf exakt den relevanten
+siehe `cv_job_block`/`ci_selftest_block` aus nothra/tch-gastro-services#255), der die Prüfung auf exakt den relevanten
 Block einschränkt. Ist die zu prüfende Zeile selbst die Endgrenze des Blocks (z. B. das `done`,
 dessen `|| true`-Suffix geprüft werden soll), den Block bewusst **inklusive** Start- und Endzeile
-extrahieren (Variante des #255-Musters, das beide Grenzen exklusiv hält) – und diese Abweichung
+extrahieren (Variante des nothra/tch-gastro-services#255-Musters, das beide Grenzen exklusiv hält) – und diese Abweichung
 im Kommentar explizit benennen, sonst wirkt sie wie eine unreflektierte Kopie des Precedents.
 
-**Nachtrag 3 (aus #258, Review-Runde-3-Finding – viertes Rezidiv, diesmal ein
-Abwesenheits-/Regressions-Guard statt eines Präsenz-Guards):** Task #258 entfernte einen
+**Nachtrag 3 (aus nothra/tch-gastro-services#258, Review-Runde-3-Finding – viertes Rezidiv, diesmal ein
+Abwesenheits-/Regressions-Guard statt eines Präsenz-Guards):** Task nothra/tch-gastro-services#258 entfernte einen
 dreifach kopierten `wget`+`chmod`-Block und sicherte das mit einem Ein-Zeilen-Guard
 `grep -qE 'wget.*yq_linux_amd64|chmod \+x /usr/local/bin/yq'` ab – „keiner der Jobs hat das alte
 Muster wieder". Beide Alternativen waren fragil, aber auf unterschiedliche Art: Die erste konnte
@@ -417,8 +417,8 @@ entfernte Anti-Muster testweise mit einer **plausiblen Variation** (andere Zeile
 Flag-Schreibweise, gepinnte statt `latest`-URL) wieder einsetzen und prüfen, ob der Guard rot wird
 – nicht nur den Ist-Zustand grün laufen lassen.
 
-**Nachtrag 4 (aus #286, /test-Selbstfund – fünftes Rezidiv, diesmal keine falsche Anker-Wahl,
-sondern ein fehlender Reihenfolge-Check selbst):** Task #286 verlangte als zentrales AK, dass
+**Nachtrag 4 (aus nothra/tch-gastro-services#286, /test-Selbstfund – fünftes Rezidiv, diesmal keine falsche Anker-Wahl,
+sondern ein fehlender Reihenfolge-Check selbst):** Task nothra/tch-gastro-services#286 verlangte als zentrales AK, dass
 die Klassifikations-Anweisung in drei Skill-Dokus **vor** dem `create_issue_idempotent`-Aufruf
 steht. `/implement` schrieb dafür zwei separate, jeweils korrekt verankerte Präsenz-Assertions
 („Doku verweist auf `kleinfunde.md`", „Doku verweist auf die Schwellen-Tabelle") – aber **keine**
@@ -433,12 +433,12 @@ nicht in welcher Reihenfolge. Es braucht eine **eigene** Assertion, die beide Ze
 ermittelt (`grep -n <Anker-X> | head -1 | cut -d: -f1`, analog für Y) und explizit vergleicht
 (`[ "$zeile_x" -lt "$zeile_y" ]`) – plus eine Mutations-Negativkontrolle mit einer Fixture, in
 der die Reihenfolge bewusst vertauscht ist, um zu belegen, dass der Vergleich bei Regression
-tatsächlich rot wird (sonst dieselbe Vakuität wie ein Guard ohne Gegenprobe, siehe #114 oben).
+tatsächlich rot wird (sonst dieselbe Vakuität wie ein Guard ohne Gegenprobe, siehe nothra/tch-gastro-services#114 oben).
 Beim Lesen eines Reihenfolge-AK explizit prüfen: „Testet mein Guard **beide** Elemente einzeln,
 oder auch ihre **relative Position**?"
 
-**Nachtrag 5 (aus #284, Review-Runde-1-Finding – sechstes Rezidiv, ausgelöst durch den eigenen
-Doku-Nachzug im selben PR):** Task #284 fügte im selben PR sowohl einen neuen Fragment-Grep-Guard
+**Nachtrag 5 (aus nothra/tch-gastro-services#284, Review-Runde-1-Finding – sechstes Rezidiv, ausgelöst durch den eigenen
+Doku-Nachzug im selben PR):** Task nothra/tch-gastro-services#284 fügte im selben PR sowohl einen neuen Fragment-Grep-Guard
 hinzu (dateiweit auf `contents: write`/`issues: write`) als auch einen erklärenden WHY-Kommentar
 direkt im gehärteten Workflow, der exakt dieselbe Zeichenfolge als Prosa nannte. Ab diesem Moment
 war der Guard nicht mehr durch den echten `permissions:`-Block, sondern durch den eigenen,
@@ -459,8 +459,8 @@ Env-Var, Permission) prüft, bekommt einen Block-Anker (`awk`-Block-Extraktion),
 PR ein WHY-Kommentar in der Nähe entsteht, der dieselbe Zeichenfolge zitiert – unabhängig davon,
 ob ein Test das aktuell schon nachweist.
 
-**Nachtrag 6 (aus #310, /implement-Selbstfund – siebtes Rezidiv, diesmal ein Mutations- statt
-ein Präsenz-/Reihenfolge-Guard):** Task #310 sicherte einen neuen Interrupt-Aufruf in
+**Nachtrag 6 (aus nothra/tch-gastro-services#310, /implement-Selbstfund – siebtes Rezidiv, diesmal ein Mutations- statt
+ein Präsenz-/Reihenfolge-Guard):** Task nothra/tch-gastro-services#310 sicherte einen neuen Interrupt-Aufruf in
 `run-pipeline.sh` per Mutationsbeleg ab: ein `awk`-Skript entfernt die Aufrufzeile, ein
 Wirksamkeits-Guard zählt danach die Vorkommen der Zeichenkette `interrupt-check.sh` und erwartet
 einen Rückgang. Der erste Anlauf war wirkungslos, weil derselbe WHY-Kommentar **direkt über** der
@@ -468,7 +468,7 @@ Aufrufzeile den Dateinamen `interrupt-check.sh` in Prosa nannte – das `awk`-Mu
 den Dateinamen statt auf die volle Aufrufzeile, löschte also den Kommentar, während der echte
 Aufruf stehen blieb. Der „Mutation greift"-Guard war trotzdem grün, weil er dieselbe
 Fragment-Zeichenkette zählte wie die Mutation entfernte – beide maßen denselben falschen Proxy.
-Wie beim sechsten Rezidiv (#284) war die Kollisionsquelle der eigene, im selben Commit
+Wie beim sechsten Rezidiv (nothra/tch-gastro-services#284) war die Kollisionsquelle der eigene, im selben Commit
 geschriebene Kommentar; hier vor dem Review bemerkt und behoben, nicht erst danach.
 
 **Regel (Mutationsbeleg-Variante):** Bei einem Mutations-Guard ist der Lösch-Anker die
@@ -479,20 +479,20 @@ Fragment (das auch in einem benachbarten Kommentar vorkommen kann), belegen Muta
 Zählung nur gegenseitig denselben blinden Fleck, nicht die Kausalität zwischen Codezeile und
 Testverhalten.
 
-### Terminologie-Sweep: `-w`-Grep ist blind für Komposita, und Pfad-Beispiele sind nicht „neutral" (aus #144)
+### Terminologie-Sweep: `-w`-Grep ist blind für Komposita, und Pfad-Beispiele sind nicht „neutral" (aus nothra/tch-gastro-services#144)
 
-Bei einer reinen Begriffs-Vereinheitlichung (hier „Abend" → „Veranstaltung" in `docs/`) traten
-zwei Muster auf, die eine gleichartige Folge-Task (**#148**: Rollen-Rename `abrechner` →
-`veranstalter` in README/spec-49/50/54) direkt wieder trifft:
+Bei einer reinen Begriffs-Vereinheitlichung (hier „Abend" → „Termin" in `docs/`) traten
+zwei Muster auf, die eine gleichartige Folge-Task (**nothra/tch-gastro-services#148**: Rollen-Rename `abrechner` →
+`organisator` in README/spec-49/50/54) direkt wieder trifft:
 
 1. **`git grep -w -i <wort>` übersieht Komposita.** Der `-w`-Wortgrenzen-Grep (aus dem
    Akzeptanzkriterium) fand `Abend`, `Abend-Ebene` (Bindestrich = Wortgrenze) und die
-   Dateinamen-Links – aber **nicht** `abendweit` oder `Veranstaltungsabend` (Substring ohne
+   Dateinamen-Links – aber **nicht** `abendweit` oder `Terminabend` (Substring ohne
    Wortgrenze). Ein durchgestrichenes „abendweit" blieb so bis Review-Runde 1 unentdeckt.
 2. **Ein Code-Pfad-/Route-Beispiel im Fließtext ist bei der Ersetzung nicht automatisch neutral.**
-   `app/abend/[token]/` wurde beim Implementieren „naheliegend" zu `app/veranstaltung/[token]/` –
-   aber `app/veranstaltung/` ist laut ADR-024 D1 der **authentifizierte** Bereich, während die
-   dort beschriebene **öffentliche** F7-Route als `theke/[token]` beschlossen war (ADR-023 D6).
+   `app/abend/[token]/` wurde beim Implementieren „naheliegend" zu `app/termin/[token]/` –
+   aber `app/termin/` ist laut Routen-ADR des Projekts der **authentifizierte** Bereich, während die
+   dort beschriebene **öffentliche** F7-Route als `theke/[token]` beschlossen war (Schnitt-ADR des Projekts).
    Die „neutrale" Ersetzung war dadurch **irreführender** als das Original (Review-Runde 3).
 
 **Regel:** Bei Terminologie-Sweeps:
@@ -500,7 +500,7 @@ zwei Muster auf, die eine gleichartige Folge-Task (**#148**: Rollen-Rename `abre
   **und** ein Substring-Sweep `git grep -i <alt>` (fängt `…<alt>`/`<alt>…`-Komposita), jeweils
   die bewussten Ausnahmen herausfiltern (Dateinamen-Links, historische Zitate). `-w` allein
   genügt nie als Abschluss-Beleg.
-- **Homograph-/Wortstamm-Falle (bestätigt an #148, Rollen-Rename `Abrechner` → `Veranstalter`):**
+- **Homograph-/Wortstamm-Falle (bestätigt an nothra/tch-gastro-services#148, Rollen-Rename `Abrechner` → `Veranstalter`):**
   Der Ziel-Begriff kann einen **anderen** Begriff mit gemeinsamem Wortstamm haben, der erhalten
   bleiben muss (hier Rolle `Abrechner` vs. Tätigkeit `Abrechnung`/`Abrechnungsvorgang`, gemeinsamer
   Stamm `Abrechn-`). **Nie auf den Stamm ersetzen** (`s/Abrechn.../` hätte die Tätigkeit
@@ -521,12 +521,12 @@ zwei Muster auf, die eine gleichartige Folge-Task (**#148**: Rollen-Rename `abre
   liefert **immer** Exit 0. Ein Guard `git diff … && echo BETROFFEN` feuert deshalb falsch –
   auf `| wc -l` (Zeilenzahl) testen, nicht auf `&&`/`||`.
 
-### Repo-Setting „Allow auto-merge" muss aktiv sein, sonst scheitert `--auto` (aus #155/#158)
+### Repo-Setting „Allow auto-merge" muss aktiv sein, sonst scheitert `--auto` (aus nothra/tch-gastro-services#155/#158)
 
 `/pr-shepherd` gibt den Merge über `gh pr merge --auto --squash` frei. Das setzt das
 **repo-weite** Setting *Allow auto-merge* (`allow_auto_merge`) voraus – ist es deaktiviert,
 lehnt GitHub **jeden** `--auto`-Aufruf grundsätzlich ab (`enablePullRequestAutoMerge`), nicht
-nur im CLEAN-Fall. In Session #155 war es aus und wurde einmalig aktiviert:
+nur im CLEAN-Fall. In Session nothra/tch-gastro-services#155 war es aus und wurde einmalig aktiviert:
 
 ```bash
 gh api -X PATCH repos/nothra/tch-gastro-services -F allow_auto_merge=true
@@ -539,7 +539,7 @@ deaktiviertes Setting hätte auch die Stage-3-Pipeline blockiert. Abzugrenzen vo
 CLEAN-Fall (bereits mergebarer PR): den behandelt der Direct-Merge-Fallback aus
 [ADR-030](../adr/030-pr-shepherd-direct-merge-fallback.md).
 
-### Doku über „die Gates": required CI-Checks ≠ lokale pre-push-Gates nicht vermischen (aus #160)
+### Doku über „die Gates": required CI-Checks ≠ lokale pre-push-Gates nicht vermischen (aus nothra/tch-gastro-services#160)
 
 Beim Neu-Ausrichten von `CONTRIBUTING.md` (Onboarding-Doku) entstand der Reflex, „die Gates"
 als **eine** Liste aufzuzählen – und `Typecheck` unter die **required CI-Checks** zu schreiben.
@@ -547,16 +547,16 @@ Falsch: Das Repo hat **zwei getrennte Ebenen**, die sich überschneiden, aber ni
 sind (Review-Runde 1 fand es):
 
 - **Required CI-Checks** (branch-ruleset `protect-main`, auf `pull_request` bis zum Ende laufend,
-  #155): `lint`, `test`, `issue-sync`, `factory-self-test`, `pr-closes-issue`,
+  nothra/tch-gastro-services#155): `lint`, `test`, `issue-sync`, `factory-self-test`, `pr-closes-issue`,
   `config-validation` (Nachtrag ADR-041, Task 255) – die Jobs in
   `.github/workflows/factory-ci.yml`.
-- **Lokale pre-push-Gates** (`scripts/checks/pre-push.sh`): Tests **plus** `Typecheck` (#137),
-  `Format:check`, `Routen-Doku-Drift` (#145), Branch-Name – ein **Superset**, das nur lokal läuft
+- **Lokale pre-push-Gates** (`scripts/checks/pre-push.sh`): Tests **plus** `Typecheck` (nothra/tch-gastro-services#137),
+  `Format:check`, `Routen-Doku-Drift` (nothra/tch-gastro-services#145), Branch-Name – ein **Superset**, das nur lokal läuft
   und **keinen** CI-Check erzeugt.
 
 `Typecheck`/`Format`/`Routen-Drift` als „required Check" zu bezeichnen ist also faktisch falsch –
 für ein Onboarding-Dokument, dessen einziger Zweck Genauigkeit ist, ein echter Fehler. Verwandt
-mit #155 (required Checks gegen **echte** PR-Check-Runs verifizieren, nicht gegen Job-Namen im
+mit nothra/tch-gastro-services#155 (required Checks gegen **echte** PR-Check-Runs verifizieren, nicht gegen Job-Namen im
 YAML) – hier die Doku-Variante: nicht gegen die pre-push-Gate-Liste verwechseln.
 
 **Regel:** Beschreibt Doku „die Qualitäts-Gates", die beiden Ebenen **getrennt** benennen und
@@ -566,18 +566,18 @@ Gates gegen `scripts/checks/pre-push.sh`. Ein Gate, das nur in `pre-push.sh` ste
 Format, Routen-Drift), ist **kein** required CI-Check und darf nicht so genannt werden. Im Zweifel
 allgemein formulieren („grüne CI-Gates") statt eine falsche Einzelaufzählung zu riskieren.
 
-### Review-Diff-Scope: `git diff main...HEAD` zeigt Fremd-PRs, wenn lokales `main` hinter `origin/main` liegt (aus #161)
+### Review-Diff-Scope: `git diff main...HEAD` zeigt Fremd-PRs, wenn lokales `main` hinter `origin/main` liegt (aus nothra/tch-gastro-services#161)
 
 Die Skills `/review`, `/security-review` und `/refactor` luden ihren Diff-Kontext **vormals** per
-`git diff main...HEAD` (analog `git log main...HEAD` in `/pr-shepherd`); seit **#176** nutzen die
+`git diff main...HEAD` (analog `git log main...HEAD` in `/pr-shepherd`); seit **nothra/tch-gastro-services#176** nutzen die
 Skill-Vorlagen `origin/main...HEAD` (siehe Regel unten). `start-work.sh` legt den
 Feature-Branch aber in einem Worktree an, der auf **`origin/main`** basiert – das **lokale**
 `main`-Ref im Haupt-Baum wird dabei **nicht** aktualisiert. Der Drei-Punkt-Operator difft gegen die
 **Merge-Basis** von `main` und `HEAD`. Liegt lokales `main` hinter `origin/main` (Normalfall direkt
 nach `start-work.sh`, sobald seit dem letzten lokalen `main`-Pull fremde PRs auf `origin/main`
 gemergt wurden), ist die Merge-Basis ein **alter** Commit → der Diff enthält alle zwischenzeitlich
-gemergten **fremden** PRs zusätzlich zur eigenen Task. Konkret in #161: die bereits gemergten
-#170-Dateien (`proxy.ts`, `lib/prefetch-session.ts`, spec-170 …) tauchten im Review-, Security- und
+gemergten **fremden** PRs zusätzlich zur eigenen Task. Konkret in nothra/tch-gastro-services#161: die bereits gemergten
+nothra/tch-gastro-services#170-Dateien (`proxy.ts`, `lib/prefetch-session.ts`, spec-170 …) tauchten im Review-, Security- und
 Refactor-Scope auf. Tückisch: Der Review würde fremden, längst gemergten Code mitprüfen und die
 Änderungs-Statistik verfälschen; ein Fehl-Finding auf Fremdcode ist die Folge.
 
@@ -585,11 +585,11 @@ Refactor-Scope auf. Tückisch: Der Review würde fremden, längst gemergten Code
 bestimmen – nach `git fetch origin` mit `git diff origin/main...HEAD` (bzw.
 `git log origin/main...HEAD`), nicht gegen das lokale `main`. Erscheinen Dateien im Diff, die
 erkennbar nichts mit der Task zu tun haben, **zuerst die Scope-Referenz prüfen** (stale local
-`main`), bevor man sie reviewt. Die Skill-Vorlagen selbst wurden in **#176** auf `origin/main...HEAD`
+`main`), bevor man sie reviewt. Die Skill-Vorlagen selbst wurden in **nothra/tch-gastro-services#176** auf `origin/main...HEAD`
 umgestellt (mit vorangestelltem best-effort `git fetch origin`) – via Patch-Workflow, da sie unter
 `.claude/commands/**` liegen (agent-hard-denied).
 
-### ADR nach Review-Rework auf Drift prüfen – nicht nur `docs/routes.md` (aus #55, Review-Runde-2-Finding)
+### ADR nach Review-Rework auf Drift prüfen – nicht nur `docs/routes.md` (aus nothra/tch-gastro-services#55, Review-Runde-2-Finding)
 
 Ein ADR wird in `/architecture` **vor** der Implementierung geschrieben und beschreibt geplante
 Funktionen konkret (hier ADR-033 D6: „`setStatus` bleibt für Theke/Sonderfälle bestehen",
@@ -603,10 +603,10 @@ Rework-Zyklus (Review ↔ Implement) faktisch überholt wird, hat keinen äquiva
 Existenz, Modulgrenzen, Datenfluss), das ADR **im selben Fix-Commit** auf den Ist-Stand ziehen – nicht
 erst wenn ein späteres Review es bemerkt. Faustregel vor dem Schließen eines Findings: `git grep -n
 <entfernter-Funktionsname> docs/adr/<aktuelle-adr>.md` – ein Treffer bedeutet Doku-Drift. Analog zum
-Terminologie-Sweep (#144): der Auslöser ist eine **Verhaltens-/Architektur-Änderung**, nicht nur ein
+Terminologie-Sweep (nothra/tch-gastro-services#144): der Auslöser ist eine **Verhaltens-/Architektur-Änderung**, nicht nur ein
 Term-Rename.
 
-### `/refactor` Turn-Limit-Exhaustion: Retry ohne Gedächtnis baut auf halbfertigem Fremd-Stand auf (aus #185)
+### `/refactor` Turn-Limit-Exhaustion: Retry ohne Gedächtnis baut auf halbfertigem Fremd-Stand auf (aus nothra/tch-gastro-services#185)
 
 Der automatisierte `/refactor`-Schritt lief 3× ins Turn-Limit (`get_max_turns`,
 `token-efficiency.md` §6) ohne Commit. Jeder Wiederholungsversuch startete in einer **frischen
@@ -629,9 +629,9 @@ Skill wiederholt das Turn-Limit: prüfen, ob der Änderungsumfang (hier: 3 neue 
 für ein Renderer-Feature) für einen einzelnen automatisierten `/refactor`-Lauf zu groß ist,
 statt endlos zu wiederholen.
 
-**Nachtrag (aus #264): Turn-Limit-Exhaustion auch OHNE Code-Diff, und der Orchestrator hält
+**Nachtrag (aus nothra/tch-gastro-services#264): Turn-Limit-Exhaustion auch OHNE Code-Diff, und der Orchestrator hält
 sich selbst nicht an die eigene Regel.** Derselbe automatisierte `/refactor`-Schritt riss in
-#264 erneut 3× das Turn-Limit – diesmal ohne jede Code-Änderung. Die Konklusion („keine
+nothra/tch-gastro-services#264 erneut 3× das Turn-Limit – diesmal ohne jede Code-Änderung. Die Konklusion („keine
 Code-Änderung nötig", Checkliste geprüft, volle Testsuite grün) stand bereits nach dem ersten
 Versuch fest; allein die Verifikations-Overhead (volle Testsuite, Review-Rundenabgleich,
 Task-Datei-Prosa) reichte, um das Budget vor dem abschließenden Commit zu erschöpfen. Der
@@ -642,16 +642,16 @@ gesamte Pipeline ab. Ein Mensch musste den liegen gebliebenen, aber vollständig
 committierbaren Diff danach manuell finden und committen. `run_skill()` hat für
 `review`/`security-review` bereits einen Report-Guard (`report_verdict`, ADR-019 §4), der
 ein Turn-Limit nach einem im selben Aufruf geschriebenen Report toleriert (Frische-Prüfung
-seit #310) – für code-schreibende Skills
-fehlt das Äquivalent. Härtung als Issue #275 ausgelagert (Scope sprengt #264 selbst).
+seit nothra/tch-gastro-services#310) – für code-schreibende Skills
+fehlt das Äquivalent. Härtung als Issue nothra/tch-gastro-services#275 ausgelagert (Scope sprengt nothra/tch-gastro-services#264 selbst).
 **Für die Zwischenzeit:** vor jedem Retry-Abbruch eines automatisierten Skill-Schritts
 `git status` im Zielverzeichnis prüfen, bevor der Lauf als gescheitert gilt – ein
 committierbarer Zwischenstand ist kein Fehlschlag, nur ein fehlender letzter Schritt.
 
-**Nachtrag (aus #324): drittes Vorkommnis, diesmal bei `/implement` – der Defekt ist NICHT
+**Nachtrag (aus nothra/tch-gastro-services#324): drittes Vorkommnis, diesmal bei `/implement` – der Defekt ist NICHT
 `/refactor`-spezifisch.** `PR_SHEPHERD=true bash scripts/run-pipeline.sh 324` riss den
 `/implement`-Schritt 3× ins Turn-Limit (Task mit 15 AC, entsprechend großer Scope über 6
-Produktionsmodule) und brach danach die gesamte Pipeline ab (Exit 1). Genau wie in #264 hatte
+Produktionsmodule) und brach danach die gesamte Pipeline ab (Exit 1). Genau wie in nothra/tch-gastro-services#264 hatte
 der Orchestrator zwischen den Retries **nicht** auf `git status` geprüft – im Arbeitsbaum lag
 aber bereits eine **funktional fast fertige** Implementierung (alle Module laut ADR geändert,
 Lint grün, Ziel-Tests grün), dazu zwei vom letzten Versuch selbst angelegte, nicht committete
@@ -660,23 +660,23 @@ Ein Mensch musste den Zwischenstand manuell finden, die Wegwerf-Artefakte entfer
 Rest der Pipeline (`/review` bis `/pr-shepherd`) Skill für Skill nachholen. Da dasselbe Muster
 jetzt in zwei unterschiedlichen code-schreibenden Skills (`/refactor`, `/implement`) auftrat,
 ist die Ursache der Orchestrator selbst (`run_skill()`), nicht eine Eigenschaft eines
-bestimmten Skills – Issue #275 deckt die Härtung bereits ab, sein Titel sollte beim Beheben
+bestimmten Skills – Issue nothra/tch-gastro-services#275 deckt die Härtung bereits ab, sein Titel sollte beim Beheben
 entsprechend generalisiert werden (Retry-Guard für **jeden** code-schreibenden Skill-Schritt,
 nicht nur `/refactor`).
 
-**Nachtrag (aus #348/ADR-051):** Die Turn-Limit-Ceiling für `/implement` (`MAX_TURNS_CEILING`,
+**Nachtrag (aus nothra/tch-gastro-services#348/ADR-051):** Die Turn-Limit-Ceiling für `/implement` (`MAX_TURNS_CEILING`,
 `scripts/checks/config-validation-check.sh`) stand bei diesem Incident bereits auf dem
-damaligen Gate-Policy-Maximum 50 – keine Config-Änderung hätte geholfen. Seit #348 ist die
+damaligen Gate-Policy-Maximum 50 – keine Config-Änderung hätte geholfen. Seit nothra/tch-gastro-services#348 ist die
 Ceiling selbst auf 80 angehoben (ADR-051, Begründung: dieselbe Eskalationshistorie wie hier
-plus Task #49/#53). Issue #275 (Retry-Guard) bleibt davon unberührt und weiterhin offen.
+plus Task nothra/tch-gastro-services#49/#53). Issue nothra/tch-gastro-services#275 (Retry-Guard) bleibt davon unberührt und weiterhin offen.
 
-**Nachtrag (aus #346): viertes Vorkommnis, trotz der auf 80 angehobenen Ceiling (#348) und
-weiterhin offenem Issue #275.** `PR_SHEPHERD=true bash scripts/run-pipeline.sh 346` riss den
+**Nachtrag (aus nothra/tch-gastro-services#346): viertes Vorkommnis, trotz der auf 80 angehobenen Ceiling (nothra/tch-gastro-services#348) und
+weiterhin offenem Issue nothra/tch-gastro-services#275.** `PR_SHEPHERD=true bash scripts/run-pipeline.sh 346` riss den
 `/implement`-Schritt erneut 3× am (jetzt 80er-)Turn-Limit und brach mit Exit 1 ab, obwohl der
 erste Versuch die Arbeit bereits vollständig abgeschlossen hatte: Commit auf dem Feature-Branch,
 gepusht, Task-Datei mit allen AK-Notizen inkl. Oberflächen-Verifikation befüllt, Draft-PR
-existent und mergeable. Die Ceiling-Anhebung aus #348 verkleinert die Trefferfläche, behebt aber
-nicht die Ursache (fehlender Retry-Guard, #275) – ein hinreichend großer Scope reißt sie weiterhin.
+existent und mergeable. Die Ceiling-Anhebung aus nothra/tch-gastro-services#348 verkleinert die Trefferfläche, behebt aber
+nicht die Ursache (fehlender Retry-Guard, nothra/tch-gastro-services#275) – ein hinreichend großer Scope reißt sie weiterhin.
 
 **Konkrete Verifikations-Checkliste, bevor ein gemeldetes `/implement`-Scheitern als real gilt**
 (hier manuell angewendet, keine Skript-Änderung): (1) `git status` im Zielverzeichnis – sauberer
@@ -690,7 +690,7 @@ gleichem Turn-Limit-Risiko) – stattdessen Stage 2 manuell Skill für Skill for
 (`/review` → `/test` → `/refactor` → `/security-review` → `/codify` → `/pr-shepherd`), jeden
 Schritt einzeln über `bash scripts/factory-commit.sh` committen/pushen.
 
-**Nachtrag (aus #346): der manuelle Stage-2-Fortsatz verliert die komplette Telemetrie
+**Nachtrag (aus nothra/tch-gastro-services#346): der manuelle Stage-2-Fortsatz verliert die komplette Telemetrie
 (ADR-049), nicht nur einen Teil davon.** Die OTEL-Instrumentierung
 (`CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=console`) setzt ausschließlich
 `run-pipeline.sh` um den eigenen `claude --print`-Subprozess-Aufruf in `run_skill()` – sie ist
@@ -698,7 +698,7 @@ an diesen Wrapper gebunden, nicht an den Skill-Begriff selbst. Werden `/review`,
 `/refactor`, `/security-review`, `/codify`, `/pr-shepherd` stattdessen als interaktive
 Skill-/Sub-Agent-Aufrufe **innerhalb** der laufenden Session ausgeführt (wie hier nach dem
 Turn-Limit-Fehlschlag empfohlen), entsteht **keinerlei** OTEL-Rohdaten für diese Schritte – es
-gibt nichts zu ernten, auch nicht nachträglich. Am Ende von #346 fehlte dadurch die komplette
+gibt nichts zu ernten, auch nicht nachträglich. Am Ende von nothra/tch-gastro-services#346 fehlte dadurch die komplette
 Task-Telemetrie-CSV, obwohl der Task selbst vollständig durchlief (Merge, alle Gates grün).
 
 **Smell:** „Ich setze eine als `run-pipeline.sh`-Stage-3-Ablauf dokumentierte Skill-Kette manuell
@@ -713,11 +713,11 @@ Erhebung ist unmöglich, da die Rohdaten nie erzeugt wurden. Kein Workaround bek
 Lücke schließt, ohne den fehlgeschlagenen `run-pipeline.sh`-Lauf ab dem gescheiterten Schritt neu
 zu starten (was wiederum das ursprüngliche Turn-Limit-Risiko zurückbringt) – die beiden Ziele
 „keine unnötige Wiederholung riskieren" und „vollständige Telemetrie" stehen hier im Konflikt;
-Issue #275 (Retry-Guard) würde beides zugleich lösen.
+Issue nothra/tch-gastro-services#275 (Retry-Guard) würde beides zugleich lösen.
 
-### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus #196)
+### Verlustfreie Doku-Migration/Split: skriptbasiert + Byte-Reconstruction-Assertion (aus nothra/tch-gastro-services#196)
 
-Task #196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
+Task nothra/tch-gastro-services#196 verschob 45 `/codify`-Learnings (~978 Zeilen) aus dem @import-Pfad in 7 thematische
 `lessons/`-Dateien. Ein „von Hand" verschobener Block dieser Größe lädt zu stillen Verlusten/
 Vertippern ein – und das AC „verlustfrei" ist dann nur behauptet, nicht belegt.
 
@@ -735,15 +735,15 @@ Vertippern ein – und das AC „verlustfrei" ist dann nur behauptet, nicht bele
    Tiefe anpassen (hier `](../adr/` → `](../../adr/`); beide Zielpfade auf Existenz prüfen).
 4. Formatierung am Ende gegen das Projekt-Gate prüfen (`prettier --check`), nicht raten.
 
-Verwandt mit dem #144-Terminologie-Sweep (zweifach verifizieren), aber der Auslöser ist hier eine
+Verwandt mit dem nothra/tch-gastro-services#144-Terminologie-Sweep (zweifach verifizieren), aber der Auslöser ist hier eine
 **Verschiebung** großer Blöcke – der entscheidende Beleg ist die Byte-Reconstruction gegen
 `origin/main`, nicht ein Grep-Zähler allein.
 
-### ADR-Status beim Implementieren einer frisch erstellten ADR auf „Accepted" flippen (aus #197, Review-Finding)
+### ADR-Status beim Implementieren einer frisch erstellten ADR auf „Accepted" flippen (aus nothra/tch-gastro-services#197, Review-Finding)
 
 Wird eine ADR in Phase 1 (`/architecture`) mit Status `Proposed` angelegt und im selben Feature
 in Phase 2 (`/implement`) vollständig umgesetzt+getestet, bleibt sie leicht auf `Proposed` stehen –
-niemand „entscheidet" sie noch einmal bewusst. In #197 fiel das erst im Review auf: ADR-038 war
+niemand „entscheidet" sie noch einmal bewusst. In nothra/tch-gastro-services#197 fiel das erst im Review auf: ADR-038 war
 merge-reif umgesetzt, trug aber weiter `Proposed`, während alle anderen umgesetzten ADRs im Repo
 (009, 011, 029, 037) `Accepted` tragen → Status-Konventions-Drift.
 
@@ -754,14 +754,14 @@ ihr Status **im selben PR** auf `Accepted (<Datum>)`. `Proposed` bleibt nur, wen
 bewusst offen/ungebaut ist. Beim `/implement` mitprüfen, spätestens im `/review` (Runde Architektur)
 als Punkt „ADR-Status ↔ Umsetzungsstand konsistent?" – analog zum ADR-Drift-Check nach Review-Rework.
 
-### PR ändert die von einer ADR namentlich beschriebene Mechanik → ADR-Beschreibung im selben PR mitpflegen, schon beim /implement (aus #211, Review-Finding)
+### PR ändert die von einer ADR namentlich beschriebene Mechanik → ADR-Beschreibung im selben PR mitpflegen, schon beim /implement (aus nothra/tch-gastro-services#211, Review-Finding)
 
-#211 stellte die Verdict-Erkennung von Volltext-`grep` auf anker-basiert um. ADR-019 §4 beschrieb
+nothra/tch-gastro-services#211 stellte die Verdict-Erkennung von Volltext-`grep` auf anker-basiert um. ADR-019 §4 beschrieb
 die alte Mechanik **wörtlich** (`grep -oE "APPROVED|NEEDS_REWORK" / "PASSED|NEEDS_FIXES"`, „letztes
 Vorkommen gewinnt"). Die **Entscheidung** der ADR („eine Verdict-Erkennung, ein Ort") blieb intakt
 und wurde sogar besser erfüllt – nur die beschriebene **Implementierungs-Mechanik** war danach
 falsch. `/implement` pflegte Task + Spec, aber nicht die ADR; erst `/review` fand den Drift. Der
-bestehende #55-Trigger („ADR nach Review-Rework auf Drift prüfen – bei ADR-Änderung") feuerte
+bestehende nothra/tch-gastro-services#55-Trigger („ADR nach Review-Rework auf Drift prüfen – bei ADR-Änderung") feuerte
 nicht, weil hier keine ADR-**Datei** editiert wurde – es wurde **Code** geändert, den eine ADR
 beschreibt.
 
@@ -774,37 +774,37 @@ ADR-Mechanik-Beschreibung **im selben PR** aktualisiert – auch wenn die Entsch
 gilt (dann als „Aktualisierung (#id)"-Notiz; kein neuer Entscheidungsvorgang, kein Status-Flip).
 Schon beim `/implement` mitpflegen: nach dem Umbau `grep -rn` in `docs/adr/` nach den geänderten
 Symbol-/Mechanik-Namen (hier `grep -oE`, `tail -1`, Funktionsname), nicht erst im Review auffangen.
-Ergänzt #55 (das nur bei ADR-**Datei**-Änderungen triggert) um den Fall „Code-Änderung, die eine
+Ergänzt nothra/tch-gastro-services#55 (das nur bei ADR-**Datei**-Änderungen triggert) um den Fall „Code-Änderung, die eine
 ADR beschreibt".
 
-### Auch Lesson-/Kontext-Doku im selben PR nachziehen: Präsens-Mechanik + benannter Follow-up (#N) werden stale (aus #176, Review-Finding)
+### Auch Lesson-/Kontext-Doku im selben PR nachziehen: Präsens-Mechanik + benannter Follow-up (#N) werden stale (aus nothra/tch-gastro-services#176, Review-Finding)
 
-#176 stellte den Diff-Scope der Skills von `main...HEAD` auf `origin/main...HEAD` um. Die Lesson,
+nothra/tch-gastro-services#176 stellte den Diff-Scope der Skills von `main...HEAD` auf `origin/main...HEAD` um. Die Lesson,
 die den ursprünglichen Bug beschrieb (`factory-workflow.md` „Review-Diff-Scope …"), enthielt zwei
 Aussagen, die der Fix **stale** machte: (1) eine **Präsens**-Beschreibung des Ist-Verhaltens („Die
 Skills … **laden** ihren Diff-Kontext per `git diff main...HEAD`") und (2) einen Satz, der die
-Umstellung als **offenen Follow-up (#176)** auswies – erledigt durch genau diesen PR, ein
+Umstellung als **offenen Follow-up (nothra/tch-gastro-services#176)** auswies – erledigt durch genau diesen PR, ein
 selbst-referenzieller Beleg. `/implement` pflegte Task + Spec, fand die Prosa aber nicht; `/review`
 fing den Drift.
 
 **Smell:** „Beschreibt eine Lesson/Kontext-Doku die Mechanik, die dieser PR ändert, im **Präsens** –
 oder nennt sie einen **Follow-up (#N)**, den dieser PR gerade erledigt? Dann ist genau diese Prosa
-jetzt veraltet, obwohl keine ADR/Routen-Doku betroffen ist." Das #211-/#55-Prinzip gilt breiter als
+jetzt veraltet, obwohl keine ADR/Routen-Doku betroffen ist." Das nothra/tch-gastro-services#211-/#55-Prinzip gilt breiter als
 nur für ADRs.
 
-**Regel:** Erweitert #211 über ADRs hinaus auf **`docs/factory/lessons/**` und `PROJECT-CONTEXT.md`**.
+**Regel:** Erweitert nothra/tch-gastro-services#211 über ADRs hinaus auf **`docs/factory/lessons/**` und `PROJECT-CONTEXT.md`**.
 Ändert ein PR eine Mechanik oder erledigt er einen benannten `#N`-Follow-up, im selben PR
 sweepen (`grep -rn` nach dem alten Mechanik-Term **und** nach `#<eigene-id>`/„Follow-up"):
 Präsens-Beschreibungen auf Vergangenheit/„vormals … seit #id" umstellen, Follow-up-Sätze als
 erledigt markieren. **Historische Vorfall-Narrative** (die *Warum-es-ein-Bug-war*-Erklärung) bleiben
 bewusst unverändert – nur die Ist-Behauptung und die Offen-Markierung werden nachgezogen. Da der
 Feature-Zyklus `/codify` **im selben PR** ausführt, ist „im selben PR" auch dann erfüllt, wenn die
-Spec die Prosa-Pflege bewusst aus `/implement` herausnimmt und an `/codify` delegiert (so in #176).
+Spec die Prosa-Pflege bewusst aus `/implement` herausnimmt und an `/codify` delegiert (so in nothra/tch-gastro-services#176).
 
-### Frisch im selben PR erstellte/geänderte Spec braucht denselben Drift-Check wie ADRs – nicht nur vorbestehende Architekturdoku (aus #253, Review-Runde-3-Finding)
+### Frisch im selben PR erstellte/geänderte Spec braucht denselben Drift-Check wie ADRs – nicht nur vorbestehende Architekturdoku (aus nothra/tch-gastro-services#253, Review-Runde-3-Finding)
 
-Bislang deckte die #211-/#176-Kette Drift zwischen Code und **vorbestehenden** ADRs/Lessons ab.
-#253 zeigte eine weitere Quelle: die **im selben PR** (Requirements-Phase) neu geschriebene Spec
+Bislang deckte die nothra/tch-gastro-services#211-/#176-Kette Drift zwischen Code und **vorbestehenden** ADRs/Lessons ab.
+nothra/tch-gastro-services#253 zeigte eine weitere Quelle: die **im selben PR** (Requirements-Phase) neu geschriebene Spec
 (`spec-253`) beschrieb eine engere Mechanik („nur der Kassieren-Klick friert die Position ein")
 als die tatsächlich gebaute und in Runde 2 per Test zementierte („die Reihenfolge wird beim
 ersten Rendern eingefroren und gilt session-weit, auch für einen StatusToggle danach"). Zwei
@@ -816,30 +816,30 @@ als Maßstab, statt sie gegen das reale, getestete Ergebnis zu spiegeln.
 deren Wortlaut noch mit dem überein, was am Ende tatsächlich gebaut und getestet wurde, oder ist sie
 seit `/requirements` unverändert, während sich der Implementierungs-Scope verschoben hat?"
 
-**Regel:** Erweitert #211/#176 (ADR-/Lessons-Drift) explizit auf **`docs/specs/*.md`, die im selben
+**Regel:** Erweitert nothra/tch-gastro-services#211/#176 (ADR-/Lessons-Drift) explizit auf **`docs/specs/*.md`, die im selben
 PR entstanden oder geändert wurden**: `/review` vergleicht die Spec-Prosa (insbesondere
 AC-Formulierungen und Abgrenzungssätze wie „nur X löst Y aus"/„kein Y ohne X") wörtlich gegen den
 zementierenden Test, nicht nur gegen den Produktionscode. Widerspricht der Test-Beweis der
 Spec-Formulierung, gewinnt das **getestete Verhalten** (es ist das belastbarere Artefakt) – die Spec
 wird nachgezogen, nicht das Verhalten nachträglich verengt. Auch angrenzende, nicht direkt
-geänderte Specs mitprüfen (hier: `spec-223`, dessen AC „offene oberhalb bezahlter" seit #253 nur
+geänderte Specs mitprüfen (hier: `spec-223`, dessen AC „offene oberhalb bezahlter" seit nothra/tch-gastro-services#253 nur
 noch für den Zustand nach einem Seitenaufruf gilt).
 
-### Test einer `.claude/**`-Patch-Lieferung prüft den Endzustand der committeten Live-Datei, nicht das Patch-Artefakt (aus #212, Review-Runde 1/3)
+### Test einer `.claude/**`-Patch-Lieferung prüft den Endzustand der committeten Live-Datei, nicht das Patch-Artefakt (aus nothra/tch-gastro-services#212, Review-Runde 1/3)
 
 `.claude/**` ist für den Agenten hard-denied → die Änderung kommt als `tasks/patch-<id>.diff`, den
-der Mensch anwendet und committet; der Patch wird danach entfernt (Lesson #145). Der Reflex, den
+der Mensch anwendet und committet; der Patch wird danach entfernt (Lesson nothra/tch-gastro-services#145). Der Reflex, den
 zugehörigen Test „green nach apply" über das **Patch-Artefakt** zu belegen (`[ -f patch-<id>.diff ]`,
 `git apply --check`, Anwenden auf eine Temp-Kopie), ist eine Falle: Sobald der Fix ausgeliefert wird
 (`.claude/**`-Datei committet, `patch-<id>.diff` entfernt), scheitern genau diese Assertions – und
 der einzige „grüne" Zustand (Patch da, Änderung uncommittet) liefert den Fix **nie auf main**. Es
-gibt keinen auslieferbaren Endzustand, in dem Fix committet **und** Suite grün ist. In #212 lief die
+gibt keinen auslieferbaren Endzustand, in dem Fix committet **und** Suite grün ist. In nothra/tch-gastro-services#212 lief die
 CI-Suite dadurch rot (2 Fehler), obwohl der inhaltliche Fix korrekt war (von drei Review-Runden
 unabhängig gefunden).
 
 **Smell:** „Prüft mein Test die **Existenz/Anwendbarkeit** von `patch-<id>.diff` oder das
 **Anwenden auf eine Temp-Kopie** – also einen Zustand, den die vorgeschriebene Pre-Merge-Bereinigung
-(#145) gerade auflöst?"
+(nothra/tch-gastro-services#145) gerade auflöst?"
 
 **Regel:** Ein Test für eine `.claude/**`-Änderung asserted den **Endzustand** der committeten
 Live-Datei direkt (`grep -qF '<Marker>' "$SHEPHERD"` o. Ä.), nie das transiente Patch-Artefakt. Der
@@ -848,11 +848,11 @@ Anwenden+Committen grün und übersteht das Entfernen von `patch-<id>.diff`. Die
 Content-Assertions sind meist schon richtig gebaut; sie müssen nur gegen die Live-/committete Datei
 laufen statt gegen eine Temp-Kopie.
 
-### Neuer Interrupt-Typ → kanonische OPERATING.md-Interrupt-Tabelle mitpflegen (aus #212, Review-Finding)
+### Neuer Interrupt-Typ → kanonische OPERATING.md-Interrupt-Tabelle mitpflegen (aus nothra/tch-gastro-services#212, Review-Finding)
 
 `raise-interrupt.sh` akzeptiert den Typ als **Freitext** – kein Gate erzwingt einen neuen Typ gegen
 eine Registry. Die einzige kanonische Registry ist die Interrupt-Typen-Tabelle in
-`docs/factory/OPERATING.md` (Präzedenz: ADR-007 trug dort `POST_MERGE_FAIL` nach). #212 führte zwei
+`docs/factory/OPERATING.md` (Präzedenz: ADR-007 trug dort `POST_MERGE_FAIL` nach). nothra/tch-gastro-services#212 führte zwei
 neue Typen ein (`INCOMPLETE_OUTCOME` in run-pipeline.sh, `PUSH_GATE_BLOCKED` in pr-shepherd.md) und
 vergaß beide zunächst in der Tabelle – Instanz der „kanonische Quellen mitpflegen"-Familie, hier
 ohne Gate, das es auffängt.
@@ -865,9 +865,9 @@ in `docs/factory/OPERATING.md` eingetragen (Typ · ausgelöst von · Bedeutung �
 Selbstcheck: die Typen aus `grep -rhoE 'raise-interrupt\.sh [^ ]+ [A-Z_]+' scripts/ .claude/` gegen
 die Tabellen-Spalte abgleichen.
 
-### Vorbestehenden, scheinbar unabhängigen Bash-Suite-Testfehlschlag mit zwei konkreten Prüfungen belegen, nicht nur behaupten (aus #239, /review-Selbstfund)
+### Vorbestehenden, scheinbar unabhängigen Bash-Suite-Testfehlschlag mit zwei konkreten Prüfungen belegen, nicht nur behaupten (aus nothra/tch-gastro-services#239, /review-Selbstfund)
 
-`scripts/checks/tests/run-tests.sh` endete in #239 mit 4 roten Fällen in einem Block, der mit dem
+`scripts/checks/tests/run-tests.sh` endete in nothra/tch-gastro-services#239 mit 4 roten Fällen in einem Block, der mit dem
 eigenen Task-Diff (nur `factory-commit.sh` + ein neuer Testabschnitt) nichts zu tun zu haben schien.
 Die naheliegende Reaktion – „betrifft mich nicht, der Block ist ein anderes Thema" – wäre eine
 unbelegte Behauptung geblieben. Stattdessen wurden zwei konkrete, automatisierbare Prüfungen
@@ -888,14 +888,14 @@ bei E2E-Tests mit kopiertem/referenziertem Datei-Satz die eigene geänderte Date
 dessen Referenzen finden. Beide Prüfungen zusammen sind der Beleg – eine allein (nur Diff-Scope
 *oder* nur Referenz-Check) wäre schwächer. Trotzdem bleibt die Einordnung „real vs. environmental"
 menschliche Entscheidung; ein Tracking-Issue für den Fehlschlag selbst gehört unabhängig davon
-angelegt (hier [#244](https://github.com/nothra/tch-gastro-services/issues/244)).
+angelegt (hier [nothra/tch-gastro-services#244](https://github.com/nothra/tch-gastro-services/issues/244)).
 
-### Real-vs-environmental-Einordnung eines gemeldeten Testfehlschlags durch Wiederholung statt Diff-Analyse belegen (aus #244, /requirements-Selbstfund)
+### Real-vs-environmental-Einordnung eines gemeldeten Testfehlschlags durch Wiederholung statt Diff-Analyse belegen (aus nothra/tch-gastro-services#244, /requirements-Selbstfund)
 
-#239 hatte einen Bash-Suite-Fehlschlag im Block „#212 W3" per Diff-Scope- und Referenz-Check als
+nothra/tch-gastro-services#239 hatte einen Bash-Suite-Fehlschlag im Block „nothra/tch-gastro-services#212 W3" per Diff-Scope- und Referenz-Check als
 „nicht selbst verursacht" belegt (siehe Eintrag oben), die Frage „real vs. environmental" aber
-bewusst offengelassen und dafür Issue #244 angelegt. Ein Diff-Scope-Check beweist nur, dass man den
-Fehlschlag nicht *verursacht* hat – er beweist nicht, ob der Fehlschlag *reproduzierbar* ist. #244
+bewusst offengelassen und dafür Issue nothra/tch-gastro-services#244 angelegt. Ein Diff-Scope-Check beweist nur, dass man den
+Fehlschlag nicht *verursacht* hat – er beweist nicht, ob der Fehlschlag *reproduzierbar* ist. nothra/tch-gastro-services#244
 hat das mit einer anderen Prüfungsart geklärt: (1) der isolierte E2E-Block 5× hintereinander
 außerhalb der Gesamt-Suite wiederholt (kein Flackern), (2) die volle Suite auf aktuellem Stand
 laufen lassen (0 rot), (3) die CI-Historie (`gh run list`) für die betroffenen Branches auf
@@ -912,11 +912,11 @@ volle Suite auf aktuellem Stand laufen lassen, (3) die CI-Historie für die rele
 prüfen. Erst wenn alle drei übereinstimmend grün sind, gilt der Fehlschlag als environmental und
 das Tracking-Issue kann ohne Code-Fix geschlossen werden.
 
-### Write-Tool-Zielpfad im Worktree explizit gegen den Worktree-Suffix prüfen, nicht dem Bash-cwd vertrauen (aus #240, /implement-Selbstfund)
+### Write-Tool-Zielpfad im Worktree explizit gegen den Worktree-Suffix prüfen, nicht dem Bash-cwd vertrauen (aus nothra/tch-gastro-services#240, /implement-Selbstfund)
 
 Beim Anlegen der neuen Spec-Datei in Task 240 landete der erste `Write`-Aufruf im **geteilten
-Hauptbaum** (`.../TCH Gastro Services/docs/specs/...`) statt im per `start-work.sh` angelegten
-**Worktree** (`.../TCH Gastro Services.worktrees/chore-240-.../docs/specs/...`) – trotz eines
+Hauptbaum** (`.../Mein Projekt/docs/specs/...`) statt im per `start-work.sh` angelegten
+**Worktree** (`.../Mein Projekt.worktrees/chore-240-.../docs/specs/...`) – trotz eines
 zuvor erfolgreichen `cd` in den Worktree per Bash. Ursache: Der Bash-cwd springt nach **jedem**
 Bash-Aufruf auf den Hauptbaum zurück (dokumentiertes Verhalten, sichtbar an der Zeile „Shell cwd
 was reset to …" nach jedem Tool-Ergebnis) – aber das `Write`-Tool ist ein **eigenes** Tool ohne
@@ -941,7 +941,7 @@ platzierte Datei sofort zu bemerken (nicht erst beim Commit). Ergänzt „Bash-c
 zurück" (persönliche Session-Erfahrung) um die Erkenntnis, dass dasselbe Risiko unabhängig vom
 Bash-Tool auch für `Write`/`Edit` gilt.
 
-### Divergiertes `origin/main` während laufender Pipeline: Rebase-Verantwortung bei `/pr-shepherd` belassen, nicht in einem Zwischenschritt nachholen (aus #249, /refactor-Selbstfund)
+### Divergiertes `origin/main` während laufender Pipeline: Rebase-Verantwortung bei `/pr-shepherd` belassen, nicht in einem Zwischenschritt nachholen (aus nothra/tch-gastro-services#249, /refactor-Selbstfund)
 
 Im `/refactor`-Schritt von Task 249 war `origin/main` zwischenzeitlich weitergelaufen (Task 240
 wurde parallel gemergt, PR desselben Repos). Der allgemeinen Git-Workflow-Regel „vor dem Push:
@@ -980,7 +980,7 @@ aus `docs/factory/guidelines/git-workflow.md` gilt für die Branch-Erstellung (`
 und den finalen Merge (`/pr-shepherd`) – nicht für jeden Zwischen-Commit einer laufenden
 Pipeline auf einem bereits gepushten Branch.
 
-### `awk`-Job-Block-Isolation in CI-Wiring-Tests muss auch am Job-Trennkommentar abbrechen, nicht nur am nächsten Job-Key (aus #255, Review-Runde-1-Finding)
+### `awk`-Job-Block-Isolation in CI-Wiring-Tests muss auch am Job-Trennkommentar abbrechen, nicht nur am nächsten Job-Key (aus nothra/tch-gastro-services#255, Review-Runde-1-Finding)
 
 Task 255 fügte einen `awk`-Einzeiler hinzu, der den YAML-Block eines einzelnen CI-Jobs aus
 `factory-ci.yml` isoliert extrahiert, um ihn gezielt auf Abwesenheit zu prüfen (hier: „kein
@@ -1006,7 +1006,7 @@ den Extraktor **isoliert ausführen** und das Ergebnis auf Länge/Inhalt prüfen
 | wc -l`, Volltext lesen) – nicht nur den nachgelagerten Negativ-Test grün laufen lassen, der
 bei zufällig unauffälligem Nachbarinhalt auch mit einer löchrigen Extraktion grün bleibt.
 
-### Fix zwischen zwei `/review`-Runden sofort committen, nicht erst nach der letzten Runde (aus #251, Review-Runde-3-Finding)
+### Fix zwischen zwei `/review`-Runden sofort committen, nicht erst nach der letzten Runde (aus nothra/tch-gastro-services#251, Review-Runde-3-Finding)
 
 `/review` lief für Task 251 als drei sequenzielle Persona-Runden (Logik, Code-Qualität,
 Architektur). Runde 2 fand ein Kritisch-Finding (rumpfidentische Duplikat-Schleife, siehe
@@ -1031,14 +1031,14 @@ Runden bündeln. Jede nachfolgende Runde, die ihren Kontext per `git diff origin
 irrtümlich erneut aufwerfen oder – schlimmer – bemerkt die Diskrepanz nicht und bewertet
 gegen einen Stand, der im Repo so nicht mehr existiert.
 
-### `PR_SHEPHERD`/`FACTORY_STAGE` in der aufrufenden Shell exportiert schlagen in jedes von der Testsuite erzeugte Wegwerf-Repo durch (aus #262, Task-Selbstfund; Härtung umgesetzt in #264)
+### `PR_SHEPHERD`/`FACTORY_STAGE` in der aufrufenden Shell exportiert schlagen in jedes von der Testsuite erzeugte Wegwerf-Repo durch (aus nothra/tch-gastro-services#262, Task-Selbstfund; Härtung umgesetzt in nothra/tch-gastro-services#264)
 
 `run-pipeline.sh` wurde für Task 262 als `PR_SHEPHERD=true bash scripts/run-pipeline.sh 262`
 gestartet – ein einzelner Kommando-Präfix, der die Variable nur für diesen einen Prozess setzt.
 Wird eine Pipeline stattdessen über `export PR_SHEPHERD=true` (oder eine Session, die die
 Variable bereits aus einem Elternprozess erbt) gestartet, bleibt sie in der **gesamten Shell**
 gesetzt – und damit auch für jeden `bash scripts/checks/tests/run-tests.sh`-Lauf, der aus
-derselben Shell heraus gestartet wird. Der `#212 W3`-E2E-Testblock erzeugt dort ein
+derselben Shell heraus gestartet wird. Der `nothra/tch-gastro-services#212 W3`-E2E-Testblock erzeugt dort ein
 Wegwerf-Repo und ruft darin `run-pipeline.sh` real auf, um dessen Endzustands-Verifikation zu
 prüfen – die geerbte `PR_SHEPHERD=true` löst darin ungewollt **Phase 7 (PR Shepherd)** aus, die
 im Wegwerf-Repo abbricht (`.claude/commands/pr-shepherd.md` existiert dort nicht). Ergebnis:
@@ -1053,9 +1053,9 @@ eine ähnliche Pipeline-Env-Var) exportiert?"
 **Regel:** Vor dem Einordnen eines solchen Fehlschlags als real: mit `unset PR_SHEPHERD
 FACTORY_STAGE` (bzw. `env -u`) gegenprüfen, ob er verschwindet. Verschwindet er, ist es ein
 Umgebungsproblem der aufrufenden Shell, keine Regression – dokumentieren (Diff-Scope, Vorher/
-Nachher-Vergleich, CI-Historie, Lesson #244), nicht blind nacharbeiten.
+Nachher-Vergleich, CI-Historie, Lesson nothra/tch-gastro-services#244), nicht blind nacharbeiten.
 
-**Stand:** Die Härtung ist in #264 umgesetzt – jeder reale (non-`--dry-run`)
+**Stand:** Die Härtung ist in nothra/tch-gastro-services#264 umgesetzt – jeder reale (non-`--dry-run`)
 `run-pipeline.sh`-Aufruf in `run-tests.sh` neutralisiert beide Variablen per
 `env -u PR_SHEPHERD -u FACTORY_STAGE` für den Kindprozess, abgesichert durch einen
 Verhaltenstest (Lauf unter exportierten Variablen) **und** einen Drift-Guard, der eine neue
@@ -1063,12 +1063,12 @@ ungehärtete Aufrufstelle rot macht. Für `run-tests.sh` tritt das Symptom damit
 Die Diagnose-Regel oben bleibt gültig: sie greift für **andere** Skripte mit eigenen
 Env-Schaltern und für jede Testsuite, die einen Kindprozess ohne solche Neutralisierung startet.
 
-### Neuer pre-push.sh-Check, der lokalen Installationszustand voraussetzt, bricht bestehende Selbsttests in CI (aus #265, User-gemeldete CI-Regression)
+### Neuer pre-push.sh-Check, der lokalen Installationszustand voraussetzt, bricht bestehende Selbsttests in CI (aus nothra/tch-gastro-services#265, User-gemeldete CI-Regression)
 
 Task 265 verdrahtete einen neuen, fail-closed Check in `pre-push.sh` (`hooks-installed-check.sh`,
 ADR-042), der prüft, ob die Factory-Git-Hooks im aufrufenden Repo installiert sind. Lokal
 (dieser Worktree) lief die gesamte Self-Test-Suite grün, weil hier tatsächlich Hooks installiert
-sind. Der `factory-self-test`-CI-Job wurde trotzdem rot: der bereits **vorbestehende** `#149`-Test
+sind. Der `factory-self-test`-CI-Job wurde trotzdem rot: der bereits **vorbestehende** `nothra/tch-gastro-services#149`-Test
 (`run_prepush_149` in `run-tests.sh`) ruft `pre-push.sh` **echt gegen das reale `FACTORY_DIR`**
 auf (kein isoliertes Fixture-Repo – `pre-push.sh` leitet `FACTORY_DIR` immer von seinem eigenen
 Skriptpfad ab, nicht von einer überschreibbaren Variable). Ein frischer CI-Checkout hat aber –
@@ -1095,9 +1095,9 @@ nachträglich isolieren. Den Fix mit einem Wiring-Test absichern, der den CI-Job
 und die **Reihenfolge** der beiden Schritte prüft (sonst wirkungslos, falls die Installation
 nach der Suite liefe).
 
-### Neuer Freitext-Ablage-Mechanismus in eine vom Agentenkontext wieder gelesene Repo-Datei braucht dieselbe „Daten, keine Anweisungen"-Absicherung wie bereits etablierte Kanäle (aus #286, Security-Review-Finding)
+### Neuer Freitext-Ablage-Mechanismus in eine vom Agentenkontext wieder gelesene Repo-Datei braucht dieselbe „Daten, keine Anweisungen"-Absicherung wie bereits etablierte Kanäle (aus nothra/tch-gastro-services#286, Security-Review-Finding)
 
-Task #286 führte `docs/factory/kleinfunde.md` als neuen Ablage-Ort für Out-of-Scope-Funde
+Task nothra/tch-gastro-services#286 führte `docs/factory/kleinfunde.md` als neuen Ablage-Ort für Out-of-Scope-Funde
 unterhalb der Issue-Schwelle ein: ein Skill schreibt Freitext (Felder Wo/Was/Fix) direkt in
 diese Repo-Datei per `Edit` – kein Seam, keine Validierung (ADR-043 Decision 3, bewusst). Genau
 diese Datei wird von **künftigen** Skill-Läufen automatisch wieder in den Agentenkontext
@@ -1130,9 +1130,9 @@ Kanäle, `/implement` schreibt die Warnung mit demselben Zug wie das Schema, nic
 Nachtrag. Trigger: `/architecture`, `/implement`, `/security-review` bei jedem neuen
 Ablage-Mechanismus für Agenten-Freitext in einer Repo-Datei.
 
-### Eine Feldnamen-Whitelist filtert nicht die Wertform, wenn derselbe Stream strukturierten Export und Agenten-Freitext ununterschieden vermengt (aus #334, Security-Review-Finding)
+### Eine Feldnamen-Whitelist filtert nicht die Wertform, wenn derselbe Stream strukturierten Export und Agenten-Freitext ununterschieden vermengt (aus nothra/tch-gastro-services#334, Security-Review-Finding)
 
-Die Telemetrie-Ernte (#334, ADR-049 §E5) liest nur benannte OTEL-Attribute (`model`,
+Die Telemetrie-Ernte (nothra/tch-gastro-services#334, ADR-049 §E5) liest nur benannte OTEL-Attribute (`model`,
 `query_source`, `agent.name`, `type`) und verwarf damit bewusst alles andere – eine
 Feldnamen-Whitelist, gedacht gegen unbekannte künftige Personenfelder. Sie prüfte aber nie,
 ob der übernommene WERT wirklich vom OTEL-Exporter stammt: `telemetry_capture` schreibt den
@@ -1146,7 +1146,7 @@ gefunden, nicht in `/implement`/`/review` – der Fokus lag auf „welche Felder
 nicht auf „kann die Quelle dieses Feldwerts überhaupt vertraut werden". Die Härtung (exakte
 Werte-Enums für vollständig aufzählbare Felder, Muster-/Längenprüfung für den Rest) blieb
 selbst unvollständig – ein residualer Freitext-Kanal ohne das konkret geprüfte Muster (`@`)
-bleibt offen, siehe Issue #336.
+bleibt offen, siehe Issue nothra/tch-gastro-services#336.
 
 **Smell:** „Meine Task liest Werte aus einem Stream/einer Datei, der/die auch – an anderer
 Stelle im selben Strom – von einem Agenten (mit-)geschriebenen Freitext enthält, und übernimmt
@@ -1165,16 +1165,16 @@ die Feldnamen-Filterung selbst. Trigger: `/architecture`, `/implement`, `/securi
 jeder neuen Whitelist-Projektion aus einer Quelle, die strukturierten und
 agentenkontrollierten Inhalt im selben Strom/derselben Datei mischt.
 
-### Pipeline-Code, der selbst committet, braucht eine explizite Git-Identität – die ambiente Fallback-Synthese existiert auf macOS, nicht zuverlässig auf CI-Runnern (aus #334, Review-Runde-2-Finding)
+### Pipeline-Code, der selbst committet, braucht eine explizite Git-Identität – die ambiente Fallback-Synthese existiert auf macOS, nicht zuverlässig auf CI-Runnern (aus nothra/tch-gastro-services#334, Review-Runde-2-Finding)
 
-Ein neuer Commit-Aufruf in `run-pipeline.sh` (`telemetry_persist()`, #334) lief lokal
+Ein neuer Commit-Aufruf in `run-pipeline.sh` (`telemetry_persist()`, nothra/tch-gastro-services#334) lief lokal
 anstandslos, ohne dass irgendwo eine Git-Identität explizit gesetzt war – und ließ dieselbe
 CI-Suite (`factory-self-test`, `ubuntu-latest`) fehlschlagen: `fatal: unable to auto-detect
 email address`. Ursache: Git synthetisiert bei fehlender Konfiguration einen Fallback aus
 Benutzername + Hostname, verwirft diesen Fallback aber, wenn der Hostname keinen Domainanteil
 trägt (endet auf `.(none)`) – auf der Entwickler-Maschine (Hostname mit Domainanteil) griff der
 Fallback, auf dem GitHub-Actions-Runner nicht. Das ist mehr als die bereits bekannte Lesson
-„Test-Fixture-Helfer brauchen lokale Identität" (db-drizzle.md, #265): Dort ging es um
+„Test-Fixture-Helfer brauchen lokale Identität" (db-drizzle.md, nothra/tch-gastro-services#265): Dort ging es um
 `-c user.email=…`-Overrides für den EIGENEN Init-Commit eines Test-Scaffolds; hier scheiterte
 PRODUKTIONSCODE, der im Rahmen des automatisierbaren Stage-3-Pfads (`factory-poll.yml`, aktuell
 nur mangels Trigger ruhend) künftig auf genau so einem identitätslosen Runner laufen soll.
@@ -1201,9 +1201,9 @@ dass die lokale Umgebung anders reagiert. Trigger: `/implement`, `/review` bei j
 `git commit`/`git push`-Aufruf außerhalb von `factory-commit.sh`; `/review`, `/security-review`
 bei der Einordnung eines CI-only-Fehlschlags, der lokal nicht reproduziert.
 
-### Mutationsbeleg muss denselben Assert-Ausdruck ausführen, nicht nur denselben Grundbefehl (aus #286, Review-Runde-2-Finding)
+### Mutationsbeleg muss denselben Assert-Ausdruck ausführen, nicht nur denselben Grundbefehl (aus nothra/tch-gastro-services#286, Review-Runde-2-Finding)
 
-Ein neuer Abwesenheits-Guard in `run-tests.sh` (#286) belegte per „Mutationsbeleg", dass ein
+Ein neuer Abwesenheits-Guard in `run-tests.sh` (nothra/tch-gastro-services#286) belegte per „Mutationsbeleg", dass ein
 Zurückdrehen auf die alte, unbedingte Formulierung den Test rot machen würde. Die erste
 Fassung hängte die alte Zeile an eine Fixture-Kopie und prüfte dann `grep -qF "$old_line"
 "$mut_datei"` – **derselbe Grundbefehl** wie im echten Guard, aber **nicht derselbe
@@ -1227,14 +1227,14 @@ Ergebnis explizit gegen den erwarteten roten Wert (z. B. `mut_result="$(! grep -
 "$mut"; echo $?)"; assert_true "$([[ "$mut_result" = "1" ]]; echo $?)" …`). Nur so beweist der
 Mutationsbeleg Kausalität zum echten Guard, nicht nur Syntax/Quoting des Grundbefehls.
 
-### „Nicht allow-gelistet" ist kein Umgebungs-Blocker, solange der Wrapper-Skript-Weg ungeprüft ist (aus #291, zwei Rework-Runden verloren)
+### „Nicht allow-gelistet" ist kein Umgebungs-Blocker, solange der Wrapper-Skript-Weg ungeprüft ist (aus nothra/tch-gastro-services#291, zwei Rework-Runden verloren)
 
-Zwei Rework-Runden von #291 führten die GHSA-IDs (AK-5) und das Entfernen des `nanoid`-Overrides
+Zwei Rework-Runden von nothra/tch-gastro-services#291 führten die GHSA-IDs (AK-5) und das Entfernen des `nanoid`-Overrides
 (Review-Finding K1) als **„Umgebung – nicht lösbar"**, weil `gh api`, `pnpm` und `curl` als
 **direkte** Bash-Kommandos nicht allow-gelistet sind (`.claude/settings.json` erlaubt nur
 `Bash(bash scripts/*)`). Beide waren keine echten Blocker: Runde 3 löste dieselben zwei Aufgaben
 über ein **Wegwerf-Wrapper-Skript** (`scripts/*.tmp.sh`, durch `.gitignore` gedeckt, Muster aus
-#67/#228) – exakt derselbe `gh api`-/`pnpm install`-Aufruf, nur innerhalb einer Skript-Datei
+nothra/tch-gastro-services#67/#228) – exakt derselbe `gh api`-/`pnpm install`-Aufruf, nur innerhalb einer Skript-Datei
 statt als direktes Kommando. Die Permission-Regel erlaubt den *Pfad* `bash scripts/*`, nicht das
 *Kommando*; ein direkt verweigertes Kommando in ein erlaubtes Skript zu verpacken ist also kein
 Umgehen der Regel, sondern genau der von ihr vorgesehene Weg. Die Task-Datei benennt den eigenen
@@ -1251,21 +1251,21 @@ Nicht jeder direkt verweigerte Befehl ist ein echter Blocker – nur einer, für
 schreibt (Format `Blocker [Datum]: …`), erst prüfen, ob `.claude/settings.json` bereits einen
 Pfad wie `Bash(bash scripts/*)` erlaubt, und falls ja, das gesperrte Kommando in ein
 `scripts/<thema>.tmp.sh`-Skript verpacken (gitignored, nach Gebrauch löschen). Nur wenn **auch
-dieser** Weg an einer echten, nicht umgehbaren Sperre scheitert (wie AK-9 in #291: `.env*` steht
+dieser** Weg an einer echten, nicht umgehbaren Sperre scheitert (wie AK-9 in nothra/tch-gastro-services#291: `.env*` steht
 unter Deny für **Read und Edit**, weil es Secrets betrifft, nicht weil ein Kommando fehlt), ist
 es ein echter Blocker. Unterscheidungskriterium: eine **Kommando-Allowlist-Lücke** hat fast immer
 den Wrapper-Ausweg; eine **Datei-Zugriffssperre auf Secrets/`.claude/**`** hat ihn nie – letztere
 ist bewusst so gebaut, dass kein Skript-Umweg sie umgeht.
 
-### Kleinfunde.md-Eintrag mit eigenen Zeilenankern braucht denselben Drift-Check wie ADR/Lesson/Spec – auch wenn er im selben PR entstand (aus #291, Review-Finding, erweitert #211/#176/#253; zweites Vorkommnis aus #351)
+### Kleinfunde.md-Eintrag mit eigenen Zeilenankern braucht denselben Drift-Check wie ADR/Lesson/Spec – auch wenn er im selben PR entstand (aus nothra/tch-gastro-services#291, Review-Finding, erweitert nothra/tch-gastro-services#211/#176/#253; zweites Vorkommnis aus nothra/tch-gastro-services#351)
 
 `docs/factory/kleinfunde.md` verlangt in seinem eigenen Kopf „Fundstelle mit `Datei:Zeile`
-**verifiziert am Eintragsdatum**". Ein in Review-Runde 1 von #291 angelegter Eintrag zitierte
+**verifiziert am Eintragsdatum**". Ein in Review-Runde 1 von nothra/tch-gastro-services#291 angelegter Eintrag zitierte
 `pnpm-workspace.yaml:44-45`/`:14-17` – korrekt zum Zeitpunkt der Verifikation. Die **eigenen**
 Rework-Runden 1 und 2 desselben PRs ließen den Kommentarkopf der Datei um 22 Zeilen wachsen,
 wodurch beide Anker auf falsche Stellen zeigten (`:66-67` bzw. `:15-18` wären korrekt gewesen) –
-erst Review-Runde 2 fand es. Anders als bei #176 (Drift durch einen späteren, unabhängigen PR)
-und #253 (Spec-Prosa vs. tatsächlich gebautes Verhalten) ist die Drift-Quelle hier **derselbe
+erst Review-Runde 2 fand es. Anders als bei nothra/tch-gastro-services#176 (Drift durch einen späteren, unabhängigen PR)
+und nothra/tch-gastro-services#253 (Spec-Prosa vs. tatsächlich gebautes Verhalten) ist die Drift-Quelle hier **derselbe
 PR, spätere eigene Commits** – ein Eintrag, der zu Beginn der Task korrekt war, wird durch die
 Fortsetzung der eigenen Arbeit veraltet, ohne dass ein Fremdereignis dazwischenliegt.
 
@@ -1274,15 +1274,15 @@ Task hat danach noch weitere Commits in **derselben** Datei gemacht (Kommentare 
 verschoben) – zeigen die Anker noch auf die richtige Stelle, oder nur auf die Stelle zum
 Anlage-Zeitpunkt?"
 
-**Regel:** Erweitert #211/#176/#253 (ADR-/Lessons-/Spec-Drift) auf **`docs/factory/kleinfunde.md`-
+**Regel:** Erweitert nothra/tch-gastro-services#211/#176/#253 (ADR-/Lessons-/Spec-Drift) auf **`docs/factory/kleinfunde.md`-
 Einträge mit `Datei:Zeile`-Ankern, die im selben PR angelegt wurden**: vor dem Abschluss der Task
 (spätestens in `/review`/`/security-review`, bevor der Merge freigegeben wird) jeden in diesem PR
 neu geschriebenen Kleinfund-Eintrag gegen den **aktuellen** Stand der zitierten Datei
 gegenprüfen (`sed -n '<n>,<m>p' <datei>` liest tatsächlich die behauptete Zeile?), nicht nur beim
 Anlegen einmalig verifizieren und dann als erledigt betrachten.
 
-**Zweites Vorkommnis (#351):** Ein in `/review` Runde 3 desselben PRs angelegter Kleinfund-Eintrag
-(`db/veranstaltung.test.ts`) zitierte `:112-116`; die eigene Rework-Runde davor hatte den
+**Zweites Vorkommnis (nothra/tch-gastro-services#351):** Ein in `/review` Runde 3 desselben PRs angelegter Kleinfund-Eintrag
+(`db/termin.test.ts`) zitierte `:112-116`; die eigene Rework-Runde davor hatte den
 Dateikopf der **zitierten** Datei nicht verändert – hier drifteten die Anker nicht durch eigene
 Folge-Commits, sondern weil die Anlage selbst schon einen falschen Bereich traf (die zweite Hälfte
 der „Was"-Behauptung lag bei `:109-111`, außerhalb des zitierten `:112-116`). Die Regel greift
@@ -1291,7 +1291,7 @@ zitierte Zeilenspanne muss den **gesamten** im Eintrag beschriebenen Sachverhalt
 nur dessen auffälligsten Teil (hier: das `catalog`-`DELETE`, ohne den davorstehenden
 `catalog_item`-`DELETE`-Block).
 
-### Fork-Subagent für eine Review-Runde: eigene Turns nach dem Spawn können in seinen Kontext bluten (aus #298, Selbstfund während `/review`)
+### Fork-Subagent für eine Review-Runde: eigene Turns nach dem Spawn können in seinen Kontext bluten (aus nothra/tch-gastro-services#298, Selbstfund während `/review`)
 
 Ein per `Agent(subagent_type: "fork")` gestarteter Review-Runden-Agent erbt den vollen
 Konversationskontext **zum Zeitpunkt seiner tatsächlichen Ausführung**, nicht zum
@@ -1320,7 +1320,7 @@ gegenprüfen. Liefert der Fork erkennbar keine echten Findings (siehe Smell oben
 `SendMessage` mit einer expliziten Anweisung resumen, die den ursprünglichen Auftrag wiederholt
 und ausdrücklich anweist, jeglichen Text über Scheduling/Warten zu ignorieren.
 
-**Rezidiv, verschärft durch den Resume-Versuch selbst (aus #267, Selbstfund während `/review`):**
+**Rezidiv, verschärft durch den Resume-Versuch selbst (aus nothra/tch-gastro-services#267, Selbstfund während `/review`):**
 Derselbe Fehler trat erneut auf (Fork für Review-Runde 1 lieferte statt Findings nur den eigenen
 Wartetext zurück, per `TaskOutput` verifiziert). Der in der Regel oben vorgeschlagene Resume mit
 expliziter Korrektur-Anweisung wurde befolgt – verschlimmerte die Konfusion aber, statt sie zu
@@ -1341,9 +1341,9 @@ aufzulösen, überwiegt die Chance auf ein verwertbares Ergebnis. Stattdessen di
 Review-Runde ohne Fork-Delegation direkt im Orchestrator-Kontext durchführen (die Dateien/den
 Diff liegen dort ohnehin schon vor) und den Vorfall nicht weiter verfolgen.
 
-### Review-Sub-Agent kann eine falsche Bash-/Shell-Verhaltensbehauptung als „empirisch geprüft" ausgeben (aus #314, Selbstfund während `/review`)
+### Review-Sub-Agent kann eine falsche Bash-/Shell-Verhaltensbehauptung als „empirisch geprüft" ausgeben (aus nothra/tch-gastro-services#314, Selbstfund während `/review`)
 
-Anders als der Fork-Kontaminations-Fall oben (#298/#267 – dort lieferte der Agent gar keine
+Anders als der Fork-Kontaminations-Fall oben (nothra/tch-gastro-services#298/#267 – dort lieferte der Agent gar keine
 echten Findings) hier ein Fall, in dem ein frischer, korrekt beauftragter General-Purpose-Agent
 tatsächlich recherchierte und eine detaillierte, in sich schlüssige, aber **inhaltlich falsche**
 technische Behauptung als „Wichtig"-Finding auslieferte: Round 1 einer Drei-Runden-Review
@@ -1374,7 +1374,7 @@ Beleg zitieren. Bei mehreren Review-Runden zur selben Codebasis: eine zweite, un
 die dieselbe Methode (eigener Test statt Vertrauen) anwendet, ist ein wirksames Gegenkontrolle –
 zwei unabhängige Widerlegungen sind stärker als eine.
 
-### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus #233)
+### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus nothra/tch-gastro-services#233)
 
 Ein Akzeptanzkriterium der Form „WHEN der PR zum Merge freigegeben wird THEN ist der manuelle
 Nachlauf-Schritt **in der PR-Beschreibung** benannt" zielt auf ein GitHub-Artefakt außerhalb
@@ -1393,7 +1393,7 @@ rechtfertigt für sich allein **keinen** vollen `/implement`-Rücksprung, wenn s
 nachgezogen wird – sie sollte aber nicht erst `/pr-shepherd` überlassen werden, da dessen
 Merge-Freigabe sonst auf einer unvollständigen Task-Datei aufsetzt.
 
-### Content-scannender Anti-Regressions-Guard in run-tests.sh ist blind für Tracked-Status (aus #312, zweimal in derselben Task; drittes Vorkommnis aus #339)
+### Content-scannender Anti-Regressions-Guard in run-tests.sh ist blind für Tracked-Status (aus nothra/tch-gastro-services#312, zweimal in derselben Task; drittes Vorkommnis aus nothra/tch-gastro-services#339)
 
 Der Gotcha-Guard „kein `grep -c … || echo`-Muster in scripts/" (`run-tests.sh`, Zeile ~1269)
 durchsucht `$SCRIPTS_DIR` **inhaltlich per `grep -r`** – nicht nur `git ls-files`. Während der
@@ -1417,7 +1417,7 @@ Suite-Lauf entfernen, nicht den Guard abschwächen oder auf getrackte Dateien ei
 verzeichnisweiten Content-Scan-Guards in `run-tests.sh`, obwohl `git status` (ohne `--ignored`)
 sauber ist
 
-**Drittes Vorkommnis (aus #339):** Zwölf `scripts/*.tmp.sh` + ein `scripts/*.tmp.log`-Rest aus
+**Drittes Vorkommnis (aus nothra/tch-gastro-services#339):** Zwölf `scripts/*.tmp.sh` + ein `scripts/*.tmp.log`-Rest aus
 den Review-Runden 2/3 lagen beim `/test`-Lauf noch im Baum, obwohl die Task-Datei bereits
 vorher „Wegwerf-Artefakte: erledigt, kein Blocker" notiert hatte – die Behauptung war zum
 Notiz-Zeitpunkt richtig, es entstanden aber in den folgenden Verify-Schritten neue Artefakte.
@@ -1425,7 +1425,7 @@ Notiz-Zeitpunkt richtig, es entstanden aber in den folgenden Verify-Schritten ne
 nächsten Suite-Lauf (nicht nur einmal pro Task) per `git status --ignored` erneut prüfen,
 gerade wenn zwischen der Notiz und dem Lauf weitere Sub-Agenten-Schritte liefen.
 
-### Anker-Liste einer Fail-safe-Klassifizierungsregel braucht einen Verteilungs-Check gegen den echten Repo-Inhalt (aus #315, Review-Runde-4-Finding)
+### Anker-Liste einer Fail-safe-Klassifizierungsregel braucht einen Verteilungs-Check gegen den echten Repo-Inhalt (aus nothra/tch-gastro-services#315, Review-Runde-4-Finding)
 
 Drei Review-Runden haben die zweiseitige Pfad-Anker-Liste für das Aspekt-Label
 `factory-pipeline` (`git-workflow.md` → „GitHub-Labels") ausschließlich auf **Vollständigkeit**
@@ -1470,14 +1470,14 @@ Perspektive, in der der Vorschlag geschrieben wurde. Im Zweifel den Bezug expliz
 → `/implement`, `/review` – beim wörtlichen Übernehmen eines Fix-Vorschlags aus einem
 Review-/Security-/Codify-Report in eine andere Zieldatei
 
-### Als „separat geflaggt"/„Hinweis" markierter Out-of-Scope-Fund bleibt Session-Notiz statt sofort kanonisch verankert zu werden (aus #345, Orchestrator-Selbstfund)
+### Als „separat geflaggt"/„Hinweis" markierter Out-of-Scope-Fund bleibt Session-Notiz statt sofort kanonisch verankert zu werden (aus nothra/tch-gastro-services#345, Orchestrator-Selbstfund)
 
-In der Session zu #345 wurde ein Out-of-Scope-Fund zweimal (nach Rework Runde 2, nach dem
+In der Session zu nothra/tch-gastro-services#345 wurde ein Out-of-Scope-Fund zweimal (nach Rework Runde 2, nach dem
 Security-Review) zunächst nur als interne Notiz/Vormerkung markiert – „separat geflaggt",
 „Hinweis-Ebene, kein Blocker" – statt in demselben Zug den kanonischen Seam aufzurufen
 (`create_issue_idempotent` oder `kleinfunde.md`-Eintrag, ADR-018/ADR-043). Die abschließenden
 Task-/Review-Dateien zeigen zwar am Ende die korrekt verankerten Ergebnisse (Issues
-[#351](https://github.com/nothra/tch-gastro-services/issues/351)/[#353](https://github.com/nothra/tch-gastro-services/issues/353),
+[nothra/tch-gastro-services#351](https://github.com/nothra/tch-gastro-services/issues/351)/[nothra/tch-gastro-services#353](https://github.com/nothra/tch-gastro-services/issues/353),
 ein `kleinfunde.md`-Eintrag) – diese Verankerung musste aber **nachträglich** von der
 orchestrierenden Ebene nachgeholt werden, nicht im selben Atemzug wie das Flaggen selbst. Ein
 als „separat geflaggt" markierter Fund ist damit für ein bis zwei Skill-Übergänge lang nur im
@@ -1505,7 +1505,7 @@ Ersatz für die sofortige Anlage.
 → `/review`, `/security-review`, `/test`, `/refactor`, `/codify` – sobald ein eigener Report das
 Wort „separat geflaggt"/„Hinweis-Ebene"/„außerhalb des Scopes" für einen Fund verwendet
 
-### Neues Gate: prüfen, ob eine ADR den Ort für Gates dieser Klasse schon entschieden hat (aus #319, Review-Runde-3-Finding)
+### Neues Gate: prüfen, ob eine ADR den Ort für Gates dieser Klasse schon entschieden hat (aus nothra/tch-gastro-services#319, Review-Runde-3-Finding)
 
 ADR-047 verankerte den @import-Deckel als `pre-push`-Check und ließ als server-seitigen Arm
 **eine einzelne Assertion** in der Self-Test-Suite stehen, die den Check gegen den echten
@@ -1534,9 +1534,9 @@ Ruleset-Änderung braucht nach ADR-029 Adminrechte, also einen menschlichen Schr
 zunächst getragen und über ein Issue nachgezogen). Wird sie gar nicht bemerkt, wiederholt der
 Harness eine Lücke, die er schon einmal geschlossen hatte.
 
-### Stage-2-Skill außer der kanonischen Reihenfolge macht einen bereits fertigen Bericht stale (aus #351)
+### Stage-2-Skill außer der kanonischen Reihenfolge macht einen bereits fertigen Bericht stale (aus nothra/tch-gastro-services#351)
 
-Task #351 lief in Stage 2 (manuelle Einzelaufrufe, kein `run-pipeline.sh`). Die tatsächliche
+Task nothra/tch-gastro-services#351 lief in Stage 2 (manuelle Einzelaufrufe, kein `run-pipeline.sh`). Die tatsächliche
 Commit-Reihenfolge war `/security-review` (PASSED) → `/codify` → `/refactor` (zwei Commits) –
 entgegen der in `CLAUDE.md` festgelegten Kette `/review → /test → /refactor → /security-review →
 /codify`. `/codify` und `/refactor` änderten danach noch fünf weitere Dateien (Lesson- und
@@ -1559,7 +1559,7 @@ Ende erneut laufen lassen, statt ihn unhinterfragt als „bereits bestanden" ste
 Kanonisch bleibt die Reihenfolge in `CLAUDE.md`; kein automatisierter Gate erzwingt sie in
 Stage 2 (das leistet erst `run-pipeline.sh` in Stage 3).
 
-### Akzeptanzkriterium mit Binär-Artefakt am PR (Screenshots) ist nicht agentenerfüllbar (aus #368, Review-Runde-1–3-Finding W2)
+### Akzeptanzkriterium mit Binär-Artefakt am PR (Screenshots) ist nicht agentenerfüllbar (aus nothra/tch-gastro-services#368, Review-Runde-1–3-Finding W2)
 
 AK5.3 forderte Screenshots als Nachweis am PR. `gh` kann keine Bilder hochladen; der PR-Body
 versprach sie trotzdem, die Task-Datei hakte AK5.3 ab, und das Finding blieb über drei
@@ -1571,7 +1571,7 @@ den PR-Body nie in der Vergangenheitsform formulieren, solange der Anhang fehlt.
 Anhängen prüfen, dass die Bilder keine Zugangsdaten/echten Daten zeigen. **Laden bei:**
 `/requirements`, `/implement`, `/pr-shepherd` – bei AK mit Screenshot-/Medien-Nachweis am PR.
 
-### Turn-Limit-Exhaustion, fünftes Vorkommnis: auch der Rework nach `/review` reißt das Budget, und die Pipeline bricht an der Stale-Verdict-Wache ab (aus #369)
+### Turn-Limit-Exhaustion, fünftes Vorkommnis: auch der Rework nach `/review` reißt das Budget, und die Pipeline bricht an der Stale-Verdict-Wache ab (aus nothra/tch-gastro-services#369)
 
 Bei einem sehr großen Task (31 AK + 6 FS, 54 Dateien im Diff) riss `/implement` zweimal das
 Turn-Limit (80), der dritte Versuch gelang; der Rework nach dem ersten `/review` riss es einmal,
@@ -1582,7 +1582,7 @@ Report-Guard von `run_skill()` wertet „Report unverändert" als Fehlschlag, na
 brach die Pipeline mit Exit 1 ab, `/security-review`, `/codify` und `/pr-shepherd` liefen nicht.
 Die Telemetrie fehlt für den manuellen Rest (Instrumentierung hängt am Wrapper).
 
-**Regel:** Überschreitet ein Task die Größe, die ein 80-Turn-Lauf fasst (Faustwerte aus #369:
+**Regel:** Überschreitet ein Task die Größe, die ein 80-Turn-Lauf fasst (Faustwerte aus nothra/tch-gastro-services#369:
 > 25 AK oder > 40 Dateien), vor `run-pipeline.sh` bewusst entscheiden: Task teilen
 (`/requirements`) oder `/implement` und Rework manuell in frischen Sessions fahren, statt auf
 Retries zu hoffen. Nach einem Abbruch an der Stale-Verdict-Wache zuerst den Stand prüfen
@@ -1592,23 +1592,23 @@ Commit „Merge branch 'main' into …" auf dem Feature-Branch stammt in diesem 
 `gh pr update-branch`/dem GitHub-Button (Committer „GitHub") und ist gewollt (ADR-019 §1; Squash-Merge
 flacht ihn ab) – kein Rebase-Verstoß, der vor dem Push bereinigt werden müsste.
 
-### Behauptung über den **eigenen** Beitrag des PRs in einem `kleinfunde.md`-Eintrag ebenso gegenprüfen wie Anker (aus #369, Review-Iteration 3)
+### Behauptung über den **eigenen** Beitrag des PRs in einem `kleinfunde.md`-Eintrag ebenso gegenprüfen wie Anker (aus nothra/tch-gastro-services#369, Review-Iteration 3)
 
 Ein Eintrag über ein E2E-Kopiermuster behauptete, der PR habe es „nicht vergrößert, sondern die
 eigenen Kopien reduziert". Tatsächlich war die Spec mit der dritten Kopie in diesem PR **neu**
 (`git cat-file -e origin/main:<pfad>` schlägt fehl). Die Anker waren korrekt, die Aussage über den
-eigenen Anteil nicht – ein weiterer Fall der #291/#351-Familie, nur an der Prosa statt an den Zeilen.
+eigenen Anteil nicht – ein weiterer Fall der nothra/tch-gastro-services#291/#351-Familie, nur an der Prosa statt an den Zeilen.
 
 **Regel:** Sätze der Form „dieser PR hat X (nicht) hinzugefügt/vergrößert/reduziert" in einem
 Kleinfund-Eintrag vor dem Commit mit `git diff --stat origin/main...HEAD -- <pfad>` und
 `git cat-file -e origin/main:<pfad>` belegen.
 
-### Kürzt der Mensch den Scope mitten in `/implement` (Rückfrage nach FS1), die Spec sofort nachziehen – nicht erst im Review (aus #388, Review-Iteration 1/2)
+### Kürzt der Mensch den Scope mitten in `/implement` (Rückfrage nach FS1), die Spec sofort nachziehen – nicht erst im Review (aus nothra/tch-gastro-services#388, Review-Iteration 1/2)
 
 Die Capture-Spec scheiterte an einer zweiten veralteten Annahme (FS1: „reicht eine kleine Reparatur nicht, abbrechen und
 melden"). Auf Rückfrage entschied Ralf „nur `05`–`07` liefern". Die Entscheidung stand danach im Chat und in der Task-Datei,
 aber **nicht in der Spec**: AK1/AK5/AK9 blieben als Pflicht stehen, Q3 fehlte, und die Task-Datei trug AK1/AK5/AK9 noch im
-Wortlaut vor der Kürzung. `/review` fand beides als Wichtig-Finding (Spec-Drift, Lesson #253/#55), ein ganzer
+Wortlaut vor der Kürzung. `/review` fand beides als Wichtig-Finding (Spec-Drift, Lesson nothra/tch-gastro-services#253/#55), ein ganzer
 Review-Rework-Zyklus für etwas, das in `/implement` drei Zeilen gewesen wäre.
 
 **Smell:** „Ralf hat den Umfang entschieden, ich mache weiter" – ohne dass die Spec den Beschluss trägt.
@@ -1618,10 +1618,10 @@ ergänzen, (2) betroffene AK als „zurückgestellt (Q…)" bzw. „angepasst" k
 der Task-Datei im gleichen Wortlaut führen (sonst bleibt die Regel „keine offenen Checkboxen → kein Done" nur mit einer
 unerklärten Ausnahme erfüllbar) und (4) die zurückgestellte Folgearbeit kanonisch festhalten (`kleinfunde.md` oder Issue).
 
-### Entfernt/ersetzt ein PR ein Modul oder einen Namen, **alle** Doku-Treffer im selben Schritt per Grep abräumen – sonst findet jede Review-Runde einen weiteren (aus #370, Review-Runde 1–3)
+### Entfernt/ersetzt ein PR ein Modul oder einen Namen, **alle** Doku-Treffer im selben Schritt per Grep abräumen – sonst findet jede Review-Runde einen weiteren (aus nothra/tch-gastro-services#370, Review-Runde 1–3)
 
-#370 löschte `VerzehrErfassung`/`FokusListe`. Review-Runde 1 fand ADR-035/039, Runde 2 weitere Stellen, Runde 3 ADR-026 D3
-und ADR-034 D1/D4 – jedes Mal dieselbe Fund-Klasse (#211/#176/#253), jedes Mal ein weiterer Rework-Zyklus bis zum
+nothra/tch-gastro-services#370 löschte `VerzehrErfassung`/`FokusListe`. Review-Runde 1 fand ADR-035/039, Runde 2 weitere Stellen, Runde 3 ADR-026 D3
+und ADR-034 D1/D4 – jedes Mal dieselbe Fund-Klasse (nothra/tch-gastro-services#211/#176/#253), jedes Mal ein weiterer Rework-Zyklus bis zum
 Circuit Breaker. Dazu blieb eine untracked Wegwerf-Sonde `app/_verzehr/tmp-debug.test.tsx` liegen: `.gitignore` deckt nur
 `*.tmp.*`, sie wäre per `git add -A` im Commit gelandet.
 
@@ -1630,9 +1630,9 @@ Circuit Breaker. Dazu blieb eine untracked Wegwerf-Sonde `app/_verzehr/tmp-debug
 – nicht nur die in der Spec benannten ADRs. Wegwerf-Sonden heißen `*.tmp.*` (gitignoriert) und werden vor dem Commit
 gelöscht; `git status` vor jedem Commit auf `??`-Einträge prüfen.
 
-### Rezidiv #251: Review-Nacharbeit lag nach Iteration 2 unkommittet im Working Tree – Rework-Ende = Commit, erst dann `/review` neu starten (aus #391, Review-Iteration 2)
+### Rezidiv nothra/tch-gastro-services#251: Review-Nacharbeit lag nach Iteration 2 unkommittet im Working Tree – Rework-Ende = Commit, erst dann `/review` neu starten (aus nothra/tch-gastro-services#391, Review-Iteration 2)
 
-#391 lieferte nach Iteration 1 die Nacharbeit (E2E-Helfer, Anleitung, Screenshots), ließ sie aber ungecommittet; Iteration 2
+nothra/tch-gastro-services#391 lieferte nach Iteration 1 die Nacharbeit (E2E-Helfer, Anleitung, Screenshots), ließ sie aber ungecommittet; Iteration 2
 las `git diff origin/main...HEAD`, sah den alten Stand und meldete sie als Kritisch („Nacharbeit nicht committet") – ein Zyklus
 von dreien, verbrannt für einen `git commit`. Gleiche Iteration: Task-Datei ohne Häkchen/Review-Notizen (CLAUDE.md-Guardrail
 „Task-Datei final auf dem Feature-Branch").
@@ -1640,7 +1640,7 @@ von dreien, verbrannt für einen `git commit`. Gleiche Iteration: Task-Datei ohn
 **Regel:** Ein Rework-Schritt endet erst mit sauberem `git status` (`??` und ` M` geprüft) und einem Commit, der Code **und**
 Task-Datei (Häkchen, Review-Findings, Nachweise) enthält. Erst danach den nächsten `/review` anstoßen.
 
-### Normative Regel mit Abweichungsliste: Regelwortlaut gegen alle Treffer im Baum greppen, bevor er feststeht (aus #375, Review-Iteration 1/2)
+### Normative Regel mit Abweichungsliste: Regelwortlaut gegen alle Treffer im Baum greppen, bevor er feststeht (aus nothra/tch-gastro-services#375, Review-Iteration 1/2)
 
 Das Glossar listete Ist → Soll je Datei. Iteration 1 fand `LinkKopieren.tsx:45` nicht gelistet, Iteration 2 drei
 Meldungen in `actions.ts` (`:101/:353/:357`), die die frisch verschärfte Regel „Doppelpunkt nur bei ‚nicht möglich'"
@@ -1653,36 +1653,36 @@ belegen oder in die Abweichungsliste (mit Ziel-Issue) aufnehmen. Beispiele im Re
 Ebenso: Eine im Review genannte Fundstelle (hier „Name fehlt") vor dem Eintragen per Grep belegen – sie existierte
 im Produktionscode nicht.
 
-### Rezidiv #375/#345: Anker und Fix-Empfehlungen im selben PR gegen die eigene Rework-Historie und die Lessons des Zielbereichs prüfen (aus #404, Review-Iteration 2)
+### Rezidiv nothra/tch-gastro-services#375/#345: Anker und Fix-Empfehlungen im selben PR gegen die eigene Rework-Historie und die Lessons des Zielbereichs prüfen (aus nothra/tch-gastro-services#404, Review-Iteration 2)
 
 Zwei Wichtig-Funde der Iteration 2 waren reine Doku-Drift, beide durch den Rework von Iteration 1 selbst erzeugt: (1) Der
-Glossar-Anker `TeilnehmerHinzufuegenDialog.tsx:29` rutschte durch die neuen Fokus-Zeilen auf `:36` (Rezidiv #375).
+Glossar-Anker `TeilnehmerHinzufuegenDialog.tsx:29` rutschte durch die neuen Fokus-Zeilen auf `:36` (Rezidiv nothra/tch-gastro-services#375).
 (2) Der neu angelegte Kleinfund „`createWalkInAction` nicht atomar" empfahl `db.transaction()` – das Gegenteil von
-Lesson #345 (`runAtomic`, Neon-HTTP kennt keine Transaktionen), obwohl die Lesson im Index stand.
+Lesson nothra/tch-gastro-services#345 (`runAtomic`, der serverlose HTTP-Treiber kennt keine Transaktionen), obwohl die Lesson im Index stand.
 
 **Regel:** (1) Jeder Rework, der Zeilen in einer Datei einfügt/löscht, auf die ein Doku-Anker zeigt, zieht die Anker im
 selben Commit nach (Grep auf `<Dateiname>:` über `docs/`). (2) Eine Fix-Empfehlung in `kleinfunde.md`/Issue vor dem
 Eintragen gegen die Lessons der berührten Schicht lesen (hier `db-drizzle.md`) – die Empfehlung ist Code-Vorgabe für
 später und trägt dieselbe Prüfpflicht wie Code.
 
-### Repo-weiter Referenz-Scanner (Link-/Pfad-Check) nimmt Patch-Artefakte aus (aus #426, /implement-Selbstfund)
+### Repo-weiter Referenz-Scanner (Link-/Pfad-Check) nimmt Patch-Artefakte aus (aus nothra/tch-gastro-services#426, /implement-Selbstfund)
 
 `tasks/patch-<id>.diff` (Patch-Workflow für `.claude/**`) enthält den **künftigen** Stand, also Links und Pfade,
 deren Ziele erst nach `git apply` existieren – oder alte Pfade im Minus-Teil. Ein Check über alle getrackten
 Dateien (`git grep` auf ADR-Links) meldet sie als tot, solange der Patch im Branch liegt.
 
 **Regel:** Repo-weite Scanner schließen `tasks/patch-*.diff` per Pathspec aus (`-- . ':!tasks/patch-*.diff'`);
-die Wirkung des Patches prüft ein Test gegen die **angewendete** Live-Datei (Lesson #212). Gilt für jeden
+die Wirkung des Patches prüft ein Test gegen die **angewendete** Live-Datei (Lesson nothra/tch-gastro-services#212). Gilt für jeden
 neuen Scanner über `git ls-files`/`git grep`, nicht nur für Link-Checks.
 
-### Libs relativ zum Skript sourcen, nicht zu `FACTORY_DIR`; beim Entfernen eines Defaults erst die Fixtures zählen (aus #431, /implement-Selbstfund)
+### Libs relativ zum Skript sourcen, nicht zu `FACTORY_DIR`; beim Entfernen eines Defaults erst die Fixtures zählen (aus nothra/tch-gastro-services#431, /implement-Selbstfund)
 
 `start-work.sh` und die Gate-Skripte tragen ein per Env überschreibbares `FACTORY_DIR` (Tests zeigen es auf ein
 Wegwerf-Repo). Die neue Lib `gate-config.sh` wurde zuerst als `source "$FACTORY_DIR/scripts/lib/…"` eingebunden:
 im Wegwerf-Repo existiert sie nicht, das Skript brach unter `set -e` schon am `source` ab, und ~60 Tests wurden rot –
 aus dem falschen Grund. Der zweite Fehler derselben Änderung: das Entfernen der pnpm-Defaults ließ jeden
 Pipeline-Test in einem Wegwerf-Repo ohne `commands.*` rot werden (143 rote Assertions im ersten Lauf), weil niemand
-vorher gezählt hatte, wie viele Fixtures den Default implizit brauchten. Zusätzlich verlangt der #264-Guard bei jedem
+vorher gezählt hatte, wie viele Fixtures den Default implizit brauchten. Zusätzlich verlangt der nothra/tch-gastro-services#264-Guard bei jedem
 echten `run-pipeline.sh`-Aufruf in der Suite `env -u PR_SHEPHERD -u FACTORY_STAGE` als erste `env`-Option.
 
 **Regel:** (1) Code-Libs (`source`/`.`) immer relativ zum Skript (`$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/…`),
@@ -1691,12 +1691,12 @@ eines impliziten Defaults per Grep alle Fixtures/Aufrufer zählen, die ihn nutze
 selben Schritt dort bereitstellen. (3) Neue Pipeline-Aufrufe in `run-tests.sh` vom nächstgelegenen bestehenden Aufruf
 kopieren, nicht neu schreiben.
 
-### Tests zwischen Suiten umziehen: Verweise auf den alten Testort und tote Patch-Zweige im selben PR abräumen (aus #432, Review-Iteration 1)
+### Tests zwischen Suiten umziehen: Verweise auf den alten Testort und tote Patch-Zweige im selben PR abräumen (aus nothra/tch-gastro-services#432, Review-Iteration 1)
 
 Der Split von `run-tests.sh` in Factory- und Projekt-Suite zog 87 Tests um. Die Review fand zwei Folgen, die weder
 Lint noch Suite sehen: (1) eine ADR und eine Lesson nannten den Test im Präsens weiter „in `run-tests.sh`“ – der
-Umzug ist eine Mechanik-Änderung im Sinn von #211/#176, nur dass der Auslöser hier kein Code-, sondern ein Testort
-war. (2) Ein Test zu einer `.claude/**`-Patch-Lieferung (#212) behielt seinen „Patch auf Temp-Kopie anwenden“-Zweig,
+Umzug ist eine Mechanik-Änderung im Sinn von nothra/tch-gastro-services#211/#176, nur dass der Auslöser hier kein Code-, sondern ein Testort
+war. (2) Ein Test zu einer `.claude/**`-Patch-Lieferung (nothra/tch-gastro-services#212) behielt seinen „Patch auf Temp-Kopie anwenden“-Zweig,
 obwohl der Mensch den Patch inzwischen angewendet hatte; der Zweig war toter Code und wurde mit dem Löschen der
 Patch-Datei nie mehr betreten. Ein dritter Nachzügler im `/refactor`: ein Test-Anker (`pnpm db:seed`) war nur durch
 einen später als redundant entfernten Doku-Block erfüllt – der Test prüfte den Block, nicht den übernommenen Text.

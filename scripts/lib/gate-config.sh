@@ -12,7 +12,7 @@
 #                                    Verzeichnisses lexikalisch aus (scripts/project/checks/*.d/).
 #
 # Erwartet vom Aufrufer FACTORY_DIR (Projektwurzel) und – für run_project_checks – die Farbvariablen
-# RED/GREEN/YELLOW/NC. Fail-closed: kein pnpm-Fallback (ADR-063, #431).
+# RED/GREEN/YELLOW/NC. Fail-closed: kein pnpm-Fallback (ADR-063, nothra/tch-gastro-services#431).
 
 # Effektive Config je Aufruf neu lesen (billig; die Gates laufen selten) – kein Cache, der veralten kann.
 factory_cfg() {
@@ -30,7 +30,7 @@ gate_command() {
   local key="$1" mode="${2:-required}" env_name value
   env_name="FACTORY_$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')_COMMAND"
   # Einfaches `-`: ein BEWUSST leer gesetztes FACTORY_FORMAT_COMMAND="" ist der Opt-out des
-  # Format-Gates und fällt nicht auf die Config zurück (#149). Für Pflicht-Kommandos zählt ein
+  # Format-Gates und fällt nicht auf die Config zurück (nothra/tch-gastro-services#149). Für Pflicht-Kommandos zählt ein
   # leerer Wert wie ein fehlender und fällt auf die Config zurück.
   if [ "${!env_name+set}" = set ] && { [ -n "${!env_name}" ] || [ "$mode" = optional ]; }; then
     printf '%s' "${!env_name}"

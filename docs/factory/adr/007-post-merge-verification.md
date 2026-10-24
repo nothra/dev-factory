@@ -18,7 +18,7 @@ reviewt, getestet, security-geprüft, codifiziert. Damit ist der **Code** verifi
 nicht aber das **Verhalten der laufenden Software** nach dem Deployment. „CI grün"
 heißt „Tests bestanden im CI-Sandbox", nicht „funktioniert in der echten Umgebung".
 
-Die Gap-Analyse benennt den fehlenden **Post-Merge Verify** als eigene Lücke (Issue #11):
+Die Gap-Analyse benennt den fehlenden **Post-Merge Verify** als eigene Lücke (Issue nothra/tch-gastro-services#11):
 „Kein Äquivalent – keine Verifikation nach dem Merge." Eine echte Dark Factory bestätigt
 das Verhalten in der realen Umgebung, nicht nur im Test.
 
@@ -42,9 +42,9 @@ post-merge-verify:
 (erwarteter Status via `FACTORY_HEALTHCHECK_STATUS`, Default 200). Bei Fehler wird über
 `raise-interrupt.sh` ein **neuer Interrupt-Typ `POST_MERGE_FAIL`** ausgelöst (reuse des
 Mechanismus aus ADR-004) und der Job läuft rot. Der Interrupt landet im append-only
-`tasks/interrupt-log.jsonl` (aus #12) – damit ist Post-Merge-Versagen dieselbe
+`tasks/interrupt-log.jsonl` (aus nothra/tch-gastro-services#12) – damit ist Post-Merge-Versagen dieselbe
 auditierbare Eskalationskette wie alle anderen Interrupts und Quelle für den künftigen
-Incident-Response-Agenten (#15).
+Incident-Response-Agenten (nothra/tch-gastro-services#15).
 
 **Skelett-Charakter (bewusst):** Das Template hat kein Deploy-Ziel. `post-merge-verify.sh`
 liefert daher das *Gerüst* – Healthcheck + Interrupt-Eskalation –, das adoptierte Projekte
@@ -69,7 +69,7 @@ den Merge, und der natürliche Trigger dafür ist die CI auf `main`.
 
 ### Option D: Externes Monitoring-Tool statt Skript
 **Abgelehnt (für jetzt):** sinnvoll für Produktion, aber out-of-scope fürs Template. Das
-Skript-Skelett ist der Einstiegspunkt; ein echtes Monitoring kann später andocken (#15).
+Skript-Skelett ist der Einstiegspunkt; ein echtes Monitoring kann später andocken (nothra/tch-gastro-services#15).
 
 ## Konsequenzen
 
@@ -83,7 +83,7 @@ Skript-Skelett ist der Einstiegspunkt; ein echtes Monitoring kann später andock
 - Der `POST_MERGE_FAIL`-Interrupt-Sentinel ist im CI-Workspace ephemer; die persistente Spur
   ist der Log-Eintrag (lokal) bzw. die rote Pipeline (CI). Für ein Skelett akzeptiert.
 
-## Erweiterung: pluggbarer Check (#23)
+## Erweiterung: pluggbarer Check (nothra/tch-gastro-services#23)
 
 Der reine HTTP-Healthcheck (`== $EXPECT`) belegt nur „Prozess lebt", nicht „funktioniert".
 `FACTORY_HEALTHCHECK_CMD` ergänzt daher einen **beliebigen Smoke-Test, dessen Exit-Code das
@@ -93,7 +93,7 @@ Urteil ist** (0 = OK). Deckt nicht-HTTP-Projekte ab (CLI, Worker) und mehrstufig
 übersprungen (skip-vs-fail unverändert). Der Fehlerpfad ist für beide identisch — eine
 gemeinsame `fail()`-Funktion löst den `POST_MERGE_FAIL`-Interrupt aus.
 
-## Erweiterung: Retry/Poll gegen Deploy-Lag (#24)
+## Erweiterung: Retry/Poll gegen Deploy-Lag (nothra/tch-gastro-services#24)
 
 Direkt nach dem Merge ist das Deployment evtl. noch nicht live — ein einzelner Check würde
 dann einen `POST_MERGE_FAIL` auslösen, obwohl nur der Rollout nachhinkt (häufigste

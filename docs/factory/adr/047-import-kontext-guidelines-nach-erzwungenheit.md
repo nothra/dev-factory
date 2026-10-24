@@ -25,8 +25,8 @@ Accepted
 Pfad nach `docs/factory/lessons/` ausgelagert, den Guidelines-Block aber ausdrücklich
 ausgenommen („Guidelines-Dateien und ihre `@import`-Einbindung bleiben unverändert") – und
 benennt „5 Guidelines … für jeden der ~7 sequenziellen Stage-3-Agenten" im eigenen Kontext als
-Teil des Problems, ohne es zu lösen. Der Punkt war unentschieden, nicht erledigt; Issue #319 löst
-ihn heraus. Spec: [`spec-319`](../../specs/spec-319-adr-import-kontext-guidelines.md).
+Teil des Problems, ohne es zu lösen. Der Punkt war unentschieden, nicht erledigt; Issue nothra/tch-gastro-services#319 löst
+ihn heraus. Spec: [`spec-319`](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-319-adr-import-kontext-guidelines.md).
 
 **Drei Befunde aus der Bestandsaufnahme, die die Entscheidung tragen:**
 
@@ -39,12 +39,12 @@ ihn heraus. Spec: [`spec-319`](../../specs/spec-319-adr-import-kontext-guideline
    `scripts/run-pipeline.sh:293` ruft je Skill ein eigenes `claude --print` auf. Der
    `@import`-Präfix ist über die ~7 Aufrufe identisch, weshalb der Prompt-Cache dort real
    greift. Ein Kosten-**Geld**-Argument gegen den heutigen Zustand ist damit schwach – und
-   ohnehin nicht belegbar, weil #314 nur Prozess-Metriken liefert und OTEL (Token/Kosten pro
+   ohnehin nicht belegbar, weil nothra/tch-gastro-services#314 nur Prozess-Metriken liefert und OTEL (Token/Kosten pro
    Skill) per Default aus ist. Diese ADR stützt sich deshalb **nicht** auf Geldkosten.
 3. **Die Guidelines unterscheiden sich fundamental darin, ob ihre Regeln technisch erzwungen
    sind.** Das ist das entscheidende Kriterium (siehe Entscheidung).
 
-**Zusatzbefund (Issue #319):** Der Lessons-**Index** in `PROJECT-CONTEXT.md` – als Ersatz für den
+**Zusatzbefund (Issue nothra/tch-gastro-services#319):** Der Lessons-**Index** in `PROJECT-CONTEXT.md` – als Ersatz für den
 ausgelagerten Volltext auf „~60–80 Zeilen" kalkuliert – steht heute bei 341 Zeilen. Es gibt
 keinen Mechanismus, der ihn beschneidet: dieselbe Governance-Lücke wie bei ADR-037, eine Ebene
 höher. Sie gehört in diese Entscheidung, nicht in eine dritte Runde.
@@ -100,7 +100,7 @@ umgekehrter Beweislast:
   Drift-Guard**: `git-workflow.md` sagt „Die kanonische Label-Liste bleibt allein in diesem
   Abschnitt", [ADR-018](018-central-issue-seam.md) wiederholt es, und
   [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md) entscheidet „ein Ort je Regel, drei dünne
-  Referenzen". Der Registry-Guard aus #315 (`run-tests.sh`, `LABEL_DOC_FILES_315`) bewacht sieben
+  Referenzen". Der Registry-Guard aus nothra/tch-gastro-services#315 (`run-tests.sh`, `LABEL_DOC_FILES_315`) bewacht sieben
   Fundstellen – eine achte in `CLAUDE.md` wäre die einzige unbewachte, und zwar die, die jeder
   Agent immer im Kontext hat. Kurzregel 7 ist deshalb ein Verweis, keine Kopie; ein Test hält das
   fest (Abwesenheits-Guard auf die Label-/Schwellen-Formulierungen).
@@ -119,7 +119,7 @@ alle `@`-eingebundenen Dateien) auf eine Obergrenze:
 - **Warum ein Gate und nicht eine Prosa-Pflicht:** ADR-037 hat den Index per Prosa-Konvention
   schlank halten wollen und ist damit von ~80 auf 341 Zeilen gelaufen. Eine zweite
   Prosa-Pflicht derselben Art hätte keinen Grund, anders auszugehen.
-- **Warum jetzt und nicht bei #196:** Dort wurde ein Umfangs-Gate bewusst als YAGNI verworfen –
+- **Warum jetzt und nicht bei nothra/tch-gastro-services#196:** Dort wurde ein Umfangs-Gate bewusst als YAGNI verworfen –
   gestützt auf die `/codify`-Faustregel „Kein Check-Skript aus Reflex: ein Gate nur, wenn der
   Fehler verlässlich grep-bar **und** wiederkehrend ist" (kanonisch in
   [`OPERATING.md`](../OPERATING.md) §5.1). Diese Begründung ist überholt, nicht die
@@ -136,25 +136,25 @@ alle `@`-eingebundenen Dateien) auf eine Obergrenze:
 - **Fail-closed heißt auch: nicht messbar ist rot.** Lässt sich die Zeilenzahl einer Datei nicht
   ermitteln, ist der Check rot statt still grün, und ein Kandidat, der aus der Projektwurzel
   herausführt (absolut oder `..`), wird abgelehnt statt gezählt. Beides ist Ergebnis der
-  Security-Review zu #319: ohne den Integer-Guard machte `$((total + ""))` das Gate lautlos grün,
+  Security-Review zu nothra/tch-gastro-services#319: ohne den Integer-Guard machte `$((total + ""))` das Gate lautlos grün,
   und ohne das Confinement war es ein Zeilenzahl-Orakel über beliebige lesbare Dateien der
   Maschine. Abgeleitete Pfade gehen zudem nie durch `echo -e`, damit ein präparierter Pfad die
   Ausgabe der übrigen Push-Checks nicht überschreiben kann.
 - **Ort: `pre-push`, plus ein schwaches CI-Bein.** Der Hook ist lokales Feedback und mit
   `--no-verify` umgehbar. Server-seitig läuft der Check heute nur über **eine Assertion** in der
-  Self-Test-Suite (`run-tests.sh`, erster Test des #319-Blocks) gegen den echten Repo-Stand, die
+  Self-Test-Suite (`run-tests.sh`, erster Test des nothra/tch-gastro-services#319-Blocks) gegen den echten Repo-Stand, die
   über den required Check `factory-self-test` greift. Das ist genau das Muster, das
   [ADR-041](041-config-validation-ci-required-check.md) für `config-validation-check.sh` als
   fragil verworfen und durch einen eigenen CI-Job plus `required_status_checks`-Eintrag ersetzt
   hat. Hier wird es bewusst zunächst in Kauf genommen: die Ruleset-Änderung braucht nach
   [ADR-029](029-branch-protection-main-ruleset.md) Adminrechte und einen dokumentierten
   `gh api`-Befehl, also einen menschlichen Schritt. Nachgezogen wird das über
-  [Issue #328](https://github.com/nothra/tch-gastro-services/issues/328); bis dahin gilt der
+  [Issue nothra/tch-gastro-services#328](https://github.com/nothra/tch-gastro-services/issues/328); bis dahin gilt der
   Deckel als lokal erzwungen und server-seitig nur mittelbar abgesichert.
 - **Beide Referenz-Formen zählen:** die alleinstehende `@pfad`-Zeile **und** ein `@pfad` mitten in
   Prosa, auch mit Markdown-Dekoration (`**@docs/x.md**`, `_@…_`, `>@…`, geklammert, mit
   angehängtem Satzzeichen). Dass Claude Code diese Formen lädt, ist empirisch belegt (Review zu
-  #319: Fixture-`CLAUDE.md` mit dem Pfad in einem Satz gab den Marker zurück, dieselbe Zeile ohne
+  nothra/tch-gastro-services#319: Fixture-`CLAUDE.md` mit dem Pfad in einem Satz gab den Marker zurück, dieselbe Zeile ohne
   `@` nicht) – ein Deckel, der nur Zeilen-Imports zählt, wäre per Prosa-Zeile lautlos umgehbar und
   hätte damit dieselbe Konventions-Abhängigkeit, an der ADR-037 gescheitert ist.
 - **Restgrenzen, ausdrücklich benannt** (der Deckel deckt die im Repo vorkommenden und im
@@ -185,7 +185,7 @@ Vorteile: Null Gate-Risiko (alles bleibt geladen), billigster Schnitt, keine Tri
 nötig, kein `.claude/**`-Patch.
 Nachteile: Erreicht ~500 statt ~250 Zeilen und lässt die 390 Zeilen `git-workflow.md` –
 überwiegend Mensch-/Setup-Doku – im Kontext **jedes** Agenten. „Löst das Skalierungsproblem aber
-nicht" (Issue #319): der Kontext wächst weiter, nur langsamer. Verworfen, weil die Ursache
+nicht" (Issue nothra/tch-gastro-services#319): der Kontext wächst weiter, nur langsamer. Verworfen, weil die Ursache
 (alles wird immer geladen) unangetastet bleibt.
 
 ### Option C: Alle 5 raus, konsequentes ADR-037-Muster

@@ -18,7 +18,7 @@
 # WORKTREE-DEFAULT (Kern-Vorkehrung gegen Session-Kollisionen): Jede neue Task
 # bekommt einen EIGENEN Arbeitsbaum (git worktree) statt eines checkout im
 # geteilten Haupt-Baum. So verschieben parallele Sessions nie gegenseitig HEAD
-# (Ursache des Kollisionsvorfalls aus #71). Env-Schalter:
+# (Ursache des Kollisionsvorfalls aus nothra/tch-gastro-services#71). Env-Schalter:
 #   FACTORY_NO_WORKTREE=1     altes In-Place-Verhalten (Branch im aktuellen Baum)
 #   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
 #   FACTORY_WT_SKIP_INSTALL=1 kein Install-Schritt (commands.install) im neuen Worktree
@@ -38,7 +38,7 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Install-Kommando (commands.install) und Seed-Hinweis (start_work.hint) kommen aus der Config (#431).
+# Install-Kommando (commands.install) und Seed-Hinweis (start_work.hint) kommen aus der Config (nothra/tch-gastro-services#431).
 # shellcheck source=lib/gate-config.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gate-config.sh"
 
@@ -117,11 +117,11 @@ case "$BRANCH_TYPE" in
 esac
 ISSUE_LABEL="${FACTORY_ISSUE_LABEL:-$ISSUE_LABEL}"
 
-# Worktree-Default (Kern-Vorkehrung, #74). Ausschalten via FACTORY_NO_WORKTREE=1.
+# Worktree-Default (Kern-Vorkehrung, nothra/tch-gastro-services#74). Ausschalten via FACTORY_NO_WORKTREE=1.
 if [ "${FACTORY_NO_WORKTREE:-0}" = "1" ]; then WORKTREE_MODE=false; else WORKTREE_MODE=true; fi
 
 # Wurde eine .env.local in den Worktree kopiert? Steuert den db:seed-Hinweis im Abschluss
-# (#236). Vorbelegt, weil kein Zweig die Zuweisung garantiert erreicht: weder der In-Place-Modus
+# (nothra/tch-gastro-services#236). Vorbelegt, weil kein Zweig die Zuweisung garantiert erreicht: weder der In-Place-Modus
 # noch Opt-out, fehlende Quelle, vorhandene Zieldatei oder ein fehlgeschlagenes cp kommen dort
 # vorbei – unter set -u wäre der Abschluss-Output sonst ein harter Abbruch.
 ENV_COPIED=false
@@ -221,10 +221,10 @@ if [ "$WORKTREE_MODE" = true ]; then
     echo -e "  ${GREEN}✓${NC} Worktree + Branch angelegt"
   fi
 
-  # .env.local mitspiegeln (#236): die Datei ist gitignored und wandert beim 'worktree add'
+  # .env.local mitspiegeln (nothra/tch-gastro-services#236): die Datei ist gitignored und wandert beim 'worktree add'
   # nicht mit, alle DEV-Skripte laden ihre Konfiguration aber daraus (dotenv -e .env.local).
   # Ohne sie scheitert der erste 'pnpm test:e2e' im frischen Worktree mit einem irreführenden
-  # CredentialsSignin (#228). Vor dem pnpm install, damit die Datei auch bei fehlgeschlagener
+  # CredentialsSignin (nothra/tch-gastro-services#228). Vor dem pnpm install, damit die Datei auch bei fehlgeschlagener
   # Installation da ist. Fail-safe: eine vorhandene Zieldatei wird nie überschrieben.
   # '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der
   # Wiederverwendungs-Zweig und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte
@@ -258,7 +258,7 @@ if [ "$WORKTREE_MODE" = true ]; then
   fi
 
   # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.
-  # Kommando aus commands.install (Q4, #431); ohne Eintrag entfällt der Schritt still.
+  # Kommando aus commands.install (Q4, nothra/tch-gastro-services#431); ohne Eintrag entfällt der Schritt still.
   INSTALL_COMMAND="$(factory_cfg commands.install 2>/dev/null)" || INSTALL_COMMAND=""
   if [ "${FACTORY_WT_SKIP_INSTALL:-0}" != "1" ] && [ -n "$INSTALL_COMMAND" ]; then
     echo -e "  ${YELLOW}→${NC} $INSTALL_COMMAND im Worktree (FACTORY_WT_SKIP_INSTALL=1 überspringt)..."
@@ -370,7 +370,7 @@ echo -e "${YELLOW}5/5  Erstelle Draft Pull Request...${NC}"
 
 PR_TITLE="${COMMIT_TYPE}: ${TASK_DESC//-/ } (#${TASK_ID})"
 # "Closes #<id>" schließt das Issue beim Merge automatisch. Eine bloße Referenz
-# wie "(#<id>)" ist nur eine Erwähnung und lässt das Issue offen (siehe #74/#71/#76).
+# wie "(#<id>)" ist nur eine Erwähnung und lässt das Issue offen (siehe nothra/tch-gastro-services#74/#71/#76).
 PR_DESC="Closes #${TASK_ID}
 
 Task #${TASK_ID}: ${TASK_DESC//-/ }"
@@ -417,8 +417,8 @@ if [ "$ENV_COPIED" = true ]; then
   # Bewusst als Zusatz UNTER Schritt 2 statt als eigener Schritt 3: der Hinweis muss vor dem
   # ersten 'pnpm test:e2e' greifen, und das findet innerhalb von Schritt 2 statt. Die lokale
   # DEV-DB ist über alle Worktrees geteilt und kennt die gerade kopierten SEED_ADMIN_*-
-  # Zugangsdaten evtl. noch nicht → sonst E2E-Login mit CredentialsSignin (#228).
-  # Der Wortlaut kommt aus start_work.hint (Q4, #431); ohne Eintrag entfällt der Hinweis still.
+  # Zugangsdaten evtl. noch nicht → sonst E2E-Login mit CredentialsSignin (nothra/tch-gastro-services#228).
+  # Der Wortlaut kommt aus start_work.hint (Q4, nothra/tch-gastro-services#431); ohne Eintrag entfällt der Hinweis still.
   START_WORK_HINT="$(factory_cfg start_work.hint 2>/dev/null)" || START_WORK_HINT=""
   [ -z "$START_WORK_HINT" ] || printf '%s\n' "$START_WORK_HINT" | sed 's/^/     /'
 fi

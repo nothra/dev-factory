@@ -4,10 +4,10 @@
 Accepted (2026-06-25)
 
 > Verfeinert **ADR-009** (Geführte Factory-Konfiguration, Accepted) und entscheidet die
-> in **Spec #35 „Offene Fragen"** an `/architecture` geroutete Frage: Reicht der heutige
+> in **Spec nothra/tch-gastro-services#35 „Offene Fragen"** an `/architecture` geroutete Frage: Reicht der heutige
 > freie Kommentarstil in `factory.defaults.yml` als maschinell extrahierbare Begründungs-
 > Quelle, oder braucht es eine strukturierte Konvention? Sie ändert keine Entscheidung von
-> ADR-009, sondern füllt eine Umsetzungs-Vorbedingung von Task #35 (Kriterium C).
+> ADR-009, sondern füllt eine Umsetzungs-Vorbedingung von Task nothra/tch-gastro-services#35 (Kriterium C).
 > Aufgeworfen im Review zu MR !35 (CM/Claude).
 
 ## Date
@@ -16,7 +16,7 @@ Accepted (2026-06-25)
 ## Kontext
 
 ADR-009 #2 begründet YAML-statt-JSON damit, dass jeder Knopf seine **Begründung am Knopf**
-trägt — als Kommentar, lesbar für Mensch *und* die Ph.3-Wizards. Spec #35 baut darauf die
+trägt — als Kommentar, lesbar für Mensch *und* die Ph.3-Wizards. Spec nothra/tch-gastro-services#35 baut darauf die
 **Single-Source-Begründung** (Kriterium A/B/C): `/setup-project`, `/configure-factory`,
 `factory.config.yml.example` und Inline-Kommentare sollen Begründung + Trade-off **aus einer
 Quelle ziehen** statt sie zu kopieren (W-02/W-03-Drift-Lektion).
@@ -38,7 +38,7 @@ Trade-off* (Kriterium A verlangt beides) hat heute kein Feld für den Trade-off.
 Konvention kann der Wizard die Single Source nicht maschinell ziehen — Kriterium C wäre nur
 durch Hand-Pflege erfüllbar (genau die Drift, die wir ausschließen wollen).
 
-Randbedingungen aus dem bereits gemergten Stand (ADR-010, #36):
+Randbedingungen aus dem bereits gemergten Stand (ADR-010, nothra/tch-gastro-services#36):
 - Das Validierungs-Gate arbeitet **rein auf dem Datenmodell** (Blatt-Pfade, `tier`/`max_turns`).
   YAML-Kommentare sind für das Gate unsichtbar — eine kommentar-basierte Konvention ist
   **gate- und schema-neutral** (kein `schemaVersion`-Bump, keine Gate-Änderung).
@@ -156,7 +156,7 @@ mehrzeilige Trade-offs brauchen Fortsetzungs-Kommentare.
 
 ### Option B: Begründung als Daten-Felder (`_doc: { reason:, tradeoff: }`)
 **Vorteile:** trivial via `yq '.skills.implement._doc.reason'` extrahierbar, kein Kommentar-Parsing.
-**Nachteile:** **bläht das Datenmodell** und zwingt das #36-Gate, Nicht-Knopf-Schlüssel
+**Nachteile:** **bläht das Datenmodell** und zwingt das nothra/tch-gastro-services#36-Gate, Nicht-Knopf-Schlüssel
 (`_doc.*`) bei der „Override-Pfade ⊆ Defaults-Pfade"- und Constraint-Prüfung auszunehmen
 (Sonderfall genau in der Logik, die ADR-010 bewusst schlank hält); `schemaVersion`-Bump;
 widerspricht ADR-009 #2 („Begründung als Kommentar am Knopf"). **Abgelehnt.**
@@ -181,7 +181,7 @@ derselbe wie in ADR-010 — **eine** Quelle, per Test erzwungen, statt zweiter K
 - Kriterium C wird testbar (greppbare Tags + „kein Text-Körper außerhalb der Defaults").
 - Wizard/`/configure-factory` ziehen Begründung **und** Trade-off deterministisch — grep-basiert
   (positions-robust), Wert-Ebene zusätzlich via `yq line_comment` (verifiziert).
-- Null Impact auf das #36-Gate und `schemaVersion`; CI-Images unverändert.
+- Null Impact auf das nothra/tch-gastro-services#36-Gate und `schemaVersion`; CI-Images unverändert.
 - Env-Var-/Header-Kommentare bleiben erhalten und sind durch das fehlende `@`-Tag klar abgegrenzt.
 
 **Negativ / Trade-offs:**
@@ -193,7 +193,7 @@ derselbe wie in ADR-010 — **eine** Quelle, per Test erzwungen, statt zweiter K
 - `factory.defaults.yml` wird etwas länger (Trade-off-Zeilen) — akzeptiert, das ist das
   Lehr-Artefakt.
 
-## Implementierungs-Hinweise (für Task #35)
+## Implementierungs-Hinweise (für Task nothra/tch-gastro-services#35)
 
 - **`factory.defaults.yml`:** bestehende Freitext-Begründungen in `@reason:`/`@tradeoff:`-Tags
   überführen (Dimensions-Ebene als eigenständige `#`-Zeilen über dem Schlüssel, Wert-Ebene als

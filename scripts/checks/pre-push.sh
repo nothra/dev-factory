@@ -44,7 +44,7 @@ fi
 # Fängt Typfehler (z.B. fehlende `import type`), die Lint und Vitest nicht
 # erkennen: Vitest transpiliert über esbuild (Typen werden vor der Ausführung
 # gestrippt, kein Type-Check) und das ESLint-Setup hier ist nicht typed-aware.
-# Nur `tsc`/`next build` sieht diese Fehler – aus #137 (Build-Break unbemerkt
+# Nur `tsc`/`next build` sieht diese Fehler – aus nothra/tch-gastro-services#137 (Build-Break unbemerkt
 # bis zum manuellen `pnpm build` vor dem Merge).
 if TYPECHECK_COMMAND="$(gate_command typecheck required)"; then
   echo -e "  ${YELLOW}→${NC} Typecheck: $TYPECHECK_COMMAND"
@@ -62,7 +62,7 @@ fi
 
 # ─── Check 3: Format (Prettier) ──────────────────────────────────────────────
 # Erzwingt Prettier-Konformität vor dem Push. Ohne dieses Gate drifteten unbemerkt
-# 38 Dateien aus dem Format (#149) – weder pre-commit noch CI prüften `format:check`.
+# 38 Dateien aus dem Format (nothra/tch-gastro-services#149) – weder pre-commit noch CI prüften `format:check`.
 # Ausgabe NICHT unterdrücken: `prettier --check` listet bei Drift die betroffenen
 # Dateien ([warn] …) – direkt umsetzbar mit `pnpm format` (anders als der verbose tsc).
 # Optionales Kommando (commands.format bzw. FACTORY_FORMAT_COMMAND): ein BEWUSST leer gesetztes
@@ -84,7 +84,7 @@ fi
 
 # ─── Check 4: Projekt-Erweiterungspunkt ──────────────────────────────────────
 # Ausführbare Skripte aus scripts/project/checks/pre-push.d/ (lexikalisch), u. a. der
-# Routen-Doku-Drift-Check (#145). Fehlendes oder leeres Verzeichnis ist kein Fehler;
+# Routen-Doku-Drift-Check (nothra/tch-gastro-services#145). Fehlendes oder leeres Verzeichnis ist kein Fehler;
 # Fehlschlag oder fehlendes Ausführbar-Bit blockiert den Push (Skriptname in der Meldung).
 run_project_checks "$FACTORY_DIR/scripts/project/checks/pre-push.d" || FAILED=1
 
@@ -92,7 +92,7 @@ run_project_checks "$FACTORY_DIR/scripts/project/checks/pre-push.d" || FAILED=1
 # Fail-closed-Verifikation, dass pre-commit/pre-push/commit-msg im gemeinsamen
 # Git-Verzeichnis vorhanden und ausführbar sind – ein vergessener Retrofit von
 # install-hooks.sh (frischer Clone, gelöschtes .git/hooks) bliebe sonst unbemerkt
-# (Issue #265, ADR-042 §Consequences).
+# (Issue nothra/tch-gastro-services#265, ADR-042 §Consequences).
 HOOKS_INSTALLED_CHECK="$FACTORY_DIR/scripts/checks/hooks-installed-check.sh"
 if [ -f "$HOOKS_INSTALLED_CHECK" ]; then
   echo -e "  ${YELLOW}→${NC} Git-Hooks: pre-commit/pre-push/commit-msg installiert?"
@@ -131,7 +131,7 @@ fi
 # ─── Check 6a: Zuordnung Factory/Projekt vollständig ──────────────────────────
 # Jede getrackte Datei gehört genau einer Seite (docs/factory/OWNERSHIP.md, ADR-063 D11).
 # Eine neue Datei ohne Zeile in der Tabelle blockiert den Push – dasselbe prüft CI über die
-# Self-Test-Suite (factory-self-test), damit ein umgangener Hook nicht reicht (#426).
+# Self-Test-Suite (factory-self-test), damit ein umgangener Hook nicht reicht (nothra/tch-gastro-services#426).
 OWNERSHIP_CHECK="$FACTORY_DIR/scripts/checks/ownership-check.sh"
 if [ -f "$OWNERSHIP_CHECK" ]; then
   echo -e "  ${YELLOW}→${NC} Zuordnung: jede getrackte Datei genau einer Seite (factory|project)?"

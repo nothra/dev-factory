@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ownership-check.sh – jede getrackte Datei gehört genau einer Seite (factory | project)
 #
-# Quelle der Zuordnung: docs/factory/OWNERSHIP.md (ADR-063 D3/D11, Spec #426 AK-A1…A6).
+# Quelle der Zuordnung: docs/factory/OWNERSHIP.md (ADR-063 D3/D11, Spec nothra/tch-gastro-services#426 AK-A1…A6).
 # Das Zeilenformat ist dort beschrieben; dieses Skript ist sein einziger Parser – T1b erzeugt
 # die filter-repo-Allowlist über `--list factory`, nicht über ein zweites Format.
 #

@@ -18,7 +18,7 @@ u. a. gegen Tippfehler, unbekannte Keys und die Task-241/249-Policy-Constraints
 Zur **Laufzeit** ist das Gate über `run-pipeline.sh` (`load_config`) verankert. In
 **CI** läuft es an keiner Stelle als eigener, benannter Schritt — der einzige
 CI-seitige Schutz war bislang eine einzelne Testzeile in
-`scripts/checks/tests/run-tests.sh` ("Gate #249 AK5"), die *zufällig* das reale
+`scripts/checks/tests/run-tests.sh` ("Gate nothra/tch-gastro-services#249 AK5"), die *zufällig* das reale
 `factory.config.yml` gegen das Gate laufen lässt. Diese Kopplung ist fragil: ein
 künftiges Aufräumen der Testdatei könnte die Zeile entfernen, ohne dass der Verlust
 des einzigen realen CI-Schutzes auffällt (Task 255, aufgefallen in der
@@ -28,7 +28,7 @@ ADR-029 (`protect-main`-Ruleset) hält als Gegenmaßnahme zur eigenen Drift-Gefa
 bereits fest: *"Änderungen am Ruleset laufen über einen neuen ADR + den
 dokumentierten `gh api`-Befehl."* Da diese Task den Job zusätzlich in die
 `required_status_checks` aufnimmt (Entscheidung aus `/requirements`, s.
-[spec-255](../../specs/spec-255-config-validation-check-ci-verdrahten.md) AK6), greift
+[spec-255](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-255-config-validation-check-ci-verdrahten.md) AK6), greift
 dieser Trigger — daher dieses ADR statt einer stillen Ruleset-Änderung.
 
 ## Entscheidung
@@ -44,7 +44,7 @@ dieser Trigger — daher dieses ADR statt einer stillen Ruleset-Änderung.
    Merges nach `main`, nicht nur eine Anzeige. Angewendet über den in ADR-029
    dokumentierten `gh api -X PUT repos/nothra/tch-gastro-services/rulesets/19162920`-
    Befehl; das dort dokumentierte JSON wird im selben Zug aktualisiert.
-3. Die dadurch redundante AK5-Testzeile in `run-tests.sh` ("Gate #249 AK5: reales
+3. Die dadurch redundante AK5-Testzeile in `run-tests.sh` ("Gate nothra/tch-gastro-services#249 AK5: reales
    factory.config.yml … bleibt gültig") entfällt — der reale CI-Job übernimmt diese
    Absicherung jetzt strukturell statt zufällig.
 

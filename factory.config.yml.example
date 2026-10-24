@@ -11,12 +11,12 @@
 #
 # BEGRÜNDUNG/TRADE-OFF stehen NICHT hier. Sie leben an EINER Stelle, am Knopf in
 # `factory.defaults.yml` (Tags @reason / @tradeoff, Konvention ADR-011). Diese
-# Datei VERWEIST nur (Anti-Drift, Spec #35 Kriterium C) — bitte beim Anpassen die
+# Datei VERWEIST nur (Anti-Drift, Spec nothra/tch-gastro-services#35 Kriterium C) — bitte beim Anpassen die
 # Begründung dort nachlesen, nicht hierher kopieren.
 #
 # Es gibt nur Knöpfe für die in den Defaults bekannten Keys (correct-by-construction).
 # Für Non-Negotiables (Tests zuerst, Gates, Doktrin) gibt es bewusst KEINEN Knopf;
-# ein unbekannter Key würde vom Validierungs-Gate (#36) fail-closed abgelehnt.
+# ein unbekannter Key würde vom Validierungs-Gate (nothra/tch-gastro-services#36) fail-closed abgelehnt.
 # Schneller, geführter Weg statt Handarbeit: `/configure-factory`.
 #
 # ── Knopf: schemaVersion ──────────────────────────────────────────────────────

@@ -68,7 +68,7 @@ unangetastet lassen.
 Alle Begründungs-/Trade-off-Texte leben **nur** in `factory.defaults.yml`
 (Annotations-Konvention **ADR-011**: Tags `@reason` / `@tradeoff` am Knopf). Dieser
 Skill **zitiert sie zur Laufzeit** aus den Defaults und hält **keine eigene Kopie**
-(Anti-Drift, Spec #35 Kriterium C). Extraktion (verbindlich grep, Konvenienz yq):
+(Anti-Drift, Spec nothra/tch-gastro-services#35 Kriterium C). Extraktion (verbindlich grep, Konvenienz yq):
 
 ```bash
 yq eval '.skills | keys | .[]' factory.defaults.yml   # justierbare Skill-Knöpfe

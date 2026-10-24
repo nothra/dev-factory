@@ -2,7 +2,7 @@
 # adr-links-check.sh – kein toter ADR-Link im Repo
 #
 # Seit die Factory-ADRs unter docs/factory/adr/ liegen und die App-ADRs unter docs/adr/ (ADR-063
-# D8, Spec #426 AK-B3), kann ein Verweis beim Umzug ins Leere zeigen. Geprüft werden in jeder
+# D8, Spec nothra/tch-gastro-services#426 AK-B3), kann ein Verweis beim Umzug ins Leere zeigen. Geprüft werden in jeder
 # getrackten Textdatei (Specs, Tasks, Lessons, Skripte inklusive):
 #   1. Markdown-Links auf eine ADR-Datei im ADR-Verzeichnis – relativ zur Datei, die den Link enthält
 #   2. Wurzel-relative Pfadangaben `docs/adr/NNN-….md` bzw. `docs/factory/adr/NNN-….md`

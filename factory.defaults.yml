@@ -2,7 +2,7 @@
 # factory.defaults.yml — kanonische Default-Konfiguration der Factory (ADR-009)
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# STATUS: Phase 1a von Issue #25. Diese Datei BÜNDELT die heute in
+# STATUS: Phase 1a von Issue nothra/tch-gastro-services#25. Diese Datei BÜNDELT die heute in
 # scripts/run-pipeline.sh hartkodierten Werte (get_model/get_max_turns) an EINER
 # Stelle — als Single Source of Truth + Lehr-Artefakt. In dieser Phase LIEST sie
 # noch niemand (Verhalten unverändert); das Umstellen von run-pipeline.sh auf
@@ -18,7 +18,7 @@
 # eigenständige `#`-Zeilen über dem Schlüssel; Wert-Ebene = Trailing-Kommentar
 # auf der Knopf-Zeile. Dies ist die EINZIGE Heimat dieser Texte — die Wizards
 # (/setup-project, /configure-factory), factory.config.yml.example und etwaige
-# Inline-Kommentare VERWEISEN hierauf, statt zu kopieren (Anti-Drift, Spec #35
+# Inline-Kommentare VERWEISEN hierauf, statt zu kopieren (Anti-Drift, Spec nothra/tch-gastro-services#35
 # Kriterium C). Env-Var-Hinweise (`# CLAUDE_MODEL_HEAVY`) und Abschnitts-Header
 # tragen bewusst KEIN `@`-Tag und sind damit klar von der Quelle getrennt.
 #
@@ -92,7 +92,7 @@ default:
   tier: light
   max_turns: 10
 
-# Gate-Kommandos des Projekts (ADR-063 D3, #431): Lint/Test/Typecheck/Format/Coverage und der
+# Gate-Kommandos des Projekts (ADR-063 D3, nothra/tch-gastro-services#431): Lint/Test/Typecheck/Format/Coverage und der
 # Install-Schritt von start-work.sh. Bewusst OHNE Default-Werte – die Factory kennt keinen
 # Paketmanager; das Projekt trägt seine Kommandos in factory.config.yml ein. Die leeren Werte
 # machen die Schlüssel nur zur erlaubten Oberfläche (config-validation Regel 2). Env-Override:
@@ -110,13 +110,13 @@ commands:
   coverage: ""
   install: ""
 
-# Hinweis, den start-work.sh nach dem Kopieren der .env.local ausgibt (Q4, #431). Leer = kein Hinweis.
+# Hinweis, den start-work.sh nach dem Kopieren der .env.local ausgibt (Q4, nothra/tch-gastro-services#431). Leer = kein Hinweis.
 # @reason: Projektspezifische Nacharbeit (z. B. DB-Seed) gehört nicht in das generische Skript.
 # @tradeoff: keiner – ohne Eintrag entfällt der Hinweis still.
 start_work:
   hint: ""
 
-# GitHub-Labels (ADR-063 D3, #431): `kinds` = Art-Labels (genau eines je Issue), `aspects` = generische
+# GitHub-Labels (ADR-063 D3, nothra/tch-gastro-services#431): `kinds` = Art-Labels (genau eines je Issue), `aspects` = generische
 # Aspekt-Labels (null bis mehrere). Projekteigene Aspekte trägt das Projekt in factory.config.yml unter
 # `labels.aspects_extra` (leere Liste hier = erlaubte Oberfläche); Bedeutung und Zuordnungsregel stehen
 # in PROJECT-CONTEXT.md. Schema und generische Labels beschreibt docs/factory/guidelines/git-workflow.md.

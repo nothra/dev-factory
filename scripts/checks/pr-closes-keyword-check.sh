@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # pr-closes-keyword-check.sh – CI-Gate: PR-Body muss ein Issue per Closing-Keyword schließen.
 #
-# Hintergrund (git-workflow.md, wiederholt bei #71/#74/#76/#78 beobachtet):
+# Hintergrund (git-workflow.md, wiederholt bei nothra/tch-gastro-services#71/#74/#76/#78 beobachtet):
 # Ein PR schließt sein Issue nur dann automatisch, wenn der PR-*Body* ein
 # GitHub-Closing-Keyword mit Issue-Referenz enthält (z. B. "Closes #78"). Eine
-# bloße Erwähnung im Titel ("… (#78)") oder ein deutsches "Behebt #78" lässt das
+# bloße Erwähnung im Titel ("… (nothra/tch-gastro-services#78)") oder ein deutsches "Behebt nothra/tch-gastro-services#78" lässt das
 # Issue nach dem Merge offen zurück – start-work.sh legt dann später erneut einen
 # redundanten Worktree für das vermeintlich offene Issue an.
 #

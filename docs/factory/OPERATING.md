@@ -14,8 +14,8 @@
 >
 > **Verhältnis zu anderen Dokumenten:**
 > - **Was** die Factory ist und **warum** (Prinzipien, Pipeline-Übersicht): [`CLAUDE.md`](../../CLAUDE.md)
-> - **Betriebsumgebung** des Projekts (Werkzeuge, Stages, Deploy-Gate): [`docs/project/betrieb.md`](../project/betrieb.md)
-> - **Entscheidungen** (mit Alternativen): [`docs/adr/`](../adr/) (App) und [`docs/factory/adr/`](adr/) (Factory)
+> - **Betriebsumgebung** des Projekts (Werkzeuge, Stages, Deploy-Gate): `docs/project/betrieb.md`
+> - **Entscheidungen** (mit Alternativen): `docs/adr/` (Projekt) und [`docs/factory/adr/`](adr/) (Factory)
 > - **Dieses Dokument** ist das prozedurale Bindeglied: die Reihenfolge der Handgriffe.
 
 ---
@@ -84,17 +84,17 @@ Diese Schritte sind einmalig. Danach greift die Automatik.
 | `yq` | Config-Merge in `run-pipeline.sh` (Prerequisite) | `yq --version` |
 | `claude` CLI (authentifiziert) | Skills, Stage-3-Pipeline | `claude --version` |
 
-Projekt aufsetzen (Install, `.env.local`, lokale DB, Dev-Server): siehe [`docs/project/betrieb.md`](../project/betrieb.md) → 0.1.
+Projekt aufsetzen (Install, `.env.local`, lokale DB, Dev-Server): siehe `docs/project/betrieb.md` → 0.1.
 
 ### 0.2 Secrets für das Deploy-Gate (projektspezifisch)
 
-Ob und welche Repository-Secrets ein Deploy-Gate braucht, ist Sache des Projekts. TCH: siehe
-[`docs/project/betrieb.md`](../project/betrieb.md) → 0.2.
+Ob und welche Repository-Secrets ein Deploy-Gate braucht, ist Sache des Projekts: siehe
+`docs/project/betrieb.md` → 0.2.
 
 ### 0.3 Production-Branch scharfschalten (projektspezifisch)
 
 Die Aktivierungsreihenfolge für die Production-Entkopplung steht in
-[`docs/project/betrieb.md`](../project/betrieb.md) → 0.3.
+`docs/project/betrieb.md` → 0.3.
 
 ### 0.4 Async-Trigger scharfschalten (unbeaufsichtigte Pipeline in CI)
 
@@ -106,21 +106,21 @@ Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
 - Optional Repo-**Variablen**: `FACTORY_MAX_RUNS_PER_DAY` (Default 5), `FACTORY_RUN_TIMEOUT` (Default 3600s).
 - **claude-CLI gepinnt und verifiziert installieren** – Vorbedingung, nicht optional: der Step
   „Runtime bereitstellen" holt sie heute ungepinnt per `npm install -g` in einen Job mit
-  `contents: write` + `issues: write` (+ `pull-requests: read`/`actions: read` seit #314,
+  `contents: write` + `issues: write` (+ `pull-requests: read`/`actions: read` seit nothra/tch-gastro-services#314,
   ADR-045 §8, für die Prozess-Metriken). Seam analog `install-yq.sh` → Issue
-  [#290](https://github.com/nothra/tch-gastro-services/issues/290).
+  [nothra/tch-gastro-services#290](https://github.com/nothra/tch-gastro-services/issues/290).
 - Steuerung erfolgt **ausschließlich** über das Label `factory::run` am Issue (bewusst per Hand).
 - **`schedule`-Trigger in `.github/workflows/factory-poll.yml` wieder eintragen** – er ist seit
-  #284 entfernt (siehe unten); ohne ihn läuft der Poll nur auf manuelles `workflow_dispatch`.
+  nothra/tch-gastro-services#284 entfernt (siehe unten); ohne ihn läuft der Poll nur auf manuelles `workflow_dispatch`.
   Dieser Punkt kommt **zuletzt**: er schaltet die Automatik scharf.
 
-> Default **aus**. Ohne `factory::run`-Label und ohne API-Key passiert nichts – und seit #284
+> Default **aus**. Ohne `factory::run`-Label und ohne API-Key passiert nichts – und seit nothra/tch-gastro-services#284
 > zusätzlich ohne `schedule`-Trigger: Der Poll passiert nicht mehr von selbst, bleibt aber per
 > `workflow_dispatch` auf Knopfdruck verfügbar (ADR-008, Update 2026-08-12).
 
 ### 0.5 Telemetrie (Token/Kosten) – Default an, nichts einzurichten
 
-Seit #334 ist die Telemetrie **Teil jedes `run-pipeline.sh`-Laufs** und standardmäßig
+Seit nothra/tch-gastro-services#334 ist die Telemetrie **Teil jedes `run-pipeline.sh`-Laufs** und standardmäßig
 **eingeschaltet** ([ADR-049](adr/049-telemetrie-persistenz-je-pipeline-lauf.md)). Es ist
 nichts zu konfigurieren: Der Lauf setzt `CLAUDE_CODE_ENABLE_TELEMETRY=1` und
 `OTEL_METRICS_EXPORTER=console` selbst, erntet am Ende die **Ist-Werte der CLI** und legt sie ab.
@@ -208,7 +208,7 @@ PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
   Warnung → erst 1.1), stale Interrupt-Sentinel wird entfernt.
 - **Review-Loop** mit **Circuit Breaker**: `MAX_REVIEW_ITERATIONS` (Default 2) – danach `exit 2`,
   Mensch übernimmt.
-- **Security-Gate (fail-closed, #312):** Es passiert **nur ein eindeutiges `PASSED`** – alles
+- **Security-Gate (fail-closed, nothra/tch-gastro-services#312):** Es passiert **nur ein eindeutiges `PASSED`** – alles
   andere (`NEEDS_FIXES`, fehlender Report, Report ohne auswertbaren Verdict-Anker) bricht vor dem
   Merge ab. Im `--dry-run` wird das Gate übersprungen (dort läuft kein Skill, also entsteht auch
   kein Report).
@@ -221,7 +221,7 @@ PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
 
 > **Kosten:** Der Lauf fährt 6+ Claude-Sessions pro Feature hintereinander – deutlich mehr Token als
 > interaktive Nutzung. Die **Task-Datei** wird von der Automatik abgeschlossen; die letzte Checkbox
-> `Fertig / PR erstellt` muss **vor** dem Merge im Branch stehen (Guardrail aus #63) – bei
+> `Fertig / PR erstellt` muss **vor** dem Merge im Branch stehen (Guardrail aus nothra/tch-gastro-services#63) – bei
 > `PR_SHEPHERD=true` erledigt der Lauf das, sonst manuell vor `/pr-shepherd` prüfen ([2.2](#22-vor-dem-merge-task-datei-auf-dem-branch-abschließen-)).
 
 ### 1.3 Vollautomatisch, unbeaufsichtigt in CI
@@ -231,7 +231,7 @@ Für Issues, die ganz ohne lokale Session laufen sollen: das Issue mit **`factor
 `run-pipeline.sh` selbst – **fail-closed hinter dem Budget-Guard** (Label-Eintrittstür +
 Concurrency=1 + Tageskappe). Voraussetzung: Async-Trigger scharfgeschaltet ([0.4](#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci)).
 
-> **Stand heute:** Der Poll läuft **nicht** von selbst – der `schedule`-Trigger ist seit #284
+> **Stand heute:** Der Poll läuft **nicht** von selbst – der `schedule`-Trigger ist seit nothra/tch-gastro-services#284
 > entfernt, `workflow_dispatch` ist der einzige Auslöser. Ein gelabeltes Issue wird also erst
 > abgearbeitet, wenn der Workflow von Hand gestartet oder der Schedule per [0.4](#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci)
 > wieder eingetragen wird.
@@ -245,7 +245,7 @@ Concurrency=1 + Tageskappe). Voraussetzung: Async-Trigger scharfgeschaltet ([0.4
 
 Kein Handgriff mehr – der Merge auf `main` löst die Kette nach Production aus: das **Deploy-Gate
 des Projekts** prüft (Gate rot → **kein** Promote, Production bleibt auf dem letzten Stand).
-Ablauf im Einzelnen für TCH: [`docs/project/betrieb.md`](../project/betrieb.md) → 1.4.
+Ablauf im Einzelnen im Projekt: `docs/project/betrieb.md` → 1.4.
 
 ---
 
@@ -281,7 +281,7 @@ Alternativer Einstieg statt 1: **`/bug-fix <id>`** – von Bug/Stacktrace statt 
 
 ### 2.2 Vor dem Merge: Task-Datei **auf dem Branch** abschließen ⚠️
 
-**Guardrail (aus #63):** Die letzte Checkbox `Fertig / PR erstellt` und alle Abschluss-Notizen
+**Guardrail (aus nothra/tch-gastro-services#63):** Die letzte Checkbox `Fertig / PR erstellt` und alle Abschluss-Notizen
 müssen **im Feature-Branch** gesetzt sein, **bevor** der Merge läuft. Nach dem Merge liegt die
 Datei auf `main` und ist nur noch über einen **neuen** PR änderbar (Direkt-Commit auf `main` ist
 verboten) – für ein Häkchen unverhältnismäßig.
@@ -360,7 +360,7 @@ klären. In Stage 2 fragt der Agent interaktiv; in Stage 3 löst er den `ADR`-In
 ### 4.2 Security-Freigabe
 
 `/security-review` ist das **letzte Gate vor Merge**. Ergebnis `NEEDS_FIXES` = **Stopp**:
-kritische/wichtige Findings werden behoben (nicht wegdiskutiert). Allgemeiner gilt seit #312
+kritische/wichtige Findings werden behoben (nicht wegdiskutiert). Allgemeiner gilt seit nothra/tch-gastro-services#312
 fail-closed: weiter geht es nur mit einem eindeutigen `PASSED` – ein fehlender oder mehrdeutiger
 Verdict stoppt genauso. Bewusst akzeptierte Rest-Punkte gehören **begründet** in den Report und
 als Backlog-Issue heraus – nie stillschweigend.
@@ -369,7 +369,7 @@ als Backlog-Issue heraus – nie stillschweigend.
 
 Automatisch laufen nur **additive/geprüfte** Migrationen. Destruktive Migrationen mit echtem
 Produktions-Datenbestand sind ein **Menschen-Gate**: eigene ADR, Datensicherung/Rücklaufplan,
-manuell kontrolliert fahren. Die TCH-Regeln dazu: [`docs/project/betrieb.md`](../project/betrieb.md) → 4.3.
+manuell kontrolliert fahren. Die Regeln des Projekts dazu: `docs/project/betrieb.md` → 4.3.
 
 ### 4.4 Auslöser des Auto-Triggers
 
@@ -407,7 +407,7 @@ Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln au
 
 ### 5.2 Prozess-Kennzahlen
 
-**Läuft automatisch (ADR-045, #314):** `scripts/metrics.sh --quiet --publish` ist ein
+**Läuft automatisch (ADR-045, nothra/tch-gastro-services#314):** `scripts/metrics.sh --quiet --publish` ist ein
 Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs – per EXIT-Trap, fail-open, auch bei
 Abbruch, ohne den Exit-Code der Pipeline je zu verändern. Veröffentlicht wird an
 `$GITHUB_STEP_SUMMARY` (in CI, wenn gesetzt) und als Kommentar an `FACTORY_METRICS_ISSUE`
@@ -441,7 +441,7 @@ Smoke-Tests gibt es `post-merge-verify.sh` (CI-Stage `verify`, nur auf `main`, A
 
 Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
 
-> **Hinweis (aus #63):** `FACTORY_HEALTHCHECK_URL` **nicht** auf `/api/health` zeigen lassen –
+> **Hinweis (aus nothra/tch-gastro-services#63):** `FACTORY_HEALTHCHECK_URL` **nicht** auf `/api/health` zeigen lassen –
 > `post-merge-verify` läuft parallel/vor dem Promote und würde einen Fehlalarm erzeugen (Timing).
 
 ### 5.4 Invarianten laufend grün halten
@@ -458,10 +458,10 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
   git-Worktree an; nach dem Merge `git worktree remove <pfad>` (siehe git-workflow.md).
 - **Lokale Git-Hooks installiert halten** (ADR-042): `bash scripts/install-hooks.sh` ist die
   kanonische Quelle für `pre-commit`, `pre-push` und den `commit-msg`-Hook (Flag-Guard gegen
-  `--help`/`-h` als Commit-Message, #262). Idempotent – in einem frischen Clone und in einem vor
+  `--help`/`-h` als Commit-Message, nothra/tch-gastro-services#262). Idempotent – in einem frischen Clone und in einem vor
   Einführung eines Hooks initialisierten Repo einmalig ausführen, sonst greift die lokale
   Gate-Ebene gar nicht.
-- **`yq` in CI nur über den verifizierten Seam** (#258): `bash scripts/install-yq.sh` ist die
+- **`yq` in CI nur über den verifizierten Seam** (nothra/tch-gastro-services#258): `bash scripts/install-yq.sh` ist die
   kanonische Quelle der yq-Bereitstellung für alle Jobs (`config-validation`,
   `factory-self-test`, `factory-poll`). Das Skript pinnt Version **und** SHA-256 und bricht
   fail-closed ab, bevor das Ausführbar-Bit fällt. Ein neuer Job ruft den Seam auf statt einen
@@ -488,7 +488,7 @@ läuft die Änderung über den Patch-Workflow.
 
 ### 5.6 Gate-Kommandos und Projekt-Erweiterungspunkte
 
-Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D3, #431):
+Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D3, nothra/tch-gastro-services#431):
 
 - **Kommandos** stehen in `factory.config.yml` unter `commands.lint|test|typecheck|format|coverage`
   (dazu `commands.install` für `start-work.sh`). `factory.defaults.yml` trägt dafür bewusst
@@ -512,7 +512,7 @@ Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D
 ## Anhang: Branch-Protection richtig einordnen
 
 **Production ist bereits abgesichert** – über den vom `main`-Push **entkoppelten**
-`production`-Branch plus das **E2E-Deploy-Gate** (Issue #38). Prod deployt ausschließlich, wenn
+`production`-Branch plus das **E2E-Deploy-Gate** (Issue nothra/tch-gastro-services#38). Prod deployt ausschließlich, wenn
 INT-E2E **und** PRD-Migration grün sind; sonst kein Promote. Ein direkter Weg an dieser Kette
 vorbei nach Production existiert nicht.
 

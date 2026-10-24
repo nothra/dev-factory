@@ -12,7 +12,7 @@
 #     realen Zustand auf stdout und liefert Exit 1; bei erfülltem Endzustand Exit 0 (leerer
 #     stdout). Fail-closed: nicht verwertbare/leere Fakten gelten als NICHT verifiziert.
 #     Meldungs-Priorität: Tree-Check zuerst, dann MERGED-Kurzschluss (unabhängig vom
-#     Unpushed-Status – Branch-Auto-Delete nach Squash-Merge macht origin/<branch> weg, #298),
+#     Unpushed-Status – Branch-Auto-Delete nach Squash-Merge macht origin/<branch> weg, nothra/tch-gastro-services#298),
 #     erst danach der Unpushed-Check und die übrigen PR-Invarianten.
 #       tree_status : "clean" | alles andere (= dirty)
 #       unpushed    : Anzahl ungepushter Commits (0 = ok); nicht-numerisch (kein Upstream,
@@ -42,7 +42,7 @@ evaluate_final_state() {
 
   # PR bereits MERGED (pr_shepherd=true) zählt sofort als Erfolg – unabhängig vom
   # Unpushed-Status (nach Squash-Merge + Branch-Auto-Delete existiert origin/<branch>
-  # nicht mehr; die Unpushed-Prüfung ist dafür nicht aussagekräftig, #298).
+  # nicht mehr; die Unpushed-Prüfung ist dafür nicht aussagekräftig, nothra/tch-gastro-services#298).
   if [ "$pr_shepherd" = "true" ] && [ "$pr_state" = "MERGED" ]; then
     return 0
   fi

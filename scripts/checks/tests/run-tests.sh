@@ -12,12 +12,15 @@
 #   - commit-msg-check.sh / install-hooks.sh / init-factory.sh: Flag-Guard für
 #     Commit-Messages und Hook-Installation (ADR-042)
 #   - weitere Pipeline-/Doku-Invarianten je Issue-Block (Abschnittstitel nennen die Nummer)
+#
+# Konvention: Ein `#<nr>` in Testnamen und Meldungen bezeichnet das Issue des Ursprungs-Repos
+# `nothra/tch-gastro-services` (Herkunft des jeweiligen Tests); in Kommentaren steht der Verweis qualifiziert.
 
 set -uo pipefail
 
 CHECKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Gemeinsame Prüf-Helfer (Zähler, assert_*, Fixtures) – geteilt mit der Projekt-Suite (#432, Q10)
+# Gemeinsame Prüf-Helfer (Zähler, assert_*, Fixtures) – geteilt mit der Projekt-Suite (nothra/tch-gastro-services#432, Q10)
 source "$CHECKS_DIR/tests/lib/assert-helpers.sh"
 
 # ─── branch-name-check.sh: direkter Aufruf mit Befehls-String ────────────────
@@ -66,17 +69,17 @@ echo "Interrupt-Mechanismus (Stage-3, ADR-004):"
 
 SCRIPTS_DIR="$(cd "$CHECKS_DIR/.." && pwd)"
 
-# Gate-Kommandos für die Pipeline-Läufe in Wegwerf-Repos (#431): run-pipeline.sh hat keinen pnpm-
+# Gate-Kommandos für die Pipeline-Läufe in Wegwerf-Repos (nothra/tch-gastro-services#431): run-pipeline.sh hat keinen pnpm-
 # Default mehr und bricht vor dem ersten Agenten-Schritt ab, wenn lint/test/coverage weder in der
 # Config noch per Env stehen. Die Wegwerf-Repos tragen keine factory.config.yml mit commands.* –
 # ein Test, der ein Gate prüft, setzt sein Kommando explizit (das schlägt diese Vorgabe). Vor den
-# #431-Gruppen G/H wird sie wieder entfernt, damit deren Fehlend-Tests nichts erben.
+# nothra/tch-gastro-services#431-Gruppen G/H wird sie wieder entfernt, damit deren Fehlend-Tests nichts erben.
 export FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true
 
 # cp_pipeline_libs <repo-root> – legt ALLE von run-pipeline.sh gesourcten scripts/lib/-Dateien
 # in eine Temp-Repo-Kopie. Einziger Ort, an dem eine neu gesourcte Lib nachzutragen ist: fehlt
 # sie, bricht run-pipeline.sh unter `set -euo pipefail` schon am `source` ab und der Test wird
-# rot aus dem falschen Grund (bash-gotchas.md §5; Vorfälle #91, #197). Vor #334 stand dieselbe
+# rot aus dem falschen Grund (bash-gotchas.md §5; Vorfälle nothra/tch-gastro-services#91, nothra/tch-gastro-services#197). Vor nothra/tch-gastro-services#334 stand dieselbe
 # cp-Gruppe achtmal kopiert in der Suite – jede Kopie eine Stelle, die man beim nächsten Seam
 # vergessen kann.
 cp_pipeline_libs() {
@@ -213,7 +216,7 @@ else
   skip_yq "CI-Lint-Job führt commands.lint aus factory.config.yml aus"
 fi
 
-# ─── Stufe-2: OTEL-ready Bauchladen (#17) ────────────────────────────────────
+# ─── Stufe-2: OTEL-ready Bauchladen (nothra/tch-gastro-services#17) ────────────────────────────────────
 echo ""
 echo "Stufe-2 OTEL-Telemetrie (#17):"
 
@@ -226,13 +229,13 @@ assert_true "$?" "otel.env.example enthält CLAUDE_CODE_ENABLE_TELEMETRY=1"
 
 # config/otel.env.example bleibt die Beispiel-Datei für den manuellen/Gateway-Weg und wird
 # von run-pipeline.sh weiterhin NICHT gesourct – die Pipeline setzt ihre zwei Variablen seit
-# #334 selbst (ADR-049 §E3). Die frühere Zusicherung „OTEL ist opt-in" ist damit ungültig;
-# ihr Ersatz (Default an + wirksamer Abschalt-Parameter) steht im #334-Block unten. Was hier
+# nothra/tch-gastro-services#334 selbst (ADR-049 §E3). Die frühere Zusicherung „OTEL ist opt-in" ist damit ungültig;
+# ihr Ersatz (Default an + wirksamer Abschalt-Parameter) steht im nothra/tch-gastro-services#334-Block unten. Was hier
 # bleibt, ist die schwächere, aber weiter gültige Aussage: kein Wiring auf die Beispiel-Datei.
 grep -q 'otel.env' "$FACTORY_ROOT/scripts/run-pipeline.sh"
 assert_true "$([ $? -ne 0 ]; echo $?)" "config/otel.env.example wird nicht von run-pipeline.sh gesourct (ADR-049 §E3)"
 
-# ─── Stufe-2: Metrics-Digest + Interrupt-Log (#12) ───────────────────────────
+# ─── Stufe-2: Metrics-Digest + Interrupt-Log (nothra/tch-gastro-services#12) ───────────────────────────
 echo ""
 echo "Stufe-2 Metrics-Digest (#12):"
 
@@ -275,7 +278,7 @@ grep -q '| Autonomie-Rate | 50% |' "$report" 2>/dev/null
 assert_true "$?" "metrics.sh berechnet Autonomie-Rate aus geschnittener Menge (50%)"
 rm -rf "$TMP_LOG"
 
-# ─── #96: metrics.sh Lead-Time ist locale-unabhängig (printf-%f-Regression) ──
+# ─── nothra/tch-gastro-services#96: metrics.sh Lead-Time ist locale-unabhängig (printf-%f-Regression) ──
 # bash `printf '%.1f'` parst sein Argument lokale-abhängig (strtod). Unter einer
 # Locale mit Komma-Dezimaltrenner (z. B. de_DE) schlägt das Parsen eines
 # Punkt-Dezimalwerts wie "1.75" fehl ("invalid number") und printf fällt still
@@ -342,7 +345,7 @@ printf '%s' "$pc_out" | grep -q 'hardkodierte Credentials'
 assert_true "$?" "pre-commit Credential-Check erkennt geplantetes Secret"
 rm -rf "$PC_TMP"
 
-# ─── Stufe-2: Post-Merge-Verify (#11) ────────────────────────────────────────
+# ─── Stufe-2: Post-Merge-Verify (nothra/tch-gastro-services#11) ────────────────────────────────────────
 echo ""
 echo "Stufe-2 Post-Merge-Verify (#11):"
 
@@ -355,7 +358,7 @@ assert_true "$?" "post-merge-verify-Job in .github/workflows/factory-ci.yml"
 TMP_PMV="$(mktemp -d)"
 mkdir -p "$TMP_PMV/tasks" "$TMP_PMV/scripts" "$TMP_PMV/bin"
 cp "$SCRIPTS_DIR/post-merge-verify.sh" "$SCRIPTS_DIR/raise-interrupt.sh" "$TMP_PMV/scripts/"
-# Tests sollen nicht schlafen: keine Retries / kein Backoff (außer im #24-Retry-Test).
+# Tests sollen nicht schlafen: keine Retries / kein Backoff (außer im nothra/tch-gastro-services#24-Retry-Test).
 export FACTORY_HEALTHCHECK_RETRIES=0 FACTORY_HEALTHCHECK_INTERVAL=0
 
 # Skip-Pfad: ohne FACTORY_HEALTHCHECK_URL → exit 0, kein Interrupt
@@ -381,7 +384,7 @@ assert_exit 1 "$?" "post-merge-verify bei curl-Fehler (non-zero) → exit 1"
 grep -q 'HTTP 000 (erwartet 200)' "$TMP_PMV/tasks/interrupt-log.jsonl" 2>/dev/null
 assert_true "$?" "curl-Fehler meldet einzeiliges '000' (kein 000\\\\n000, !22-Finding)"
 
-# #23: pluggbarer FACTORY_HEALTHCHECK_CMD (Exit-Code = Urteil), Vorrang vor URL
+# nothra/tch-gastro-services#23: pluggbarer FACTORY_HEALTHCHECK_CMD (Exit-Code = Urteil), Vorrang vor URL
 rm -f "$TMP_PMV/tasks/interrupt-log.jsonl"
 FACTORY_DIR="$TMP_PMV" FACTORY_HEALTHCHECK_CMD="true" \
   bash "$TMP_PMV/scripts/post-merge-verify.sh" 23 >/dev/null 2>&1
@@ -401,7 +404,7 @@ pmv_out=$(FACTORY_DIR="$TMP_PMV" FACTORY_HEALTHCHECK_CMD="true" FACTORY_HEALTHCH
 printf '%s' "$pmv_out" | grep -q 'Smoke-Command'
 assert_true "$?" "CMD hat Vorrang vor URL, wenn beide gesetzt"
 
-# #24: Retry/Poll gegen Deploy-Lag. CMs vorgegebener Testfall – Mock liefert erst
+# nothra/tch-gastro-services#24: Retry/Poll gegen Deploy-Lag. CMs vorgegebener Testfall – Mock liefert erst
 # beim 3. Versuch 200 (Deployment hinkt nach) → grün; Dauerfehler → exit 1.
 rm -f "$TMP_PMV/tasks/interrupt-log.jsonl"; echo 0 > "$TMP_PMV/cnt"
 cat > "$TMP_PMV/bin/curl" <<CURLEOF
@@ -430,7 +433,7 @@ rm -rf "$TMP_PMV"
 grep -q "github.event_name == 'push'" "$CI_FILE"
 assert_true "$?" "post-merge-verify-Job ist auf push (nach Merge) eingegrenzt"
 
-# ─── Stufe-2: Async-Trigger / Scheduled-Poll (#10, ADR-008) ──────────────────
+# ─── Stufe-2: Async-Trigger / Scheduled-Poll (nothra/tch-gastro-services#10, ADR-008) ──────────────────
 echo ""
 echo "Stufe-2 Async-Trigger (#10):"
 
@@ -438,7 +441,7 @@ POLL_YML="$FACTORY_ROOT/.github/workflows/factory-poll.yml"
 assert_true "$([[ -f "$FACTORY_ROOT/scripts/factory-poll.sh" ]]; echo $?)" "scripts/factory-poll.sh vorhanden"
 assert_true "$([[ -f "$POLL_YML" ]]; echo $?)" ".github/workflows/factory-poll.yml vorhanden"
 
-# ─── #284: der Schedule ist stillgelegt, workflow_dispatch bleibt ────────────
+# ─── nothra/tch-gastro-services#284: der Schedule ist stillgelegt, workflow_dispatch bleibt ────────────
 # Der Auto-Trigger ist nicht scharfgeschaltet (kein ANTHROPIC_API_KEY, nie ein
 # factory::run-Issue) – ein halbstündlicher Lauf installierte nur ungepinnte
 # Software mit Repo-Schreibrechten, um festzustellen, dass nichts zu tun ist.
@@ -449,10 +452,10 @@ assert_true "$([[ -f "$POLL_YML" ]]; echo $?)" ".github/workflows/factory-poll.y
 # wie `on: {schedule: [...]}` ist damit sichtbar).
 # Kommentare fallen IN derselben awk-Passage weg, damit eine Prosa-Erwähnung von
 # `schedule` oder `contents: write` in einem Kommentar keinen Guard beeinflusst
-# (Lesson #114: Anker ist die YAML-Struktur, nie eine Erwähnung). Bewusst ein Prozess
+# (Lesson nothra/tch-gastro-services#114: Anker ist die YAML-Struktur, nie eine Erwähnung). Bewusst ein Prozess
 # statt `sed | awk`: awk beendet am nächsten Top-Level-Key, das SIGPIPE eines Vorgängers
 # würde unter `set -o pipefail` als Fehlschlag durchschlagen. Nicht lesbare Datei → exit 1
-# (fail-closed, Lesson #214), nicht stiller leerer Block.
+# (fail-closed, Lesson nothra/tch-gastro-services#214), nicht stiller leerer Block.
 poll_yaml_block() {
   [ -r "$1" ] || return 1
   awk -v key="^$2:" '
@@ -462,9 +465,9 @@ poll_yaml_block() {
     f' "$1"
 }
 
-# Block-Anker statt dateiweiter Fragment-Greps (Review-Runde-2-Nitpick #284): derselbe
+# Block-Anker statt dateiweiter Fragment-Greps (Review-Runde-2-Nitpick nothra/tch-gastro-services#284): derselbe
 # Kommentar-Nachzug, der die AK3-Assertion in Runde 1 prosa-erfüllbar gemacht hätte
-# (Lesson #114), könnte sonst auch hier greifen – jetzt, wo poll_yaml_block existiert,
+# (Lesson nothra/tch-gastro-services#114), könnte sonst auch hier greifen – jetzt, wo poll_yaml_block existiert,
 # kostet das Ankern eine Zeile.
 poll_yaml_block "$POLL_YML" jobs | grep -qxF -- '  factory-poll:'
 assert_true "$?" "factory-poll-Job in factory-poll.yml"
@@ -499,7 +502,7 @@ poll_dispatch_guard() {
 # Zeile (mit der zweispaltigen Einrückung des Blocks ergänzt) wörtlich im permissions:-Block
 # steht. Dateiweites Suchen wäre hier wertlos: der WHY-Kommentar am Runtime-Step nennt
 # „contents: write + issues: write" als Prosa und erfüllte einen `grep -q` auch dann, wenn
-# der echte Block fehlt oder auf `contents: read` abgeschwächt ist (Lesson #114: Kommando ≠
+# der echte Block fehlt oder auf `contents: read` abgeschwächt ist (Lesson nothra/tch-gastro-services#114: Kommando ≠
 # Prosa-Erwähnung). Wert als Daten behandeln (`-qxF --`).
 poll_permission_guard() {
   local permissions_block
@@ -523,13 +526,13 @@ grep -qF 'bash scripts/factory-poll.sh' "$POLL_YML"; assert_true "$?" "#284 AK3:
 
 # AK5/AK6 – Mutationsbelege: derselbe Guard-Ausdruck gegen mutierte Kopien, damit
 # belegt ist, dass er zwischen echtem Trigger und Prosa unterscheidet und nicht nur
-# zufällig grün ist (Lesson #286: Beleg muss denselben Assert-Ausdruck ausführen).
+# zufällig grün ist (Lesson nothra/tch-gastro-services#286: Beleg muss denselben Assert-Ausdruck ausführen).
 # Mutation per awk-Einfügung IN den bestehenden on:-Block – ein angehängtes zweites
-# `on:` wäre ein Duplicate-Key-Dokument und würde nur zufällig treffen (Lesson #255).
+# `on:` wäre ein Duplicate-Key-Dokument und würde nur zufällig treffen (Lesson nothra/tch-gastro-services#255).
 TMP_POLL_GUARD="$(mktemp -d)"
 
 # Je Mutant unten steht neben dem rot-erwarteten Beleg eine grüne Positivkontrolle auf ein
-# ANDERES Signal derselben Datei (Review-Runde-2-Nitpick #284, Lesson #214): sonst teilen sich
+# ANDERES Signal derselben Datei (Review-Runde-2-Nitpick nothra/tch-gastro-services#284, Lesson nothra/tch-gastro-services#214): sonst teilen sich
 # alle `! poll_*_guard "<mutant>"`-Belege ihren Fail-Pfad mit AK6 ("Datei nicht lesbar") – bliebe
 # eine Mutanten-Datei aus (mktemp/Redirect schlägt fehl), wäre der Beleg grün, ohne dass die
 # Mutation je geprüft wurde. Die Positivkontrolle belegt: Datei existiert, ist parsbar, und nur
@@ -687,7 +690,7 @@ grep -q 'Neues Feature' "$matfile" 2>/dev/null
 assert_true "$?" "A: materialisierte Task-Datei übernimmt den Issue-Titel"
 rm -rf "$TMP_MAT"
 
-# ─── Issue-Sync: jeder Task hat ein GitHub-Issue-Pendant (#4, ADR-013) ───────
+# ─── Issue-Sync: jeder Task hat ein GitHub-Issue-Pendant (nothra/tch-gastro-services#4, ADR-013) ───────
 echo ""
 echo "Issue-Sync (#4, ADR-013):"
 
@@ -740,7 +743,7 @@ assert_exit 1 "$rc" "--create: Nummern-Mismatch → exit 1"
 printf '%s' "$out" | grep -q 'MISMATCH'; assert_true "$?" "--create meldet MISMATCH bei nicht auflösbarer Nummer"
 rm -rf "$TMP_SYNC"
 
-# ─── Zentraler Issue-Seam scripts/lib/create-issue.sh (#82, ADR-018) ─────────
+# ─── Zentraler Issue-Seam scripts/lib/create-issue.sh (nothra/tch-gastro-services#82, ADR-018) ─────────
 echo ""
 echo "Zentraler Issue-Seam (#82, ADR-018):"
 
@@ -810,7 +813,7 @@ assert_exit 1 "$rc" "Seam: gh liefert keine Nummer → fail-closed (exit 1)"
 assert_true "$([[ -z "$out" ]]; echo $?)" "Seam: fail-closed → keine Nummer auf stdout"
 
 # 6. Repo-Bezug: FACTORY_REPO → --repo; ohne Slug kein --repo (gh-Auto-Erkennung).
-# Regression F1 (Review #82): der no-repo-Pfad MUSS auch unter `set -euo pipefail` laufen –
+# Regression F1 (Review nothra/tch-gastro-services#82): der no-repo-Pfad MUSS auch unter `set -euo pipefail` laufen –
 # `repo_args` ist dort leer, und nounset gilt auch innerhalb von $(create_issue …).
 LOG="$TMP_SEAM/c6.log"; : > "$LOG"
 GH_LOG="$LOG" seam "T" "B" "enhancement" >/dev/null 2>&1
@@ -896,7 +899,7 @@ assert_true "$?" "Seam: Body mit Leerzeichen/Quotes bleibt EIN --body-Argument"
 assert_true "$(! grep -qxF -- '[Titel]' "$BRLOG"; echo $?)" \
   "Seam: kein wortgesplittetes Titel-Fragment ([Titel] allein) im Arg-Log"
 
-# 13. Security-Guard (Review #82 H-1): reservierter 'factory::'-Präfix wird als Art- UND
+# 13. Security-Guard (Review nothra/tch-gastro-services#82 H-1): reservierter 'factory::'-Präfix wird als Art- UND
 # Aspekt-Label verworfen (nur die Pipeline setzt diese; verhindert Selbst-Trigger).
 LOG="$TMP_SEAM/c13.log"; : > "$LOG"; ERR="$TMP_SEAM/c13.err"
 out=$(FACTORY_REPO="test/repo" GH_LOG="$LOG" seam "T" "B" "factory::run" "security,factory::running" 2>"$ERR"); rc=$?
@@ -908,7 +911,7 @@ grep -q 'reserviert' "$ERR"; assert_true "$?" "Seam: factory::-Guard warnt auf s
 
 rm -rf "$TMP_SEAM"
 
-# ─── Idempotenz-Wrapper create_issue_idempotent (#207, ADR-040) ──────────────
+# ─── Idempotenz-Wrapper create_issue_idempotent (nothra/tch-gastro-services#207, ADR-040) ──────────────
 echo ""
 echo "Idempotenter Issue-Seam (#207, ADR-040):"
 
@@ -1002,7 +1005,7 @@ assert_true "$([[ "$out" = "204" ]]; echo $?)" "AC5: niedrigste Nummer gewinnt a
 # Defensiv-Guard (create-issue.sh: `''|*[!0-9]*)`): eine nicht-numerische „Nummer"-Zeile bei
 # titelgleichem Kandidaten wird übersprungen (schützt das `-lt` vor nicht-numerischem Input),
 # der echte numerische Treffer wird trotzdem gefunden. Erzwingt den sonst nie erreichten
-# Guard-Zweig (lessons/testing.md: Exhaustiveness-Guards brauchen einen eigenen Test; bis #319
+# Guard-Zweig (lessons/testing.md: Exhaustiveness-Guards brauchen einen eigenen Test; bis nothra/tch-gastro-services#319
 # stand die Regel in testing-standards.md).
 CLOG="$TMP_IDEM/guard.create"; : > "$CLOG"
 open_bad_num=$(printf 'x\nRefactor foo bar\n204\nRefactor foo bar\n')
@@ -1033,7 +1036,7 @@ assert_exit 1 "$rc" "F1/FS1: kein gh → fail-open-Lookup kaskadiert in fail-clo
 assert_true "$([[ -z "$out" ]]; echo $?)" "F1/FS1: kein gh → keine Nummer auf stdout"
 
 # AC4 – Retry-Idempotenz (Regressionsschutz): zwei Läufe mit identischem Titel.
-# Lauf 1: kein offenes Issue → legt an (#123). Lauf 2: das offene #123 existiert nun mit
+# Lauf 1: kein offenes Issue → legt an (nothra/tch-gastro-services#123). Lauf 2: das offene nothra/tch-gastro-services#123 existiert nun mit
 # demselben Titel → Treffer, KEINE zweite Anlage. Netto: genau eine Anlage.
 CLOG="$TMP_IDEM/ac4.create"; : > "$CLOG"
 run1=$(FAKE_OPEN="" GH_LOG="$CLOG" idem "Wiederkehrender Fund" "B" "enhancement" 2>/dev/null)
@@ -1061,7 +1064,7 @@ assert_true "$(! grep -q -- '--repo' "$LLOG"; echo $?)" "Lookup: ohne Repo-Slug 
 # W3: Alle drei Pfade laufen als bloßer Aufruf unter `set -euo pipefail` durch – nicht nur der
 # Treffer-Pfad, sondern gerade die errexit-EMPFINDLICHEN No-Match- (while-read-Heredoc-Schleife)
 # und Fail-open-Pfade (`raw=$(…) || return 2`, `existing=$(…) || rc=$?`). Ein künftiger
-# errexit-Bruch dort würde stumm zum Retry-Duplikat führen – genau der #207-Fehlerfall.
+# errexit-Bruch dort würde stumm zum Retry-Duplikat führen – genau der nothra/tch-gastro-services#207-Fehlerfall.
 rc=$(PATH="$TMP_IDEM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_OPEN="$open_204" \
   bash -c 'set -euo pipefail; source "$0"; create_issue_idempotent "Refactor foo bar" "B" "enhancement" >/dev/null; echo "$?"' \
   "$SEAM_LIB" 2>/dev/null)
@@ -1093,7 +1096,7 @@ assert_true "$(! grep -qE 'create_issue_idempotent' "$SCRIPTS_DIR/start-work.sh"
 assert_true "$(! grep -qE 'create_issue_idempotent' "$SCRIPTS_DIR/sync-issues.sh"; echo $?)" \
   "AC6: sync-issues.sh nutzt den Idempotenz-Wrapper NICHT (unverändert)"
 
-# #207: die drei autonomen Pipeline-Skills rufen den Idempotenz-Wrapper auf
+# nothra/tch-gastro-services#207: die drei autonomen Pipeline-Skills rufen den Idempotenz-Wrapper auf
 for sk in codify review security-review; do
   grep -q 'create_issue_idempotent' "$FACTORY_ROOT/.claude/commands/$sk.md"
   assert_true "$?" "#207: /$sk-Skill nutzt create_issue_idempotent (Retry-Duplikat-Guard)"
@@ -1154,9 +1157,9 @@ done
 grep -q 'create-issue.sh' "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
 assert_true "$?" "#82: git-workflow.md verweist auf den zentralen Seam (create-issue.sh)"
 
-# ── #155: git-workflow.md verweist auf ADR-029 (server-seitiger main-Schutz) ──
+# ── nothra/tch-gastro-services#155: git-workflow.md verweist auf ADR-029 (server-seitiger main-Schutz) ──
 # AC3 bündelt Direktive + Rationale auf getrennt editierbaren Zeilen → je eigene
-# Assertion (codifizierte #117-Regel), sonst bleibt das Framing ungetestet.
+# Assertion (codifizierte nothra/tch-gastro-services#117-Regel), sonst bleibt das Framing ungetestet.
 GITWF="$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
 # (0) Verweis-Ziel existiert: sonst zeigen die ADR-029-Verweise ins Leere, ohne dass
 # die grep-Guards (die nur git-workflow.md prüfen) das bemerken (dangling reference).
@@ -1171,7 +1174,7 @@ assert_true "$?" "#155: git-workflow.md verweist auf ADR-029 (main-Ruleset)"
 grep -q 'umgehbar' "$GITWF"
 assert_true "$?" "#155: git-workflow.md ordnet den pre-push-Hook als umgehbares lokales Feedback ein (AC3-Rationale)"
 
-# ─── Bug #8: Check-Skripte robust gegen Leerzeichen im Pfad ──────────────────
+# ─── Bug nothra/tch-gastro-services#8: Check-Skripte robust gegen Leerzeichen im Pfad ──────────────────
 echo ""
 echo "Bug #8 (Leerzeichen im Pfad):"
 
@@ -1236,7 +1239,7 @@ rm -f "$ZERO"
 grep -qE 'grep -c "\^- " "\$codify_file" 2>/dev/null \|\| true' "$PIPELINE"
 assert_true "$?" "run-pipeline.sh rule_count ist set-e-sicher (|| true, K-1)"
 
-# K-2 (Issue #261): Laufzeit-Beweis der set-e-Sicherheit für den grep|head|while-Block
+# K-2 (Issue nothra/tch-gastro-services#261): Laufzeit-Beweis der set-e-Sicherheit für den grep|head|while-Block
 # (pipeline_summary's Codify-Regelzeilen-Ausgabe) gegen ein 0-Treffer-File unter set -e.
 ZERO_WHILE_LOOP=$(mktemp); printf '# nur ein Header, keine Regel-Zeilen\n' > "$ZERO_WHILE_LOOP"
 # Korrektes Idiom (|| true nach done) → kein Abbruch, rc=0:
@@ -1248,10 +1251,10 @@ assert_true "$([ $? -ne 0 ]; echo $?)" "Gegenprobe: ohne || true bricht der grep
 rm -f "$ZERO_WHILE_LOOP"
 
 # (3) run-pipeline.sh Codify-Regelzeilen-Block nutzt das set-e-sichere Idiom (|| true nach
-# done) – Issue #261. Block-isoliert statt Datei-weitem Fragment-Grep (Review-Finding
-# Runde 2/3, Lesson zu Reihenfolge-Guards aus #114/#265: Anker ist die exakte Aufruf-
+# done) – Issue nothra/tch-gastro-services#261. Block-isoliert statt Datei-weitem Fragment-Grep (Review-Finding
+# Runde 2/3, Lesson zu Reihenfolge-Guards aus nothra/tch-gastro-services#114/#265: Anker ist die exakte Aufruf-
 # Zeile, nie ein Kommando-Fragment) – awk extrahiert nur den Block zwischen der
-# Codify-Pipeline und ihrem "done", analog zur Job-Block-Isolation aus #255. Anders als
+# Codify-Pipeline und ihrem "done", analog zur Job-Block-Isolation aus nothra/tch-gastro-services#255. Anders als
 # dort schließt der Block hier Start- UND Endzeile bewusst mit ein (nicht aus), weil
 # genau die "done"-Zeile selbst geprüft werden muss. Ein-Wort-Anker als Variable
 # (nicht zweimal als Regex-Literal), damit Original- und Mutations-Extraktion (unten)
@@ -1272,11 +1275,11 @@ mut_block="$(awk "$codify_block_awk" "$MUT_PIPELINE")"
 assert_true "$?" "Schärfe-Beweis: unabhängiges 'done || true' anderswo täuscht den Block-Guard nicht (Issue #261)"
 rm -f "$MUT_PIPELINE"
 
-# #261 AC2/AC3: End-to-end-Beweis über den echten pipeline_summary()-Pfad (--dry-run),
+# nothra/tch-gastro-services#261 AC2/AC3: End-to-end-Beweis über den echten pipeline_summary()-Pfad (--dry-run),
 # dass 1-3 Treffer unverändert ausgegeben werden und >3 Treffer bei 3 gekappt + Hinweis
 # ergänzt wird. Bisher nur strukturell begründet (|| true wirkt nur bei vorangehendem
 # Fehlschlag, ändert im Treffer-Fall nichts) – hier zusätzlich empirisch belegt
-# (/test-Vollständigkeitsprüfung), analog zum #91-Dry-Run-Scaffold.
+# (/test-Vollständigkeitsprüfung), analog zum nothra/tch-gastro-services#91-Dry-Run-Scaffold.
 if [ "$HAS_YQ" = 1 ]; then
   TMP_261="$(mktemp -d)"
   mkdir -p "$TMP_261/scripts/checks" "$TMP_261/scripts/lib" "$TMP_261/tasks" "$TMP_261/docs/factory"
@@ -1321,7 +1324,7 @@ else
   skip_yq "#261 AC2/AC3: End-to-end Codify-Regelzeilen-Ausgabe (1-3 / >3 Treffer)"
 fi
 
-# ─── Stufe-2.5: Factory-Config Phase 1b – run-pipeline liest die Config (#25) ─
+# ─── Stufe-2.5: Factory-Config Phase 1b – run-pipeline liest die Config (nothra/tch-gastro-services#25) ─
 echo ""
 echo "Factory-Config Phase 1b (#25, ADR-009):"
 
@@ -1378,7 +1381,7 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$?" "#348: realer Repo-Override löst implement end-to-end auf den Default (max ${def_turns_348} turns) auf"
   rm -rf "$TMP_CFG"
 
-  # #91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
+  # nothra/tch-gastro-services#91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
   # Bestehender mock review-2.md (APPROVED) sorgt dafür, dass Review-Loop sofort endet und
   # die Pipeline bis Phase 5 (security-review) läuft – beide "Starte:"-Zeilen erscheinen.
   TMP_DRY91="$(mktemp -d)"; mkdir -p "$TMP_DRY91/scripts/checks" "$TMP_DRY91/scripts/lib" "$TMP_DRY91/tasks" "$TMP_DRY91/docs/factory"
@@ -1394,11 +1397,11 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$?" "#91: dry-run zeigt /review mit max 30 turns (Turn-Budget, Lücke 2)"
   printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-5-5, max 30 turns)'
   assert_true "$?" "#91: dry-run zeigt /security-review mit max 30 turns (Turn-Budget, Lücke 2)"
-  # #212 F4: --dry-run läuft bis zum Ende (APPROVED-Review) und markiert die Endzustands-
+  # nothra/tch-gastro-services#212 F4: --dry-run läuft bis zum Ende (APPROVED-Review) und markiert die Endzustands-
   # Verifikation als übersprungen, statt sie auszuführen/abzubrechen.
   printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
   assert_true "$?" "#212 F4: --dry-run markiert Endzustands-Verifikation als übersprungen (kein Abbruch)"
-  # #312: dieselbe Dry-Run-Ausnahme für das jetzt fail-closed Security-Gate. Ohne sie blockierte
+  # nothra/tch-gastro-services#312: dieselbe Dry-Run-Ausnahme für das jetzt fail-closed Security-Gate. Ohne sie blockierte
   # jeder --dry-run ab Phase 5 – dort läuft kein Skill, also entsteht nie ein Security-Report.
   # Direkte Assertion statt bloß transitiver Absicherung über die Erfolgs-Ausgabe darunter.
   printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Security-Gate übersprungen'
@@ -1410,7 +1413,7 @@ else
   skip_yq "YAML-Parse, Config-Werte (implement/codify/default) und End-to-End-Resolution"
 fi
 
-# ─── Stufe-2.6: Config-Validierungs-Gate (#36, ADR-010) ──────────────────────
+# ─── Stufe-2.6: Config-Validierungs-Gate (nothra/tch-gastro-services#36, ADR-010) ──────────────────────
 echo ""
 echo "Config-Validierungs-Gate (#36, ADR-010):"
 
@@ -1479,12 +1482,12 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   bash "$GATE" "$DEFAULTS" "$GTMP/zero.yml" >/dev/null 2>&1; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate: max_turns = 0 (unter Minimum) → fail-closed"
 
-  # Positiv (Grenzfall, #348/ADR-051): max_turns = 80 ist die neue Ceiling → exit 0
+  # Positiv (Grenzfall, nothra/tch-gastro-services#348/ADR-051): max_turns = 80 ist die neue Ceiling → exit 0
   printf 'skills:\n  implement: { max_turns: 80 }\n' > "$GTMP/ceil80.yml"
   bash "$GATE" "$DEFAULTS" "$GTMP/ceil80.yml" >/dev/null 2>&1
   assert_true "$?" "Gate #348: max_turns = 80 (neue Ceiling) → exit 0"
 
-  # Negativ (Grenzfall, #348/ADR-051): max_turns = 81 liegt über der neuen Ceiling
+  # Negativ (Grenzfall, nothra/tch-gastro-services#348/ADR-051): max_turns = 81 liegt über der neuen Ceiling
   printf 'skills:\n  implement: { max_turns: 81 }\n' > "$GTMP/ceil81.yml"
   bash "$GATE" "$DEFAULTS" "$GTMP/ceil81.yml" >/dev/null 2>&1; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #348: max_turns = 81 (über neuer Ceiling) → fail-closed"
@@ -1517,7 +1520,7 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   #   für security-review (→ Regel 2 hat nichts zu beanstanden) und die Form ist laut
   #   4c gültig (→ 4c passiert) — dennoch muss Regel 5 fallen, weil security-review
   #   keine größenabhängige Tier-Wahl haben darf. So testet AK3 wirklich Regel 5, nicht
-  #   einen Fremdpfad (#214: Ziel-Pfad isolieren + pfadspezifisches Signal assertieren).
+  #   einen Fremdpfad (nothra/tch-gastro-services#214: Ziel-Pfad isolieren + pfadspezifisches Signal assertieren).
   printf 'schemaVersion: 1\nmodel_tiers:\n  heavy: m-heavy\n  light: m-light\nskills:\n  security-review:\n    tier: heavy\n    max_turns: 14\n    tier_by_size: { signal: diff, threshold: 150 }\n  review:\n    tier: heavy\n    max_turns: 14\ndefault:\n  tier: light\n  max_turns: 10\n' > "$GTMP/def-sr-tbs.yml"
   # Expliziter leerer Override, damit NICHT die reale factory.config.yml als Default-$2
   # einspringt (deren Fremd-Keys würden sonst Regel 2 vor Regel 5 auslösen).
@@ -1629,7 +1632,7 @@ assert_true "$?" "config-validation-Job in factory-ci.yml"
 
 # Job-Block isoliert extrahieren (nicht das ganze File scannen) — sonst würde die
 # "kein Node/pnpm"-Prüfung (AK7) an einem Fremd-Job (z. B. lint/test) vorbeirutschen,
-# der pnpm durchaus nutzt. Abbruchregeln siehe ci_job_block (oben, Lesson #255).
+# der pnpm durchaus nutzt. Abbruchregeln siehe ci_job_block (oben, Lesson nothra/tch-gastro-services#255).
 cv_job_block="$(ci_job_block config-validation "$CI_FILE")"
 assert_true "$([[ -n "$cv_job_block" ]]; echo $?)" "config-validation-Job-Block ist extrahierbar"
 
@@ -1658,10 +1661,10 @@ assert_true "$([[ -n "$cv_defaults_line" && -n "$cv_config_line" && "$cv_default
 assert_true "$?" "AK7: config-validation-Job braucht kein Node/pnpm-Setup"
 
 # ── Behavior-Level: derselbe Aufruf wie im config-validation-Job, real ausgeführt ──
-# Ersetzt strukturell die entfernte "Gate #249 AK5"-Zeile (AK5) auf CI-Wiring-Ebene:
+# Ersetzt strukturell die entfernte "Gate nothra/tch-gastro-services#249 AK5"-Zeile (AK5) auf CI-Wiring-Ebene:
 # reine Wiring-Greps oben belegen nur, DASS der Job etwas Passendes aufruft, nicht
 # DASS der Aufruf tatsächlich grün/rot läuft (Review-Finding Runde 1, Task 255 —
-# Lesson #212: "Deterministisches Gate braucht E2E-Verhaltenstest, nicht nur Wiring-Grep").
+# Lesson nothra/tch-gastro-services#212: "Deterministisches Gate braucht E2E-Verhaltenstest, nicht nur Wiring-Grep").
 if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   # AK2 (Positiv, Nicht-Regression): realer, aktueller Repo-Stand → exit 0.
   bash "$GATE" "$FACTORY_ROOT/factory.defaults.yml" "$FACTORY_ROOT/factory.config.yml" >/dev/null 2>&1
@@ -1690,7 +1693,7 @@ else
   skip_yq "Config-Validation CI-Wiring (Behavior-Level AK1/AK2/AK4)"
 fi
 
-# ─── Stufe-3: Config-Wizards / Single-Source-Begründung (#35, ADR-011) ───────
+# ─── Stufe-3: Config-Wizards / Single-Source-Begründung (nothra/tch-gastro-services#35, ADR-011) ───────
 echo ""
 echo "Config-Wizards / Single-Source-Begründung (#35, ADR-011):"
 
@@ -1804,7 +1807,7 @@ assert_true "$?" "D (Task 249 AK8): model_tiers-Beispielblock nennt 'heavy' expl
 printf '#   heavy: claude-opus-4-8\n' | grep -qE '^#[[:space:]]*heavy:'
 assert_true "$?" "D (Task 249 AK8): Positiv-Kontrolle — Regex erkennt einen vorhandenen 'heavy:'-Beispiel-Knopf"
 
-# ─── start-work.sh: Worktree-Isolation (Kern-Vorkehrung gegen Session-Kollisionen, #74) ──
+# ─── start-work.sh: Worktree-Isolation (Kern-Vorkehrung gegen Session-Kollisionen, nothra/tch-gastro-services#74) ──
 echo "start-work.sh (Worktree-Isolation, #74):"
 
 SW="$CHECKS_DIR/../start-work.sh"   # scripts/start-work.sh
@@ -1836,7 +1839,7 @@ git -C "$REPO_SW" init -q -b main >/dev/null 2>&1
 git -C "$REPO_SW" config user.email t@t
 git -C "$REPO_SW" config user.name t
 git -C "$REPO_SW" commit -q --allow-empty -m init
-# Config der Fixture (#431): start-work liest commands.install / start_work.hint aus dem Quellbaum.
+# Config der Fixture (nothra/tch-gastro-services#431): start-work liest commands.install / start_work.hint aus dem Quellbaum.
 cp "$FACTORY_ROOT/factory.defaults.yml" "$REPO_SW/"
 cat > "$REPO_SW/factory.config.yml" <<'SWCFG'
 start_work:
@@ -1887,7 +1890,7 @@ git -C "$REPO_IP" push -q -u origin main >/dev/null 2>&1
 [ "$(git -C "$REPO_IP" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "feature/778-demo-y" ]
 assert_true "$?" "In-Place-Modus (FACTORY_NO_WORKTREE=1) branchet im Haupt-Baum"
 
-# ─── Art-Label bei der Issue-Anlage aus dem Branch-Typ ableiten (#80) ─────────
+# ─── Art-Label bei der Issue-Anlage aus dem Branch-Typ ableiten (nothra/tch-gastro-services#80) ─────────
 # Beschreibungs-Modus (Issue-first): der gh-Stub protokolliert die 'issue create'-Args;
 # geprüft wird, dass genau das erwartete Art-Label übergeben wird.
 run_create_label() {  # $1 = branch-typ, $2 = desc, $3 = extra-env ("VAR=val" oder "")
@@ -1911,7 +1914,7 @@ assert_true "$?" "Issue-Anlage: Branch-Typ docs → --label documentation"
 run_create_label feature ddd "FACTORY_ISSUE_LABEL=security" | grep -q -- "--label security"
 assert_true "$?" "Issue-Anlage: FACTORY_ISSUE_LABEL übersteuert die Ableitung"
 
-# #82: --labels reicht Aspekt-Labels (zusätzlich zum Art-Label) an den Seam durch.
+# nothra/tch-gastro-services#82: --labels reicht Aspekt-Labels (zusätzlich zum Art-Label) an den Seam durch.
 LOG_ASP="$TMP_SW/gh-asp.log"; : > "$LOG_ASP"
 ( cd "$REPO_SW" && env GH_LOG="$LOG_ASP" PATH="$TMP_SW/bin:$PATH" \
     FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
@@ -1921,7 +1924,7 @@ LOG_ASP="$TMP_SW/gh-asp.log"; : > "$LOG_ASP"
   && grep -q -- '--label test' "$LOG_ASP"; }
 assert_true "$?" "#82: start-work --labels reicht Aspekt-Labels an den Seam durch (Art + Aspekte)"
 
-# #82: FACTORY_ASPECT_LABELS wirkt wie --labels (Env-Variante).
+# nothra/tch-gastro-services#82: FACTORY_ASPECT_LABELS wirkt wie --labels (Env-Variante).
 LOG_ENV="$TMP_SW/gh-env.log"; : > "$LOG_ENV"
 ( cd "$REPO_SW" && env GH_LOG="$LOG_ENV" PATH="$TMP_SW/bin:$PATH" \
     FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" FACTORY_ASPECT_LABELS="security" \
@@ -1930,7 +1933,7 @@ LOG_ENV="$TMP_SW/gh-env.log"; : > "$LOG_ENV"
 grep -q -- '--label security' "$LOG_ENV"
 assert_true "$?" "#82: FACTORY_ASPECT_LABELS reicht Aspekt-Labels an den Seam durch"
 
-# #82 (F2-Regression): --labels als letztes Argument ohne Wert → klare usage()-Meldung + exit 1,
+# nothra/tch-gastro-services#82 (F2-Regression): --labels als letztes Argument ohne Wert → klare usage()-Meldung + exit 1,
 # kein wortloser Abbruch durch 'shift 2' unter set -e.
 asp_err=$( cd "$REPO_SW" && PATH="$TMP_SW/bin:$PATH" FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
   bash "$SW" "meine beschreibung" --labels 2>&1 ); asp_rc=$?
@@ -1938,9 +1941,9 @@ assert_exit 1 "$asp_rc" "#82: start-work --labels ohne Wert → exit 1 (kein wor
 printf '%s' "$asp_err" | grep -q -- '--labels erwartet einen Wert'
 assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
 
-# ─── #236: .env.local in den neuen Worktree spiegeln ─────────────────────────
+# ─── nothra/tch-gastro-services#236: .env.local in den neuen Worktree spiegeln ─────────────────────────
 # Die Datei ist gitignored und wandert beim 'worktree add' nicht mit, alle DEV-Skripte
-# laden sie aber per 'dotenv -e .env.local' (#228). Fixtures von oben werden bewusst
+# laden sie aber per 'dotenv -e .env.local' (nothra/tch-gastro-services#228). Fixtures von oben werden bewusst
 # wiederverwendet (gh-Stub, Wegwerf-Repo REPO_SW/REPO_IP, FACTORY_WT_SKIP_INSTALL=1).
 echo ""
 echo "#236 .env.local-Spiegelung in neue Worktrees:"
@@ -1988,7 +1991,7 @@ printf '%s' "$OUT_COPY" | grep -qF 'pnpm db:seed'
 assert_true "$?" "#236 AK6: nach der Kopie nennt der Abschluss-Output pnpm db:seed"
 # AK6 fordert Direktive UND Begründung („die geteilte lokale DB kennt die SEED_ADMIN_*-Daten
 # evtl. noch nicht"). Ohne eigene Assertion ließe sich die Begründungszeile ersatzlos löschen,
-# ohne dass die Suite es merkt (Lesson #117: je separierbaren AK-Teil eine eigene Assertion).
+# ohne dass die Suite es merkt (Lesson nothra/tch-gastro-services#117: je separierbaren AK-Teil eine eigene Assertion).
 printf '%s' "$OUT_COPY" | grep -qF 'SEED_ADMIN_*-Daten evtl. noch nicht'
 assert_true "$?" "#236 AK6: der db:seed-Hinweis nennt auch seine Begründung (SEED_ADMIN_*-Daten)"
 
@@ -2017,8 +2020,8 @@ assert_true "$?" "#236 AK3: der Output weist auf das Überspringen hin"
 # Bewusst NICHT auf „Worktree existiert bereits" festgenagelt: welcher der beiden greift, hängt an
 # einem exakten String-Vergleich gegen `git worktree list --porcelain`, und git meldet dort den
 # AUFGELÖSTEN Pfad. Unter einem symlink-behafteten Pfad (macOS: mktemp -d unter /var/folders →
-# /private/var/folders) greift deshalb der Nachbar-Zweig. Vorbestehende Fragilität aus #74,
-# außerhalb dieses Scopes (Task-Notiz #236).
+# /private/var/folders) greift deshalb der Nachbar-Zweig. Vorbestehende Fragilität aus nothra/tch-gastro-services#74,
+# außerhalb dieses Scopes (Task-Notiz nothra/tch-gastro-services#236).
 printf '%s' "$OUT_KEEP" | grep -qF 'wird wiederverwendet'
 assert_true "$?" "#236 AK3: der zweite Lauf verwendet den vorhandenen Worktree wieder"
 assert_absent "$OUT_KEEP" 'Worktree + Branch angelegt' "#236 AK3: der zweite Lauf legt keinen Worktree neu an"
@@ -2030,7 +2033,7 @@ assert_absent "$OUT_COPY" 'wird wiederverwendet' "#236 AK3: Diskriminierung – 
 
 # Der Ziel-Guard prüft '-e ODER -L': ein DEFEKTER Symlink ist für -e unsichtbar, ist aber
 # vorhandene lokale Konfiguration. Ohne die -L-Alternative ersetzte cp ihn und zerstörte genau
-# das, was AK3 schützt (Lesson #258: OR-Fragment mit nie feuernder Alternative).
+# das, was AK3 schützt (Lesson nothra/tch-gastro-services#258: OR-Fragment mit nie feuernder Alternative).
 run_start_work "$TMP_SW/wt-236-symtgt" 787 demo-symtgt >/dev/null
 WT_SYMTGT="$TMP_SW/wt-236-symtgt/feature-787-demo-symtgt/.env.local"
 rm -f "$WT_SYMTGT"
@@ -2050,7 +2053,7 @@ rm -f "$WT_SYMTGT"
 WT_SKIP="$TMP_SW/wt-236-skipenv/feature-782-demo-skipenv"
 OUT_SKIP=$(run_start_work "$TMP_SW/wt-236-skipenv" 782 demo-skipenv "FACTORY_WT_SKIP_ENV=1")
 # „Der Lauf ist wirklich durchgelaufen"-Anker: ohne ihn wären die Abwesenheits-Assertions auch
-# dann grün, wenn start-work vor dem Kopier-Schritt abgebrochen wäre (Lesson #214).
+# dann grün, wenn start-work vor dem Kopier-Schritt abgebrochen wäre (Lesson nothra/tch-gastro-services#214).
 printf '%s' "$OUT_SKIP" | grep -q 'Bereit!'
 assert_true "$?" "#236 AK4: der Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
 assert_true "$([ -d "$WT_SKIP" ]; echo $?)" \
@@ -2118,7 +2121,7 @@ fi
 # (ENOSPC/EIO) oder nur das '-p' (chmod/utimes) misslingt (exFAT/SMB). Ohne Aufräumen bliebe ein
 # Rest liegen, den der AK3-Guard („existiert bereits – wird nicht überschrieben") bei JEDEM
 # Folgelauf konservierte: der kaputte Zustand wäre permanent, Symptom wieder CredentialsSignin
-# (#228). Der bereits unlesbar getestete Fall deckt das nicht ab – dort scheitert cp am open()
+# (nothra/tch-gastro-services#228). Der bereits unlesbar getestete Fall deckt das nicht ab – dort scheitert cp am open()
 # der Quelle, das Ziel entsteht nie. Ein echtes cp lässt sich nicht zum Teilabbruch zwingen;
 # der PATH-Stub (dieselbe Mechanik wie der gh-Stub dieses Blocks) stellt genau diesen Zustand her.
 cat > "$TMP_SW/bin/cp" << 'CPSTUB'
@@ -2149,7 +2152,7 @@ assert_true "$?" "#236 Fehlerfall: der Folgelauf kopiert vollständig (Teilabbru
 # ENOENT); die rm-Zeile steht in keiner Bedingung, also bricht 'set -e' den Lauf WORTLOS ab –
 # ohne Warnung und ohne die Schritte 3–5, die vor diesem PR noch erreicht wurden.
 # Referenzpunkt ist bewusst „Schritt 3 wird erreicht", nicht 'Bereit!': dass Schritt 3 an
-# seinem eigenen 'mkdir -p' scheitert, ist vorbestehendes #74-Verhalten (der :210-Zweig kennt
+# seinem eigenen 'mkdir -p' scheitert, ist vorbestehendes nothra/tch-gastro-services#74-Verhalten (der :210-Zweig kennt
 # keinen Nicht-Verzeichnis-Pfad) und außerhalb dieses Scopes – gemessen wird nur, dass der
 # Kopier-Block den Abbruchpunkt nicht nach vorne zieht.
 WT_NOTDIR_BASE="$TMP_SW/wt-236-notdir"
@@ -2202,7 +2205,7 @@ printf 'DATABASE_URL=postgres://demo\n' > "$REPO_IP/.env.local"
 OUT_IP=$( cd "$REPO_IP" && PATH="$TMP_SW/bin:$PATH" \
     FACTORY_DIR="$REPO_IP" FACTORY_REPO="acme/demo" FACTORY_NO_WORKTREE=1 \
     bash "$SW" 783 demo-ip 2>&1 )
-# „Der Lauf ist wirklich durchgelaufen"-Anker vor den Abwesenheits-Assertions (Lesson #214):
+# „Der Lauf ist wirklich durchgelaufen"-Anker vor den Abwesenheits-Assertions (Lesson nothra/tch-gastro-services#214):
 # der In-Place-Zweig macht zusätzlich checkout/rebase gegen das Bare-Remote und könnte davor enden.
 printf '%s' "$OUT_IP" | grep -q 'Bereit!'
 assert_true "$?" "#236 AK8: der In-Place-Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
@@ -2220,9 +2223,9 @@ assert_true "$?" "#236: der .env.local-Kopierschritt steht vor dem Install-Schri
 
 # AK9: Doku-Drift im selben PR nachgezogen. Die Mehrwort-Prosa-Anker laufen über flat_286()
 # (Definition am Dateikopf): ein Doku-Reflow bräche einen zeilengebundenen `grep -qF`-Anker
-# sonst lautlos – den Präsenz-Guard rot, den Abwesenheits-Guard grün (Lesson #240/#249/#286).
+# sonst lautlos – den Präsenz-Guard rot, den Abwesenheits-Guard grün (Lesson nothra/tch-gastro-services#240/#249/#286).
 sw_header=$(awk '/^set -euo pipefail/{exit} {print}' "$SW")
-# Die Extraktion selbst belegen (#255, hier in Fail-open-Richtung): ändert sich der Sentinel
+# Die Extraktion selbst belegen (nothra/tch-gastro-services#255, hier in Fail-open-Richtung): ändert sich der Sentinel
 # (z. B. 'set -Eeuo pipefail'), liefert awk die GANZE Datei – der Guard darunter fände
 # FACTORY_WT_SKIP_ENV dann im Produktionscode (:228) und bliebe grün, obwohl der Kopf-Kommentar,
 # also der Prüfgegenstand von AK9(d), gelöscht sein kann.
@@ -2241,9 +2244,9 @@ assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_ENV=1` = die (gitig
 # (AK9(a)/(b) – Lesson und Index-Zeile zur .env.local-Spiegelung – entfallen im Factory-Repo: die Lesson
 # gehört dem adoptierenden Projekt, nicht der Factory-Auslieferung.)
 
-# ─── #267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
+# ─── nothra/tch-gastro-services#267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
 # Läuft hier (vor dem TMP_SW-Aufräumen unten), weil AK5 die gh-Stub/REPO_SW-Fixtures aus dem
-# #74/#236-Block braucht. Die Session-Empfehlung wird nicht mehr mit „kein geteilter HEAD"
+# nothra/tch-gastro-services#74/#236-Block braucht. Die Session-Empfehlung wird nicht mehr mit „kein geteilter HEAD"
 # begründet – zwei getrennte Aussagen im Abschluss-Output.
 echo ""
 echo "#267 AK5: start-work.sh Abschluss-Output trennt Worktree-Fakt und Session-Empfehlung:"
@@ -2266,7 +2269,7 @@ old_same_line_267=$(printf '%s\n' "$OLD_LINE_267" | grep -F "kein geteilter HEAD
 assert_true "$([ "$old_same_line_267" -gt 0 ]; echo $?)" \
   "AK5 (Mutation): die alte, kombinierte Formulierung hätte den Trennungs-Guard reißen lassen"
 
-# ─── #322: Session-Empfehlung ist an Schritt 2 (/implement) gebunden, nicht an den ───────────
+# ─── nothra/tch-gastro-services#322: Session-Empfehlung ist an Schritt 2 (/implement) gebunden, nicht an den ───────────
 # Worktree-Fakt oder an Schritt 0/1 (/requirements). Nutzt denselben OUT_267 wie AK5 oben.
 echo ""
 echo "#322: start-work.sh bindet die Session-Empfehlung an Schritt 2 (/implement):"
@@ -2301,8 +2304,8 @@ old_rec_line_322=$(printf '%s\n' "$OLD_TAIL_322" | grep -n 'Empfehlung (keine Pf
 assert_true "$([ -n "$old_head_line_322" ] && [ -n "$old_rec_line_322" ] && [ "$old_head_line_322" -lt "$old_rec_line_322" ]; echo $?)" \
   "#322 (Mutation): die alte Reihenfolge (Fakt vor Empfehlung) hätte die neue Bindungs-Prüfung nicht erfüllt"
 
-# ─── #322 Fehlerszenario 1 (Spec): FACTORY_NO_WORKTREE=1 – Formulierung bleibt sinnvoll ──────
-# Nutzt den bereits geklonten In-Place-Baum $REPO_IP (siehe #74/#236-Block oben) für einen
+# ─── nothra/tch-gastro-services#322 Fehlerszenario 1 (Spec): FACTORY_NO_WORKTREE=1 – Formulierung bleibt sinnvoll ──────
+# Nutzt den bereits geklonten In-Place-Baum $REPO_IP (siehe nothra/tch-gastro-services#74/#236-Block oben) für einen
 # zweiten start-work.sh-Lauf mit anderer Task-ID – start-work.sh checkt vorher $DEFAULT_BRANCH
 # aus, ein zweiter Lauf auf demselben Klon ist damit unproblematisch.
 echo ""
@@ -2327,14 +2330,14 @@ assert_true "$([ "$no_claude_session_before_step2_nowt_322" -eq 0 ]; echo $?)" \
 
 rm -rf "$TMP_SW"
 
-# ─── #91: factory-commit.sh (Commit/Push-Seam, ADR-019) ──────────────────────
+# ─── nothra/tch-gastro-services#91: factory-commit.sh (Commit/Push-Seam, ADR-019) ──────────────────────
 echo ""
 echo "#91 factory-commit.sh (Commit/Push-Seam, ADR-019):"
 
 FCOMMIT="$SCRIPTS_DIR/factory-commit.sh"
 assert_true "$([[ -f "$FCOMMIT" ]]; echo $?)" "scripts/factory-commit.sh vorhanden"
 
-# Wegwerf-Repo mit Bare-Remote als Push-Ziel (reales git, Muster start-work-Test #74).
+# Wegwerf-Repo mit Bare-Remote als Push-Ziel (reales git, Muster start-work-Test nothra/tch-gastro-services#74).
 # fc_repo <name> → legt Bare-Remote + Klon an, gibt den Arbeitsbaum-Pfad auf stdout.
 TMP_FC="$(mktemp -d)"
 fc_repo() {
@@ -2413,7 +2416,7 @@ echo "w" > "$WT/change.txt"
 ( cd "$WT" && bash "$FCOMMIT" "feat: push fail" ) >/dev/null 2>&1
 assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: push scheitert → exit ≠ 0 (Ursache weitergereicht)"
 
-# ─── #239: leerer Commit-Zweig holt ausstehenden Push nach ───────────────────
+# ─── nothra/tch-gastro-services#239: leerer Commit-Zweig holt ausstehenden Push nach ───────────────────
 echo ""
 echo "#239 factory-commit.sh (Push-Nachholen im leeren Zweig):"
 
@@ -2470,12 +2473,12 @@ assert_true "$([ $fc_rc -ne 0 ]; echo $?)" "factory-commit: Nachhol-Push scheite
 printf '%s' "$fc_out" | grep -qF 'hole ausstehenden Push nach'
 assert_true "$?" "factory-commit: Fehlschlag stammt aus dem erreichten Push-Pfad (nicht aus einem anderen Grund)"
 
-# ─── #262: -h/--help ist eine Hilfe-Anfrage, keine Commit-Message ────────────
+# ─── nothra/tch-gastro-services#262: -h/--help ist eine Hilfe-Anfrage, keine Commit-Message ────────────
 echo ""
 echo "#262 factory-commit.sh (-h/--help-Guard):"
 
 # AK5 (reguläre Message committet + pusht wie bisher) ist bereits durch Fall 1 oben
-# abgedeckt – hier keine zweite Happy-Path-Schleife (Lesson #240).
+# abgedeckt – hier keine zweite Happy-Path-Schleife (Lesson nothra/tch-gastro-services#240).
 # Tabelle „Flag|Fixture-Name", damit die Wegwerf-Repos sprechend heißen (statt aus dem Flag
 # generierter Namen wie 'helph').
 for flag_case in "-h|helpshort" "--help|helplong"; do
@@ -2493,7 +2496,7 @@ for flag_case in "-h|helpshort" "--help|helplong"; do
   # `git diff --cached --quiet` vergleicht Index gegen HEAD, nicht gegen leer: liefe trotz
   # entferntem Guard `git add -A && git commit`, wäre der Index danach == neuer HEAD → grün
   # aus dem falschen Grund. Stattdessen direkt prüfen, dass die neue Datei unverändert
-  # untracked bleibt – das gilt nur, wenn `git add` nie lief (Lesson #214).
+  # untracked bleibt – das gilt nur, wenn `git add` nie lief (Lesson nothra/tch-gastro-services#214).
   [ "$(git -C "$WT" status --porcelain -- change.txt)" = "?? change.txt" ]
   assert_true "$?" "factory-commit AK4: '$flag_arg' führt kein 'git add' aus (Datei bleibt untracked)"
   git -C "$WT" rev-parse origin/feature/262-help >/dev/null 2>&1
@@ -2511,7 +2514,7 @@ assert_true "$?" "factory-commit AK4: '--help extra' scheitert an der Argumentza
 
 # Fehlerszenario 2 der Spec, `factory-commit.sh`-Seite: die leere Message läuft weiterhin in
 # die bestehende Leer-Prüfung (`[ -z "${1:-}" ]`) – der neue -h/--help-Guard davor darf sie
-# nicht aushebeln. Der Fall „gar kein Argument" (#91, Fall 5) deckt das nicht ab.
+# nicht aushebeln. Der Fall „gar kein Argument" (nothra/tch-gastro-services#91, Fall 5) deckt das nicht ab.
 WT=$(fc_repo emptymsg)
 git -C "$WT" checkout -q -b feature/262-emptymsg
 HEAD_BEFORE=$(git -C "$WT" rev-parse HEAD)
@@ -2536,7 +2539,7 @@ assert_true "$?" "factory-commit AK6: '-x' wird wie bisher gepusht"
 
 rm -rf "$TMP_FC"
 
-# ─── #91: Report-Verdict-Helper / run_skill-Report-Guard (ADR-019 §4) ────────
+# ─── nothra/tch-gastro-services#91: Report-Verdict-Helper / run_skill-Report-Guard (ADR-019 §4) ────────
 echo ""
 echo "#91 Report-Verdict-Helper (run_skill-Guard, ADR-019 §4):"
 
@@ -2607,14 +2610,14 @@ assert_true "$?" "#91: run-pipeline.sh sourct den geteilten Verdict-Helper"
 grep -q 'report_verdict' "$PIPELINE"
 assert_true "$?" "#91: run_skill/pipeline_summary nutzen report_verdict (ein Ort)"
 
-# AK5/AK6/AK7 (#211): Phase-2-Loop + Security-Gate lesen den Verdict ausschließlich über den
+# AK5/AK6/AK7 (nothra/tch-gastro-services#211): Phase-2-Loop + Security-Gate lesen den Verdict ausschließlich über den
 # Anker-Helper – die alten Volltext-Greps über den ganzen Report sind entfernt (ein Ort).
 grep -qF 'grep -q "APPROVED"' "$PIPELINE"; approved_grep=$?
 assert_true "$([ "$approved_grep" -ne 0 ]; echo $?)" "AK5 (#211): Phase-2-Loop ohne Volltext-grep \"APPROVED\""
 grep -qF 'grep -q "NEEDS_FIXES"' "$PIPELINE"; needsfixes_grep=$?
 assert_true "$([ "$needsfixes_grep" -ne 0 ]; echo $?)" "AK6 (#211): Security-Gate ohne Volltext-grep \"NEEDS_FIXES\""
 
-# Budget-Puffer: review + security-review auf max_turns 30 (ADR-019 §5 + Nachtrag #252;
+# Budget-Puffer: review + security-review auf max_turns 30 (ADR-019 §5 + Nachtrag nothra/tch-gastro-services#252;
 # 8→14 in Task 91, 14→30 in Task 241/252 als validierter Wert kalibriert).
 if [ "$HAS_YQ" = 1 ]; then
   [ "$(yq '.skills.review.max_turns' "$DEFAULTS_YML")" = "30" ] \
@@ -2624,7 +2627,7 @@ else
   skip_yq "#91: review + security-review max_turns=30"
 fi
 
-# ─── #214: Contract-Drift-Guard – Report-Anker ↔ Parser-Konstanten ───────────
+# ─── nothra/tch-gastro-services#214: Contract-Drift-Guard – Report-Anker ↔ Parser-Konstanten ───────────
 # Die Verdict-/Section-Parser koppeln HART an die Anker-Überschriften der Report-Contracts
 # (.claude/commands/review.md, security-review.md). Wird eine Überschrift umbenannt, bricht die
 # Pipeline STILL (leeres Verdict / Count 0), ohne dass ein Test rot wird. Dieser Guard macht den
@@ -2641,7 +2644,7 @@ SECURITY_MD214="$FACTORY_ROOT/.claude/commands/security-review.md"
 # report_verdict-case-Zeile aus dem echten Parser-Skript (AC6: nicht im Test dupliziert).
 extract_verdict_header() {
   local skill="$1" lib="$2"
-  # Die Lib hat seit #310 mehrere case-Blöcke über dieselben Skill-Namen (report_file für den
+  # Die Lib hat seit nothra/tch-gastro-services#310 mehrere case-Blöcke über dieselben Skill-Namen (report_file für den
   # Pfad, report_verdict für Anker + Tokens). Der `header='`-Filter wählt den Parser-Block –
   # ohne ihn liefert `head -n1` die Pfad-Zeile aus report_file und der Guard wird falsch rot.
   # Der Pipeline-Exit wird bewusst nicht ausgewertet (nur der String zählt, kein `set -e`):
@@ -2768,7 +2771,7 @@ assert_exit 1 "$rc214" "F1 (#214): leere Command-Datei → Guard rot (fail-close
 # Isoliert auf den exakt-verankerten report_verdict-Pfad: die echte review.md wird kopiert und nur
 # die '## Empfehlung'-Überschriftszeile in Fließtext verwandelt. Alle Findings-Sektionen bleiben
 # intakt → count_section_items besteht; rot darf NUR die Verdict-Exaktverankerung erzeugen (sonst
-# bliebe die #211-Regression „Verdict unankert" unentdeckt – Review-Finding W1).
+# bliebe die nothra/tch-gastro-services#211-Regression „Verdict unankert" unentdeckt – Review-Finding W1).
 sed "s/^${review_header214}\$/Siehe Abschnitt ${review_header214} weiter unten./" \
   "$REVIEW_MD214" > "$TMP214/prose-only.md"
 out214=$(drift_guard "$TMP214/prose-only.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
@@ -2812,7 +2815,7 @@ assert_true "$?" "Fail-closed (#214): meldet nicht-extrahierbare Sektionen (kein
 rm -rf "$TMP214"
 unset -f drift_guard extract_verdict_header extract_section_headers
 
-# ─── #91: Permissions-Konsistenz (.claude/settings.json, ADR-019 §2/§3) ──────
+# ─── nothra/tch-gastro-services#91: Permissions-Konsistenz (.claude/settings.json, ADR-019 §2/§3) ──────
 echo ""
 echo "#91 Permissions-Konsistenz (.claude/settings.json):"
 
@@ -2832,23 +2835,23 @@ assert_true "$?" "#91: read-only-git (status/diff/log/branch/rev-parse) in allow
   && grep -qF 'Bash(gh run list:*)' "$SETTINGS" && grep -qF 'Bash(gh run rerun:*)' "$SETTINGS"; }
 assert_true "$?" "#91: granulare gh-Verben (pr-shepherd) in allow"
 
-# #94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Status auflösen, Schritt 5b) –
+# nothra/tch-gastro-services#94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Status auflösen, Schritt 5b) –
 # konsistent zur allow-Liste, damit der freigegebene Verb auch im Skill sichtbar genutzt wird.
 grep -qF 'gh pr ready' "$SHEPHERD"
 assert_true "$?" "#94: pr-shepherd.md dokumentiert 'gh pr ready' (Draft-Auflösung)"
 
-# #94 (AC2): 'gh pr ready' ist hinter einem isDraft-Guard dokumentiert – nicht unbedingt
+# nothra/tch-gastro-services#94 (AC2): 'gh pr ready' ist hinter einem isDraft-Guard dokumentiert – nicht unbedingt
 # aufgerufen. Schützt die "nur bei Draft"-Semantik gegen ein späteres Entfernen des Guards.
 grep -qF 'isDraft' "$SHEPHERD"
 assert_true "$?" "#94: pr-shepherd.md guardet 'gh pr ready' hinter isDraft-Check (AC2)"
 
-# #114: pr-shepherd Schritt 6 committet+pusht die Abschlussnotiz VOR dem Auto-Merge.
-# Bei Squash-Merge landet eine nur lokal geschriebene Notiz sonst nie auf main (#112).
+# nothra/tch-gastro-services#114: pr-shepherd Schritt 6 committet+pusht die Abschlussnotiz VOR dem Auto-Merge.
+# Bei Squash-Merge landet eine nur lokal geschriebene Notiz sonst nie auf main (nothra/tch-gastro-services#112).
 # factory-commit.sh ist der mandatierte Commit/Push-Seam (ADR-019) → deckt commit UND push ab.
 grep -qF 'factory-commit.sh' "$SHEPHERD"
 assert_true "$?" "#114: pr-shepherd.md committet Abschlussnotiz via factory-commit.sh"
 
-# #114 (Reihenfolge): der commit+push-Schritt steht VOR dem Freigabe-Kommando
+# nothra/tch-gastro-services#114 (Reihenfolge): der commit+push-Schritt steht VOR dem Freigabe-Kommando
 # 'gh pr merge --auto --squash' – sonst greift die Härtung nicht (Notiz muss auf dem
 # Feature-Branch liegen, bevor Auto-Merge feuert). Bewusst gegen die volle '--squash'-
 # Form geprüft: die kürzere 'gh pr merge --auto'-Erwähnung in Schritt 4 ist nur ein
@@ -2885,28 +2888,28 @@ line_before() {
 assert_true "$(line_before 'factory-commit.sh' 'gh pr merge --auto --squash' "$SHEPHERD"; echo $?)" \
   "#114: Abschlussnotiz wird vor 'gh pr merge --auto --squash' committet (Reihenfolge)"
 
-# #117: pr-shepherd Schritt 2 (Review-Kommentare auflösen) committet Review-Fixes über den
-# Commit/Push-Seam factory-commit.sh (ADR-019) – analog Schritt 6 (#114) und implement/test/
+# nothra/tch-gastro-services#117: pr-shepherd Schritt 2 (Review-Kommentare auflösen) committet Review-Fixes über den
+# Commit/Push-Seam factory-commit.sh (ADR-019) – analog Schritt 6 (nothra/tch-gastro-services#114) und implement/test/
 # refactor. Bewusst gegen den Schritt-2-ABSCHNITT geprüft (Zeilenbereich zwischen den Headern
 # '### Schritt 2' und '### Schritt 3'), NICHT global: der bereits vorhandene Schritt-6-Treffer
-# darf den Guard nicht fälschlich grün färben (Lehre #114: ein Treffer im falschen Abschnitt ist
+# darf den Guard nicht fälschlich grün färben (Lehre nothra/tch-gastro-services#114: ein Treffer im falschen Abschnitt ist
 # so wenig ein Nachweis wie ein Prosa-Treffer).
 assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'factory-commit.sh'; echo $?)" \
   "#117: pr-shepherd.md Schritt 2 committet Review-Fixes via factory-commit.sh (Seam)"
 
-# #117 (AC2): das Seam-Kommando trägt im selben Abschnitt die fail-closed-Begründung mit
+# nothra/tch-gastro-services#117 (AC2): das Seam-Kommando trägt im selben Abschnitt die fail-closed-Begründung mit
 # ADR-019-Verweis – separat vom Kommando prüfbar, damit ein späteres Entfernen der Begründung
 # (bei erhaltenem Kommando) auffällt. Wieder auf den Schritt-2-Abschnitt eingegrenzt.
 assert_true "$(section_contains '### Schritt 2' '### Schritt 3' "$SHEPHERD" 'ADR-019'; echo $?)" \
   "#117: pr-shepherd.md Schritt 2 nennt die fail-closed-Begründung (ADR-019)"
 
-# #158 (ADR-030): pr-shepherd Schritt 6 wählt den Merge-Modus nach PR-Zustand.
+# nothra/tch-gastro-services#158 (ADR-030): pr-shepherd Schritt 6 wählt den Merge-Modus nach PR-Zustand.
 # GitHub lehnt 'gh pr merge --auto' bei bereits mergebarem PR (mergeStateStatus: CLEAN)
 # ab – Schritt 6 muss den Zustand lesen und bei CLEAN direkt squash-mergen (fail-closed:
 # alles außer CLEAN → --auto). Schritt 6 ist der letzte '### Schritt' → Abschnittsende ist
-# '## Regeln'. AC1, AC2 und AC4 sind separat prüfbare Kriterien (je eine Assertion, #117-Regel):
+# '## Regeln'. AC1, AC2 und AC4 sind separat prüfbare Kriterien (je eine Assertion, nothra/tch-gastro-services#117-Regel):
 # entfällt die Zustandsprüfung, bleibt AC2 grün und umgekehrt, und die AC4-Reihenfolge ist von
-# beiden unabhängig (Unabhängigkeit belegt in der #94-Temp-Verifikation: unpatched → alle rot,
+# beiden unabhängig (Unabhängigkeit belegt in der nothra/tch-gastro-services#94-Temp-Verifikation: unpatched → alle rot,
 # patched → alle grün).
 
 # AC1: Zustandsprüfung 'mergeStateStatus' im Schritt-6-Abschnitt.
@@ -2915,21 +2918,21 @@ assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'mergeSt
 
 # AC2: Direct-Merge-Fallback 'gh pr merge --squash' (ohne --auto) im Schritt-6-Abschnitt.
 # Bewusst gegen die volle 'gh pr merge --squash'-Zeile geprüft: sie ist KEIN Teilstring von
-# 'gh pr merge --auto --squash' (Lehre #114: Kommando ≠ Teil-Match), der Grep matcht also
+# 'gh pr merge --auto --squash' (Lehre nothra/tch-gastro-services#114: Kommando ≠ Teil-Match), der Grep matcht also
 # nicht fälschlich die --auto-Zeile.
 assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'gh pr merge --squash'; echo $?)" \
   "#158: pr-shepherd.md Schritt 6 hat Direct-Merge-Fallback (gh pr merge --squash)"
 
 # AC3: der --auto-Fallback bleibt im Schritt-6-Abschnitt für laufende Checks (≠ CLEAN) erhalten.
-# Separierbar von AC2 (#117): würde der else-Zweig ebenfalls auf direkten Merge umgestellt,
-# bliebe AC2 grün, aber dieser Guard rot. Section-begrenzt (nicht global wie der #114-Order-
-# Guard), damit AC3 als eigenes Kriterium diagnostizierbar ist – nicht nur transitiv über #114.
+# Separierbar von AC2 (nothra/tch-gastro-services#117): würde der else-Zweig ebenfalls auf direkten Merge umgestellt,
+# bliebe AC2 grün, aber dieser Guard rot. Section-begrenzt (nicht global wie der nothra/tch-gastro-services#114-Order-
+# Guard), damit AC3 als eigenes Kriterium diagnostizierbar ist – nicht nur transitiv über nothra/tch-gastro-services#114.
 assert_true "$(section_contains '### Schritt 6' '## Regeln' "$SHEPHERD" 'gh pr merge --auto --squash'; echo $?)" \
   "#158: pr-shepherd.md Schritt 6 behält --auto-Fallback für laufende Checks (gh pr merge --auto --squash)"
 
 # AC4: die Abschlussnotiz (factory-commit.sh) steht AUCH VOR dem Direct-Merge-Zweig – nicht
-# nur vor der --auto-Zeile (bereits durch #114 oben geprüft). Sonst könnte der direkte Merge
-# vor dem Notiz-Push feuern (Notiz landet nie auf main, #112/#114). Zweiter Marker
+# nur vor der --auto-Zeile (bereits durch nothra/tch-gastro-services#114 oben geprüft). Sonst könnte der direkte Merge
+# vor dem Notiz-Push feuern (Notiz landet nie auf main, nothra/tch-gastro-services#112/#114). Zweiter Marker
 # 'gh pr merge --squash' ist die Direct-Zeile, nicht die --auto-Zeile (kein Teilstring, s. o.).
 assert_true "$(line_before 'factory-commit.sh' 'gh pr merge --squash' "$SHEPHERD"; echo $?)" \
   "#158: Abschlussnotiz wird vor 'gh pr merge --squash' (Direct-Merge) committet (Reihenfolge)"
@@ -2939,9 +2942,9 @@ assert_true "$(! grep -qE 'Bash\(git \*\)|Bash\(gh \*\)' "$SETTINGS"; echo $?)" 
   "#91: kein pauschales Bash(git *)/Bash(gh *)"
 
 # deny unverändert: .claude/** und .env* bleiben gesperrt. Bewusster jq-unabhängiger
-# Fallback (läuft IMMER, auch ohne jq) neben der geparsten #224-Gegenrichtungsprüfung unten
-# (AK4) – die dortige jq-Prüfung wird bei fehlendem jq übersprungen (Review-Finding #224).
-# Write(...)-Pendants sind seit #240 entfernt (wirkungslos, Edit(...) deckt beide Tools ab).
+# Fallback (läuft IMMER, auch ohne jq) neben der geparsten nothra/tch-gastro-services#224-Gegenrichtungsprüfung unten
+# (AK4) – die dortige jq-Prüfung wird bei fehlendem jq übersprungen (Review-Finding nothra/tch-gastro-services#224).
+# Write(...)-Pendants sind seit nothra/tch-gastro-services#240 entfernt (wirkungslos, Edit(...) deckt beide Tools ab).
 { grep -qF 'Edit(.claude/**)' "$SETTINGS" && grep -qF 'Edit(.env*)' "$SETTINGS" \
   && grep -qF 'Read(.env*)' "$SETTINGS" \
   && ! grep -qF 'Write(.claude/**)' "$SETTINGS" && ! grep -qF 'Write(.env*)' "$SETTINGS"; }
@@ -2953,7 +2956,7 @@ for sk in implement test refactor bug-fix; do
   assert_true "$?" "#91: /$sk committet/pusht über scripts/factory-commit.sh"
 done
 
-# ─── #224: Top-Level-YAML-Freigabe + Write-Symmetrie (.claude/settings.json) ─
+# ─── nothra/tch-gastro-services#224: Top-Level-YAML-Freigabe + Write-Symmetrie (.claude/settings.json) ─
 # AK5: die GEPARSTE allow-/deny-Liste wird geprüft (jq-Array-Lookup), nicht ein bloßer
 # Text-Treffer irgendwo in der Datei – je Eintrag eine eigene Assertion, damit der Wegfall
 # genau eines Eintrags genau die zugehörige Assertion rot färbt (AK5). AK6: $SETTINGS zeigt auf
@@ -2961,7 +2964,7 @@ done
 echo ""
 echo "#224 Top-Level-YAML-Freigabe (.claude/settings.json):"
 
-# #251: gemeinsame Werteliste für die jq-Schleife (unten) UND den jq-unabhängigen Grep-Fallback
+# nothra/tch-gastro-services#251: gemeinsame Werteliste für die jq-Schleife (unten) UND den jq-unabhängigen Grep-Fallback
 # (weiter unten, außerhalb des HAS_JQ-Blocks) – als geteilte Konstante statt zweimal ausgeschrieben,
 # damit beide Stellen nicht auseinanderdriften können (lessons/testing.md: Literale, die an zwei
 # Stellen identisch bleiben müssen, sofort als geteilte Konstante einführen).
@@ -2981,23 +2984,23 @@ if [ "$HAS_JQ" -eq 1 ]; then
   # Verzeichnistiefe, gitignore-Semantik – die Spec adressiert aber ausdrücklich nur
   # Top-Level-Dateien; alle vier realen Zieldateien liegen im Root, root-verankert verliert
   # nichts, schließt aber die Least-Privilege-Lücke für künftige *.yml/*.yaml-Dateien).
-  # #251 erweitert dieselbe Liste um die 16 ursprünglichen #88-Edit(...)-Allow-Einträge (statt
+  # nothra/tch-gastro-services#251 erweitert dieselbe Liste um die 16 ursprünglichen nothra/tch-gastro-services#88-Edit(...)-Allow-Einträge (statt
   # einer zweiten, rumpfidentischen Schleife danebenzustellen – exakt das in
   # lessons/testing.md ("Neue Regressions-Assertion-Schleife … abgleichen") kodifizierte
-  # #240-Learning; Präzedenzfall im selben File: die #240-AK1-Schleife unten vereint ebenso
+  # nothra/tch-gastro-services#240-Learning; Präzedenzfall im selben File: die nothra/tch-gastro-services#240-AK1-Schleife unten vereint ebenso
   # zwei unterschiedliche Eintragsgruppen in einer Liste statt zwei getrennten Schleifen).
-  # Die 16 #88-Einträge kommen aus dem gemeinsamen EDIT_ALLOW_88-Array oben (geteilt mit dem
+  # Die 16 nothra/tch-gastro-services#88-Einträge kommen aus dem gemeinsamen EDIT_ALLOW_88-Array oben (geteilt mit dem
   # Grep-Fallback weiter unten).
   for entry in 'Edit(/*.yml)' 'Edit(/*.yaml)' "${EDIT_ALLOW_88[@]}"; do
     jq -e --arg v "$entry" '.permissions.allow | index($v) != null' "$SETTINGS" >/dev/null 2>&1
     assert_true "$?" "#224/#251: allow (geparst) enthält '$entry'"
   done
 
-  # #240 AK1 (alle 18 vormals in allow vorhandenen Write(...)-Einträge): Die 11 ursprünglichen
-  # Write(<verzeichnis>/**)-Einträge (aus #88) und die 7 Write(<extension>)-Einträge (aus der
-  # #224-Symmetrie-Ergänzung) waren laut claude --print-Probe gleichermaßen wirkungslos (nur
+  # nothra/tch-gastro-services#240 AK1 (alle 18 vormals in allow vorhandenen Write(...)-Einträge): Die 11 ursprünglichen
+  # Write(<verzeichnis>/**)-Einträge (aus nothra/tch-gastro-services#88) und die 7 Write(<extension>)-Einträge (aus der
+  # nothra/tch-gastro-services#224-Symmetrie-Ergänzung) waren laut claude --print-Probe gleichermaßen wirkungslos (nur
   # Edit(pfad) deckt Edit+Write ab – das eigentliche Verhalten liefert weiterhin Edit(/*.yml)/
-  # Edit(/*.yaml) aus der Schleife oben) und wurden in #240 entfernt. Je Eintrag eine eigene
+  # Edit(/*.yaml) aus der Schleife oben) und wurden in nothra/tch-gastro-services#240 entfernt. Je Eintrag eine eigene
   # Assertion (nicht nur der pauschale Check weiter unten), damit ein versehentlich wieder
   # eingeführter Einzeleintrag namentlich rot färbt.
   for entry in 'Write(app/**)' 'Write(lib/**)' 'Write(db/**)' 'Write(e2e/**)' \
@@ -3009,23 +3012,23 @@ if [ "$HAS_JQ" -eq 1 ]; then
     assert_true "$?" "#240: allow (geparst) enthält NICHT mehr '$entry'"
   done
 
-  # AK4 (Gegenrichtung): #88-Grenze unverändert – bestehende Edit(...)-Deny-Einträge bleiben
-  # erhalten. Die Write(...)-Pendants waren wirkungslos und sind seit #240 entfernt (separat
+  # AK4 (Gegenrichtung): nothra/tch-gastro-services#88-Grenze unverändert – bestehende Edit(...)-Deny-Einträge bleiben
+  # erhalten. Die Write(...)-Pendants waren wirkungslos und sind seit nothra/tch-gastro-services#240 entfernt (separat
   # unten geprüft).
   for entry in 'Edit(.claude/**)' 'Edit(.env*)' 'Read(.env*)'; do
     jq -e --arg v "$entry" '.permissions.deny | index($v) != null' "$SETTINGS" >/dev/null 2>&1
     assert_true "$?" "#224: deny (geparst) behält '$entry' (#88-Grenze)"
   done
 
-  # #240 AK2 (alle 3 vormals in deny vorhandenen Write(...)-Einträge): Write(pnpm-lock.yaml),
+  # nothra/tch-gastro-services#240 AK2 (alle 3 vormals in deny vorhandenen Write(...)-Einträge): Write(pnpm-lock.yaml),
   # Write(.claude/**) und Write(.env*) waren aus demselben Grund wie in allow wirkungslos und
-  # wurden in #240 entfernt.
+  # wurden in nothra/tch-gastro-services#240 entfernt.
   for entry in 'Write(pnpm-lock.yaml)' 'Write(.claude/**)' 'Write(.env*)'; do
     jq -e --arg v "$entry" '.permissions.deny | index($v) == null' "$SETTINGS" >/dev/null 2>&1
     assert_true "$?" "#240: deny (geparst) enthält NICHT mehr '$entry'"
   done
 
-  # AK1/AK2/AK7 (#240, umfassend): Keine einzelne Assertion oben deckt einen KÜNFTIGEN, nicht
+  # AK1/AK2/AK7 (nothra/tch-gastro-services#240, umfassend): Keine einzelne Assertion oben deckt einen KÜNFTIGEN, nicht
   # in der Liste antizipierten Write(...)-Eintrag ab – deshalb zusätzlich eine pauschale
   # geparste Prüfung über allow UND deny hinweg, dass kein Eintrag mehr mit "Write(" beginnt.
   jq -e '[.permissions.allow[], .permissions.deny[]] | map(select(startswith("Write("))) | length == 0' \
@@ -3035,15 +3038,15 @@ else
   echo "  • #224/#240: Permissions-Konsistenz (geparst) – übersprungen (jq fehlt)"
 fi
 
-# #240 (jq-unabhängiger Fallback, analog zum #91-Grep-Fallback oben): kein Write(...)-Eintrag
+# nothra/tch-gastro-services#240 (jq-unabhängiger Fallback, analog zum nothra/tch-gastro-services#91-Grep-Fallback oben): kein Write(...)-Eintrag
 # mehr irgendwo in der Datei, unabhängig davon ob jq verfügbar ist.
 assert_true "$(! grep -qF '"Write(' "$SETTINGS"; echo $?)" \
   "#240: settings.json enthält keinen 'Write(...)'-Eintrag mehr (jq-unabhängiger Fallback)"
 
-# #251 (jq-unabhängiger Fallback, analog zum #91/#240-Muster): läuft IMMER, auch ohne jq,
-# damit die Regressionsabsicherung für die 16 ursprünglichen #88-Edit(...)-Allow-Einträge
+# nothra/tch-gastro-services#251 (jq-unabhängiger Fallback, analog zum nothra/tch-gastro-services#91/#240-Muster): läuft IMMER, auch ohne jq,
+# damit die Regressionsabsicherung für die 16 ursprünglichen nothra/tch-gastro-services#88-Edit(...)-Allow-Einträge
 # nicht stillschweigend übersprungen wird, wenn jq in der Ausführungsumgebung fehlt (die
-# geparste #251-Schleife oben wird dann laut Zeile "übersprungen (jq fehlt)" nicht erreicht).
+# geparste nothra/tch-gastro-services#251-Schleife oben wird dann laut Zeile "übersprungen (jq fehlt)" nicht erreicht).
 # Nutzt dasselbe EDIT_ALLOW_88-Array wie die jq-Schleife oben (geteilte Konstante, kein
 # Literal-Duplikat mehr – Refactor-Finding aus /review).
 for entry in "${EDIT_ALLOW_88[@]}"; do
@@ -3052,7 +3055,7 @@ for entry in "${EDIT_ALLOW_88[@]}"; do
 done
 
 # AK7: die stale Präsens-Aussage zu factory.defaults.yml ist korrigiert; die weiterhin gültige
-# Patch-Workflow-Regel (#94) bleibt erhalten. Bislang die einzige Regressionsabsicherung für
+# Patch-Workflow-Regel (nothra/tch-gastro-services#94) bleibt erhalten. Bislang die einzige Regressionsabsicherung für
 # AK7 (/test-Selbstfund) – ohne diesen Test könnte ein künftiger Edit die Korrektur
 # stillschweigend zurückdrehen, ohne dass irgendein Test rot würde.
 WORKFLOW_LESSON="$FACTORY_ROOT/docs/factory/lessons/factory-workflow.md"
@@ -3060,19 +3063,19 @@ WORKFLOW_LESSON="$FACTORY_ROOT/docs/factory/lessons/factory-workflow.md"
 assert_true "$(! grep -qF 'außerhalb von `scripts/*`/`pnpm`-Scope sind nicht' "$WORKFLOW_LESSON"; echo $?)" \
   "#224: stale Präsens-Aussage zu factory.defaults.yml aus der Lesson entfernt (AK7)"
 
-grep -qF 'ist seit #224 über eine generische' "$WORKFLOW_LESSON"
+grep -qF 'ist seit nothra/tch-gastro-services#224 über eine generische' "$WORKFLOW_LESSON"
 assert_true "$?" "#224: Lesson nennt die korrigierte Allow-Regel für Top-Level-YAML (AK7)"
 
-grep -qF 'Patch NICHT von Hand schreiben (aus #94)' "$WORKFLOW_LESSON"
+grep -qF 'Patch NICHT von Hand schreiben (aus nothra/tch-gastro-services#94)' "$WORKFLOW_LESSON"
 assert_true "$?" "#224: Patch-Workflow-Regel (#94) bleibt in der Lesson erhalten (AK7)"
 
-# AK8 (#240): die stale Präsens-Aussage zur "existierenden" Write(...)-Liste ist korrigiert
+# AK8 (nothra/tch-gastro-services#240): die stale Präsens-Aussage zur "existierenden" Write(...)-Liste ist korrigiert
 # (Cleanup-Kandidat ist erledigt, nicht mehr offen) – ohne diesen Test könnte ein künftiger Edit
 # die Korrektur stillschweigend zurückdrehen, ohne dass irgendein Test rot würde.
 assert_true "$(! grep -qF 'existiert) ist aktuell' "$WORKFLOW_LESSON"; echo $?)" \
   "#240: stale Präsens-Aussage zur 'existierenden' Write(...)-Liste aus der Lesson entfernt (AK8)"
 
-grep -qF 'in **#240 entfernt**' "$WORKFLOW_LESSON"
+grep -qF 'in **nothra/tch-gastro-services#240 entfernt**' "$WORKFLOW_LESSON"
 assert_true "$?" "#240: Lesson nennt die erledigte Entfernung der Write(...)-Liste (AK8)"
 
 # ─── Task 101: Pipeline-Quality-Gates rufen echte Befehle (kein Platzhalter) ──
@@ -3085,12 +3088,12 @@ assert_true "$(! grep -q '_PLACEHOLDER' "$PIPELINE"; echo $?)" \
   "#101: run-pipeline.sh enthält keinen *_PLACEHOLDER-Gate-Befehl mehr (Regressions-Guard)"
 
 # (Struktur) Echte Befehle über gate_command (Env-Override vor commands.* der Config) –
-# konsistent mit pre-commit/pre-push (#431, AK-H3).
+# konsistent mit pre-commit/pre-push (nothra/tch-gastro-services#431, AK-H3).
 { grep -qF 'gate_command lint required' "$PIPELINE" && grep -qF 'gate_command test required' "$PIPELINE" \
   && grep -qF 'gate_command coverage required' "$PIPELINE"; }
 assert_true "$?" "#101/#431: run-pipeline.sh liest lint/test/coverage über gate_command (Env-Override wie Hook-Gates)"
 
-# (Struktur) Kein pnpm-Default mehr im Orchestrator (#431 AK-H3): die Kommandos stehen in factory.config.yml.
+# (Struktur) Kein pnpm-Default mehr im Orchestrator (nothra/tch-gastro-services#431 AK-H3): die Kommandos stehen in factory.config.yml.
 grep -q 'pnpm' "$PIPELINE"
 assert_exit 1 "$?" "#431 AK-H3: run-pipeline.sh enthält keinen hartkodierten pnpm-Aufruf mehr"
 
@@ -3113,10 +3116,10 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_G101" init -q; git -C "$TMP_G101" add .
   git -C "$TMP_G101" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   MARKER_G101="$TMP_G101/lint-ran.marker"
-  # env -u (#264): Konsistenz-Härtung, kein beobachteter Vektor an dieser Stelle – dieser Lauf
+  # env -u (nothra/tch-gastro-services#264): Konsistenz-Härtung, kein beobachteter Vektor an dieser Stelle – dieser Lauf
   # bricht am Lint-Gate ab, bevor die PR_SHEPHERD-Verzweigung (Phase 7) erreichbar wäre.
   # Grundsatz: kein Testblock entscheidet aus der Env der aufrufenden Shell, sondern aus
-  # seinem eigenen Setup. Real beobachtet wurde der Vektor im #212-W3-Block (siehe dort).
+  # seinem eigenen Setup. Real beobachtet wurde der Vektor im nothra/tch-gastro-services#212-W3-Block (siehe dort).
   g101_out=$(cd "$TMP_G101" && PATH="$TMP_G101/bin:$PATH" \
     FACTORY_LINT_COMMAND="touch '$MARKER_G101'; false" \
     env -u PR_SHEPHERD -u FACTORY_STAGE \
@@ -3130,9 +3133,9 @@ else
   skip_yq "#101: Verhaltens-Test rotes Lint-Gate (non-dry-run)"
 fi
 
-# ─── #431 AK-H3/H4/F-6: run-pipeline.sh liest die Gate-Kommandos aus der Config (Verhalten) ───
+# ─── nothra/tch-gastro-services#431 AK-H3/H4/F-6: run-pipeline.sh liest die Gate-Kommandos aus der Config (Verhalten) ───
 # Der Struktur-Grep oben belegt nur die Verdrahtung. Hier beide Richtungen am echten Konsumenten
-# (Lesson #348: „Wert gültig" ≠ „Wert angewendet"): (a) ohne Env gewinnt commands.* aus der Config,
+# (Lesson nothra/tch-gastro-services#348: „Wert gültig" ≠ „Wert angewendet"): (a) ohne Env gewinnt commands.* aus der Config,
 # (b) fehlt ein Pflicht-Kommando in Config UND Env, bricht der Lauf VOR dem ersten Agenten-Schritt ab.
 echo ""
 echo "#431 AK-H3/H4: run-pipeline.sh – Gate-Kommandos aus factory.config.yml, fail-closed:"
@@ -3192,7 +3195,7 @@ else
   skip_yq "#431 AK-H3/H4: run-pipeline.sh liest Gate-Kommandos aus der Config"
 fi
 
-# ─── #112: pr-closes-keyword-check.sh (CI-Gate für Closing-Keyword) ──────────
+# ─── nothra/tch-gastro-services#112: pr-closes-keyword-check.sh (CI-Gate für Closing-Keyword) ──────────
 # Verhalten: PR-Body mit Closing-Keyword+#<nr> → exit 0, sonst fail-closed exit 1.
 # Positiv- UND Negativfälle, damit ein stilles Nicht-Greifen des Musters auffällt
 # (clean-code.md: Gate-Regex gehört durch beide Richtungen abgesichert).
@@ -3230,15 +3233,15 @@ done
   && grep -q 'github.event.pull_request.body' "$CI_FILE"; }
 assert_true "$?" "#112: CI verdrahtet das Closing-Keyword-Gate (Script + PR-Body-Env)"
 
-# ─── #149: Format-Gate in pre-push.sh (Prettier-Konformität) ─────────────────
+# ─── nothra/tch-gastro-services#149: Format-Gate in pre-push.sh (Prettier-Konformität) ─────────────────
 # Ursache des Drifts (Task 149): format:check war an keinem Gate verdrahtet.
-# Struktur UND Verhalten absichern – analog zum #101-Lint-Gate-Test.
+# Struktur UND Verhalten absichern – analog zum nothra/tch-gastro-services#101-Lint-Gate-Test.
 echo ""
 echo "#149 pre-push.sh Format-Gate (prettier --check):"
 
 # (Struktur) Distinktive CODE-Zeile prüfen, nicht die Bezeichner allein: `FACTORY_FORMAT_COMMAND`
 # und `format:check` kommen im Gate auch in Kommentar-Prosa vor – ein Grep darauf bliebe grün,
-# wenn nur ein Kommentar stehen bliebe (#114 „Kommando ≠ Prosa-Erwähnung"). Der `${…-…}`-Ausdruck
+# wenn nur ein Kommentar stehen bliebe (nothra/tch-gastro-services#114 „Kommando ≠ Prosa-Erwähnung"). Der `${…-…}`-Ausdruck
 # taucht ausschließlich in der Zuweisung auf und belegt zugleich den fail-closed-Default
 # (`pnpm format:check` bei unset) und die Single-Dash-Semantik (leerer Wert = echter Opt-out).
 grep -qF 'gate_command format optional' "$CHECKS_DIR/pre-push.sh"
@@ -3261,7 +3264,7 @@ run_prepush_149 ""
 assert_exit 0 "$?" "#149: leerer FACTORY_FORMAT_COMMAND deaktiviert das Gate (nicht blockierend)"
 rm -rf "$TMP_G149"
 
-# ─── #197: Größenabhängige Modell-Tier-Wahl (ADR-038) ────────────────────────
+# ─── nothra/tch-gastro-services#197: Größenabhängige Modell-Tier-Wahl (ADR-038) ────────────────────────
 echo ""
 echo "#197 Größenabhängige Modell-Tiers (ADR-038):"
 
@@ -3409,7 +3412,7 @@ if [ "$HAS_YQ" = 1 ]; then
   rm -rf "$G4"
 
   # AK7: übrige pipeline-getriebene Skills + default bleiben light UND tragen KEIN tier_by_size
-  # (keine Tier-Änderung durch #197).
+  # (keine Tier-Änderung durch nothra/tch-gastro-services#197).
   ak7_ok=0
   for s in test refactor codify pr-shepherd; do
     [ "$(yq ".skills.\"$s\".tier" "$DEFAULTS")" = "light" ] || ak7_ok=1
@@ -3418,7 +3421,7 @@ if [ "$HAS_YQ" = 1 ]; then
   [ "$(yq '.default.tier' "$DEFAULTS")" = "light" ] || ak7_ok=1
   assert_true "$ak7_ok" "#197 AK7: test/refactor/codify/pr-shepherd + default = light ohne tier_by_size"
 
-  # #201 AK1/AK2/AK5: Phase-1-Skills (requirements/architecture/release-notes) sind pipeline-inert
+  # nothra/tch-gastro-services#201 AK1/AK2/AK5: Phase-1-Skills (requirements/architecture/release-notes) sind pipeline-inert
   # (run-pipeline.sh ruft sie nie über run_skill auf) und tragen daher KEINEN eigenen skills-Eintrag
   # mehr. Ihre effektive Auflösung fällt über cfg_skill_field (.skills.<s>.<feld> // .default.<feld>)
   # sauber auf default-light / max_turns 10 zurück — kein stilles Heavy-Upgrade.
@@ -3446,7 +3449,7 @@ assert_true "$?" "#197 AK11: token-efficiency.md verweist auf die reale SSOT (fa
 grep -q 'README.md (Tier-Tabelle)' "$TOKEFF"
 assert_true "$([ $? -ne 0 ]; echo $?)" "#197 AK11: veralteter README-Tier-Tabellen-Verweis ist entfernt"
 
-# ─── #212: Endzustands-Verifikation (ADR-040) ────────────────────────────────
+# ─── nothra/tch-gastro-services#212: Endzustands-Verifikation (ADR-040) ────────────────────────────────
 echo ""
 echo "#212 evaluate_final_state (reine Entscheidung, ADR-040):"
 
@@ -3492,7 +3495,7 @@ efs clean 0 true "" "" "";    assert_exit 1 "$?" "#212 F1: gh ohne verwertbaren 
 printf '%s' "$(efs_msg clean 0 true '' '' '')" | grep -q 'PR-Zustand nicht verifizierbar'
 assert_true "$?" "#212 F1: meldet 'PR-Zustand nicht verifizierbar'"
 
-# #298: MERGED zählt unabhängig vom Unpushed-Status sofort als Erfolg (Branch-Auto-Delete
+# nothra/tch-gastro-services#298: MERGED zählt unabhängig vom Unpushed-Status sofort als Erfolg (Branch-Auto-Delete
 # nach Squash-Merge macht origin/<branch> weg → unpushed ist NO_UPSTREAM/nicht-numerisch,
 # soll den MERGED-Kurzschluss aber nicht verhindern).
 efs clean NO_UPSTREAM true MERGED false none; assert_exit 0 "$?" "#298 AK: MERGED + unpushed=NO_UPSTREAM → verifiziert (exit 0)"
@@ -3579,7 +3582,7 @@ failgh
 ( export PATH="$VFS_REPO/bin:$PATH"; verify_final_state "$VFS_BR" true "$VFS_REPO" ) >/dev/null 2>&1
 assert_exit 1 "$?" "#212 I/O F1: gh-Aufruf scheitert → fail-closed (exit 1)"
 
-# #298 I/O: origin/<branch> gelöscht (Branch-Auto-Delete nach Squash-Merge) + PR MERGED
+# nothra/tch-gastro-services#298 I/O: origin/<branch> gelöscht (Branch-Auto-Delete nach Squash-Merge) + PR MERGED
 # → unpushed ist nicht verwertbar (NO_UPSTREAM), MERGED-Kurzschluss muss trotzdem greifen.
 git -C "$VFS_REPO" push -q origin --delete "$VFS_BR"
 mkgh false MERGED false
@@ -3631,10 +3634,10 @@ CLEOF
   chmod +x "$TMP_INT/bin/claude"
   git -C "$TMP_INT" init -q; git -C "$TMP_INT" add .
   git -C "$TMP_INT" -c user.email=t@t -c user.name=t commit -q -m init
-  # env -u (#264): Konsistenz-Härtung, kein beobachteter Vektor an dieser Stelle – der Lauf
+  # env -u (nothra/tch-gastro-services#264): Konsistenz-Härtung, kein beobachteter Vektor an dieser Stelle – der Lauf
   # stoppt bereits in Phase 1 am Interrupt-Sentinel (run_skill → interrupt-check.sh) und
   # erreicht die PR_SHEPHERD-Verzweigung (Phase 7) nie. Steht trotzdem hier: kein Testblock
-  # hängt vom Env-Zustand der aufrufenden Shell ab. Realer Vektor: #212-W3-Block unten.
+  # hängt vom Env-Zustand der aufrufenden Shell ab. Realer Vektor: nothra/tch-gastro-services#212-W3-Block unten.
   int_out=$(cd "$TMP_INT" && PATH="$TMP_INT/bin:$PATH" \
     FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
     env -u PR_SHEPHERD -u FACTORY_STAGE \
@@ -3670,7 +3673,7 @@ if [ "$HAS_YQ" = 1 ]; then
     printf '# SKILL-%s mock\n' "$s" > "$TMP_E2E/.claude/commands/$s.md"
   done
   echo "# Task 78: e2e" > "$TMP_E2E/tasks/task-78-e2e.md"
-  # Der Stub schreibt die Reports IM Aufruf (seit #312 gilt ein report-erzeugendes Skill nur
+  # Der Stub schreibt die Reports IM Aufruf (seit nothra/tch-gastro-services#312 gilt ein report-erzeugendes Skill nur
   # so als erfolgreich – ein vorab abgelegter APPROVED wäre stale und bräche den Lauf schon
   # in Phase 2 ab). Der Zähler variiert den Inhalt, damit auch der zweite und dritte Lauf
   # gegen dasselbe Scaffold einen VERÄNDERTEN Report sehen. Alle drei Dateien bleiben
@@ -3696,7 +3699,7 @@ CLAUDE_E2E
   git -C "$TMP_E2E" push -q origin "$E2E_BR"
   # Unvollständiger Endzustand: ein ungepushter Commit (Working Tree bleibt sauber → Preflight ok)
   echo "extra" > "$TMP_E2E/extra.txt"; git -C "$TMP_E2E" add .; git -C "$TMP_E2E" commit -q -m unpushed
-  # env -u: siehe #264 – ohne Neutralisierung entscheidet ein exportiertes PR_SHEPHERD über
+  # env -u: siehe nothra/tch-gastro-services#264 – ohne Neutralisierung entscheidet ein exportiertes PR_SHEPHERD über
   # Phase 7 und über den PR-Zweig der Endzustands-Verifikation, nicht dieses Test-Setup.
   e2e_out=$(cd "$TMP_E2E" && PATH="$TMP_E2E/bin:$PATH" \
     FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
@@ -3711,7 +3714,7 @@ CLAUDE_E2E
   assert_true "$?" "#212 W3: INCOMPLETE_OUTCOME wird ins interrupt-log geschrieben (ADR-006)"
   # Positiv-Gegenprobe: sauber+gepusht → Erfolgs-Banner erreicht (kein Fehlalarm)
   git -C "$TMP_E2E" push -q origin "$E2E_BR"
-  # env -u: siehe #264 (identischer Leck-Vektor wie im Negativ-Fall darüber).
+  # env -u: siehe nothra/tch-gastro-services#264 (identischer Leck-Vektor wie im Negativ-Fall darüber).
   e2e_ok=$(cd "$TMP_E2E" && PATH="$TMP_E2E/bin:$PATH" \
     FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true \
     env -u PR_SHEPHERD -u FACTORY_STAGE \
@@ -3720,14 +3723,14 @@ CLAUDE_E2E
   printf '%s' "$e2e_ok" | grep -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$?" "#212 W3: Erfolgs-Banner erscheint bei verifiziertem Endzustand"
 
-  # ─── #264: Env-Isolation der realen run-pipeline.sh-Testaufrufe ────────────
+  # ─── nothra/tch-gastro-services#264: Env-Isolation der realen run-pipeline.sh-Testaufrufe ────────────
   # Verhaltensbeweis (kein Grep auf `env -u`): Dieselbe Positiv-Gegenprobe läuft erneut,
   # diesmal mit PR_SHEPHERD/FACTORY_STAGE EXPORTIERT in der Shell, die run-pipeline.sh
   # aufruft. Ohne die `env -u`-Härtung erbt der Wegwerf-Lauf PR_SHEPHERD=true, startet
   # Phase 7 (pr-shepherd), bricht dort mangels .claude/commands/pr-shepherd.md ab und
   # verlangt zusätzlich einen verwertbaren PR-Zustand (gh) → Non-Zero-Exit statt
   # Erfolgs-Banner. Der Export ist die divergenzerzeugende Aktion – ohne ihn wäre der
-  # Block blind (Lesson #253).
+  # Block blind (Lesson nothra/tch-gastro-services#253).
   # Er lebt bewusst INNERHALB der Kommando-Substitutions-Subshell: so kann er weder in
   # nachfolgende Blöcke lecken noch dort einen künftig ungehärteten Aufruf maskieren
   # (ein `unset` danach würde eine vom Aufrufer geerbte Variable mit verschlucken).
@@ -3756,14 +3759,14 @@ else
   skip_yq "#264: Env-Isolation gegen exportiertes PR_SHEPHERD/FACTORY_STAGE"
 fi
 
-# ─── #264 Drift-Guard: JEDE reale run-pipeline.sh-Aufrufstelle bleibt gehärtet ──────
+# ─── nothra/tch-gastro-services#264 Drift-Guard: JEDE reale run-pipeline.sh-Aufrufstelle bleibt gehärtet ──────
 # Der Verhaltenstest oben hängt an genau EINER der fünf gehärteten Aufrufstellen. Entfernt
 # jemand `env -u` an einer der anderen (oder fügt eine neue ungehärtete hinzu), bliebe die
-# Suite grün – genau die stille Regressionsklasse, die zu #262/#264 geführt hat. Dieser
+# Suite grün – genau die stille Regressionsklasse, die zu nothra/tch-gastro-services#262/#264 geführt hat. Dieser
 # Guard schließt sie strukturell: er liest run-tests.sh selbst und verlangt für jeden
 # realen (non-`--dry-run`) Aufruf die Neutralisierung.
 #
-# Block- statt Fragment-Grep (Lesson #114/#255/#261/#265): Die Aufrufe sind
+# Block- statt Fragment-Grep (Lesson nothra/tch-gastro-services#114/#255/#261/#265): Die Aufrufe sind
 # Multi-Zeilen-Konstrukte mit `\`-Fortsetzung – awk fügt die Fortsetzungszeilen erst zur
 # logischen Kommandozeile zusammen und bewertet dann. Ein zeilenweiser Grep würde die
 # `env -u`-Zeile und die `bash`-Zeile nie zusammen sehen.
@@ -3852,7 +3855,7 @@ assert_exit 0 "$?" "#264 Guard: gehärteter Aufruf über die Pfad-Variable gilt 
 # Negativ-Kontrolle C: Der Dry-Run betritt Phase 7 zwar, bricht dort aber nicht ab (run_skill
 # kehrt vor dem skill_file-Check zurück) und ändert nur die Ausgabe; keine Dry-Run-Assertion
 # hängt an diesen Zeilen – deshalb bleibt die Ausnahme fail-open, statt 11 Aufrufstellen
-# mitzuhärten (#264, Review-Runde-3-Auflage).
+# mitzuhärten (nothra/tch-gastro-services#264, Review-Runde-3-Auflage).
 printf 'x=$(bash "$T/scripts/%s" 1 --dry-run 2>&1 || true)\n' "$RP_NAME" > "$TMP_DG264"
 audit_pipeline_calls "$TMP_DG264" >/dev/null 2>&1
 assert_exit 0 "$?" "#264 Guard: --dry-run-Aufruf ohne env -u ist erlaubt (Negativ-Kontrolle)"
@@ -3878,17 +3881,17 @@ assert_exit 0 "$?" "#264 Guard: ALLE realen run-pipeline.sh-Aufrufe in run-tests
 
 echo ""
 echo "#264 K1: Lesson und Index nennen die Härtung als erledigt:"
-# ─── #264 K1: Lesson/Index nennen die Härtung als erledigt, nicht als offenen Follow-up ──
+# ─── nothra/tch-gastro-services#264 K1: Lesson/Index nennen die Härtung als erledigt, nicht als offenen Follow-up ──
 # Ohne diese Regressionsabsicherung könnte ein künftiger Edit die Präsens-Korrektur still
-# zurückdrehen (gleiches Muster wie #224 AK7 / #240 AK8 oben).
+# zurückdrehen (gleiches Muster wie nothra/tch-gastro-services#224 AK7 / nothra/tch-gastro-services#240 AK8 oben).
 assert_true "$(! grep -qF 'ist als eigenes Issue getrackt, nicht Teil der Task' "$WORKFLOW_LESSON"; echo $?)" \
   "#264: stale 'Follow-up offen'-Aussage aus der PR_SHEPHERD-Lesson entfernt"
-grep -qF 'Die Härtung ist in #264 umgesetzt' "$WORKFLOW_LESSON"
+grep -qF 'Die Härtung ist in nothra/tch-gastro-services#264 umgesetzt' "$WORKFLOW_LESSON"
 assert_true "$?" "#264: Lesson nennt den Erledigt-Stand der Härtung"
 PC264="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-assert_true "$(! grep -qF 'Härtung ausgelagert: #264' "$PC264"; echo $?)" \
+assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$PC264"; echo $?)" \
   "#264: Index-Zeile in PROJECT-CONTEXT.md nennt die Härtung nicht mehr als ausgelagert"
-grep -qF 'Härtung umgesetzt in #264' "$PC264"
+grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$PC264"
 assert_true "$?" "#264: Index-Zeile in PROJECT-CONTEXT.md nennt den Erledigt-Stand"
 
 echo ""
@@ -3912,9 +3915,9 @@ assert_true "$?" "#212 AK10: testing-standards.md dokumentiert den ignorierten C
 echo ""
 echo "#212 AK7: pr-shepherd eskaliert unter Stage 3 (Endzustand der committeten Live-Datei):"
 # `.claude/**` ist für den Agenten hard-denied → die Änderung kam via tasks/patch-212.diff (vom
-# Menschen angewandt + committet, Patch danach entfernt – Lesson #145). Der Test prüft daher den
+# Menschen angewandt + committet, Patch danach entfernt – Lesson nothra/tch-gastro-services#145). Der Test prüft daher den
 # ENDZUSTAND der committeten Live-Datei $SHEPHERD direkt, nicht das transiente Patch-Artefakt
-# (Kopplung an patch-212.diff wäre im auslieferbaren Zustand zwangsläufig rot – Review #212).
+# (Kopplung an patch-212.diff wäre im auslieferbaren Zustand zwangsläufig rot – Review nothra/tch-gastro-services#212).
 { grep -qF 'FACTORY_STAGE=3' "$SHEPHERD" && grep -qF 'niemals eine interaktive Freigabe' "$SHEPHERD"; }
 assert_true "$?" "#212 AK7: Stage-3-Blocker → raise-interrupt statt interaktiver Freigabefrage"
 grep -qF 'kein autonomes `git rm --cached`' "$SHEPHERD"
@@ -3922,7 +3925,7 @@ assert_true "$?" "#212 AK7: verbietet autonomes 'git rm --cached'"
 grep -qF 'PUSH_GATE_BLOCKED' "$SHEPHERD"
 assert_true "$?" "#212 AK7: benennt Interrupt-Typ PUSH_GATE_BLOCKED für blockierendes Artefakt"
 
-# ─── #262: Flag-Guard für Commit-Messages (ADR-042) ──────────────────────────
+# ─── nothra/tch-gastro-services#262: Flag-Guard für Commit-Messages (ADR-042) ──────────────────────────
 echo ""
 echo "#262 commit-msg-check.sh (Flag-Guard, fail-closed):"
 
@@ -4148,7 +4151,7 @@ echo "#262 commit-msg-Hook end-to-end (echtes 'git commit' im Wegwerf-Repo):"
 # cm_e2e_repo <name> → Repo mit real installierten Hooks. Der pre-commit-Hook wird bewusst
 # durch einen No-op ersetzt: nur der commit-msg-Pfad darf über Erfolg/Ablehnung entscheiden
 # (pre-commit.sh ruft `pnpm lint` und ist im Wegwerf-Repo gar nicht vorhanden – sonst wäre
-# der Test rot aus dem falschen Grund, Lesson #214).
+# der Test rot aus dem falschen Grund, Lesson nothra/tch-gastro-services#214).
 cm_e2e_repo() {
   local wt
   wt=$(ih_repo "$1")
@@ -4276,7 +4279,7 @@ INIT_FACTORY="$SCRIPTS_DIR/init-factory.sh"
 grep -qF 'bash "$FACTORY_DIR/scripts/install-hooks.sh"' "$INIT_FACTORY"
 assert_true "$?" "#262 AK8: init-factory.sh ruft scripts/install-hooks.sh auf (konkreter Aufruf, nicht nur Erwähnung)"
 # Fail-closed vor dem Negativ-Grep: wäre die Datei unlesbar oder verschoben, lieferte `grep`
-# ebenfalls ≠ 0 und die Abwesenheits-Assertion wäre grün aus dem falschen Grund (Lesson #214).
+# ebenfalls ≠ 0 und die Abwesenheits-Assertion wäre grün aus dem falschen Grund (Lesson nothra/tch-gastro-services#214).
 [ -r "$INIT_FACTORY" ]
 assert_true "$?" "#262 AK8: init-factory.sh ist lesbar (Vorbedingung des Abwesenheits-Checks)"
 grep -qF '.git/hooks' "$INIT_FACTORY"
@@ -4339,8 +4342,8 @@ TMP_HI="$(mktemp -d)"
 
 # hi_repo <name> → Wegwerf-git-Repo (nur git init, kein Factory-Setup nötig – der Check
 # selbst hat keine Laufzeit-Abhängigkeiten außer git). Lokale Identität setzen (wie
-# ih_repo() im #262-Abschnitt) – ohne globale Git-Identität in der Ausführungsumgebung
-# schlägt der Worktree-Test-Commit sonst mit "empty ident name" fehl (Review-Finding #265).
+# ih_repo() im nothra/tch-gastro-services#262-Abschnitt) – ohne globale Git-Identität in der Ausführungsumgebung
+# schlägt der Worktree-Test-Commit sonst mit "empty ident name" fehl (Review-Finding nothra/tch-gastro-services#265).
 hi_repo() {
   local wt="$TMP_HI/$1"
   git init -q -b main "$wt" >/dev/null 2>&1
@@ -4364,7 +4367,7 @@ install_all_hooks() {
 # Muster) – ohne Isolation liest `git config --get` in hooks-installed-check.sh auch
 # global/system mit, und die Erfolgs-Assertions würden auf einer Entwickler-Maschine mit
 # gesetztem globalem core.hooksPath fälschlich rot, obwohl der Code korrekt ist
-# (Review-Finding #268 Runde 3; dieselbe Klasse wie #262/#264: ambiente Umgebung leckt in
+# (Review-Finding nothra/tch-gastro-services#268 Runde 3; dieselbe Klasse wie nothra/tch-gastro-services#262/#264: ambiente Umgebung leckt in
 # die Fixture).
 rc_hooks() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null FACTORY_DIR="$1" bash "$HI_CHECK" 2>&1; }
 
@@ -4469,7 +4472,7 @@ assert_true "$?" "#268 AK2: Fehlermeldung nennt core.hooksPath als Ursache"
 # (die core.hooksPath-Prüfung greift unabhängig vom Dateizustand). Ohne install_all_hooks
 # würde bereits die bestehende Präsenzprüfung (spec-265) exit 1 liefern – erst das
 # pfadspezifische Signal + die Abwesenheit der Präsenz-Meldung belegen, dass wirklich der
-# neue core.hooksPath-Guard gegriffen hat (Review-Finding #268 Runde 1).
+# neue core.hooksPath-Guard gegriffen hat (Review-Finding nothra/tch-gastro-services#268 Runde 1).
 WT=$(hi_repo hookspath-no-residue)
 git -C "$WT" config core.hooksPath ".husky"
 out=$(rc_hooks "$WT"); rc=$?
@@ -4505,7 +4508,7 @@ assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK5: core.hooksPath aus einem Wo
 # Pfadspezifisches Signal nötig: schlägt `git worktree add` fehl (z. B. Fixture-Fehler),
 # existiert der Ziel-Worktree nicht und schon `cd "$ROOT"` scheitert im Skript – exit ≠ 0,
 # ohne dass core.hooksPath je gelesen wurde. Erst der '.husky'-Treffer belegt, dass der
-# Guard tatsächlich lief (Review-Finding #268 Runde 1).
+# Guard tatsächlich lief (Review-Finding nothra/tch-gastro-services#268 Runde 1).
 printf '%s' "$out" | grep -qF '.husky'
 assert_true "$?" "#268 AK5: Fehlermeldung nennt den aus dem gemeinsamen Git-Verzeichnis gelesenen Pfad (.husky) statt nur zufällig grün zu sein"
 
@@ -4513,7 +4516,7 @@ assert_true "$?" "#268 AK5: Fehlermeldung nennt den aus dem gemeinsamen Git-Verz
 # git 2.50 verifiziert, siehe Skript-Header): Git löst den Hook-Pfad dann auf das
 # Arbeitsverzeichnis auf und ruft $GIT_COMMON_DIR/hooks nicht mehr auf. Muss daher
 # ebenfalls fail-closed sein – bewusste Abweichung vom ursprünglich angenommenen Vorbild
-# install-hooks.sh (Korrektur ggü. Review-Finding #268 Runde 1, spec-268 „Offene Fragen").
+# install-hooks.sh (Korrektur ggü. Review-Finding nothra/tch-gastro-services#268 Runde 1, spec-268 „Offene Fragen").
 WT=$(hi_repo hookspath-empty)
 install_all_hooks "$WT"
 git -C "$WT" config core.hooksPath ""
@@ -4534,7 +4537,7 @@ rm -rf "$TMP_HI"
 echo ""
 echo "#265 CI-Absicherung: factory-self-test-Job installiert Hooks vor der Self-Test-Suite:"
 
-# CI-Regression (beobachtet in PR zu #265): der #149-Test ruft pre-push.sh ECHT gegen das
+# CI-Regression (beobachtet in PR zu nothra/tch-gastro-services#265): der nothra/tch-gastro-services#149-Test ruft pre-push.sh ECHT gegen das
 # reale FACTORY_DIR auf (kein Fixture-Repo, siehe run_prepush_149 oben) – in einem frischen
 # CI-Checkout sind dort NIE Hooks installiert (git hooks laufen in CI ohnehin nie), also
 # schlägt Check 5 (hooks-installed-check.sh) dort IMMER fehl und reißt die Format-Gate-Tests
@@ -4549,7 +4552,7 @@ assert_true "$?" "#265: factory-self-test-Job installiert die Git-Hooks (bash sc
 
 # Anker auf den echten COMMAND ('run:'-Zeile), nicht auf jede Erwähnung von 'run-tests.sh' –
 # eine Prosa-Erwähnung (z. B. in einem Kommentar oberhalb) wäre keine Reihenfolge-Aussage
-# über den tatsächlichen Schritt-Aufruf (Lesson #114 "Kommando ≠ Prosa-Erwähnung").
+# über den tatsächlichen Schritt-Aufruf (Lesson nothra/tch-gastro-services#114 "Kommando ≠ Prosa-Erwähnung").
 ci_install_line="$(printf '%s\n' "$ci_selftest_block" | grep -n 'run: bash scripts/install-hooks.sh' | head -1 | cut -d: -f1)"
 ci_selftest_line="$(printf '%s\n' "$ci_selftest_block" | grep -n 'run: bash scripts/checks/tests/run-tests.sh' | head -1 | cut -d: -f1)"
 [ -n "$ci_install_line" ] && [ -n "$ci_selftest_line" ] && [ "$ci_install_line" -lt "$ci_selftest_line" ]
@@ -4593,13 +4596,13 @@ assert_true "$?" "#258: scripts/install-yq.sh vorhanden (Vorbedingung der folgen
 # Lesbarkeit der Workflow-Dateien als eigene Vorbedingung: der AK1-Guard unten ist ein
 # negierter grep über drei Dateien – fehlt eine (Umbenennung), liefert grep Exit 2 und das
 # '!' macht daraus ein stilles PASS. Fail-closed heißt hier: Lesbarkeit vorher zusichern
-# (Lesson #214 "Fail-closed bei unlesbarer Quelle").
+# (Lesson nothra/tch-gastro-services#214 "Fail-closed bei unlesbarer Quelle").
 [ -r "$CI_FILE" ] && [ -r "$POLL_YML" ]
 assert_true "$?" "#258: factory-ci.yml und factory-poll.yml sind lesbar (Vorbedingung des AK1-Guards)"
 
 # AK1: kein `releases/latest/download/...`-URL mehr – weder in den Workflows noch im Seam.
 # Angeankert an der URL-Form, nicht an jeder Erwähnung von "releases/latest": der
-# Skript-Header erklärt genau diese alte Form als WHY-Kommentar (Lesson #114).
+# Skript-Header erklärt genau diese alte Form als WHY-Kommentar (Lesson nothra/tch-gastro-services#114).
 ! grep -q 'releases/latest/download' "$CI_FILE" "$POLL_YML" "$INSTALL_YQ"
 assert_true "$?" "#258 AK1: keine releases/latest/download-URL mehr in factory-ci.yml / factory-poll.yml / install-yq.sh"
 
@@ -4619,8 +4622,8 @@ assert_true "$?" "#258 AK7: install-yq.sh pinnt den erwarteten SHA-256 im Repo (
 # der als vierten Parameter den aus `checksums` GELESENEN Wert übergibt, macht den
 # Pin-Vergleich trivial wahr (published = pinned) – und bliebe ohne diesen Guard lautlos:
 # Self-Test grün UND CI grün, weil ein ehrlicher Download zu seinem eigenen Hash passt
-# (Lessons #212/#214: Kopplungs-Guard am echten Aufruf, nicht nur Existenz-Grep).
-# Anker ist die Aufruf-Zeile am Spaltenanfang, nicht eine Prosa-Erwähnung (Lesson #114).
+# (Lessons nothra/tch-gastro-services#212/#214: Kopplungs-Guard am echten Aufruf, nicht nur Existenz-Grep).
+# Anker ist die Aufruf-Zeile am Spaltenanfang, nicht eine Prosa-Erwähnung (Lesson nothra/tch-gastro-services#114).
 yq_prod_verify_call="$(grep -n '^verify_sha256 "' "$INSTALL_YQ" | head -1 | cut -d: -f2-)"
 printf '%s' "$yq_prod_verify_call" | grep -qE '"\$YQ_SHA256"$'
 assert_true "$?" "#258 AK7: der Produktionsaufruf von verify_sha256 übergibt \$YQ_SHA256 als letztes Argument (Pin ist verdrahtet, nicht nur vorhanden)"
@@ -4632,7 +4635,7 @@ grep -qF 'releases/download/$YQ_VERSION' "$INSTALL_YQ"
 assert_true "$?" "#258 AK1: die Download-URL wird aus \$YQ_VERSION gebildet (kein zweites, hartkodiertes Tag)"
 
 # AK4: alle drei betroffenen Jobs rufen denselben Seam auf – und keiner hat noch einen
-# eigenen wget+chmod-Block. Job-Block isoliert extrahieren (ci_job_block, Lesson #255).
+# eigenen wget+chmod-Block. Job-Block isoliert extrahieren (ci_job_block, Lesson nothra/tch-gastro-services#255).
 #
 # Der Negativ-Anker prüft auf 'wget|curl' im Block, NICHT auf die alte Zwei-Zeilen-Form
 # 'wget.*yq_linux_amd64' (Download-Kommando und URL standen im entfernten Block auf
@@ -4674,14 +4677,14 @@ fi
 # fallen. Der Fixture-Test unten belegt nur den --verify-Zweig (dort gibt es kein chmod);
 # die Reihenfolge im nicht netzwerkfrei testbaren Download-Pfad braucht diesen Anker.
 # Angeankert an den echten Aufruf-Zeilen (Spaltenanfang), nicht an einer Prosa-Erwähnung
-# im Kommentar (Lesson #114 "Kommando ≠ Prosa-Erwähnung").
+# im Kommentar (Lesson nothra/tch-gastro-services#114 "Kommando ≠ Prosa-Erwähnung").
 yq_verify_line="$(grep -n '^verify_sha256 "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
 yq_chmod_line="$(grep -n '^chmod 0755 "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
 [ -n "$yq_verify_line" ] && [ -n "$yq_chmod_line" ] && [ "$yq_verify_line" -lt "$yq_chmod_line" ]
 assert_true "$?" "#258 AK3: verify_sha256-Aufruf steht VOR 'chmod 0755' (sonst wäre die Verifikation wirkungslos)"
 
 # Der Plattform-Guard muss ebenfalls VOR dem ersten Download stehen – ein Guard nach dem
-# Laden würde das Herunterladen nicht mehr verhindern (gleicher Anker-Grundsatz, Lesson #114).
+# Laden würde das Herunterladen nicht mehr verhindern (gleicher Anker-Grundsatz, Lesson nothra/tch-gastro-services#114).
 yq_guard_line="$(grep -n '^require_linux_amd64$' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
 yq_fetch_line="$(grep -n '^fetch "' "$INSTALL_YQ" | head -1 | cut -d: -f1)"
 [ -n "$yq_guard_line" ] && [ -n "$yq_fetch_line" ] && [ "$yq_guard_line" -lt "$yq_fetch_line" ]
@@ -4701,13 +4704,13 @@ YQ_EMPTY_SHA256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85
 # <sha256-position> ist die Order-Zeile, in der `SHA-256` steht (Default 3 = Feld 4). Der
 # Parameter existiert, weil yq die Reihenfolge pro Release rotiert: mit nur EINER getesteten
 # Position wäre eine hartkodierte Spaltennummer nicht von der korrekten Rechnung
-# `$((algo_line + 1))` zu unterscheiden (Diskriminierungs-Kontrolle, Lesson #172).
+# `$((algo_line + 1))` zu unterscheiden (Diskriminierungs-Kontrolle, Lesson nothra/tch-gastro-services#172).
 # Die Nachbarzeilen `yq_linux_386` und `yq_linux_amd64.tar.gz` tragen in der SHA-256-Spalte
 # absichtlich falsche Werte (Kontrolle gegen Zeilenauswahl per Präfix/erstem Treffer statt
 # exaktem Dateinamen-Vergleich).
 # hex64 <zeichen> – 64-stelliger Hex-Füllwert aus einem Zeichen (Platzhalter-Hash in Fixtures).
 # Nur hier gebraucht (yq_fixture + zwei Fehlerszenarien unten) – deshalb lokal bei den
-# #258-Fixtures definiert statt bei den generischen Helfern am Dateikopf (Review-Runde-2-Nitpick;
+# nothra/tch-gastro-services#258-Fixtures definiert statt bei den generischen Helfern am Dateikopf (Review-Runde-2-Nitpick;
 # ci_job_block bleibt oben, weil es drei Nutzer über die Datei verteilt hat).
 hex64() {
   local i out=""
@@ -4786,7 +4789,7 @@ assert_true "$?" "#258 AK2: rotierte Spaltenordnung meldet Erfolg (keine feste S
 
 # AK6 (Negativ, eigener Testfall): genau EIN Defekt – die Binary ist korrupt/manipuliert,
 # `checksums` und Pin bleiben intakt. Damit kommt der Fehlschlag ausschließlich aus dem
-# Berechnung-gegen-Pin-Vergleich und die Meldung ist pfadspezifisch prüfbar (Lesson #214).
+# Berechnung-gegen-Pin-Vergleich und die Meldung ist pfadspezifisch prüfbar (Lesson nothra/tch-gastro-services#214).
 yq_fixture "$YQTMP/mismatch"
 printf 'manipulierte binary' > "$YQTMP/mismatch/yq_linux_amd64"
 yq_bad_out="$(run_verify "$YQTMP/mismatch")"; yq_rc=$?
@@ -4819,7 +4822,7 @@ assert_true "$?" "#258: Meldung benennt den fehlenden checksums-Eintrag"
 # Anker ist das pfadspezifische Fragment, NICHT der bloße Algorithmusname "SHA-256": der steht
 # auch in der generischen Format-Drift-Meldung und in der Erfolgsmeldung – ein Test darauf
 # könnte nicht zwischen "eigener Guard greift" und "irgendein Fallback greift" unterscheiden
-# (Lesson #214, Review-Runde-1-Finding).
+# (Lesson nothra/tch-gastro-services#214, Review-Runde-1-Finding).
 yq_fixture "$YQTMP/no-algo"
 printf 'BLAKE2B-512\nSHA-384\nSHA-512\n' > "$YQTMP/no-algo/checksums_hashes_order"
 yq_noalgo_out="$(run_verify "$YQTMP/no-algo")"; yq_rc=$?
@@ -4851,7 +4854,7 @@ assert_true "$?" "#258: Meldung benennt die nicht lesbare Datei"
 # eine einzelne `--verify`-Bedingung zurück, landet JEDER dieser Aufrufe im Download-Pfad und
 # überschriebe /usr/local/bin/yq. Mit dem Stub bricht so eine Regression am Download ab statt
 # die lokale yq-Installation zu ersetzen – und die pfadspezifische Meldung unterscheidet
-# "Dispatch hat abgelehnt" von "Stub hat abgebrochen" (Lesson #214).
+# "Dispatch hat abgelehnt" von "Stub hat abgebrochen" (Lesson nothra/tch-gastro-services#214).
 yq_dispatch() {
   PATH="$YQ_NONETBIN:$PATH" bash "$INSTALL_YQ" "$@" 2>&1
 }
@@ -4914,7 +4917,7 @@ echo "#258 Doku nennt den kanonischen yq-Bereitstellungsweg (Lesson #211/#176):"
 
 # Die Single-Source-Aussage stand bisher nur im Skript-Header – und Skript-Header werden nicht
 # in den Agenten-Kontext geladen. Ohne Regel in GELADENER Doku entsteht der nächste kopierte
-# wget-Block genauso wie der, der zu #258 geführt hat. Vorbild ist install-hooks.sh: dieselbe
+# wget-Block genauso wie der, der zu nothra/tch-gastro-services#258 geführt hat. Vorbild ist install-hooks.sh: dieselbe
 # Regel steht dort in CLAUDE.md UND OPERATING.md (ADR-042).
 for yq_doc in "$FACTORY_ROOT/docs/factory/FACTORY.md" "$FACTORY_ROOT/docs/factory/OPERATING.md"; do
   [ -r "$yq_doc" ]
@@ -4933,7 +4936,7 @@ echo "Task 286: Schwellen-Tabelle + Sammeldatei statt unbedingter Issue-Anlage:"
 KLEINFUNDE="$FACTORY_ROOT/docs/factory/kleinfunde.md"
 
 # (0) Verweis-Ziel existiert: sonst zeigen die Skill-Verweise auf kleinfunde.md ins Leere,
-# ohne dass ein Guard das bemerkt (dangling reference, analog zum #155-ADR-029-Muster).
+# ohne dass ein Guard das bemerkt (dangling reference, analog zum nothra/tch-gastro-services#155-ADR-029-Muster).
 assert_true "$([[ -f "$KLEINFUNDE" ]]; echo $?)" \
   "#286: docs/factory/kleinfunde.md ist im Repo vorhanden (Verweis-Ziel nicht dangling)"
 
@@ -4951,12 +4954,12 @@ for kleinfunde_field in '**Wo**' '**Was**' '**Fix**' '**Herkunft**'; do
     "#286: kleinfunde.md nennt das Schema-Feld $kleinfunde_field im Dateikopf"
 done
 # AK "wächst ein Eintrag über 'unter zehn Zeilen' → Issue" und "erledigt → gelöscht, nicht
-# abgehakt" – beide Regeln waren schon vor #286 da, aber ungetestet (/test-Ergänzung).
+# abgehakt" – beide Regeln waren schon vor nothra/tch-gastro-services#286 da, aber ungetestet (/test-Ergänzung).
 assert_contains_286 "$kleinfunde_flat_286" 'wird er ein Issue' \
   "#286: kleinfunde.md dokumentiert die Promotion-Regel (über 'unter zehn Zeilen' → Issue)"
 assert_contains_286 "$kleinfunde_flat_286" 'gelöscht, nicht abgehakt' \
   "#286: kleinfunde.md dokumentiert 'erledigt → gelöscht, nicht abgehakt'"
-# AK "vier überführte Einträge aus #279/#280/#282/#283 vorhanden" – bisher nur "keine
+# AK "vier überführte Einträge aus nothra/tch-gastro-services#279/#280/#282/#283 vorhanden" – bisher nur "keine
 # Nummerierung mehr" geprüft, nicht dass die vier konkreten Bestandseinträge noch da sind
 # (/test-Ergänzung, Testing-Persona-Finding).
 for kleinfunde_issue in '#279' '#280' '#282' '#283'; do
@@ -5002,7 +5005,7 @@ assert_true "$(! printf '%s' "$gitwf_flat_286" | grep -qF 'ebenso legen die Skil
 
 # Je Skill-Doku: Präsenz (verweist auf Sammeldatei + Schwellen-Tabelle) UND Abwesenheit (die
 # alte unbedingte Anweisungszeile ist verschwunden). Anker sind echte, im jeweiligen
-# Wortlaut vor #286 einmalig vorkommende Anweisungssätze – kein Kommando-Fragment (Lesson
+# Wortlaut vor nothra/tch-gastro-services#286 einmalig vorkommende Anweisungssätze – kein Kommando-Fragment (Lesson
 # factory-workflow.md "Reihenfolge-/Präsenz-Guards": Anker an der echten Zeile, nicht an
 # einem Fragment oder einer nie feuernden Alternative).
 # Kein 'declare -A' (macOS-Bash 3.2 kennt keine assoziativen Arrays, clean-code.md
@@ -5030,7 +5033,7 @@ for sk in codify review security-review; do
   # AK "Klassifikations-Anweisung steht VOR dem create_issue_idempotent-Aufruf" (die zentrale
   # Reihenfolge-Anforderung der ganzen Task – bisher nur inhaltlich, nie an der Position
   # geprüft, Lesson factory-workflow.md "Reihenfolge-/Präsenz-Guards"). Anker ist die echte
-  # Aufrufzeile am Spaltenanfang (Lesson #114), nicht eine Prosa-Erwähnung.
+  # Aufrufzeile am Spaltenanfang (Lesson nothra/tch-gastro-services#114), nicht eine Prosa-Erwähnung.
   class_line_286="$(grep -n 'Schwellen-Tabelle in' "$skf" | head -1 | cut -d: -f1)"
   call_line_286="$(grep -n '^create_issue_idempotent ' "$skf" | head -1 | cut -d: -f1)"
   assert_true "$([ -n "$class_line_286" ] && [ -n "$call_line_286" ] \
@@ -5104,10 +5107,10 @@ ADR043="$FACTORY_ROOT/docs/factory/adr/043-schwelle-fuer-autonome-issue-anlage.m
 adr043_status_line="$(awk '/^## Status/{found=1; next} found && NF {print; exit}' "$ADR043")"
 assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-043 Status ist auf 'Accepted' geflippt"
 
-# ─── #291/#337: Dependency-Security-Floors ───────────────────────────────────
+# ─── nothra/tch-gastro-services#291/#337: Dependency-Security-Floors ───────────────────────────────────
 # Entfällt im Factory-Repo: es hat kein Lockfile, kein package.json und keine npm-Abhängigkeiten.
 
-# ─── #267/#322: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ──
+# ─── nothra/tch-gastro-services#267/#322: Session-Empfehlung vs. Worktree-Pflicht (Doku-Präzisierung) ──
 echo ""
 echo "#267/#322 Session-Empfehlung vs. Worktree-Pflicht (git-workflow.md/CLAUDE.md/OPERATING.md/start-work.sh):"
 
@@ -5130,7 +5133,7 @@ assert_contains_286 "$gw_flat_267" "kein technisches Gate" \
 assert_absent "$OLD_PHRASE_267" "kein technisches Gate" \
   "AK1 (Mutation): die alte, unqualifizierte Session-Zeile erfüllt den Gate-Guard nicht"
 
-# AK2 (#322): start-work.sh + /requirements (ggf. /architecture) in derselben, noch
+# AK2 (nothra/tch-gastro-services#322): start-work.sh + /requirements (ggf. /architecture) in derselben, noch
 # task-freien Session ist jetzt der dokumentierte REGELFALL (zuvor Ausnahme); die
 # Session-Empfehlung selbst ist explizit an den nachfolgenden /implement-Schritt gebunden.
 # Grenze (keine Folge-Task in derselben Session) bleibt unverändert.
@@ -5153,7 +5156,7 @@ assert_absent "$OLD_PHRASE_267" "noch task-freien Session" \
 assert_contains_286 "$gw_flat_267" "Parallele Sessions: eigener Worktree (nicht verhandelbar)" \
   "F3: die Worktree-Pflicht bleibt als 'nicht verhandelbar' übertitelt"
 
-# AK3 (#322): CLAUDE.md bindet die Empfehlung an den /implement-Schritt und verweist weiterhin
+# AK3 (nothra/tch-gastro-services#322): CLAUDE.md bindet die Empfehlung an den /implement-Schritt und verweist weiterhin
 # auf git-workflow.md als kanonische Quelle.
 claude_flat_267=$(flat_286 "$CLAUDE_MD_267")
 assert_contains_286 "$claude_flat_267" "Empfehlung (keine Pflicht): Für den \`/implement\`-Schritt einer Task eine neue Claude-Session öffnen" \
@@ -5177,26 +5180,26 @@ assert_contains_286 "$operating_flat_267" "kein technisches Gate" \
 assert_absent "**Eine Task = eine Claude-Session.**" "kein technisches Gate" \
   "AK4 (Mutation): die alte imperative Fassung erfüllt den Guard nicht"
 
-# AK7 (#322): die #267-Fassung der Session-Empfehlung (generisch statt an /implement gebunden)
+# AK7 (nothra/tch-gastro-services#322): die nothra/tch-gastro-services#267-Fassung der Session-Empfehlung (generisch statt an /implement gebunden)
 # ist jetzt überholt und darf in keiner der vier betroffenen Dateien mehr vorkommen. Array statt
 # space-getrennter String: der Worktree-Pfad dieses Repos enthält selbst Leerzeichen
-# ("TCH Gastro Services.worktrees/…"), unquoted Word-Splitting zerrisse die Pfade.
+# ("Mein Projekt.worktrees/…"), unquoted Word-Splitting zerrisse die Pfade.
 ak7_files_267=("$GW_267" "$CLAUDE_MD_267" "$OPERATING_MD_267" "$SW")
 for ak7_f in "${ak7_files_267[@]}"; do
   assert_absent "$(flat_286 "$ak7_f")" "$OLD_PHRASE_267" \
     "AK7: ${ak7_f##*/} enthält die #267-Fassung der Session-Empfehlung nicht mehr"
 done
-# Positivkontrolle (frische Wegwerf-Fixture, kein bereits vorhandener Mutant – Lesson #284):
+# Positivkontrolle (frische Wegwerf-Fixture, kein bereits vorhandener Mutant – Lesson nothra/tch-gastro-services#284):
 # belegt, dass das Muster selbst funktionsfähig ist und eine Regression tatsächlich fände.
 AK7_MUT_DOC_322=$(mktemp)
 printf -- '- **Empfehlung (keine Pflicht): %s.**\n' "$OLD_PHRASE_267" > "$AK7_MUT_DOC_322"
 assert_contains_286 "$(flat_286 "$AK7_MUT_DOC_322")" "$OLD_PHRASE_267" \
   "AK7 (Mutation): die Wegwerf-Fixture mit der alten Formulierung würde den Abwesenheits-Guard reißen lassen"
 
-# ─── #310: Report-Guard honoriert nur einen frischen Verdict (Spec-310) ──────
+# ─── nothra/tch-gastro-services#310: Report-Guard honoriert nur einen frischen Verdict (Spec-310) ──────
 # Der Guard in run_skill() wertete einen non-zero Exit als Erfolg, sobald die Report-Datei
 # IRGENDEINEN gültigen Verdict enthielt – auch einen aus einer früheren Review-Iteration
-# desselben Laufs (#310, Task 308) oder aus einem früheren Pipeline-Lauf (#91). Der Fix
+# desselben Laufs (nothra/tch-gastro-services#310, Task 308) oder aus einem früheren Pipeline-Lauf (nothra/tch-gastro-services#91). Der Fix
 # vergleicht einen Fingerprint der Report-Datei von VOR dem ersten Versuch des Aufrufs.
 echo ""
 echo "#310 report_fingerprint (Frische-Fingerprint der Report-Datei):"
@@ -5216,7 +5219,7 @@ assert_true "$([ "$(rf310 security-review 310)" = "$TMP_FP310/tasks/security-310
 assert_true "$([ -z "$(rf310 implement 310)" ]; echo $?)" \
   "#310 AK9: report_file(implement) liefert leer (kein report-erzeugendes Skill)"
 
-# is_report_skill (#312 Review-Nitpick): benanntes Prädikat statt `[ -n "$(report_file …)" ]` an
+# is_report_skill (nothra/tch-gastro-services#312 Review-Nitpick): benanntes Prädikat statt `[ -n "$(report_file …)" ]` an
 # der Verzweigungsstelle in run_skill(). Beide Richtungen, damit es diskriminiert.
 irs312() { bash -c 'source "$1"; is_report_skill "$2" "$3" "$4"' _ "$RV_LIB310" "$1" "$2" "$TMP_FP310/tasks"; }
 assert_true "$(irs312 review 310; echo $?)" \
@@ -5317,7 +5320,7 @@ rm -rf "$TMP_FP310"
 
 # AK9 (Kopplungs-Guard, beide Seiten – Lesson testing.md „je Seite ein eigener Negativtest"):
 # Positiv-Seite = pipeline_summary() zieht seine Report-Pfade wirklich aus dem Helper (Anker ist
-# die exakte Aufrufzeile, kein Kommando-Fragment, Lesson #114); Negativ-Seite = das Pfadmuster
+# die exakte Aufrufzeile, kein Kommando-Fragment, Lesson nothra/tch-gastro-services#114); Negativ-Seite = das Pfadmuster
 # steht nicht zusätzlich in run-pipeline.sh, sonst driften Guard, Frische-Prüfung und Summary
 # wieder auseinander. Der Negativ-Check deckt auch die Schreibvarianten ohne Klammern und mit
 # GROSS-Variable ab – das exakte Literal allein ließe ein wiedereingeführtes
@@ -5334,7 +5337,7 @@ assert_true "$(! grep -Eq 'tasks/(review|security)-[$][{]?(task_id|TASK_ID)[}]?[
 # die beiden anderen Hälften von AK7 behavioral (AK2: vor dem claude-Aufruf, sonst gälte nie
 # etwas als frisch; AK1: pro run_skill-Aufruf neu, sonst würde Iteration 1 die Iteration 2
 # durchwinken); nur „vor der Schleife statt je Versuch" ist rein positionell. Verglichen werden
-# Zeilennummern zweier exakter Zeilen, keine zwei isolierten Präsenz-Checks (Lesson #286).
+# Zeilennummern zweier exakter Zeilen, keine zwei isolierten Präsenz-Checks (Lesson nothra/tch-gastro-services#286).
 ak7_snapshot_line_310() { grep -n 'report_fingerprint_before=' "$1" | head -1 | cut -d: -f1; }
 ak7_loop_line_310()     { grep -n 'for attempt in 1 2 3; do' "$1" | head -1 | cut -d: -f1; }
 assert_true "$([ "$(ak7_snapshot_line_310 "$PIPELINE")" -lt "$(ak7_loop_line_310 "$PIPELINE")" ]; echo $?)" \
@@ -5363,10 +5366,10 @@ echo "#310 E2E: Report-Guard honoriert nur einen im Aufruf entstandenen Verdict:
 # `claude`-Stub im Prompt, welches Skill gerade läuft ('SKILL-review' ist kein Teilstring von
 # 'SKILL-security-review'). Der Aufrufer legt danach Report-Dateien + Stub an und committet.
 #
-# Die Repo-Kopie selbst kommt aus `_mk_pipe_repo` (oben, #197-Block) – dort steht die
+# Die Repo-Kopie selbst kommt aus `_mk_pipe_repo` (oben, nothra/tch-gastro-services#197-Block) – dort steht die
 # kanonische Liste der Dateien, die run-pipeline.sh zum Starten braucht; hier wird nur die
 # Differenz ergänzt (Interrupt-Pfad, Skill-Mocks, Task-Datei, sleep-Stub). Kein paralleler
-# Zweitaufbau derselben Struktur (Lesson testing.md, #240/#267).
+# Zweitaufbau derselben Struktur (Lesson testing.md, nothra/tch-gastro-services#240/#267).
 # Abhängigkeit: `_mk_pipe_repo` wird im `if [ "$HAS_YQ" = 1 ]`-Zweig definiert – wie alle
 # Aufrufstellen von scaffold_310 unten.
 scaffold_310() {
@@ -5380,7 +5383,7 @@ scaffold_310() {
   done
   printf '# Task %s: report-guard\n' "$task_id" > "$dir/tasks/task-${task_id}-guard.md"
   printf '#!/bin/sh\nexit 0\n' > "$dir/bin/sleep"; chmod +x "$dir/bin/sleep"
-  # gh immer fehlschlagen lassen (#314-Nitpick, Review-Runde-1-Finding): run_310() setzt
+  # gh immer fehlschlagen lassen (nothra/tch-gastro-services#314-Nitpick, Review-Runde-1-Finding): run_310() setzt
   # "$dir/bin" vor den Rest von PATH, damit reicht ein Stub, um den ambienten System-`gh`
   # zu überschatten. Ohne ihn hinge der EXIT-Trap-Aufruf von `metrics.sh --quiet --publish`
   # (ADR-045) an der lokalen gh-Installation/-Authentifizierung – heute folgenlos, weil der
@@ -5391,7 +5394,7 @@ scaffold_310() {
 
 # commit_310 <dir> – Wegwerf-Repo committen (preflight_checks verlangt einen sauberen Baum).
 # Explizite git-Identität: ohne sie schlägt der Commit in einer identitätslosen Umgebung
-# fehl (Lesson testing.md, #265).
+# fehl (Lesson testing.md, nothra/tch-gastro-services#265).
 commit_310() {
   git -C "$1" init -q
   git -C "$1" -c user.email=t@t -c user.name=t add . >/dev/null 2>&1
@@ -5400,7 +5403,7 @@ commit_310() {
 
 # run_310 <dir> <task_id> – echter Pipeline-Lauf im Wegwerf-Repo; Ausgabe in OUT_310,
 # Exit-Code in RC_310 (Globals, weil eine Command Substitution den Exit-Code verschluckt).
-# env -u: siehe #264 – kein Testblock entscheidet aus der Env der aufrufenden Shell.
+# env -u: siehe nothra/tch-gastro-services#264 – kein Testblock entscheidet aus der Env der aufrufenden Shell.
 run_310() {
   local dir="$1" task_id="$2"
   OUT_310=$(cd "$dir" && PATH="$dir/bin:$PATH" \
@@ -5413,11 +5416,11 @@ STALE_MSG_310='stammt aus einem früheren Aufruf'
 FRESH_MSG_310='Turn-Limit toleriert'
 
 # Anker der Guard-Bedingung in run_skill(). Immer die VOLLE Zeile, nie ein Kommando-Fragment
-# (Lesson factory-workflow.md, #114): `report_fingerprint "$skill" "$task_id"` allein stünde
+# (Lesson factory-workflow.md, nothra/tch-gastro-services#114): `report_fingerprint "$skill" "$task_id"` allein stünde
 # auch in der Snapshot-Zeile oberhalb der Retry-Schleife, `stop_if_interrupted "$task_id"`
-# dreimal im Skript. Seit #312 stehen beide Teilbedingungen in der Hilfsfunktion
+# dreimal im Skript. Seit nothra/tch-gastro-services#312 stehen beide Teilbedingungen in der Hilfsfunktion
 # report_is_fresh_and_valid(), die BEIDE Rückkehrpfade auswerten – die Mutationsbelege des
-# #310- und des #312-Blocks hängen an denselben Zeilen, darum eine gemeinsame Definition
+# nothra/tch-gastro-services#310- und des nothra/tch-gastro-services#312-Blocks hängen an denselben Zeilen, darum eine gemeinsame Definition
 # statt zweier gleichlautender Literale.
 FRESH_CMP_PIPE='[ "$(report_fingerprint "$skill" "$task_id")" != "$fingerprint_before" ]'
 VERDICT_CHK_PIPE='[ -n "$(report_verdict "$skill" "$task_id")" ] || return 1'
@@ -5425,10 +5428,10 @@ GUARD_CALL_PIPE='report_is_fresh_and_valid "$skill" "$task_id" "$report_fingerpr
 IC_CALL_PIPE='stop_if_interrupted "$task_id"'
 
 if [ "$HAS_YQ" = 1 ]; then
-  # ── AK1/AK6/AK7 (Kern #310): Verdict aus Review-Iteration 1, Iteration 2 reißt das
+  # ── AK1/AK6/AK7 (Kern nothra/tch-gastro-services#310): Verdict aus Review-Iteration 1, Iteration 2 reißt das
   # Turn-Limit, ohne den Report zu berühren. Der Stub schreibt den Report genau beim
   # ERSTEN review-Aufruf (danach existiert die Datei → exit 1 ohne Schreiben) – damit ist
-  # die Iteration-1-Datei die divergenzerzeugende Aktion (Lesson #253) und der Fingerprint
+  # die Iteration-1-Datei die divergenzerzeugende Aktion (Lesson nothra/tch-gastro-services#253) und der Fingerprint
   # muss pro run_skill-Aufruf neu erhoben werden, nicht einmal pro Pipeline-Lauf (AK7).
   TMP_A310="$(mktemp -d)"
   scaffold_310 "$TMP_A310" 310
@@ -5527,7 +5530,7 @@ STUB_C310
     "#310 AK3: die Pipeline arbeitet mit dem neuen Verdict weiter"
   rm -rf "$TMP_C310"
 
-  # ── AK4/AK8 (#91, Re-Lauf): committeter Report aus einem früheren Lauf, erster Versuch
+  # ── AK4/AK8 (nothra/tch-gastro-services#91, Re-Lauf): committeter Report aus einem früheren Lauf, erster Versuch
   # scheitert sofort ohne die Datei zu berühren → Fehlversuch statt fail-open. AK8 hängt an
   # genau diesem Fall: hier schreibt niemand, der Report muss byte-identisch bleiben.
   TMP_D310="$(mktemp -d)"
@@ -5612,8 +5615,8 @@ STUB_F310
     "#310 AK10: keine Guard-Meldung für nicht report-erzeugende Skills"
   rm -rf "$TMP_F310"
 
-  # ── Interrupt-Stopp im Stale-Zweig (#310 Review-Runde-2-Nitpick): Ein Aufruf, der einen
-  # Interrupt signalisiert UND danach non-zero endet, wurde vor #310 über den (damals
+  # ── Interrupt-Stopp im Stale-Zweig (nothra/tch-gastro-services#310 Review-Runde-2-Nitpick): Ein Aufruf, der einen
+  # Interrupt signalisiert UND danach non-zero endet, wurde vor nothra/tch-gastro-services#310 über den (damals
   # erfolgreichen) Verdict-Zweig sofort gestoppt. Ohne `interrupt-check.sh` im neuen
   # Stale-Zweig folgten stattdessen zwei weitere Heavy-Versuche desselben Skills, und der
   # Blocker-Eintrag in der Task-Datei entfiel. Divergenzerzeugende Aktion ist der echte
@@ -5647,10 +5650,10 @@ STUB_G310
   # der Stop-bei-Interrupt-Aufruf des Stale-Zweigs fehlt (awk löscht die erste solche Zeile
   # NACH der Stale-Meldung – die beiden Erfolgs-Zweige bleiben unberührt). Seit /refactor steht
   # der Aufruf über die Helper-Funktion stop_if_interrupted() (Dedup der zuvor dreifachen
-  # Aufrufzeile, #310 Review-Runde-3-Nitpick).
+  # Aufrufzeile, nothra/tch-gastro-services#310 Review-Runde-3-Nitpick).
   # Anker ist die exakte AUFRUF-Zeile ($IC_CALL_PIPE), nicht der Funktionsname: gegen ein
   # Fragment gematcht erwischte die Mutation zuerst die Erwähnung im WHY-Kommentar darüber
-  # und ließ den echten Aufruf stehen (Lesson factory-workflow.md, #114 – „Kommando ≠
+  # und ließ den echten Aufruf stehen (Lesson factory-workflow.md, nothra/tch-gastro-services#114 – „Kommando ≠
   # Prosa-Erwähnung").
   TMP_H310="$(mktemp -d)"
   scaffold_310 "$TMP_H310" 316
@@ -5675,7 +5678,7 @@ else
   skip_yq "#310 E2E: Report-Guard Frische-Prüfung (AK1–AK6, AK8, AK10, AK11, Interrupt/Stale)"
 fi
 
-# ─── #310 AK12: Doku-Nachzug (ADR-019 §4 + Lesson-Absätze #91/#310) ──────────
+# ─── nothra/tch-gastro-services#310 AK12: Doku-Nachzug (ADR-019 §4 + Lesson-Absätze nothra/tch-gastro-services#91/#310) ──────────
 echo ""
 echo "#310 AK12: ADR-019 §4 und die Lesson-Absätze beschreiben die Frische-Bedingung:"
 
@@ -5687,26 +5690,26 @@ assert_contains_286 "$adr019_flat_310" "report_fingerprint" \
   "#310 AK12: ADR-019 §4 nennt den Fingerprint-Helper namentlich"
 
 workflow_flat_310=$(flat_286 "$WORKFLOW_LESSON")
-assert_contains_286 "$workflow_flat_310" "In #310 umgesetzt" \
+assert_contains_286 "$workflow_flat_310" "In nothra/tch-gastro-services#310 umgesetzt" \
   "#310 AK12: Lesson nennt den Erledigt-Stand des Report-Guard-Fixes"
 assert_absent "$workflow_flat_310" "Bis dahin: Pipeline-Re-Läufe" \
   "#310 AK12: die Übergangsanweisung 'bis dahin manuell prüfen' ist aufgelöst"
 assert_absent "$workflow_flat_310" "muss also **zusätzlich** vor jedem Schleifendurchlauf greifen" \
   "#310 AK12: die Within-Run-Regel steht nicht mehr als offene Forderung"
 
-# ─── #312: Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad (Spec-312) ───────
-# #310 hat die Frische-Prüfung nur in den non-zero-Zweig von run_skill() gelegt. Endete
+# ─── nothra/tch-gastro-services#312: Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad (Spec-312) ───────
+# nothra/tch-gastro-services#310 hat die Frische-Prüfung nur in den non-zero-Zweig von run_skill() gelegt. Endete
 # `claude --print` mit Exit 0, kehrte run_skill() mit `return 0` zurück, ohne den erhobenen
 # Fingerprint je anzusehen – Phase 2 las danach einen stehengebliebenen APPROVED und verließ
 # den Review-Loop, ohne dass in diesem Lauf ein Review stattfand (dieselbe fail-open-Richtung
-# wie #91/#310, nur über den Erfolgs- statt den Fehlerpfad). Der Fix wertet beide
+# wie nothra/tch-gastro-services#91/#310, nur über den Erfolgs- statt den Fehlerpfad). Der Fix wertet beide
 # Rückkehrpfade gegen dieselbe Bedingung aus und verlangt zusätzlich einen eindeutigen
 # Verdict; das Security-Gate in Phase 5 ist auf „nur PASSED passiert" umgedreht.
 echo ""
 echo "#312 Struktur: eine Bedingung, ein Ort (AK9):"
 
 # Die Zeilen-Anker der Guard-Bedingung ($FRESH_CMP_PIPE / $VERDICT_CHK_PIPE / $GUARD_CALL_PIPE /
-# $IC_CALL_PIPE) stehen gemeinsam mit STALE_MSG_310/FRESH_MSG_310 oben – #310 und #312 mutieren
+# $IC_CALL_PIPE) stehen gemeinsam mit STALE_MSG_310/FRESH_MSG_310 oben – nothra/tch-gastro-services#310 und nothra/tch-gastro-services#312 mutieren
 # dieselben Zeilen, deshalb genau eine Definition.
 GATE_CMP_312='if [ "$SECURITY_VERDICT" != "PASSED" ]; then'
 
@@ -5722,22 +5725,22 @@ assert_true "$(! grep -q 'report_fingerprint_now' "$PIPELINE"; echo $?)" \
   "#312 AK9: keine zweite Schreibweise der Bedingung im non-zero-Zweig mehr"
 # AK9 („kein Report-Pfad in run-pipeline.sh"): der Report-Guard verzweigt über das benannte
 # Prädikat aus der Lib. Zweite Assertion in der Gegenrichtung – die frühere Schreibweise
-# `[ -n "$(report_file …)" ]` las sich wie eine Datei-Existenz-Prüfung (#312 Review-Nitpick).
+# `[ -n "$(report_file …)" ]` las sich wie eine Datei-Existenz-Prüfung (nothra/tch-gastro-services#312 Review-Nitpick).
 assert_true "$(grep -qF -- 'if is_report_skill "$skill" "$task_id"; then' "$PIPELINE"; echo $?)" \
   "#312 AK9: run_skill() verzweigt über is_report_skill aus der Lib"
 assert_true "$(! grep -qF -- '[ -n "$(report_file "$skill" "$task_id")" ]' "$PIPELINE"; echo $?)" \
   "#312 AK9: keine als Existenz-Prüfung lesbare report_file-Verzweigung mehr"
 # Die Erfolgsmeldung materialisiert den Verdict einmal im Rumpf von run_skill(), statt ihn per
-# eingebetteter Command Substitution im Meldungstext neu zu lesen (#312 Review-Runde-1-Nitpick
+# eingebetteter Command Substitution im Meldungstext neu zu lesen (nothra/tch-gastro-services#312 Review-Runde-1-Nitpick
 # N1). Gezählt werden die report_verdict-Aufrufe IM per awk extrahierten Rumpf von run_skill() –
 # ein Abwesenheits-Guard auf das Fragment `Verdict '$(report_verdict` koppelte Meldungstext und
 # Code-Konstrukt: eine umformulierte Meldung mit erneut eingebetteter Command Substitution wäre
-# grün geblieben (Fragment-Falle aus Lesson factory-workflow.md, #114, in der
-# Abwesenheits-Richtung; #312 Review-Runde-2-Nitpick). Die Zählung ist in beide Richtungen
+# grün geblieben (Fragment-Falle aus Lesson factory-workflow.md, nothra/tch-gastro-services#114, in der
+# Abwesenheits-Richtung; nothra/tch-gastro-services#312 Review-Runde-2-Nitpick). Die Zählung ist in beide Richtungen
 # fail-closed für diesen Rumpf-Ausschnitt: eine zu kurze Extraktion liefert 0 Treffer, eine über
 # das Funktionsende hinausreichende mehr als einen. Sie ist blind für report_is_fresh_and_valid()
 # außerhalb von run_skill() – die liest den Verdict für die Bedingung separat noch einmal, macht
-# zwei report_verdict-Aufrufe pro Versuch insgesamt (#312 Review-Runde-3-Finding W1).
+# zwei report_verdict-Aufrufe pro Versuch insgesamt (nothra/tch-gastro-services#312 Review-Runde-3-Finding W1).
 run_skill_body_312() { awk '/^run_skill\(\) \{/ { inside = 1 } inside { print } inside && /^\}/ { exit }' "$1"; }
 runskill_body_312="$(run_skill_body_312 "$PIPELINE")"
 assert_true "$(printf '%s\n' "$runskill_body_312" | grep -qF 'for attempt in 1 2 3; do'; echo $?)" \
@@ -5747,7 +5750,7 @@ assert_true "$([ "$(printf '%s\n' "$runskill_body_312" | grep -c 'report_verdict
 
 # AK5 (Reihenfolge): Die Interrupt-Prüfung des Exit-0-Pfads steht VOR der Frische-/
 # Verdict-Auswertung – verglichen werden Zeilennummern zweier exakter Zeilen, keine zwei
-# isolierten Präsenz-Checks (Lesson testing.md, #286). Den Verhaltensbeweis samt Mutation
+# isolierten Präsenz-Checks (Lesson testing.md, nothra/tch-gastro-services#286). Den Verhaltensbeweis samt Mutation
 # liefert der E2E-Block unten.
 ic_first_line_312() { grep -nF -- "$IC_CALL_PIPE" "$1" | head -1 | cut -d: -f1; }
 guard_line_312()    { grep -nF -- "$GUARD_CALL_PIPE" "$1" | head -1 | cut -d: -f1; }
@@ -5783,7 +5786,7 @@ if [ "$HAS_YQ" = 1 ]; then
   # damit den Review-Loop, ohne dass in diesem Lauf ein Review stattfand.
   # Der Stub bedient zusätzlich security-review – nicht für diesen Lauf (er stirbt in Phase 2),
   # sondern damit der Mutant unten nicht an einer ZWEITEN Ursache scheitert und der
-  # Beleg dadurch aus dem falschen Grund grün würde (Lesson testing.md, #214).
+  # Beleg dadurch aus dem falschen Grund grün würde (Lesson testing.md, nothra/tch-gastro-services#214).
   TMP_A312="$(mktemp -d)"
   scaffold_310 "$TMP_A312" 330
   printf '## Empfehlung\nAPPROVED\naus einem früheren Pipeline-Lauf\n' > "$TMP_A312/tasks/review-330.md"
@@ -5837,7 +5840,7 @@ STUB_A312
 
   # ── AK2/AK7/AK8 (Regression Erfolgs-Pfad): review und security-review schreiben ihren
   # Report IM Aufruf und enden mit Exit 0 → weiterhin Erfolg. Divergenzerzeugende Ausgangslage
-  # sind die vorbestehenden Reports mit dem GEGENTEILIGEN Verdict (Lesson testing.md, #253):
+  # sind die vorbestehenden Reports mit dem GEGENTEILIGEN Verdict (Lesson testing.md, nothra/tch-gastro-services#253):
   # ohne sie könnte der Lauf auch aus einer stehengebliebenen Datei grün sein.
   TMP_B312="$(mktemp -d)"
   scaffold_310 "$TMP_B312" 331
@@ -5876,7 +5879,7 @@ STUB_B312
   # Fall nicht verändern (Spec-312, Fehlerszenarien) – belegt war bisher nur die
   # PASSED-Richtung (TMP_B312) und der leere Verdict am mutierten Skript.
   # Divergenzerzeugende Ausgangslage wie in TMP_B312: der vorbestehende Report trägt den
-  # GEGENTEILIGEN Verdict (Lesson testing.md, #253) – ohne ihn könnte der Lauf auch aus einer
+  # GEGENTEILIGEN Verdict (Lesson testing.md, nothra/tch-gastro-services#253) – ohne ihn könnte der Lauf auch aus einer
   # stehengebliebenen Datei blockieren, statt aus dem in diesem Aufruf geschriebenen Verdict.
   TMP_F312="$(mktemp -d)"
   scaffold_310 "$TMP_F312" 335
@@ -5983,7 +5986,7 @@ STUB_C312
 
   # ── AK4 (security-review stale): committeter PASSED aus einem früheren Aufruf,
   # /security-review endet mit Exit 0, ohne die Datei zu berühren. Gleiche Richtung wie AK1,
-  # andere Report-Datei – und nicht-destruktiv wie in #310.
+  # andere Report-Datei – und nicht-destruktiv wie in nothra/tch-gastro-services#310.
   TMP_D312="$(mktemp -d)"
   scaffold_310 "$TMP_D312" 333
   printf '## Ergebnis\nPASSED\naus einem früheren Aufruf\n' > "$TMP_D312/tasks/security-333.md"
@@ -6014,8 +6017,8 @@ STUB_D312
   # ── AK5 (Interrupt hat Vorrang): Der Versuch signalisiert einen Interrupt und endet mit
   # Exit 0, ohne einen gültigen Verdict zu hinterlassen. Zielfall ist bewusst der
   # „kein Verdict"-Zweig: nur er hat keinen eigenen interrupt-check (der Stale-Zweig hat
-  # seit #310 einen), also kann allein die neue Exit-0-Prüfung ihn stoppen – der Testpfad
-  # ist damit auf den Zielpfad isoliert (Lesson testing.md, #214).
+  # seit nothra/tch-gastro-services#310 einen), also kann allein die neue Exit-0-Prüfung ihn stoppen – der Testpfad
+  # ist damit auf den Zielpfad isoliert (Lesson testing.md, nothra/tch-gastro-services#214).
   TMP_E312="$(mktemp -d)"
   scaffold_310 "$TMP_E312" 334
   cat > "$TMP_E312/bin/claude" <<'STUB_E312'
@@ -6069,7 +6072,7 @@ else
   skip_yq "#312 E2E: Exit-0-Frischeprüfung (AK1–AK8, AK10–AK12)"
 fi
 
-# ─── #312 AK13: Doku-Nachzug (ADR-019 §4 + Report-Guard-Lesson) ──────────────
+# ─── nothra/tch-gastro-services#312 AK13: Doku-Nachzug (ADR-019 §4 + Report-Guard-Lesson) ──────────────
 echo ""
 echo "#312 AK13: ADR-019 §4 und die Lesson beschreiben die symmetrische Bedingung:"
 
@@ -6082,12 +6085,12 @@ assert_contains_286 "$adr019_flat_312" "passiert nur ein eindeutiges" \
   "#312 AK13: ADR-019 §4 nennt die neue Gate-Polarität in Phase 5"
 
 workflow_flat_312=$(flat_286 "$WORKFLOW_LESSON")
-assert_contains_286 "$workflow_flat_312" "In #312 auf den Exit-0-Pfad ausgeweitet" \
+assert_contains_286 "$workflow_flat_312" "In nothra/tch-gastro-services#312 auf den Exit-0-Pfad ausgeweitet" \
   "#312 AK13: Lesson nennt den Erledigt-Stand der Exit-0-Ausweitung"
 assert_contains_286 "$workflow_flat_312" "auf allen Rückkehrpfaden, nicht nur im Fehlerpfad" \
   "#312 AK13: die Lesson-Regel ist um alle Rückkehrpfade geschärft"
 
-# Dieselbe Prosa steht an zwei weiteren Orten, die der erste Sweep übersehen hatte (#312
+# Dieselbe Prosa steht an zwei weiteren Orten, die der erste Sweep übersehen hatte (nothra/tch-gastro-services#312
 # Review-Runde-1-Findings): im Modul-Header der Lib – der Datei, die jeder Nutzer der drei
 # Funktionen zuerst liest – und in OPERATING.md, das CLAUDE.md als kanonische Quelle des
 # prozeduralen Ablaufs benennt. Beide beschrieben weiter die alte, einseitige Mechanik.
@@ -6245,7 +6248,7 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$([ -n "$preflight_call_line_314" ] && [ -n "$trap_line_314" ] && [ "$trap_line_314" -gt "$preflight_call_line_314" ]; echo $?)" \
     "#314: Trap-Registrierung steht NACH dem preflight_checks-Aufruf"
 
-  # commit_314_pushed <dir> <origin> – wie commit_310 (oben, #310-Block), zusätzlich MIT
+  # commit_314_pushed <dir> <origin> – wie commit_310 (oben, nothra/tch-gastro-services#310-Block), zusätzlich MIT
   # gepushtem origin-Remote: die Endzustands-Verifikation (ADR-040) verlangt "sauber, gepusht"
   # für ein grünes Ende – ohne Remote bräche AK1/AK3 schon dort ab, nicht an der Messung.
   commit_314_pushed() {
@@ -6302,7 +6305,7 @@ STUB_314A
   # ── AK2 (Mutationsbeleg): OHNE die Trap-Registrierung läuft dieselbe Abbruch-Fixture ohne
   # Messabschnitt – belegt, dass der Test oben wirklich die Trap-Mechanik prüft (Lesson
   # testing.md, Mutationsbeleg-Pflicht bei Positivbelegen), nicht nur den vorbestehenden
-  # Retry-Pfad aus #310/#312.
+  # Retry-Pfad aus nothra/tch-gastro-services#310/#312.
   TMP_314B2="$(mktemp -d)"
   scaffold_310 "$TMP_314B2" 901
   awk '/^trap measure_process_metrics_on_exit EXIT$/{next} {print}' "$PIPELINE" > "$TMP_314B2/scripts/run-pipeline.sh"
@@ -6357,7 +6360,7 @@ else
   skip_yq "#314 E2E: Prozess-Metriken-Trap in run-pipeline.sh"
 fi
 
-# ─── #314 AK12: Doku ohne Drift (CLAUDE.md, daily-metrics.md, OPERATING.md) ──────────────────
+# ─── nothra/tch-gastro-services#314 AK12: Doku ohne Drift (CLAUDE.md, daily-metrics.md, OPERATING.md) ──────────────────
 echo ""
 echo "#314 AK12: Doku beschreibt die Messung als Bestandteil jedes Pipeline-Laufs:"
 
@@ -6380,11 +6383,11 @@ assert_contains_286 "$operating_flat_314" 'Läuft automatisch (ADR-045' \
 assert_contains_286 "$operating_flat_314" 'pull-requests: read' \
   "#314 AK12: OPERATING.md nennt den erweiterten factory-poll.yml-Scope (AK15)"
 
-# ─── #315: Aspekt-Label factory-pipeline ─────────────────────────────────────
+# ─── nothra/tch-gastro-services#315: Aspekt-Label factory-pipeline ─────────────────────────────────────
 # Entfällt im Factory-Repo: das Label trennt in adoptierenden Projekten „Werkzeug vs. Produkt"; im
 # Factory-Repo ist alles Factory-Arbeit (labels.aspects_extra ist leer, siehe PROJECT-CONTEXT.md).
 
-# ─── #319: Deckel für den @import-Dauerkontext (ADR-047 §4) ──────────────────
+# ─── nothra/tch-gastro-services#319: Deckel für den @import-Dauerkontext (ADR-047 §4) ──────────────────
 echo ""
 echo "#319 @import-Kontext-Deckel (ADR-047):"
 
@@ -6411,7 +6414,7 @@ assert_true "$([ -n "$IC_BASIS_319" ] && [ "$IC_BASIS_319" -gt 0 ]; echo $?)" \
 
 # Herleitung als Kommentar an der Konstante (ADR-047 §4: keine Magic Number). Der Anker muss
 # eine Phrase treffen, die NUR im Kommentarblock steht – das Wort „Herleitung" allein steht auch
-# in der Remediation-Ausgabe, die Assertion wäre dann überclaimt (Lesson #312: das Label darf nur
+# in der Remediation-Ausgabe, die Assertion wäre dann überclaimt (Lesson nothra/tch-gastro-services#312: das Label darf nur
 # behaupten, was der Prüfausdruck abdeckt).
 IC_SRC_319="$(flat_286 "$IMPORT_CHECK")"
 assert_contains_286 "$IC_SRC_319" "Herleitung (ADR-047 §4" \
@@ -6524,7 +6527,7 @@ assert_contains_286 "$ic_out" "Projektwurzel nicht erreichbar" "#319: eigene Mel
 #    seen-Schutz die Suite nicht hängen lässt, sondern rot macht. Der Exit-Code allein genügt
 #    NICHT: ein Mutant ohne seen-Dedup terminiert ebenfalls mit 0 und meldet nur eine zu große
 #    Summe. Deshalb wird die SUMME assertiert (21 + 31 = 52) – sonst behauptet das Label mehr,
-#    als der Ausdruck messen kann (Lesson #312).
+#    als der Ausdruck messen kann (Lesson nothra/tch-gastro-services#312).
 claude_fixture_319 '@docs/a.md'
 mklines_319 "$TMP_IC/docs/a.md" 30
 printf '@CLAUDE.md\n' >> "$TMP_IC/docs/a.md"
@@ -6607,7 +6610,7 @@ grep -qF -- "$IC_CALL_319" "$CHECKS_DIR/pre-push.sh"
 assert_true "$?" "#319: pre-push.sh ruft den Deckel-Check auf (echte Aufrufzeile)"
 
 # Mutationsbeleg mit DEMSELBEN Assert-Ausdruck: ohne die Aufrufzeile wird der Guard rot
-# (belegt Kausalität, nicht nur Quoting – Lesson #286).
+# (belegt Kausalität, nicht nur Quoting – Lesson nothra/tch-gastro-services#286).
 IC_MUT_319="$(mktemp)"
 grep -vF -- "$IC_CALL_319" "$CHECKS_DIR/pre-push.sh" > "$IC_MUT_319"
 assert_absent "$(cat "$IC_MUT_319")" "$IC_CALL_319" \
@@ -6615,7 +6618,7 @@ assert_absent "$(cat "$IC_MUT_319")" "$IC_CALL_319" \
 rm -f "$IC_MUT_319"
 
 # 16. VERHALTEN, nicht nur Verdrahtung: ein rotes Check-Ergebnis muss den Push blockieren
-#     (Lesson #212 – deterministisches Gate braucht einen E2E-Verhaltenstest). pre-push.sh leitet
+#     (Lesson nothra/tch-gastro-services#212 – deterministisches Gate braucht einen E2E-Verhaltenstest). pre-push.sh leitet
 #     FACTORY_DIR aus dem eigenen Skript-Pfad ab (nicht aus der Env), deshalb Kopie von Gate +
 #     Check in ein Temp-Root; die teuren Gates werden per Env auf `true` neutralisiert, Checks 4/5
 #     fehlen dort und überspringen sich selbst – so entscheidet allein der Deckel. Muster wie
@@ -6638,7 +6641,7 @@ assert_exit 0 "$?" "#319: Kontext unter der Grenze lässt den Push zu (E2E)"
 # Mutationsbeleg: fällt das `FAILED=1` im Check-6-Block weg, blockiert derselbe rote Deckel
 # nicht mehr – belegt, dass die Assertion oben genau daran hängt und nicht am Exit des Checks.
 # Der awk-Block bricht am nächsten Job-Trenner ab (nicht nur an „Check 7"), damit die Isolation
-# nicht still zu breit wird, falls der Deckel später der letzte Check ist (Klasse #255).
+# nicht still zu breit wird, falls der Deckel später der letzte Check ist (Klasse nothra/tch-gastro-services#255).
 IC_PP_MUT_319="$TMP_PP319/scripts/checks/pre-push-ohne-failed.sh"
 awk '
   /^# ─── Check 6:/ { in6 = 1; print; next }
@@ -6679,7 +6682,7 @@ done
 # Die Trigger stehen in einem Blockquote, dessen Fortsetzungszeilen mit "> " beginnen; die
 # Marker müssen vor dem Flachlesen weg, sonst landen sie mitten in der Phrase. Deshalb
 # sed-Vorlauf in eine Kopie und darauf der vorhandene flat_286-Helfer (komponiert, keine
-# zweite Lesefunktion – Lesson #240/#267 zur Helfer-Duplikation).
+# zweite Lesefunktion – Lesson nothra/tch-gastro-services#240/#267 zur Helfer-Duplikation).
 # ACHTUNG Fehlalarm-Modus: die Anker enthalten die vollständige Themen-Aufzählung des Bullets.
 # Eine reine Umformulierung der Beschreibung macht diese Tests rot, OBWOHL der Trigger noch da
 # ist – dann hier den Anker mitziehen, nicht den Trigger suchen.
@@ -6725,7 +6728,7 @@ for phrase in "Coverage-Ausgabe nur in"; do
 done
 # Umfang statt nur Präsenz: die drei Abschnitte wurden byte-identisch migriert (1.197 + 1.531 +
 # 920 = 3.648 Bytes Rumpf). Eine spätere versehentliche Kürzung würde die Präsenz-Checks oben
-# nicht röten – deshalb ein Größen-Guard je Abschnitt (Lesson #196: Migration mit
+# nicht röten – deshalb ein Größen-Guard je Abschnitt (Lesson nothra/tch-gastro-services#196: Migration mit
 # Reconstruction-Assertion belegen, nicht mit Titel-Präsenz).
 ic_body_bytes_319() {  # $1 = Titel-Präfix des ### -Abschnitts
   awk -v anchor="$1" '
@@ -6737,7 +6740,7 @@ ic_body_bytes_319() {  # $1 = Titel-Präfix des ### -Abschnitts
 assert_true "$([ "$(ic_body_bytes_319 'Coverage-Ausgabe nur in ignorierte Pfade')" -ge 910 ]; echo $?)" \
   "#319: der ADR-040-Abschnitt ist vollständig migriert (≥ 910 Bytes Rumpf)"
 # Der verschobene Text darf nicht auf seinen alten Kontext zeigen („siehe unten" zeigte in der
-# Lesson ins Leere, weil darunter der Coverage-Abschnitt fehlt – Deixis-Falle, Lesson #315).
+# Lesson ins Leere, weil darunter der Coverage-Abschnitt fehlt – Deixis-Falle, Lesson nothra/tch-gastro-services#315).
 assert_absent "$TESTING_LESSON_319" "100 % bei neuem Code, siehe unten" \
   "#319: kein Deixis-Verweis „siehe unten\" im verschobenen Abschnitt"
 # Und kein Verweis darf die verschobene Regel weiter in der alten Datei verorten. Die Suchphrase
@@ -6749,7 +6752,7 @@ assert_absent "$(flat_286 "$CHECKS_DIR/tests/run-tests.sh")" \
   "#319: kein Verweis mehr auf die verschobene Regel in der alten Datei"
 
 # 21. Die kanonische pre-push-Check-Liste in git-workflow.md nennt den neuen Check (Lesson
-#     #211/#176: Prosa im Präsens, die die geänderte Mechanik beschreibt, im selben PR nachziehen).
+#     nothra/tch-gastro-services#211/#176: Prosa im Präsens, die die geänderte Mechanik beschreibt, im selben PR nachziehen).
 assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md")" \
   "@import-Kontext-Deckel" "#319: git-workflow.md Hook-Tabelle nennt den Deckel-Check"
 # Und die Invarianten-Registry in OPERATING.md (kanonische Quelle des prozeduralen Ablaufs).
@@ -6762,7 +6765,7 @@ assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")" \
 
 # 22. Die Kern-Kurzregeln dürfen die Label-Konvention und die Schwellen-Tabelle NICHT kopieren:
 #     git-workflow.md („Die kanonische Label-Liste bleibt allein in diesem Abschnitt"), ADR-018
-#     und ADR-043 („Ein Ort je Regel") entscheiden das, und der #315-Registry-Guard kennt
+#     und ADR-043 („Ein Ort je Regel") entscheiden das, und der nothra/tch-gastro-services#315-Registry-Guard kennt
 #     CLAUDE.md nicht – eine Kopie hier wäre die einzige unbewachte (Review-Runde 3, K3).
 assert_absent "$CLAUDE_FLAT_319" "Fund-Art" \
   "#319 K3: FACTORY.md kopiert die Schwellen-Tabelle nicht"
@@ -6801,7 +6804,7 @@ assert_absent "$ADR047_FLAT_319" "Reflex\", \`token-efficiency.md\`" \
 assert_contains_286 "$ADR047_FLAT_319" "OPERATING.md" \
   "#319: ADR-047 nennt OPERATING.md als Quelle der YAGNI-Regel"
 # Und eine im selben PR umgesetzte ADR steht auf `Accepted`, nicht auf `Proposed`
-# (Lesson factory-workflow.md, aus #197 – beim Implementieren mitzuziehen).
+# (Lesson factory-workflow.md, aus nothra/tch-gastro-services#197 – beim Implementieren mitzuziehen).
 assert_contains_286 "$ADR047_FLAT_319" "## Status Accepted" \
   "#319: ADR-047 steht auf Accepted (Umsetzung im selben PR)"# ─── #319 (/security-review): Härtung des Gates gegen präparierte Referenzen ──
 echo ""
@@ -6870,7 +6873,7 @@ assert_true "$([ $? -ne 0 ]; echo $?)" "#319 S3: kein echtes ESC-Byte aus dem Pf
 
 rm -rf "$TMP_SEC319"
 
-# ─── #319 (/test): Lücken aus der AK-Abdeckungsmatrix ────────────────────────
+# ─── nothra/tch-gastro-services#319 (/test): Lücken aus der AK-Abdeckungsmatrix ────────────────────────
 echo ""
 echo "#319 AK-Abdeckung (/test):"
 
@@ -6941,10 +6944,9 @@ assert_true "$([ -n "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
 rm -rf "$TMP_LNK_319"
 # Der eigentliche Guard über die Dateien dieses Tasks.
 ic_dead_links_found_319=""
-# OPERATING.md, ADR-047, kleinfunde.md und lessons/{code-style,testing}.md fehlen bewusst: ihre Links auf Dateien des
-# Ursprungs-Repos (betrieb.md, App-ADRs, Spec, App-Lessons, Projekt-Kleinfunde) löst der Bereinigungs-PR auf und nimmt
-# die Dateien dann wieder in diese Liste auf.
-for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md \
+for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md docs/factory/OPERATING.md \
+         docs/factory/kleinfunde.md docs/factory/lessons/testing.md docs/factory/lessons/code-style.md \
+         docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md \
          docs/factory/guidelines/tdd-principles.md docs/factory/guidelines/testing-standards.md \
          docs/factory/guidelines/token-efficiency.md \
          docs/factory/adr/037-lessons-auslagern-aus-import-kontext.md; do
@@ -6954,7 +6956,7 @@ assert_true "$([ -z "$ic_dead_links_found_319" ]; echo $?)" \
   "#319 AC8: kein toter relativer Link in den Dateien dieses Tasks"
 [ -z "$ic_dead_links_found_319" ] || printf '%s\n' "$ic_dead_links_found_319" | sed 's/^/      /'
 
-# ─── #334: Telemetrie-Persistenz je Pipeline-Lauf (ADR-049) ──────────────────
+# ─── nothra/tch-gastro-services#334: Telemetrie-Persistenz je Pipeline-Lauf (ADR-049) ──────────────────
 echo ""
 echo "#334 Telemetrie-Persistenz (ADR-049):"
 
@@ -6965,7 +6967,7 @@ assert_true "$([[ -f "$TELE_FIXTURE" ]]; echo $?)" "#334: anonymisierte OTEL-Fix
 
 # Positivkontrolle VOR jedem Personendaten-Guard: trägt die Roh-Eingabe die verbotenen Felder
 # überhaupt? Ohne sie prüfte der Guard unten nur, dass eine Datei ohne Personenfelder keine
-# Personenfelder erzeugt – grün aus dem falschen Grund (Lesson #284/#319).
+# Personenfelder erzeugt – grün aus dem falschen Grund (Lesson nothra/tch-gastro-services#284/#319).
 tele_raw_has_pii=0
 for tele_f in 'user.email' 'user.id' 'user.account_id' 'user.account_uuid' 'organization.id'; do
   grep -qF -- "\"$tele_f\"" "$TELE_FIXTURE" || tele_raw_has_pii=1
@@ -7110,7 +7112,7 @@ assert_contains_286 "$tele_csv4" ',0,unbekannt,' \
 rm -rf "$TELE_TMP"
 
 # Verdrahtung im Orchestrator: Default an, Abschalt-Parameter, Seam gesourct.
-# Ersetzt die bis #334 gültige Assertion „OTEL ist opt-in (nicht automatisch in
+# Ersetzt die bis nothra/tch-gastro-services#334 gültige Assertion „OTEL ist opt-in (nicht automatisch in
 # run-pipeline.sh gesourct)" – durch ADR-049 §E3 ungültig geworden. Ersatz statt Löschung:
 # eine entfernte Zusicherung hinterlässt eine unbewachte Zusage.
 grep -q 'source .*lib/telemetry-harvest.sh' "$PIPELINE"
@@ -7128,7 +7130,7 @@ assert_true "$?" "#334 §E2: Erhebung über den Console-Exporter"
 tele_persist_body="$(awk '/^telemetry_persist\(\) \{/,/^\}/' "$PIPELINE")"
 # Nur die CODE-Zeilen des Rumpfs: der WHY-Kommentar darin muss factory-commit.sh benennen
 # (er begründet ja gerade dessen Nichtverwendung) und würde einen reinen Textscan über den
-# ganzen Rumpf immer rot färben – die Prosa-Kollision aus Lesson #284.
+# ganzen Rumpf immer rot färben – die Prosa-Kollision aus Lesson nothra/tch-gastro-services#284.
 tele_persist_code="$(printf '%s\n' "$tele_persist_body" | grep -v '^[[:space:]]*#' || true)"
 assert_contains_286 "$tele_persist_code" 'commit -q -m "chore: telemetrie-messwerte lauf' \
   "#334 §E4: telemetry_persist() committet die CSV selbst"
@@ -7156,9 +7158,9 @@ printf '%s' "$tele_persist_mutant" | grep -qF 'factory-commit.sh'
 assert_true "$?" "#334 (Kontrolle): derselbe Guard schlägt an, wenn factory-commit.sh im Code steht"
 
 
-# ── E2E gegen den echten Orchestrator (Lesson #212: ein Wiring-Grep belegt kein Verhalten) ──
-# Scaffold, Commit- und Origin-Helfer kommen aus den #310/#314-Blöcken oben – dort im
-# HAS_YQ-Zweig definiert, deshalb steht auch dieser Abschnitt darin (Lesson #310: keine
+# ── E2E gegen den echten Orchestrator (Lesson nothra/tch-gastro-services#212: ein Wiring-Grep belegt kein Verhalten) ──
+# Scaffold, Commit- und Origin-Helfer kommen aus den nothra/tch-gastro-services#310/#314-Blöcken oben – dort im
+# HAS_YQ-Zweig definiert, deshalb steht auch dieser Abschnitt darin (Lesson nothra/tch-gastro-services#310: keine
 # zweite, parallele Repo-Fixture daneben bauen).
 if [ "$HAS_YQ" = 1 ]; then
   TELE_E2E_PROBE="$(mktemp -d)/env-probe.txt"
@@ -7184,7 +7186,7 @@ STUB_334
   # CLAUDE_CODE_ENABLE_TELEMETRY=1). Ohne das `-u` wäre der --no-telemetry-Test lokal
   # falschrot UND der Default-an-Test falschgrün – er belegte dann die ambiente Variable,
   # nicht die Aktivierung durch die Pipeline. Dieselbe Klasse wie das
-  # PR_SHEPHERD/FACTORY_STAGE-Durchschlagen aus #262.
+  # PR_SHEPHERD/FACTORY_STAGE-Durchschlagen aus nothra/tch-gastro-services#262.
   run_334() {
     local dir="$1" task_id="$2"; shift 2
     OUT_334=$(cd "$dir" && PATH="$dir/bin:$PATH" \
@@ -7194,11 +7196,11 @@ STUB_334
       bash "$dir/scripts/run-pipeline.sh" "$task_id" "$@" 2>&1); RC_334=$?
   }
 
-  # tele_cost_sum_334 <csv-datei> – Summen-Helfer für die #334-Kostensummen-Assertion
-  # (Review-Finding 2) unten UND den #341-Locale-Regressionstest: beide rufen denselben
+  # tele_cost_sum_334 <csv-datei> – Summen-Helfer für die nothra/tch-gastro-services#334-Kostensummen-Assertion
+  # (Review-Finding 2) unten UND den nothra/tch-gastro-services#341-Locale-Regressionstest: beide rufen denselben
   # Ausdruck, statt dass eine Kopie vom Original wegdriftet (lessons/testing.md,
   # Mutationsbeleg-Regel).
-  # LC_ALL=C (#341): ohne gesetzte Locale parst BSD-awk "0.05"/"0.08" unter einer
+  # LC_ALL=C (nothra/tch-gastro-services#341): ohne gesetzte Locale parst BSD-awk "0.05"/"0.08" unter einer
   # Komma-Dezimaltrenner-Locale als 0 UND formatiert "%.2f" mit Komma – Ergebnis "0,00"
   # statt "0.13". Präzedenz in dieser Datei: :4687, :7871.
   tele_cost_sum_334() {
@@ -7260,7 +7262,7 @@ STUB_334
 
   # ── AK6 / Fehlerszenario 1: die CLI emittiert nichts Erkennbares.
   # Gebrochen wird die MESSUNG (der Stub gibt Text ohne OTEL-Struktur aus), nicht nur der
-  # Input – ein Guard, der nur leere Eingaben kennt, sähe den stillen Teilausfall nie (#319).
+  # Input – ein Guard, der nur leere Eingaben kennt, sähe den stillen Teilausfall nie (nothra/tch-gastro-services#319).
   TMP_334C="$(mktemp -d)"; TMP_334C_ORIGIN="$(mktemp -d)"
   scaffold_310 "$TMP_334C" 907
   mk_tele_stub_334 "$TMP_334C" 907 'printf "ich bin ein Log ohne jede OTEL-Struktur\n"'
@@ -7327,7 +7329,7 @@ cat "$(dirname "$0")/otel-fixture.txt"'
 
   # ── Review-Finding 1 (Kritisch), zweiter Zweig: `git add` gelingt, `git commit` scheitert
   # (hier: ablehnender pre-commit-Hook – deterministischer als auf fehlende globale
-  # Git-Identität zu setzen, Lesson testing.md #265). Auch hier darf keine CSV liegen bleiben.
+  # Git-Identität zu setzen, Lesson testing.md nothra/tch-gastro-services#265). Auch hier darf keine CSV liegen bleiben.
   TMP_334G="$(mktemp -d)"; TMP_334G_ORIGIN="$(mktemp -d)"
   scaffold_310 "$TMP_334G" 910
   cp "$TELE_FIXTURE" "$TMP_334G/bin/otel-fixture.txt"
@@ -7418,10 +7420,10 @@ STUB_334H
   fi
   rm -rf "$TMP_334H" "$TMP_334H_ORIGIN"
 
-  # ── #341: tele_cost_sum_334() bleibt unter deutscher Locale locale-unabhängig ──
+  # ── nothra/tch-gastro-services#341: tele_cost_sum_334() bleibt unter deutscher Locale locale-unabhängig ──
   # BSD-awk parst/formatiert Dezimalzahlen sonst lokale-abhängig (Komma statt Punkt) –
-  # dieselbe Fail-Klasse wie #96, hier in awk statt bash-printf. Ruft denselben Helfer wie
-  # die #334-Assertion oben auf (kein kopierter awk-Ausdruck, sonst Drift zwischen Test und
+  # dieselbe Fail-Klasse wie nothra/tch-gastro-services#96, hier in awk statt bash-printf. Ruft denselben Helfer wie
+  # die nothra/tch-gastro-services#334-Assertion oben auf (kein kopierter awk-Ausdruck, sonst Drift zwischen Test und
   # echter Zeile, lessons/testing.md).
   if [ "$HAS_DE_LOCALE" -eq 1 ]; then
     TELE_341_CSV="$(mktemp)"
@@ -7521,8 +7523,8 @@ else
 fi
 
 # ── Doku ohne Drift (CLAUDE.md, OPERATING.md) ───────────────────────────────
-# Beide beschrieben die Telemetrie bis #334 als „Default aus, otel.env.example sourcen".
-# Erledigt der PR die Mechanik, ist dieselbe Prosa im selben PR nachzuziehen (Lesson #176).
+# Beide beschrieben die Telemetrie bis nothra/tch-gastro-services#334 als „Default aus, otel.env.example sourcen".
+# Erledigt der PR die Mechanik, ist dieselbe Prosa im selben PR nachzuziehen (Lesson nothra/tch-gastro-services#176).
 # Kontrolle für die `--`-Härtung der beiden Assert-Helfer (siehe ihre Definition oben):
 # eine Phrase, die mit `-` beginnt, muss gefunden UND ihr Fehlen erkannt werden. Ohne das `--`
 # bricht grep hier mit einem Usage-Fehler ab – der Präsenz-Check wäre rot, der
@@ -7533,7 +7535,7 @@ assert_absent 'hier steht der Parameter nicht' '--no-telemetry' \
   "#334 (Kontrolle): assert_absent erkennt das Fehlen derselben Phrase"
 
 claude_md_flat_334=$(flat_286 "$CLAUDE_MD")
-assert_contains_286 "$claude_md_flat_334" 'läuft seit #334 automatisch je Pipeline-Lauf' \
+assert_contains_286 "$claude_md_flat_334" 'läuft seit nothra/tch-gastro-services#334 automatisch je Pipeline-Lauf' \
   "#334 Doku: FACTORY.md beschreibt die Telemetrie als automatischen Pipeline-Bestandteil"
 assert_contains_286 "$claude_md_flat_334" '--no-telemetry' \
   "#334 Doku: FACTORY.md nennt den Abschalt-Parameter"
@@ -7544,7 +7546,7 @@ assert_absent "$claude_md_flat_334" 'OTEL-Metriken (Token/Kosten/Nutzung pro Ski
 
 # Geprüft wird der Endzustand der COMMITTETEN Live-Datei, nicht tasks/patch-334.diff: das
 # Patch-Artefakt ist transient, die Zusicherung hängt an der Datei, die Agenten wirklich
-# lesen (Lesson #212). Die Datei liegt unter .claude/** und war für den Agenten gesperrt –
+# lesen (Lesson nothra/tch-gastro-services#212). Die Datei liegt unter .claude/** und war für den Agenten gesperrt –
 # der Patch-Umweg ändert nichts daran, was hier zu bewachen ist.
 daily_metrics_flat_334=$(flat_286 "$FACTORY_ROOT/.claude/commands/daily-metrics.md")
 assert_contains_286 "$daily_metrics_flat_334" 'tasks/telemetry-<task-id>-<zeitstempel>.csv' \
@@ -7561,7 +7563,7 @@ assert_contains_286 "$operating_flat_334" 'Jeder Task-PR trägt darum eine Telem
   "#334 Doku: OPERATING.md warnt vor der neuen Datei in jedem Diff"
 assert_absent "$operating_flat_334" '`source config/otel.env.example` aktiviert' \
   "#334 Doku: OPERATING.md nennt otel.env.example nicht mehr als Aktivierungsweg"
-# ── #426 T1a-1 · Zuordnungstabelle docs/factory/OWNERSHIP.md (AK-A1…A6, F-1) ─────────────────
+# ── nothra/tch-gastro-services#426 T1a-1 · Zuordnungstabelle docs/factory/OWNERSHIP.md (AK-A1…A6, F-1) ─────────────────
 # Jede getrackte Datei gehört genau einer Seite (factory | project). ownership-check.sh ist der
 # einzige Parser des Zeilenformats; T1b leitet die filter-repo-Allowlist daraus ab (--list).
 OWN_CHECK_426="$CHECKS_DIR/ownership-check.sh"
@@ -7594,7 +7596,7 @@ assert_contains_286 "$out_426" 'scripts/neu.sh: keiner Seite zugeordnet' \
 assert_absent "$out_426" 'app/a.ts:' "#426 AK-A2: zugeordnete Datei wird nicht gemeldet"
 
 # AK-A2 / F-1 (doppelt): zwei Seiten treffen dieselbe Datei → rot, beide Muster genannt
-out_426="$(own_run_426 '| factory | `scripts/**` | alles |\n| project | `scripts/nur-projekt.sh` | TCH |\n' 'scripts/nur-projekt.sh\n')"
+out_426="$(own_run_426 '| factory | `scripts/**` | alles |\n| project | `scripts/nur-projekt.sh` | Projekt |\n' 'scripts/nur-projekt.sh\n')"
 assert_exit 1 $? "#426 AK-A2: Datei mit Zuordnung zu beiden Seiten → Exit 1"
 assert_contains_286 "$out_426" 'scripts/nur-projekt.sh: mehreren Seiten zugeordnet' \
   "#426 AK-A2: die doppelte Datei wird namentlich genannt"
@@ -7654,11 +7656,11 @@ assert_true "$(grep -q 'ownership-check.sh' "$CHECKS_DIR/pre-push.sh"; echo $?)"
   "#426 AK-A6: pre-push.sh ruft ownership-check.sh auf (lokales Gate)"
 assert_true "$(grep -q 'bash scripts/checks/tests/run-tests.sh' "$FACTORY_ROOT/.github/workflows/factory-ci.yml"; echo $?)" \
   "#426 AK-A6: factory-self-test (CI) führt diese Suite aus – damit auch den Check oben"
-# ── #426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
+# ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
 # `<verzeichnis>/009-x.md` in DIESER Datei würde vom Link-Check selbst als toter Link gefunden
-# (Content-Scan-Guard, dessen Phrase in der gescannten Datei steht – Lesson #319).
+# (Content-Scan-Guard, dessen Phrase in der gescannten Datei steht – Lesson nothra/tch-gastro-services#319).
 ADR_DIR_426="adr"
 
 # Fixture-Repo mit je einer ADR pro Verzeichnis
@@ -7776,7 +7778,7 @@ for q_426 in Q1 Q2 Q3 Q4 Q5 Q6; do
   assert_contains_286 "$adr063_flat_426" "**$q_426 ·" "#426 AK-B6: der Nachtrag in ADR-063 entscheidet $q_426"
 done
 
-# ── #426 T1a-1 · Lessons trennen (AK-C1…C5, F-3) und Kleinfunde teilen (AK-L1) ──────────────
+# ── nothra/tch-gastro-services#426 T1a-1 · Lessons trennen (AK-C1…C5, F-3) und Kleinfunde teilen (AK-L1) ──────────────
 LESSONS_TSV_426="$CHECKS_DIR/tests/fixtures/lessons-split-426.tsv"
 SKILLS_DIR_426="${SKILLS_DIR_426:-$FACTORY_ROOT/.claude/commands}"   # nur zur Vorab-Prüfung eines Patches
 
@@ -7789,8 +7791,10 @@ lessons_split_check_426() {
   while IFS="$(printf '\t')" read -r side lesson heading; do
     case "$side" in ''|'#'*) continue ;; esac
     if [ "$side" = factory ]; then dir="$fac"; other="$prj"; else dir="$prj"; other="$fac"; fi
-    here="$(grep -cxF -- "### $heading" "$dir/$lesson" 2>/dev/null)"
-    there="$(grep -cxF -- "### $heading" "$other/$lesson" 2>/dev/null)"
+    # Die Überschriften tragen seit der Bereinigung qualifizierte Verweise (…/nothra/tch-gastro-services#<nr>); die
+    # Fixture hält den Stand der Trennung unverändert – für den Vergleich wird die Qualifizierung zurückübersetzt.
+    here="$(sed 's#nothra/tch-gastro-services\##\##g' "$dir/$lesson" 2>/dev/null | grep -cxF -- "### $heading")"
+    there="$(sed 's#nothra/tch-gastro-services\##\##g' "$other/$lesson" 2>/dev/null | grep -cxF -- "### $heading")"
     if [ "${here:-0}" -ne 1 ] || [ "${there:-0}" -ne 0 ]; then
       echo "✗ ${lesson}: „${heading}“ (erwartet: ${side}) – dort ${here:-0}×, auf der anderen Seite ${there:-0}×"
       bad=1
@@ -7879,7 +7883,7 @@ for sk_426 in review security-review codify; do
   assert_contains_286 "$sk_flat_426" 'docs/factory/OWNERSHIP.md' "#426 AK-L1: /$sk_426 nennt die Zuordnungsregel (betroffene Datei laut Tabelle)"
 done
 
-# ─── #431 T1a-2 · Gruppe D: CLAUDE.md und FACTORY.md (AK-D1…D5) ─────────────────────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe D: CLAUDE.md und FACTORY.md (AK-D1…D5) ─────────────────────────────
 echo ""
 echo "#431 AK-D: generischer Teil in FACTORY.md, CLAUDE.md dünn:"
 FACTORY_MD_431="$FACTORY_ROOT/docs/factory/FACTORY.md"
@@ -7930,7 +7934,7 @@ done
 grep -qxF '@docs/factory/PROJECT-CONTEXT.md' "$CLAUDE_MD_431"
 assert_exit 0 "$?" "#431 AK-D5: PROJECT-CONTEXT.md bleibt im Dauerkontext (Import in CLAUDE.md)"
 
-# ─── #431 T1a-2 · Gruppe E: zusammengesetzte Dateien (AK-E1…E4, F-4) ────────────────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe E: zusammengesetzte Dateien (AK-E1…E4, F-4) ────────────────────────
 echo ""
 echo "#431 AK-E: Fragmente + factory-sync.sh --compose:"
 SYNC_431="$FACTORY_ROOT/scripts/factory-sync.sh"
@@ -8017,7 +8021,7 @@ assert_contains_286 "$own_doc_431" 'Projekt-Fragment ändern' "#431 AK-E4: OPERA
 assert_contains_286 "$own_doc_431" 'factory-sync.sh --compose' "#431 AK-E4: OPERATING.md nennt das Zusammensetz-Kommando"
 assert_contains_286 "$own_doc_431" 'beide committen' "#431 AK-E4: OPERATING.md: Fragment und Ergebnis beide committen"
 
-# ─── #431 T1a-2 · Gruppe F: CI-Workflows (AK-F1…F4, F-7) ─────────────────────────────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe F: CI-Workflows (AK-F1…F4, F-7) ─────────────────────────────────────
 echo ""
 echo "#431 AK-F: factory-ci.yml nur Factory, ci.yml projekteigen:"
 FCI_431="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
@@ -8061,7 +8065,7 @@ for wfp_431 in "$FACTORY_ROOT"/.github/workflows/*.yml; do
 done
 assert_true "$([ -z "$miss_431" ]; echo $?)" "#431 AK-F4: alle in Workflows genannten Skriptpfade existieren (fehlt:${miss_431:- nichts})"
 
-# ─── #431 T1a-2 · Gruppe G: Erweiterungspunkte in den Git-Gates (AK-G1…G4, F-5) ─────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe G: Erweiterungspunkte in den Git-Gates (AK-G1…G4, F-5) ─────────────
 echo ""
 echo "#431 AK-G: pre-commit.d / pre-push.d:"
 unset FACTORY_LINT_COMMAND FACTORY_TEST_COMMAND FACTORY_COVERAGE_COMMAND
@@ -8158,7 +8162,7 @@ run_start_work_431() {
       FACTORY_WORKTREE_BASE="$1/$3" bash "$SW" "$4" "$5" 2>&1 )
 }
 
-# ─── #431 T1a-2 · Gruppe H: Gate-Kommandos aus der Konfiguration (AK-H1…H6, F-6) ─────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe H: Gate-Kommandos aus der Konfiguration (AK-H1…H6, F-6) ─────────────
 echo ""
 echo "#431 AK-H: commands.* in factory.config.yml:"
 if [ "$HAS_YQ" = 1 ]; then
@@ -8274,7 +8278,7 @@ else
   skip_yq "#431 AK-H6: start-work liest Install-Schritt und Hinweis aus der Config"
 fi
 
-# ─── #431 T1a-2 · Gruppe I: Labels aus der Konfiguration (AK-I1…I3) ─────────────────────────
+# ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe I: Labels aus der Konfiguration (AK-I1…I3) ─────────────────────────
 echo ""
 echo "#431 AK-I: labels.* in factory.defaults.yml / factory.config.yml:"
 if [ "$HAS_YQ" = 1 ]; then
@@ -8341,7 +8345,7 @@ grep -qE 'factory_cfg[[:space:]]+labels|labels\.(kinds|aspects)' "$SW" "$SCRIPTS
 assert_exit 1 "$?" "#431 AK-I3: start-work.sh und Issue-Seam validieren nicht gegen labels.* (nur die Datenquelle wandert)"
 
 
-# ─── #431 /test-Ergänzungen: Fail-closed bei unlesbarer Config, Fail-open beim Install-Schritt ───
+# ─── nothra/tch-gastro-services#431 /test-Ergänzungen: Fail-closed bei unlesbarer Config, Fail-open beim Install-Schritt ───
 echo ""
 echo "#431 /test: yq defekt → Gate fail-closed; fehlgeschlagener Install-Schritt → Warnung:"
 unset FACTORY_LINT_COMMAND FACTORY_TEST_COMMAND FACTORY_COVERAGE_COMMAND
@@ -8378,27 +8382,49 @@ else
   skip_yq "#431 /test AK-H6: fehlgeschlagener Install-Schritt"
 fi
 
-# ─── #432 T1a-3 · Gruppe K: Factory-Texte generisch (AK-K1, K1a, K2) ─────────────────────────
+# ─── nothra/tch-gastro-services#432 T1a-3 · Gruppe K: Factory-Texte generisch (AK-K1, K1a, K2) ─────────────────────────
 echo ""
-echo "#432 AK-K: Factory-Texte ohne TCH-Stack, TCH-Details in docs/project/betrieb.md:"
-STACK_RE_432='pnpm|Neon|Vercel|db:seed|Drizzle'
+echo "#432 AK-K: Factory-Texte ohne Stack-Begriffe des Ursprungs-Projekts:"
+# Zur Laufzeit zusammengesetzt: als Literal stünden die Begriffe in dieser Datei selbst (C1-Guard unten).
+STACK_RE_432="pnpm|Ne""on|Ver""cel|db:seed|Drizzle"
 for txt_432 in docs/factory/agents/coding-agent.md docs/factory/agents/review-agent.md \
     docs/factory/guidelines/git-workflow.md docs/factory/guidelines/testing-standards.md \
     docs/factory/guidelines/bash-gotchas.md docs/factory/OPERATING.md; do
   grep -qE "$STACK_RE_432" "$FACTORY_ROOT/$txt_432"
-  assert_exit 1 "$?" "#432 AK-K1: $txt_432 nennt pnpm/Neon/Vercel/db:seed/Drizzle nicht mehr"
+  assert_exit 1 "$?" "#432 AK-K1: $txt_432 nennt keine Stack-Begriffe des Ursprungs-Projekts mehr"
 done
 IMPL_432="$FACTORY_ROOT/.claude/commands/implement.md"
 grep -qE "$STACK_RE_432" "$IMPL_432"
-assert_exit 1 "$?" "#432 AK-K1: .claude/commands/implement.md nennt pnpm/Neon/Vercel/db:seed/Drizzle nicht mehr (Endzustand der Live-Datei)"
+assert_exit 1 "$?" "#432 AK-K1: .claude/commands/implement.md nennt keine Stack-Begriffe des Ursprungs-Projekts mehr (Endzustand der Live-Datei)"
 
 # (AK-K2 – Inhalt von docs/project/betrieb.md – entfällt: das Betriebsdokument gehört dem adoptierenden Projekt.)
 operating_flat_432="$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")"
 for ref_432 in '0.1' '0.2' '0.3' '1.4' '4.3'; do
-  assert_contains_286 "$operating_flat_432" "project/betrieb.md) → $ref_432" "#432 AK-K2: OPERATING.md verweist für $ref_432 auf betrieb.md"
+  assert_contains_286 "$operating_flat_432" "project/betrieb.md\` → $ref_432" "#432 AK-K2: OPERATING.md verweist für $ref_432 auf betrieb.md"
 done
 
 # (AK-K1a – Abschnitt „Lokale Umgebung & Oberflächentests" in PROJECT-CONTEXT.md – entfällt: das Factory-Repo hat keine App-Umgebung.)
+
+# ─── C1: Herkunftsbegriffe nur an dokumentierten erlaubten Stellen ───────────────────────────
+echo ""
+echo "C1 Herkunftsbegriffe (PROJECT-CONTEXT.md → Konventionen → erlaubte Stellen):"
+# Die Begriffe werden zur Laufzeit zusammengesetzt: als Literal stünden sie in dieser Datei selbst, und der
+# Guard wäre immer rot (Content-Scan-Guard, dessen Phrase in der gescannten Datei steht – Lesson nothra/tch-gastro-services#319).
+C1_TERMS="Veranstal""tung|Montags""runde|Theken""wart|Heuchel""heim|T""CH|tc""h-gastro|Ne""on|Ver""cel"
+# Positivkontrolle: derselbe Ausdruck findet ein Wort und ignoriert den qualifizierten Herkunftsverweis.
+assert_true "$(printf '%s\n' 'Die Ver''cel-Regel' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): der Suchausdruck findet einen Herkunftsbegriff"
+assert_true "$(! printf '%s\n' 'siehe nothra/tch-gastro-services#12' | sed 's#nothra/tch-gastro-services##g' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): ein qualifizierter Herkunftsverweis ist kein Treffer"
+c1_files=0; c1_hits=""
+while IFS= read -r -d '' f_c1; do
+  case "$f_c1" in README.md|CHANGELOG.md|docs/factory/PROJECT-CONTEXT.md|scripts/checks/tests/fixtures/lessons-split-426.tsv) continue ;; esac
+  [ -f "$FACTORY_ROOT/$f_c1" ] || continue
+  c1_files=$((c1_files + 1))
+  hit_c1="$(sed 's#nothra/tch-gastro-services##g' "$FACTORY_ROOT/$f_c1" | grep -nIiwE "$C1_TERMS" | head -3)"
+  [ -z "$hit_c1" ] || c1_hits="$c1_hits$f_c1: $hit_c1"$'\n'
+done < <(git -C "$FACTORY_ROOT" ls-files -z)
+assert_true "$([ "$c1_files" -gt 50 ]; echo $?)" "C1 (fail-closed): der Scan liest wirklich die getrackten Dateien (Ist: $c1_files)"
+assert_true "$([ -z "$c1_hits" ]; echo $?)" "C1: Herkunftsbegriffe stehen nur an den dokumentierten erlaubten Stellen"
+[ -z "$c1_hits" ] || printf '%s' "$c1_hits" | head -10 | sed 's/^/      /'
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

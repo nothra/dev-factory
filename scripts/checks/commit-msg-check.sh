@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# commit-msg-check.sh – Flag-Guard für Commit-Messages (#262)
+# commit-msg-check.sh – Flag-Guard für Commit-Messages (nothra/tch-gastro-services#262)
 #
 # Wird ausgeführt: git commit (über .git/hooks/commit-msg), aufgerufen mit dem Pfad zur
 # Commit-Message-Datei als $1 – genau so, wie Git den Hook aufruft.

@@ -10,7 +10,7 @@
 #       ausschließlich die reine Nummer erhält (stdout-Hygiene, ADR-018 §2)
 #     → Exit ≠ 0 nur, wenn gar kein Issue entsteht (fail-closed auf die Anlage)
 #
-#   create_issue_idempotent <title> <body> <art-label> [aspekt-csv]   (ADR-040, #207)
+#   create_issue_idempotent <title> <body> <art-label> [aspekt-csv]   (ADR-040, nothra/tch-gastro-services#207)
 #     → opt-in-Idempotenz-Variante NUR für die autonomen Pipeline-Aufrufer (`/codify`,
 #       `/review`, `/security-review`): findet ein OFFENES Issue mit exakt gleichem Titel →
 #       dessen Nummer auf stdout (keine Anlage), sonst DELEGATION an das unveränderte
@@ -71,7 +71,7 @@ create_issue() {
     echo "create_issue: 'gh' nicht gefunden – Issue-Anlage nicht möglich." >&2
     return 1
   }
-  # Sicherheits-Guard (defense-in-depth, Security-Review #82 H-1): der 'factory::'-Präfix ist
+  # Sicherheits-Guard (defense-in-depth, Security-Review nothra/tch-gastro-services#82 H-1): der 'factory::'-Präfix ist
   # der Maschinen-Kontroll-Plane vorbehalten (Auto-Pipeline-Trigger/Status, git-workflow.md →
   # „factory::-Labels") und wird ausschließlich von der Pipeline via 'gh issue edit' gesetzt –
   # NIE über den allgemeinen Anlage-Seam. Käme ein solches Label hier durch (etwa aus einem

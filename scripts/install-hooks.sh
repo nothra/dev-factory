@@ -81,7 +81,7 @@ install_hook() {
 install_hook pre-commit 'bash scripts/checks/pre-commit.sh'
 install_hook pre-push 'bash scripts/checks/pre-push.sh'
 # Der Hook gilt dank gemeinsamem Git-Verzeichnis sofort für ALLE Worktrees und Branches –
-# auch für solche, die `commit-msg-check.sh` noch nicht enthalten (vor dem Merge von #262
+# auch für solche, die `commit-msg-check.sh` noch nicht enthalten (vor dem Merge von nothra/tch-gastro-services#262
 # angelegte Worktrees, ältere Feature-Branches, `git bisect`). Dort würde ein harter Aufruf
 # jeden Commit mit „No such file or directory" blockieren. Deshalb eine bewusste
 # Fail-open-Ausnahme ausschließlich für den Nicht-vorhanden-Fall (ADR-042 §Consequences);

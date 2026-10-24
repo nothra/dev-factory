@@ -79,7 +79,7 @@ Report verlinken.
 
 **B – unterhalb der Schwelle:** Eintrag in
 [`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) (Fund an einer Factory-Datei) **oder**
-[`docs/project/kleinfunde.md`](../../docs/project/kleinfunde.md) (Fund an einer Projekt-Datei) ergänzen –
+`docs/project/kleinfunde.md` (Fund an einer Projekt-Datei) ergänzen –
 welche Datei, entscheidet die betroffene Datei laut
 [`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md). Schema,
 Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.

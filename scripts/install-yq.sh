@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-yq.sh – installiert eine fest gepinnte, SHA-256-verifizierte yq-Binary (#258)
+# install-yq.sh – installiert eine fest gepinnte, SHA-256-verifizierte yq-Binary (nothra/tch-gastro-services#258)
 #
 # Verwendung:
 #   bash scripts/install-yq.sh
@@ -159,7 +159,7 @@ fetch() {
 
 # Fail-closed dispatchen: ein unbekanntes Argument darf NICHT in den privilegierten
 # Installationspfad fallen (ein Tippfehler wie '--verfiy' täte sonst etwas völlig anderes
-# als beabsichtigt, '--help' würde installieren) – analog zum Flag-Guard aus #262.
+# als beabsichtigt, '--help' würde installieren) – analog zum Flag-Guard aus nothra/tch-gastro-services#262.
 case "${1:-}" in
   --verify)
     # Eigene Meldung statt nur Usage: jeder Fehlerpfad benennt, WAS fehlt (sonst rät der

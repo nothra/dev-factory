@@ -6,9 +6,9 @@
 > Neue Learnings kommen in die Lesson-Datei **ihrer Seite** (Zuordnungsregel: betrifft das Learning eine
 > Datei der Factory laut `docs/factory/OWNERSHIP.md` → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
 > siehe `/codify` + ADR-037).
-> Projekt-Anteil dieses Themas: [`docs/project/lessons/build-tooling.md`](../../project/lessons/build-tooling.md).
+> Projekt-Anteil dieses Themas: `docs/project/lessons/build-tooling.md`.
 
-### Debug-/Lint-Artefakte nicht durch .gitignore gedeckt (aus #67)
+### Debug-/Lint-Artefakte nicht durch .gitignore gedeckt (aus nothra/tch-gastro-services#67)
 
 Im Lint-Debugging entstanden `lint-out.tmp.txt` und `scripts/lint-debug.tmp.sh` im
 Arbeitsbaum. `.gitignore` deckte `*.log` und `*-debug.log*` ab, aber keine `.tmp`-Muster.
@@ -20,7 +20,7 @@ Hilfsskripte, die nicht eingecheckt werden sollen, immer nach einem dieser Muste
 (oder das Muster in `.gitignore` ergänzen), bevor sie erstellt werden – nicht nachträglich
 aufräumen.
 
-**Nachtrag (aus #324): Muster wiederholt sich bei einer Wegwerf-E2E-Verifikation, und ihr
+**Nachtrag (aus nothra/tch-gastro-services#324): Muster wiederholt sich bei einer Wegwerf-E2E-Verifikation, und ihr
 eigener Kommentar behauptete eine falsche Gitignore-Abdeckung.** Ein `/implement`-Lauf legte
 zur manuellen Verifikation `e2e/verify-324.tmp.spec.ts` und `.verify-324/` (Screenshot-Ordner)
 an. Der Kommentar in der Spec-Datei behauptete „`*.tmp.*` ist gitignoret" – tatsächlich deckte
@@ -31,11 +31,11 @@ nie gegen den echten `.gitignore`-Inhalt geprüft, nur angenommen.
 **Regel (erweitert):** `.gitignore` deckt jetzt zusätzlich `*.tmp.spec.ts`/`*.tmp.spec.tsx`
 (Wegwerf-E2E-Specs) und `.verify-*/` (Wegwerf-Verifikationsartefakte wie Screenshots) ab. Ein
 Kommentar, der behauptet „Muster X ist gitignoret", ist selbst eine überprüfbare
-Tatsachenbehauptung (vgl. `lessons/testing.md` #314-Learning zu unverifizierten
+Tatsachenbehauptung (vgl. `lessons/testing.md` nothra/tch-gastro-services#314-Learning zu unverifizierten
 Verhaltensbehauptungen) – vor dem Anlegen einer Wegwerf-Datei `git check-ignore -v <pfad>`
 gegen den geplanten Dateinamen laufen lassen, nicht das Muster erraten.
 
-**Nachtrag (aus #374): drittes Vorkommnis – Wegwerf-Playwright-Config.** `playwright.capture.tmp.config.ts` für
+**Nachtrag (aus nothra/tch-gastro-services#374): drittes Vorkommnis – Wegwerf-Playwright-Config.** `playwright.capture.tmp.config.ts` für
 die AK5.4-Aufnahmen stand im Review als `??` im `git status`; `*.tmp.spec.ts` deckte sie nicht ab. Das Muster
 `*.tmp.config.ts` fehlt in `.gitignore` noch (Edit wurde in der Session nicht freigegeben, offen). Regel unverändert: vor dem Anlegen eines Wegwerf-Artefakts mit
 `git check-ignore -v <pfad>` prüfen, dass ein Muster es deckt, nicht hinterher aufräumen.

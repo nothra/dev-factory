@@ -16,9 +16,9 @@ Die autonomen Skills `/codify`, `/review`, `/security-review` legen Out-of-Scope
 GitHub-Issue an – über den zentralen Seam `create_issue` (ADR-018). `create_issue` legt
 **bedingungslos** an: kein Vorab-Check auf ein bereits existierendes gleichnamiges Issue.
 Trifft ein Retry auf denselben (deterministisch aus dem Report abgeleiteten) Fund, entsteht
-ein **Duplikat**. Beobachtet in Task #187: **#204** und **#205** (Duplikat, geschlossen).
+ein **Duplikat**. Beobachtet in Task nothra/tch-gastro-services#187: **nothra/tch-gastro-services#204** und **nothra/tch-gastro-services#205** (Duplikat, geschlossen).
 
-Dies ist die Fehlerklasse aus #185 („Retry ohne Gedächtnis baut auf halbfertigem Fremd-Stand
+Dies ist die Fehlerklasse aus nothra/tch-gastro-services#185 („Retry ohne Gedächtnis baut auf halbfertigem Fremd-Stand
 auf"), hier aber mit einem **GitHub-API-Seiteneffekt** statt einem Datei-Zustand.
 
 Requirements (`docs/specs/spec-207-create-issue-idempotenz-guard.md`, Session 2026-07-23) hat
@@ -123,7 +123,7 @@ externe Abhängigkeit.
 - Restlücke: erzeugt ein Retry durch Agenten-Nichtdeterminismus einen **abweichenden** Titel,
   greift der exakte Match nicht (Spec: kein Fuzzy-Matching – akzeptiert).
 - Drei Skill-Snippets (`.claude/commands/*.md`) müssen umgestellt werden → `.claude/**`-Änderung
-  erfordert den Patch-Workflow (aus #91).
+  erfordert den Patch-Workflow (aus nothra/tch-gastro-services#91).
 
 ## Betroffene Artefakte
 - `scripts/lib/create-issue.sh` – neue Funktion `create_issue_idempotent` (Lookup + Delegation)

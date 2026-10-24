@@ -21,12 +21,12 @@ GraphQL: Pull request is in clean status (enablePullRequestAutoMerge)
 ```
 
 Das ist kein Randfall: Schritt 6 pusht **direkt davor** die Abschlussnotiz
-(#114-Reihenfolge). Bei schnellem CI – typisch für Docs-/ADR-PRs mit nur `lint`/
+(nothra/tch-gastro-services#114-Reihenfolge). Bei schnellem CI – typisch für Docs-/ADR-PRs mit nur `lint`/
 `test`/`issue-sync`/… als required Checks (ADR-029) – laufen die Checks dieses
 Push durch, **bevor** der `--auto`-Aufruf erfolgt. Der PR ist dann `CLEAN` und
 `--auto` scheitert, obwohl der PR sauber mergebar ist.
 
-**Beobachtet** an PR #157 (Task #155): `mergeStateStatus: CLEAN`, `--auto`
+**Beobachtet** an PR nothra/tch-gastro-services#157 (Task nothra/tch-gastro-services#155): `mergeStateStatus: CLEAN`, `--auto`
 abgelehnt, Schritt 6 gescheitert, obwohl nichts inhaltlich falsch war.
 
 Rahmenbedingungen (unverändert):
@@ -38,8 +38,8 @@ Rahmenbedingungen (unverändert):
    (ADR-029). Kein Merge-Weg – weder `--auto` noch direkt – kann die required
    Checks umgehen; die Merge-Freigabe ist nur ein *Auslöser*, keine
    Autorisierung.
-3. **`.claude/commands/pr-shepherd.md` ist für den Agenten hard-denied** (#88) –
-   die Änderung läuft über den Patch-Workflow (#94).
+3. **`.claude/commands/pr-shepherd.md` ist für den Agenten hard-denied** (nothra/tch-gastro-services#88) –
+   die Änderung läuft über den Patch-Workflow (nothra/tch-gastro-services#94).
 
 ## Decision
 
@@ -60,7 +60,7 @@ Reproduzierbarer Kern (eingebettet als Record; die kanonische Fassung lebt in
 `.claude/commands/pr-shepherd.md` Schritt 6):
 
 ```bash
-# Reihenfolge #114 unverändert: Abschlussnotiz via factory-commit.sh
+# Reihenfolge nothra/tch-gastro-services#114 unverändert: Abschlussnotiz via factory-commit.sh
 # committen + pushen ist bereits VOR diesem Block passiert.
 MERGE_STATE="$(gh pr view --json mergeStateStatus -q .mergeStateStatus)"
 if [ "$MERGE_STATE" = "CLEAN" ]; then
@@ -76,10 +76,10 @@ fi
 ```
 
 Ein **Konsistenz-Test** in `scripts/checks/tests/run-tests.sh` (analog zu den
-#114-/#117-Guards) sichert die Entscheidung ab: er weist im Schritt-6-Abschnitt
+nothra/tch-gastro-services#114-/#117-Guards) sichert die Entscheidung ab: er weist im Schritt-6-Abschnitt
 (a) die Zustandsprüfung `mergeStateStatus` und (b) den Direct-Merge-Zweig
 `gh pr merge --squash` (ohne `--auto`) nach – jeweils gegen ein Positiv- **und**
-ein Negativ-Beispiel, und ohne die bestehende #114-Reihenfolge-Assertion zu
+ein Negativ-Beispiel, und ohne die bestehende nothra/tch-gastro-services#114-Reihenfolge-Assertion zu
 brechen.
 
 ## Alternatives
@@ -139,15 +139,15 @@ Autonomie gegenüber A.
   Zurückdrehen.
 
 **Negative / Trade-offs:**
-- Schritt 6 enthält jetzt zwei Merge-Kommandos; der #114-Reihenfolge-Guard und
+- Schritt 6 enthält jetzt zwei Merge-Kommandos; der nothra/tch-gastro-services#114-Reihenfolge-Guard und
   der neue Direct-Merge-Guard müssen den vollständigen `--auto --squash`-String
-  von der reinen `--squash`-Zeile sauber unterscheiden (Lehre #114: Kommando ≠
+  von der reinen `--squash`-Zeile sauber unterscheiden (Lehre nothra/tch-gastro-services#114: Kommando ≠
   Prosa/Teil-Match).
 - Die Änderung an `.claude/commands/pr-shepherd.md` läuft über den Patch-Workflow
-  (hard-denied, #88/#94) – ein manueller Apply-Schritt durch den Menschen bleibt.
+  (hard-denied, nothra/tch-gastro-services#88/#94) – ein manueller Apply-Schritt durch den Menschen bleibt.
 
 **Nebenbefund (dokumentarisch):** Das repo-weite Setting *Allow auto-merge*
 (`allow_auto_merge`) muss aktiv sein, sonst scheitert `gh pr merge --auto`
-grundsätzlich (in Session #155 via `gh api -X PATCH .../repo -F
+grundsätzlich (in Session nothra/tch-gastro-services#155 via `gh api -X PATCH .../repo -F
 allow_auto_merge=true` aktiviert). Als Stolperstein in `PROJECT-CONTEXT.md`
 festgehalten – hätte auch die Stage-3-Pipeline blockiert.

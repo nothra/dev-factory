@@ -4,13 +4,13 @@
 # Summiert die Zeilen von CLAUDE.md und – rekursiv – aller per `@pfad` eingebundenen Dateien
 # und vergleicht die Summe gegen MAX_IMPORT_LINES. Dieser Kontext wird bei JEDER Session und
 # JEDEM Pipeline-Schritt vollständig geladen; ohne Deckel wächst er unbemerkt zurück – genau
-# das ist nach ADR-037 passiert (der Lessons-Index von ~80 auf 341 Zeilen, Befund aus #319).
+# das ist nach ADR-037 passiert (der Lessons-Index von ~80 auf 341 Zeilen, Befund aus nothra/tch-gastro-services#319).
 # Eine Prosa-Konvention hat dort nicht gehalten, deshalb hier ein Gate.
 #
 # ── Was als Referenz gilt ────────────────────────────────────────────────────────────────────
 #
 # Claude Code lädt `@pfad` nicht nur als eigene Zeile, sondern auch mitten in Prosa und mit
-# Markdown-Dekoration. Empirisch belegt (Review zu #319, `claude --print` mit Marker-Datei und
+# Markdown-Dekoration. Empirisch belegt (Review zu nothra/tch-gastro-services#319, `claude --print` mit Marker-Datei und
 # Negativkontrolle ohne `@`): geladen werden u. a. `@docs/x.md`, `**@docs/x.md**`,
 # `_@docs/x.md_` und `>@docs/x.md`. Ein Deckel, der nur alleinstehende Zeilen zählt, wäre per
 # Prosa-Zeile lautlos umgehbar – also fail-open gegen den eigenen Zweck. Erkannt werden daher:
@@ -44,10 +44,10 @@
 #   `..`-Segment), wird abgelehnt – als Referenz-Zeile fail-closed mit Meldung, als Inline-Token
 #   still übergangen. Ein `@import` dieses Repos ist immer wurzelrelativ; ohne die Regel war der
 #   Deckel ein Zeilenzahl-Orakel über beliebige lesbare Dateien der Maschine
-#   (Security-Review zu #319).
+#   (Security-Review zu nothra/tch-gastro-services#319).
 # * **Ausgabe:** Abgeleitete Pfade gehen nie durch `echo -e`, sondern über `printf %s`. Sonst
 #   werden `\033`-Sequenzen aus dem Dateiinhalt zu echten Steuerzeichen und ein präparierter
-#   Pfad kann die Gate-Ausgabe der übrigen Checks überschreiben (Security-Review zu #319).
+#   Pfad kann die Gate-Ausgabe der übrigen Checks überschreiben (Security-Review zu nothra/tch-gastro-services#319).
 # * **Zeilenzahl:** Lässt sie sich nicht ermitteln, ist der Check rot. `$((total + ""))` ist in
 #   bash kein Fehler, sondern `+ 0` – ohne Integer-Guard hätte eine fehlgeschlagene Zählung das
 #   Gate still grün gemacht.
@@ -62,7 +62,7 @@ set -uo pipefail
 ROOT="${FACTORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # Obergrenze in Zeilen für CLAUDE.md + rekursiv alle @-eingebundenen Dateien.
-# Herleitung (ADR-047 §4 – keine Magic Number): Ist-Stand direkt nach der Umstellung aus #319
+# Herleitung (ADR-047 §4 – keine Magic Number): Ist-Stand direkt nach der Umstellung aus nothra/tch-gastro-services#319
 # = 863 Zeilen; + 25 % Puffer = 1.079; aufgerundet auf das nächste Vielfache von 50 = 1.100.
 # Der Puffer trägt legitime Regel-Ergänzungen, ohne den nächsten Wildwuchs zu decken. Wer die
 # Grenze anhebt, trifft eine bewusste Entscheidung – und pflegt diese Herleitung mit (ein Test
@@ -128,7 +128,7 @@ candidates_of() {
 # Ein `@import` dieses Repos ist immer wurzelrelativ. Ein absoluter Pfad oder ein `..`-Segment
 # ist deshalb entweder ein Fehler – oder der Weg, den Deckel als Zeilenzahl-Orakel über beliebige
 # lesbare Dateien der Maschine zu missbrauchen (`@/etc/passwd` zählte vorher mit und erschien in
-# der Beiträger-Liste; Security-Review zu #319).
+# der Beiträger-Liste; Security-Review zu nothra/tch-gastro-services#319).
 repo_relative() {
   case "$1" in
     /*) return 1 ;;

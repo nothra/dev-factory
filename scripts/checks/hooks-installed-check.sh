@@ -5,7 +5,7 @@
 # Fail-closed: fehlt einer der Hooks im gemeinsamen Git-Verzeichnis, ist er nicht
 # ausführbar, ODER ist `core.hooksPath` gesetzt (siehe unten), schlägt der Check fehl
 # (Exit 1) und nennt Ursache + Remediation-Hinweis. Reine Existenzprüfung reicht nicht –
-# nicht ausführbare Hooks laufen bei Git ins Leere (Issue #265, ADR-042 §Consequences).
+# nicht ausführbare Hooks laufen bei Git ins Leere (Issue nothra/tch-gastro-services#265, ADR-042 §Consequences).
 #
 # Kein Inhaltsvergleich gegen install-hooks.sh (bewusst, siehe spec-265 „Nicht
 # inbegriffen") – nur Präsenz + Ausführbarkeit + `core.hooksPath` (spec-268).
@@ -17,7 +17,7 @@
 # ADR-042). Anders als der einmalige Installer läuft dieser Check wiederholt im
 # Push-Gate – Reste im Standardpfad greifen nicht, solange `core.hooksPath` auf ein
 # anderes Verzeichnis zeigt (der Sonderfall eines auf den Standardpfad selbst gerichteten
-# Werts wird bewusst mit-abgelehnt, s. #281). Die Meldung bietet daher bewusst **keine**
+# Werts wird bewusst mit-abgelehnt, s. nothra/tch-gastro-services#281). Die Meldung bietet daher bewusst **keine**
 # „Factory-Checks im konfigurierten Pfad einbinden"-Option an: das würde diesen Check
 # nie grün machen, da er ausschließlich `$GIT_COMMON_DIR/hooks` liest (im Unterschied zu
 # `install-hooks.sh`, dessen Meldung diese Option nennt, weil sie dort tatsächlich einen

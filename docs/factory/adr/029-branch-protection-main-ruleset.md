@@ -116,7 +116,7 @@ Over-Engineering für eine reversible, selten geänderte Entscheidung.
   Handbetrieb erhalten. Ohne sie würde der Schutz die Factory blockieren.
 - **Korrektheits-Kern (verifiziert):** Nur `pull_request`-getriggerte Jobs dürfen required
   sein. `gate`/`post-merge-verify` laufen erst nach dem Merge; belegt an den Check-Runs der
-  PRs #147/#150/#152 (dort erscheint `gate` gar nicht, `post-merge-verify` nur `skipped`).
+  PRs nothra/tch-gastro-services#147/#150/#152 (dort erscheint `gate` gar nicht, `post-merge-verify` nur `skipped`).
 - **YAGNI bei der Speicherung:** Branch-Protection ändert sich praktisch nie – die Kosten
   eines IaC-Sync-Pipelines übersteigen den Nutzen. Reversible Entscheidung → günstig
   halten (`architecture-principles.md` → „Evolutionäre Architektur").
