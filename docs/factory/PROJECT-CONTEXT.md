@@ -11,7 +11,7 @@
 
 | Feld | Wert |
 |------|------|
-| **Name** | dev-factory (dm Development Factory) |
+| **Name** | dev-factory (Development Factory) |
 | **Beschreibung** | Pipeline, Skills, Gates/Hooks, Agent-Personas und Guidelines für deterministische, KI-gestützte Softwareentwicklung – als eigenständiges Repo, das Projekte als übernommene Dateien einbinden |
 | **Typ** | Werkzeug-Repo (Shell-Skripte, Markdown, YAML) |
 | **Repository** | https://github.com/nothra/dev-factory |

@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-This directory contains the architectural decisions of the **dm Development Factory** (pipeline,
+This directory contains the architectural decisions of the **Development Factory** (pipeline,
 skills, gates, configuration). Decisions about an adopting project's own application live in that
 project's repository.
 

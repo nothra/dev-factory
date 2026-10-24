@@ -8,7 +8,7 @@ Accepted (2026-10-19, mit T1a-1, nothra/tch-gastro-services#426)
 
 ## Kontext
 
-Spec [nothra/tch-gastro-services#424](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die dm Development
+Spec [nothra/tch-gastro-services#424](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die Development
 Factory aus dem Ursprungs-Repo in ein eigenes Repo auszulagern und als wiederverwendbares, versioniertes
 Werkzeug zu betreiben. Bereits entschieden (Spec, Entscheidungstabelle): Historie wird mitgenommen,
 neue Versionen kommen als automatischer Update-PR, lokale Änderungen an übernommenen Dateien sind

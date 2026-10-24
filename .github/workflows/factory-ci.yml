@@ -1,4 +1,4 @@
-# dm Development Factory – GitHub Actions CI
+# Development Factory – GitHub Actions CI
 #
 # Gates statt Vertrauen: dieselben Checks, die lokal über scripts/checks/ laufen,
 # laufen hier automatisch bei jedem Push und Pull Request.

@@ -8,8 +8,7 @@ Accepted
 
 ## Kontext
 
-Das dm-Factory-Template wurde ursprünglich für die dm-interne GitLab-Instanz
-(`gitlab.dm-drogeriemarkt.com`) gebaut: GitLab CI (`.gitlab-ci.yml`), `glab` als CLI
+Das Factory-Template wurde ursprünglich für eine GitLab-Instanz gebaut: GitLab CI (`.gitlab-ci.yml`), `glab` als CLI
 für Merge Requests, Issues und Labels, GitLab Container Registry + kaniko für die
 CI-Images, und der Async-Trigger (ADR-008) als GitLab Scheduled Pipeline.
 

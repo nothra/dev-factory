@@ -1,6 +1,6 @@
 # dev-factory
 
-Die **dm Development Factory**: Pipeline-Skripte, Claude-Code-Skills, Agent-Personas, Gates und
+Die **Development Factory**: Pipeline-Skripte, Claude-Code-Skills, Agent-Personas, Gates und
 Hooks, generische Guidelines und Betriebsdoku für deterministische, KI-gestützte
 Softwareentwicklung. Kernprinzip: *Deterministische Skripte orchestrieren nicht-deterministische
 Agenten-Schritte – nie umgekehrt.*
