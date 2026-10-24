@@ -36,8 +36,9 @@ git ls-files -z '*.sh' | xargs -0 -n1 bash -n          # Syntaxprüfung (command
 bash scripts/install-hooks.sh                          # Git-Hooks einmalig installieren
 ```
 
-- **Test-Framework:** eigene Bash-Suite `scripts/checks/tests/run-tests.sh` mit Helfern in
-  `scripts/checks/tests/lib/`; Konventionen in `docs/factory/guidelines/testing-standards.md`.
+- **Test-Framework:** eigene Bash-Suiten – die ausgelieferte `scripts/checks/tests/run-tests.sh` und die Projekt-Suite
+  `scripts/project/tests/run-tests.sh` – mit gemeinsamen Helfern in `scripts/checks/tests/lib/`; Konventionen in
+  `docs/factory/guidelines/testing-standards.md`.
 - **Lint:** `bash -n` über alle getrackten `*.sh` (CI-Job `lint`); ShellCheck folgt als Issue.
 - **Gates lokal:** `scripts/checks/pre-commit.sh`, `scripts/checks/pre-push.sh` (laufen ohne Node/DB).
 

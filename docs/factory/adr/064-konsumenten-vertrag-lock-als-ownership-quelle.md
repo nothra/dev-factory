@@ -106,15 +106,28 @@ an `tasks/**`/`docs/specs/**` gescheitert. Der Drift-Guard prüft deshalb beide 
   `OWNERSHIP.md`; der Drift-Guard erzwingt beides.
 - `OWNERSHIP.md` und `scripts/project/**` brauchen eine `project`-Zeile in `OWNERSHIP.md`
   (`scripts/project/**` hat bislang keine).
-- Im Factory-Repo läuft die Suite zweimal (ausgeliefert + `scripts/project/tests/`); die Laufzeit
-  summiert sich, das Gate-Niveau bleibt.
+- Die Suite ist **aufgeteilt**, nicht verdoppelt: Gruppen, die das Factory-Repo voraussetzen, laufen nur noch in
+  `scripts/project/tests/` (lokal über `pre-push.d/`, in CI als Job `project-self-test`). Vorher gehörten sie zum Required Check
+  `factory-self-test`. **Das Gate-Niveau sinkt, bis `project-self-test` im Ruleset `protect-main` als Required Check geführt wird**
+  (ADR-029; ADR-041 hat „Job, aber nicht required“ aus genau diesem Grund verworfen). Der Ruleset-Eintrag ist ein Admin-Schritt und
+  wird als Folge-Issue verfolgt.
+- Kopplung ausgelieferte Suite ↔ Projekt-Hook: Die ausgelieferte Suite ruft `pre-push.sh` echt gegen das Repo auf. Sie exportiert
+  daher `FACTORY_SELF_TEST_RUN=1`; der Hook `10-project-tests.sh` startet die Projekt-Suite dann nicht (sonst läuft sie verschachtelt
+  mehrfach, und ihr Rot färbte unbeteiligte Gate-Tests falsch rot). Im echten Push und im CI-Job ist die Variable nicht gesetzt.
+- Der Drift-Guard (D4) liegt in der Projekt-Suite (`points_drift_22`), wird also **nicht ausgeliefert**: Er erzwingt die Deckung
+  von Liste, `OWNERSHIP.md` und `PROJECT-CONTEXT.md` nur im Factory-Repo. Ein Konsument pflegt weder Tabelle noch Liste.
+- Ein Konsument bringt die zusammengesetzten Dateien `.claude/settings.json` und `.gitignore` mit (Ergebnis von
+  `factory-sync.sh --compose`); in `customization-points.txt` stehen nur ihre Fragmente. Die ausgelieferte Suite prüft ihre
+  Zusammensetzung (AK-E3).
 - Ein späteres Lock-Schema (`schema: 2`) muss `ownership-check.sh` bewusst unterstützen, sonst Exit 2.
 - Verhalten im Tabellenmodus (Factory-Repo) ändert sich nicht (AK2.15c).
 
 ## Implementierungs-Hinweise
 
 1. `ownership-check.sh`: nach der Argument-Auswertung `LOCK_FILE="${FACTORY_LOCK_FILE:-$FACTORY_DIR/factory.lock}"`;
-   Lock-Zweig vor dem Lesen der Tabelle, Tabellenmodus-Code bleibt unverändert (Diff klein halten).
+   Lock-Zweig vor dem Lesen der Tabelle; im Tabellenmodus bleiben awk-Auswertung, Meldungen, Exit-Codes und die Reihenfolge der
+   Fehlerklassen (Tabelle lesbar → Dateiliste) unverändert. Das Laden der Dateiliste liegt dafür in `load_tracked_files` und nutzt
+   `git -c core.quotepath=false ls-files` (Nicht-ASCII-Pfade bleiben unquotet; wirkt auch im Tabellenmodus).
    Pfade aus `jq -r '.files[].path'`; Existenz gegen `TRACKED_FILES` (gleiche Quelle wie bisher,
    inkl. `OWNERSHIP_FILE_LIST`-Override für Tests).
 2. Tests zuerst, je Fall ein Negativtest mit pfadspezifischem Signal (Lessons `testing.md`):
@@ -126,5 +139,13 @@ an `tasks/**`/`docs/specs/**` gescheitert. Der Drift-Guard prüft deshalb beide 
    (Lesson #431).
 4. Eine neue Datei je Zeile in `OWNERSHIP.md` im selben PR (Seite `project` für `scripts/project/**`,
    `factory` für `customization-points.txt`).
-5. Reihenfolge der Commits: (a) Lock-Modus mit Tests, (b) `OWNERSHIP.md` → `project`, (c) Test-Schnitt,
-   (d) Verdrahtung `pre-push.d` + `ci.yml`. Jeder Commit hält `bash scripts/checks/tests/run-tests.sh` grün.
+5. Reihenfolge der Commits: (a) Lock-Modus mit Tests, (b) `OWNERSHIP.md` → `project`, (c) Test-Schnitt und (d) Verdrahtung
+   `pre-push.d` + `ci.yml` – (c) und (d) liegen in einem Commit, weil die Wiring-Tests an derselben Projekt-Suite hängen. Jeder Commit
+   hält `bash scripts/checks/tests/run-tests.sh` grün.
+
+## Bezug zu anderen ADRs
+
+- **ADR-063:** D5 kehrt eine Aussage aus dem Nachtrag zu T1a um – `docs/factory/OWNERSHIP.md` ist nicht mehr ausgelieferte
+  Factory-Datei, sondern gehört dem Repo; ein Konsument bestimmt die Zuordnung über `factory.lock`. Das Manifest (ADR-063 Q1) und
+  der lokale Gate-Lauf lesen weiter dieselbe Tabelle, aber nur im Factory-Repo.
+- **ADR-029/ADR-041:** Der neue Job `project-self-test` ist erst mit dem Ruleset-Eintrag ein erzwungenes Gate (siehe Konsequenzen).

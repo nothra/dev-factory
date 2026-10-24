@@ -12,6 +12,10 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# NO_LOCK_FILE: Pfad, den es nie gibt – Tests des Tabellenmodus setzen ihn als FACTORY_LOCK_FILE, damit ein factory.lock im Repo
+# (Konsument) sie nicht in den Lock-Modus zieht. Eine Stelle, falls der Env-Name von ownership-check.sh sich je ändert.
+NO_LOCK_FILE=/nicht/vorhanden/factory.lock
+
 # Repo-lokale Git-Variablen neutralisieren (Factory-Issue #6): Läuft eine Suite aus einem Git-Hook (z. B. als
 # commands.test im pre-push-Hook eines Worktrees), exportiert Git GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE. Sie würden
 # in jedes Wegwerf-Repo der Tests durchschlagen und den echten Worktree verändern (Branch, Remote, Dateien).

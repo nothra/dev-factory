@@ -56,7 +56,7 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
   `factory.lock` im Konsumenten sie nicht in den Lock-Modus zieht.
 - AK2.15d-0 (Manifest vorher `3557ae1` / nachher `HEAD`, je 114 Pfade): `- docs/factory/OWNERSHIP.md`, `+ scripts/checks/customization-points.txt`, sonst identisch.
 - AK2.16a: Konsumenten-Fixture (Dateien der Seite `factory` + eigene Anpassungsstellen + `factory.lock` aus dem Manifest, Hooks installiert):
-  ausgelieferte Suite **1648 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
+  ausgelieferte Suite **1658 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
 - AK2.16b/b-3, F-22.5: Zählvergleich unten, beide Suiten brechen ohne `assert-helpers.sh` mit Exit 2 ab (vorher: `command not found` und Weiterlauf); `ownership-check.sh` grün (132 Dateien: factory 114, project 18).
 - AK2.16b-2: `scripts/project/checks/pre-push.d/10-project-tests.sh` + Job `project-self-test` in `ci.yml`; Wiring an den echten Aufrufzeilen, Verhalten des Hooks
   (grün/rot) und je eine Mutation (ohne `run:`-Zeile, ohne yq-Schritt).
@@ -66,10 +66,10 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
 | | ausgelieferte Suite | Projekt-Suite | Summe |
 |---|---|---|---|
 | vorher (Commit b) | 1737 | 25 (Drift-Guard) | 1762 |
-| nachher | 1648 | 132 | 1780 |
-| davon neu durch diese Task | 3 (F-22.5: Lib/Fixtures sind `factory`) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) | 18 |
+| nachher | 1658 | 133 | 1791 |
+| davon neu durch diese Task | 13 (3 × F-22.5: Lib/Fixtures sind `factory`; 10 × Review-Nacharbeit: CRLF/Randleerraum, leere Liste, Umlaute, hängender Symlink) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) + 1 (hook_22 isoliert die Umgebung) | 29 |
 
-1762 + 18 = 1780 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
+1762 + 29 = 1791 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
 ausgelieferten Suite: …` in `scripts/project/tests/run-tests.sh`): Prüfungen, die `ci.yml`, `release.yml`, `OWNERSHIP.md`, `CLAUDE.md`,
 `CONTRIBUTING.md`, `README.md`, `PROJECT-CONTEXT.md`, `factory.config.yml`, die zusammengesetzte `.gitignore` oder die Git-Historie dieses Repos lesen.
 Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) wanderten dafür nach `scripts/checks/tests/lib/assert-helpers.sh`.
@@ -85,6 +85,15 @@ Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) wanderten dafür na
 **Umgebungsbedingt rot (nicht durch diese Task):** `#149 konform …` und `#149 leerer FACTORY_FORMAT_COMMAND …` – beide verlangen installierte Git-Hooks
 (`hooks-installed-check.sh`). In CI installiert `factory-self-test` sie vorher; im Fixture mit `install-hooks.sh` grün (1645/0). In diesem Worktree wurden
 die Hooks bewusst nicht installiert (geteiltes `.git`).
+
+**Review-Nacharbeit (Iteration 1, `tasks/review-22.md`):** `ownership-check.sh` normalisiert die Anpassungsstellen-Liste (CR, Randleerraum) und weist eine
+leere Liste mit Exit 2 ab; `git ls-files` läuft mit `core.quotepath=false` (Umlaut-Pfade); ein hängender Symlink `factory.lock` ist ein Lock (Exit 2, kein
+Rückfall in die Tabelle). `lock_mode` ist in kleine Funktionen zerlegt; `WORK_DIR` bleibt global (die EXIT-Trap liest es nach dem Funktionsende), ist aber jetzt am Skriptanfang deklariert und kommentiert.
+Tests: gemeinsamer Fixture-Helfer, Konstante `NO_LOCK_FILE` in `assert-helpers.sh`, `own_side_426` nur noch einmal, `hook_22` isoliert die Umgebung.
+ADR-064: Konsequenzen korrigiert (aufgeteilt statt verdoppelt, Gate-Niveau sinkt bis zum Ruleset-Eintrag), `FACTORY_SELF_TEST_RUN`, Ort des Drift-Guards,
+zusammengesetzte Dateien, Bezug zu ADR-063/029/041; ADR-063 bekommt einen Nachtrag mit Verweis. Konsumenten-Fixture: **1658 grün, 0 rot**.
+Hinweis: Die Spec nennt in ihrem Kopf „Factory-ADR-063 (Nachtrag 2026-10-24, Q7/Q8)“; einen solchen Nachtrag mit Q7/Q8 gibt es in ADR-063 nicht (nur T1a Q1–Q6 und T1b).
+Der neue Nachtrag enthält bewusst nur den Verweis, keine erfundenen Q7/Q8.
 
 **Offen / Folgearbeit**
 - `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, nicht in dieser Task).

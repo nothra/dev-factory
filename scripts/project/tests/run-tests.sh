@@ -29,7 +29,7 @@ FACTORY_MD_431="$FACTORY_ROOT/docs/factory/FACTORY.md"
 CLAUDE_MD_431="$FACTORY_ROOT/CLAUDE.md"
 FCI_431="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 PCI_431="$FACTORY_ROOT/.github/workflows/ci.yml"
-own_side_426() { local l; l="$(OWNERSHIP_FILE="$FACTORY_ROOT/docs/factory/OWNERSHIP.md" FACTORY_LOCK_FILE=/nicht/vorhanden/factory.lock bash "$OWN_CHECK_426" --list "$1" 2>/dev/null)"; grep -qxF -- "$2" <<< "$l"; }
+own_side_426() { local l; l="$(OWNERSHIP_FILE="$FACTORY_ROOT/docs/factory/OWNERSHIP.md" FACTORY_LOCK_FILE="$NO_LOCK_FILE" bash "$OWN_CHECK_426" --list "$1" 2>/dev/null)"; grep -qxF -- "$2" <<< "$l"; }
 jobs_of_431() { awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^  /,"");sub(/:.*/,"");print}' "$1" | sort | tr '\n' ' '; }
 # Nummern der Factory-ADRs: die Verzeichnisliste selbst (die ausgelieferte Suite belegt sie in AK-B1 gegen eine feste Liste)
 FACTORY_ADR_NUMS_426="$(for f in "$FACTORY_ROOT"/docs/factory/adr/[0-9][0-9][0-9]-*.md; do [ -e "$f" ] && basename "$f" | cut -c1-3; done | sort -u | tr '\n' ' ' | sed 's/ $//')"
@@ -52,7 +52,7 @@ points_drift_22() {
   grep -vE '^[[:space:]]*(#|$)' "$points" > "$work/entries.txt"
   [ -s "$work/entries.txt" ] || { echo "✗ Liste ohne Einträge: $points"; rm -rf "$work"; return 2; }
   # Richtung 1: Seite `project` laut Tabelle (Tabellenmodus erzwingen: kein Lock)
-  FACTORY_LOCK_FILE=/nicht/vorhanden/factory.lock OWNERSHIP_FILE="$table" OWNERSHIP_FILE_LIST="$work/entries.txt" \
+  FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE="$table" OWNERSHIP_FILE_LIST="$work/entries.txt" \
     bash "$CHECKS_DIR/ownership-check.sh" --list project > "$work/project-side.txt" 2>/dev/null || true
   while IFS= read -r entry; do
     grep -qxF -- "$entry" "$work/project-side.txt" || { echo "✗ $entry: Anpassungsstelle steht in OWNERSHIP.md nicht auf Seite project"; wrong=1; }
@@ -84,13 +84,13 @@ for p_22 in CLAUDE.md factory.config.yml docs/factory/PROJECT-CONTEXT.md README.
   assert_exit 0 $? "#22 AK2.15b-2: $p_22 steht in der Anpassungsstellen-Liste"
 done
 # Kontrolle: die Liste ist eine Teilmenge – project-Zeilen wie tasks/** sind KEINE Anpassungsstellen
-assert_true "$(grep -qE '^(tasks|docs/specs)/' "$POINTS_22"; echo $(( $? == 0 )))" \
+assert_true "$(! grep -qE '^(tasks|docs/specs)/' "$POINTS_22"; echo $?)" \
   "#22 AK2.15b-2 (Kontrolle): tasks/** und docs/specs/** stehen nicht in der Liste (Teilmenge, nicht Gesamtheit)"
 
 # Richtung 1 gebrochen: Eintrag in der Tabelle auf `factory` gesetzt → Guard nennt genau diesen Pfad
 dir_22="$(mktemp -d)"
 sed 's#^| project | `README.md` |#| factory | `README.md` |#' "$TABLE_22" > "$dir_22/OWNERSHIP.md"
-assert_true "$(cmp -s "$TABLE_22" "$dir_22/OWNERSHIP.md"; echo $(( $? == 0 )))" "#22 AK2.15b-2 (Kontrolle): die Mutation der Tabelle hat gewirkt"
+assert_true "$(! cmp -s "$TABLE_22" "$dir_22/OWNERSHIP.md"; echo $?)" "#22 AK2.15b-2 (Kontrolle): die Mutation der Tabelle hat gewirkt"
 out_22="$(points_drift_22 "$POINTS_22" "$dir_22/OWNERSHIP.md" "$CONTEXT_22")"
 assert_exit 1 $? "#22 AK2.15b-2: Eintrag der Liste auf factory gesetzt → Guard rot"
 assert_contains_286 "$out_22" 'README.md: Anpassungsstelle steht in OWNERSHIP.md nicht auf Seite project' \
@@ -115,25 +115,23 @@ assert_exit 2 $? "#22 AK2.15b-2: fehlender Projekt-Kontext → Exit 2"
 rm -rf "$dir_22"
 
 # AK2.15d-0: OWNERSHIP.md gehört dem Repo – nicht Teil des Release-Manifests (Seite `factory`)
-own_side_22() { local l; l="$(OWNERSHIP_FILE="$TABLE_22" FACTORY_LOCK_FILE=/nicht/vorhanden/factory.lock bash "$CHECKS_DIR/ownership-check.sh" --list "$1" 2>/dev/null)"; grep -qxF -- "$2" <<< "$l"; }
-own_side_22 project docs/factory/OWNERSHIP.md
+own_side_426 project docs/factory/OWNERSHIP.md
 assert_exit 0 $? "#22 AK2.15d-0: docs/factory/OWNERSHIP.md steht auf Seite project"
-own_side_22 factory docs/factory/OWNERSHIP.md
+own_side_426 factory docs/factory/OWNERSHIP.md
 assert_exit 1 $? "#22 AK2.15d-0: docs/factory/OWNERSHIP.md steht nicht auf Seite factory (nicht im Release-Manifest)"
 # AK2.16b-3: der Projekt-Test-Ordner trägt keine factory-Zeile
-own_side_22 factory scripts/project/tests/run-tests.sh
+own_side_426 factory scripts/project/tests/run-tests.sh
 assert_exit 1 $? "#22 AK2.16b-3: scripts/project/tests/run-tests.sh steht nicht auf Seite factory"
-own_side_22 project scripts/project/tests/run-tests.sh
+own_side_426 project scripts/project/tests/run-tests.sh
 assert_exit 0 $? "#22 AK2.16b-3: scripts/project/tests/run-tests.sh steht auf Seite project"
 
 # ─── Aus der ausgelieferten Suite verschoben (Factory-ADR-064 D6): Prüfungen, die dieses Repo voraussetzen ───
 # ── verschoben aus der ausgelieferten Suite: CI-Lint-Job führt commands.lint aus (ci.yml + factory.config.yml dieses Repos) ──
 # CI-Lint des Factory-Repos: der Job `lint` in ci.yml führt exakt commands.lint aus factory.config.yml aus
 # (eine Quelle – ändert eine Seite ihren Wortlaut allein, schlägt dieser Guard an).
-PROJECT_CI_FILE="$FACTORY_ROOT/.github/workflows/ci.yml"
 if [ "$HAS_YQ" = 1 ]; then
   ci_lint_cmd="$(yq '.commands.lint' "$FACTORY_ROOT/factory.config.yml")"
-  { [ -n "$ci_lint_cmd" ] && grep -qF -- "run: $ci_lint_cmd" "$PROJECT_CI_FILE"; }
+  { [ -n "$ci_lint_cmd" ] && grep -qF -- "run: $ci_lint_cmd" "$PCI_431"; }
   assert_true "$?" "CI-Lint-Job führt commands.lint aus factory.config.yml aus (eine Quelle)"
 else
   skip_yq "CI-Lint-Job führt commands.lint aus factory.config.yml aus"
@@ -522,10 +520,11 @@ CALL_22='exec bash "$ROOT/scripts/project/tests/run-tests.sh"'
 assert_true "$([ -x "$HOOK_22" ]; echo $?)" "#22 AK2.16b-2: pre-push.d/10-project-tests.sh existiert und ist ausführbar (sonst blockiert run_project_checks)"
 assert_true "$(grep -qxF -- "$CALL_22" "$HOOK_22" 2>/dev/null; echo $?)" "#22 AK2.16b-2: der Hook ruft die Projekt-Suite über die echte Aufrufzeile auf"
 # Verhalten statt Grep: der Hook gibt den Exit-Code der Suite weiter (rot blockiert den Push, grün lässt ihn durch)
-hook_22() { # $1 = Exit-Code der Attrappe → Exit-Code des Hooks
-  local dir rc; dir="$(mktemp -d)"; mkdir -p "$dir/scripts/project/tests"
-  printf '#!/usr/bin/env bash\nexit %s\n' "$1" > "$dir/scripts/project/tests/run-tests.sh"
-  FACTORY_DIR="$dir" bash "$HOOK_22" > /dev/null 2>&1; rc=$?   # erbt FACTORY_SELF_TEST_RUN nur, wenn der Aufruf es setzt
+hook_22() { # $1 = Exit-Code der Attrappe, $2… = zusätzliche Umgebung (NAME=WERT) → Exit-Code des Hooks
+  local code="$1" dir rc; shift
+  dir="$(mktemp -d)"; mkdir -p "$dir/scripts/project/tests"
+  printf '#!/usr/bin/env bash\nexit %s\n' "$code" > "$dir/scripts/project/tests/run-tests.sh"
+  env -u FACTORY_SELF_TEST_RUN FACTORY_DIR="$dir" "$@" bash "$HOOK_22" > /dev/null 2>&1; rc=$?   # eine von außen exportierte Markierung zählt nicht
   rm -rf "$dir"; return $rc
 }
 hook_22 0; assert_exit 0 $? "#22 AK2.16b-2: grüne Projekt-Suite → Hook grün"
@@ -533,7 +532,8 @@ hook_22 1; assert_exit 1 $? "#22 AK2.16b-2: rote Projekt-Suite → Hook rot (Pus
 # Kopplungsschutz: die ausgelieferte Suite ruft pre-push.sh echt gegen dieses Repo auf (#149, #265 …). Dort darf der Hook die
 # Projekt-Suite nicht erneut starten – sonst läuft sie mehrfach verschachtelt, und ein Rot der Projekt-Suite färbt
 # unbeteiligte Gate-Tests der ausgelieferten Suite falsch rot. Die ausgelieferte Suite markiert sich mit FACTORY_SELF_TEST_RUN.
-FACTORY_SELF_TEST_RUN=1 hook_22 1; assert_exit 0 $? "#22 AK2.16b-2: innerhalb der ausgelieferten Suite (FACTORY_SELF_TEST_RUN) startet der Hook die Projekt-Suite nicht"
+hook_22 1 FACTORY_SELF_TEST_RUN=1; assert_exit 0 $? "#22 AK2.16b-2: innerhalb der ausgelieferten Suite (FACTORY_SELF_TEST_RUN) startet der Hook die Projekt-Suite nicht"
+FACTORY_SELF_TEST_RUN=1 hook_22 1; assert_exit 1 $? "#22 AK2.16b-2: eine von außen exportierte Markierung verfälscht den Hook-Test nicht (hook_22 isoliert die Umgebung)"
 assert_true "$(grep -qxF 'export FACTORY_SELF_TEST_RUN=1' "$CHECKS_DIR/tests/run-tests.sh"; echo $?)" "#22 AK2.16b-2: die ausgelieferte Suite setzt die Markierung FACTORY_SELF_TEST_RUN selbst"
 # CI: ein Job führt die Suite aus, nachdem yq bereitgestellt ist (ohne yq würden die Config-Prüfungen nur überspringen)
 JOB_22="$(ci_job_block project-self-test "$PCI_431")"
