@@ -1,4 +1,4 @@
-# dm Development Factory · v0.5.0
+# dm Development Factory · v0.6.0
 
 > **Besitzer: Factory** (`docs/factory/OWNERSHIP.md`). Generischer Teil der Agenten-Regeln; die
 > projekteigenen Regeln stehen in `CLAUDE.md`, die diese Datei per `@import` einbindet.
