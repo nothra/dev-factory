@@ -76,6 +76,8 @@ Parser und liest nichts anderes:
 | factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |
 | factory | `scripts/factory-commit.sh` | Commit/Push-Seam (ADR-019) |
 | factory | `scripts/factory-poll.sh` | Poll-Skript (ADR-008) |
+| factory | `scripts/factory-release-check.sh` | Release-Prüfung: Version in `FACTORY.md` == Tag, CHANGELOG-Abschnitt (Factory-ADR-063 D6) |
+| factory | `scripts/factory-release-manifest.sh` | Release-Manifest `factory-release.json` (Factory-ADR-063 Q1) |
 | factory | `scripts/init-factory.sh` | Initialisierung |
 | factory | `scripts/install-hooks.sh` | Hook-Installation (ADR-042) |
 | factory | `scripts/install-yq.sh` | gepinnter `yq`-Seam |
@@ -93,6 +95,7 @@ Parser und liest nichts anderes:
 |---|---|---|
 | project | `.claude/settings.json` | Ergebnis von `factory-sync.sh --compose` aus Factory- + Projekt-Fragment; nicht von Hand ändern |
 | project | `.claude/settings.project.json` | Projekt-Fragment der Settings |
+| project | `.github/workflows/release.yml` | Release des Factory-Repos: Tag `v*` → Prüfung, Manifest, GitHub Release (nur dieses Repo) |
 | project | `.github/workflows/ci.yml` | CI des Repos: Job `lint` (`bash -n` über alle Shell-Skripte) |
 | project | `.gitignore` | Ergebnis von `factory-sync.sh --compose`; nicht von Hand ändern |
 | project | `.gitignore.project` | Projekt-Fragment der `.gitignore` |

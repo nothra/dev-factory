@@ -1,0 +1,34 @@
+# Release des Factory-Repos (Factory-ADR-063 D6/Q1): läuft auf dem Tag vX.Y.Z, den der Mensch auf `main` setzt.
+#
+# Ablauf einer Version: Release-PR (Versionszeile in docs/factory/FACTORY.md + CHANGELOG-Abschnitt) → Merge →
+# Tag. Ein Bot kann nach dem Taggen nicht auf `main` schreiben (Ruleset protect-main), deshalb wird hier nur
+# geprüft und veröffentlicht. Passt etwas nicht, entsteht kein Release – den Tag löschen und neu setzen.
+#   1. factory-release-check.sh: Version in FACTORY.md == Tag, CHANGELOG-Abschnitt zum Tag vorhanden
+#   2. factory-release-manifest.sh: factory-release.json (Seite `factory` am Tag, Pfad + SHA-256)
+#   3. gh release create: Notes = CHANGELOG-Abschnitt, Asset = Manifest
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version und CHANGELOG prüfen (fail-closed)
+        run: bash scripts/factory-release-check.sh "$TAG"
+      - name: Manifest erzeugen
+        run: bash scripts/factory-release-manifest.sh "$TAG" > factory-release.json
+      - name: Release Notes aus dem CHANGELOG
+        run: bash scripts/factory-release-check.sh --notes "$TAG" > release-notes.md
+      - name: Release anlegen
+        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md factory-release.json
