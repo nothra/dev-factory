@@ -47,7 +47,6 @@ Parser und liest nichts anderes:
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
 | factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, nothra/tch-gastro-services#431) |
 | factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; projektspezifische Abschnitte stehen im Betriebsdokument des Projekts (`docs/project/betrieb.md`) |
-| factory | `docs/factory/OWNERSHIP.md` | diese Tabelle |
 | factory | `docs/factory/kleinfunde.md` | Kleinfunde zu Factory-Dateien (Q6) |
 | factory | `docs/factory/agents/**` | Agenten-Personas |
 | factory | `docs/factory/guidelines/**` | Coding-/Workflow-Guidelines |
@@ -105,7 +104,9 @@ Parser und liest nichts anderes:
 | project | `CONTRIBUTING.md` | Beitragsleitfaden |
 | project | `LICENSE` | Lizenz des Repos (Apache-2.0, wie das Ursprungs-Projekt) |
 | project | `README.md` | Zweck, Herkunftshinweis, Verweis auf `CHANGELOG.md` |
+| project | `docs/factory/OWNERSHIP.md` | diese Tabelle; gehört dem Repo, nicht dem Release – ein Konsument bestimmt die Zuordnung über `factory.lock` (Factory-ADR-064 D5) |
 | project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis dieses Repos (Anpassungsstelle) |
 | project | `docs/specs/**` | Spec-Archiv des Repos |
 | project | `factory.config.yml` | Projekt-Konfiguration (Anpassungsstelle) |
+| project | `scripts/project/**` | Projekt-Erweiterungen dieses Repos: Projekt-Suite `tests/`, Hooks `checks/pre-push.d/` (Factory-ADR-064 D6) |
 | project | `tasks/**` | Task-, Review- und Telemetrie-Archiv des Repos |

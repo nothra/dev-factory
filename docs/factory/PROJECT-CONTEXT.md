@@ -46,8 +46,11 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 
 - **Aufbau:** `scripts/` (Pipeline, Gates, Hooks), `.claude/commands/` (Skills),
   `docs/factory/` (Agenten-Regeln, Guidelines, ADRs, Lessons, Betriebshandbuch), `.github/workflows/`.
-- **Eigene Anpassungsstellen** (Seite `project`): `CLAUDE.md`, `factory.config.yml`, diese Datei,
-  `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`, `.gitignore.project`, `ci.yml`, `release.yml`.
+- **Eigene Anpassungsstellen** (Seite `project`): `CLAUDE.md`, `factory.config.yml`,
+  `docs/factory/PROJECT-CONTEXT.md` (diese Datei), `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`,
+  `.gitignore.project`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`.
+- **Anpassungsstellen-Liste:** Die Factory liefert sie als `scripts/checks/customization-points.txt` mit; ein Drift-Guard in
+  `scripts/project/tests/run-tests.sh` hält sie und diese Aufzählung deckungsgleich.
 - **Zuordnung** jeder Datei zu `factory` (wird ausgeliefert) oder `project` (gehört dem Repo):
   [`OWNERSHIP.md`](OWNERSHIP.md); Quelle des Release-Manifests ist die Seite `factory`.
 - **Releases:** SemVer-Tags `vX.Y.Z` auf `main`, Release-PR setzt Versionszeile in `FACTORY.md` und
