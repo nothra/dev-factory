@@ -1,0 +1,8 @@
+
+# ── dev-factory (Projekt-Anteil) ──
+# Wegwerf-/Scratch-Artefakte der Self-Tests und Probeläufe
+*.tmp.*
+.coverage-tmp*/
+coverage/
+# Lokale Secrets (start-work.sh spiegelt .env.local in neue Worktrees)
+.env.local

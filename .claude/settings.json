@@ -51,27 +51,17 @@
       "Bash(git status:*)",
       "Edit(*.json)",
       "Edit(*.md)",
-      "Edit(*.mjs)",
-      "Edit(*.ts)",
-      "Edit(*.tsx)",
       "Edit(.github/workflows/**)",
       "Edit(/*.yaml)",
       "Edit(/*.yml)",
-      "Edit(app/**)",
       "Edit(config/**)",
-      "Edit(db/**)",
       "Edit(docs/**)",
-      "Edit(e2e/**)",
-      "Edit(lib/**)",
-      "Edit(public/**)",
       "Edit(scripts/**)",
-      "Edit(tasks/**)",
-      "Edit(types/**)"
+      "Edit(tasks/**)"
     ],
     "deny": [
       "Edit(.claude/**)",
       "Edit(.env*)",
-      "Edit(pnpm-lock.yaml)",
       "Read(.env*)"
     ]
   }

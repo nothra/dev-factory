@@ -1,12 +1,14 @@
 # Zuordnungstabelle: Factory- vs. Projekt-Dateien
 
-> **Kanonische Quelle** für die Frage „Gehört diese Datei der Factory oder dem Projekt?"
-> (ADR-063 D3/D11, Spec [#426](../specs/spec-426-trennlinie-factory-projekt-ziehen.md)). Jede
-> getrackte Datei gehört **genau einer** Seite – es gibt keine Mischdateien.
+> **Kanonische Quelle** für die Frage „Gehört diese Datei der Factory-Auslieferung oder dem Repo
+> selbst?" (Factory-ADR-063 D3/D9/D11). Jede getrackte Datei gehört **genau einer** Seite – es gibt
+> keine Mischdateien.
 >
-> - **`factory`** – gehört der Factory; wandert in T1b nach `nothra/dev-factory` und kommt ab T2
->   als übernommene Datei zurück. Änderungen gehören dorthin.
-> - **`project`** – gehört TCH; bleibt nur hier; ab T2 eine Anpassungsstelle (wird nie überschrieben).
+> - **`factory`** – wird ausgeliefert: ein adoptierendes Projekt übernimmt diese Dateien als Kopie
+>   (Release-Manifest `factory-release.json` = genau diese Seite am Tag). Änderungen gehören in
+>   dieses Repo.
+> - **`project`** – gehört diesem Repo selbst (Anpassungsstellen des Dogfoodings: `CLAUDE.md`,
+>   `factory.config.yml`, `PROJECT-CONTEXT.md`, …); wird nie ausgeliefert.
 
 ## Zeilenformat (maschinenlesbar)
 
@@ -33,13 +35,7 @@ Parser und liest nichts anderes:
 3. Der Check läuft im lokalen `pre-push.sh` und in der Self-Test-Suite (`run-tests.sh`), die CI als
    Required Check `factory-self-test` ausführt – kein eigener Check-Name.
 4. **Allowlist für T1b:** `bash scripts/checks/ownership-check.sh --list factory` gibt genau die
-   Dateien der Factory aus (Eingabe für `git filter-repo`). Ein zweites Format gibt es nicht.
-
-> **Übergangsstand (T1a-1, #426):** Dateien, die heute noch Factory- **und** TCH-Anteile mischen,
-> stehen mit der Seite, der sie nach dem Aufteilen gehören. Aufgelöst werden sie in T1a-2 (#431:
-> `CLAUDE.md`, `.claude/settings.json`, `.gitignore`, `factory-ci.yml`, `pre-commit.sh`,
-> `pre-push.sh`, `factory.defaults.yml`) und T1a-3 (#432: Skripte/Tests und Texte). Die Tabelle wird
-> dort mit jedem Verschieben nachgezogen.
+   Dateien der Factory aus (Eingabe für das Release-Manifest). Ein zweites Format gibt es nicht.
 
 ## Factory
 
@@ -95,44 +91,16 @@ Parser und liest nichts anderes:
 
 | Seite | Muster | Begründung |
 |---|---|---|
-| project | `.claude/launch.json` | Dev-Server-Konfiguration der App |
 | project | `.claude/settings.json` | Ergebnis von `factory-sync.sh --compose` aus Factory- + Projekt-Fragment; nicht von Hand ändern |
-| project | `.claude/settings.project.json` | Projekt-Fragment der Settings (App-Pfade, Lockfile-Deny) |
-| project | `.env.example` | App-Umgebungsvariablen |
-| project | `.github/workflows/ci.yml` | Projekt-CI: `lint` + `test` der App (aus `factory-ci.yml`, #431) |
-| project | `.github/workflows/deploy-gate.yml` | Vercel-Deploy-Gate (ADR-015/017) |
-| project | `.github/workflows/deploy-freeze-release.yml` | Deploy-Freeze (ADR-032) |
+| project | `.claude/settings.project.json` | Projekt-Fragment der Settings |
+| project | `.github/workflows/ci.yml` | CI des Repos: Job `lint` (`bash -n` über alle Shell-Skripte) |
 | project | `.gitignore` | Ergebnis von `factory-sync.sh --compose`; nicht von Hand ändern |
-| project | `.gitignore.project` | Projekt-Fragment der `.gitignore` (Node/Next/Playwright) |
-| project | `.issue-npm-pin.md` | verwaister Issue-Entwurf, kein Pipeline-Bestandteil |
-| project | `.prettierignore` | App-Formatierung |
-| project | `.prettierrc.json` | App-Formatierung |
-| project | `CLAUDE.md` | Projekt-Regeln (TCH); importiert `FACTORY.md` und `PROJECT-CONTEXT.md` |
-| project | `LICENSE` | Lizenz des Projekts |
-| project | `app/**` | App-Code |
-| project | `db/**` | Schema, Migrationen, Data-Layer |
-| project | `docs/*.md` | Changelog, FAQ, Routen-Doku der App |
-| project | `docs/adr/**` | App-ADRs (Factory-ADRs: `docs/factory/adr/`) |
-| project | `docs/anleitung/**` | Anwender-Anleitung der App |
-| project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis (Anpassungsstelle) |
-| project | `docs/project/**` | projekteigene Doku (App-Lessons, Kleinfunde) |
-| project | `docs/project/betrieb.md` | TCH-Betrieb: Werkzeuge, lokale Umgebung, Deploy-Gate-Secrets, Vercel, destruktive Migrationen (#432) |
-| project | `docs/specs/**` | Spec-Archiv des Projekts |
-| project | `docs/ux/**` | UX-Glossar und -Entwürfe der App |
-| project | `docker-compose.yml` | lokale Datenbank |
-| project | `e2e/**` | Playwright-Tests der App |
-| project | `eslint/**` | Farb-Gate der App (ADR-052) |
+| project | `.gitignore.project` | Projekt-Fragment der `.gitignore` |
+| project | `CHANGELOG.md` | Versionshistorie (Release-PR, Factory-ADR-063 D6) |
+| project | `CLAUDE.md` | Projekt-Regeln dieses Repos; importiert `FACTORY.md` und `PROJECT-CONTEXT.md` |
+| project | `CONTRIBUTING.md` | Beitragsleitfaden |
+| project | `README.md` | Zweck, Herkunftshinweis, Verweis auf `CHANGELOG.md` |
+| project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis dieses Repos (Anpassungsstelle) |
+| project | `docs/specs/**` | Spec-Archiv des Repos |
 | project | `factory.config.yml` | Projekt-Konfiguration (Anpassungsstelle) |
-| project | `lib/**` | App-Bibliothek |
-| project | `pnpm-lock.yaml` | Abhängigkeiten der App |
-| project | `pnpm-workspace.yaml` | pnpm-Einstellungen der App |
-| project | `public/**` | statische App-Assets |
-| project | `scripts/project/**` | Projekt-Erweiterungspunkte der Git-Gates (`checks/pre-commit.d/`, `checks/pre-push.d/`), u. a. Routen-Doku-Drift der App (#145) |
-| project | `scripts/project/*.sh` | TCH-Skripte: Deploy-Freeze (`deploy-freeze.sh`, `deploy-freeze-notify.sh`), Neon-INT-Reset (`neon-reset-int.sh`) |
-| project | `scripts/project/tests/**` | Projekt-Suite (`run-project-tests.sh`); läuft im Required Check `test` des `ci.yml` (#432) |
-| project | `tasks/**` | Task-, Review- und Telemetrie-Archiv des Projekts |
-| project | `types/**` | App-Typdeklarationen |
-| project | `*.json` | Wurzel-Konfiguration der App (`package.json`, `tsconfig.json`, `vercel.json`) |
-| project | `*.md` | Wurzel-Dokumente (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`) |
-| project | `*.mjs` | Wurzel-Konfiguration der App (`eslint`, `postcss`) |
-| project | `*.ts` | Wurzel-Konfiguration und -Code der App (`auth`, `proxy`, `next.config`, `vitest` …) |
+| project | `tasks/**` | Task-, Review- und Telemetrie-Archiv des Repos |

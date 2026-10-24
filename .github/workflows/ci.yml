@@ -1,0 +1,22 @@
+# CI des Factory-Repos selbst (Factory-ADR-063 D9): der Job `lint` ergänzt die Factory-Jobs aus
+# factory-ci.yml (`factory-self-test`, `config-validation`, `pr-closes-issue`, …).
+# Lint = Syntaxprüfung `bash -n` über alle getrackten Shell-Skripte (gleicher Wortlaut wie
+# commands.lint in factory.config.yml; ShellCheck folgt als Issue).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntaxprüfung aller Shell-Skripte
+        run: git ls-files -z '*.sh' | xargs -0 -n1 bash -n
