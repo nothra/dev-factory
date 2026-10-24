@@ -16,7 +16,10 @@ FACTORY_ROOT="$(cd "$PROJECT_TESTS_DIR/../../.." && pwd)"
 CHECKS_DIR="$FACTORY_ROOT/scripts/checks"
 
 # Geteilte Helfer (Zähler, assert_*, print_summary) – relativ zum Skript gesourct, nicht zu FACTORY_DIR (nothra/tch-gastro-services#431)
-source "$CHECKS_DIR/tests/lib/assert-helpers.sh"
+source "$CHECKS_DIR/tests/lib/assert-helpers.sh" || {
+  echo "run-tests: geteilte Helfer-Lib nicht ladbar: $CHECKS_DIR/tests/lib/assert-helpers.sh (fail-closed, Factory-Issue #22 F-22.5)" >&2
+  exit 2
+}
 
 SCRIPTS_DIR="$(cd "$CHECKS_DIR/.." && pwd)"
 IMPORT_CHECK="$CHECKS_DIR/import-context-limit-check.sh"
@@ -545,6 +548,26 @@ ci_ok_22 "$(printf '%s\n' "$JOB_22" | grep -vxF '        run: bash scripts/proje
 assert_exit 1 $? "#22 AK2.16b-2 (Mutation): ohne die run:-Zeile wird derselbe Guard rot"
 ci_ok_22 "$(printf '%s\n' "$JOB_22" | grep -vF 'run: sudo bash scripts/install-yq.sh')"
 assert_exit 1 $? "#22 AK2.16b-2 (Mutation): ohne die yq-Bereitstellung wird derselbe Guard rot"
+
+# ─── Factory-Issue #22 · F-22.5: fehlende gesourcte Lib → rot und laut, nie still ─────────────────────────────────────
+# Hängt eine Suite von einer Datei ab, die im Konsumenten fehlt, darf sie nicht mit „command not found" weiterlaufen und
+# dabei womöglich grün enden. Beide Suiten werden dazu in einen Baum OHNE die geteilte Lib kopiert und müssen hart
+# mit Exit 2 und dem Dateinamen abbrechen.
+echo ""
+echo "F-22.5 fehlende Helfer-Lib:"
+nolib_22() { # $1 = Pfad der Suite relativ zur Repo-Wurzel → Ausgabe der Suite im Baum ohne Lib; Exit-Code durchreichen
+  local dir rc; dir="$(mktemp -d)"; mkdir -p "$dir/$(dirname "$1")"
+  cp "$FACTORY_ROOT/$1" "$dir/$1"
+  env -u FACTORY_SELF_TEST_RUN bash "$dir/$1" 2>&1; rc=$?
+  rm -rf "$dir"; return $rc
+}
+out_22="$(nolib_22 scripts/checks/tests/run-tests.sh)"
+assert_exit 2 $? "#22 F-22.5: ausgelieferte Suite ohne assert-helpers.sh → Exit 2"
+assert_contains_286 "$out_22" 'assert-helpers.sh' "#22 F-22.5: die Meldung nennt die fehlende Lib"
+assert_absent "$out_22" 'command not found' "#22 F-22.5: kein Weiterlaufen mit „command not found“"
+out_22="$(nolib_22 scripts/project/tests/run-tests.sh)"
+assert_exit 2 $? "#22 F-22.5: Projekt-Suite ohne assert-helpers.sh → Exit 2"
+assert_contains_286 "$out_22" 'assert-helpers.sh' "#22 F-22.5: die Meldung der Projekt-Suite nennt die fehlende Lib"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

@@ -21,7 +21,10 @@ set -uo pipefail
 CHECKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Gemeinsame Prüf-Helfer (Zähler, assert_*, Fixtures) – geteilt mit der Projekt-Suite (nothra/tch-gastro-services#432, Q10)
-source "$CHECKS_DIR/tests/lib/assert-helpers.sh"
+source "$CHECKS_DIR/tests/lib/assert-helpers.sh" || {
+  echo "run-tests: geteilte Helfer-Lib nicht ladbar: $CHECKS_DIR/tests/lib/assert-helpers.sh (fail-closed, Factory-Issue #22 F-22.5)" >&2
+  exit 2
+}
 
 # Markierung für den Projekt-Hook scripts/project/checks/pre-push.d/10-project-tests.sh: Diese Suite ruft pre-push.sh echt gegen das
 # Repo auf (#149, #265 …); dort soll der Hook die Projekt-Suite nicht verschachtelt noch einmal starten (Factory-Issue #22).
@@ -7661,6 +7664,13 @@ rm -rf "$dir_22"
 out_22="$(own_run_426 '| project | `**` | alles |\n' 'a.md\n')"
 assert_exit 0 $? "#22 AK2.15c: ohne Lock gilt die Tabelle (Exit 0)"
 assert_absent "$out_22" 'Modus:' "#22 AK2.15c: der Tabellenmodus trägt keine Moduszeile (Ausgabe unverändert)"
+# F-22.5: Alles, was die ausgelieferte Suite sourct oder als Fixture liest (tests/lib, tests/fixtures), liegt auf Seite `factory` –
+# sonst fehlte es im Konsumenten, und die Suite bräche dort beim `source` ab (die Dateien selbst stehen auf Seite factory, ADR-064 D6).
+for f_22 in "$CHECKS_DIR"/tests/lib/* "$CHECKS_DIR"/tests/fixtures/*; do
+  own_side_426 factory "${f_22#"$FACTORY_ROOT"/}"
+  assert_exit 0 $? "#22 F-22.5: ${f_22#"$FACTORY_ROOT"/} wird mit der Suite ausgeliefert (Seite factory)"
+done
+
 # ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
