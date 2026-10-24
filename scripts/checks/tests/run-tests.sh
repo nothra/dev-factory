@@ -8405,6 +8405,123 @@ done
 
 # (AK-K1a – Abschnitt „Lokale Umgebung & Oberflächentests" in PROJECT-CONTEXT.md – entfällt: das Factory-Repo hat keine App-Umgebung.)
 
+# ─── Release-Manifest (Factory-ADR-063 Q1, Factory-Issue #10) ────────────────────────────────
+# factory-release-manifest.sh <ref> erzeugt das Manifest factory-release.json: Seite `factory` laut OWNERSHIP.md AM TAG,
+# Pfad + SHA-256 je Blob (`git show <ref>:<pfad>`), nach Pfad sortiert (LC_ALL=C), unabhängig vom Arbeitsbaum.
+echo ""
+echo "Release-Manifest (Factory-Issue #10):"
+RM_SCRIPT_10="$SCRIPTS_DIR/factory-release-manifest.sh"
+assert_true "$([ -f "$RM_SCRIPT_10" ]; echo $?)" "Release-Manifest: scripts/factory-release-manifest.sh vorhanden"
+if [ -f "$RM_SCRIPT_10" ] && command -v jq >/dev/null 2>&1; then
+  TMP_RM_10="$(mktemp -d)"
+  mkdir -p "$TMP_RM_10/scripts/checks" "$TMP_RM_10/docs/factory" "$TMP_RM_10/zz"
+  cp "$RM_SCRIPT_10" "$TMP_RM_10/scripts/"; cp "$CHECKS_DIR/ownership-check.sh" "$TMP_RM_10/scripts/checks/"
+  cat > "$TMP_RM_10/docs/factory/OWNERSHIP.md" <<'EOT'
+| factory | `scripts/**` | Skripte |
+| factory | `zz/b.txt` | Datei b |
+| factory | `zz/a.txt` | Datei a |
+| project | `README.md` | Projekt |
+| project | `docs/factory/OWNERSHIP.md` | Tabelle |
+EOT
+  printf 'inhalt-a\n' > "$TMP_RM_10/zz/a.txt"; printf 'inhalt-b\n' > "$TMP_RM_10/zz/b.txt"; printf 'projekt\n' > "$TMP_RM_10/README.md"
+  git -C "$TMP_RM_10" init -q -b main
+  git -C "$TMP_RM_10" add -A
+  git -C "$TMP_RM_10" -c user.email=t@t.com -c user.name=t commit -q -m init
+  git -C "$TMP_RM_10" tag v9.9.9
+  commit_rm_10="$(git -C "$TMP_RM_10" rev-parse HEAD)"
+  # Arbeitsbaum NACH dem Tag verändern: das Manifest liest den Blob am Tag, nicht die Datei auf der Platte.
+  printf 'geaendert\n' > "$TMP_RM_10/zz/a.txt"
+  out_rm_10="$(cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v9.9.9 2>&1)"; rc_rm_10=$?
+  assert_exit 0 "$rc_rm_10" "Release-Manifest: Lauf gegen einen Tag endet mit Exit 0"
+  assert_true "$(printf '%s' "$out_rm_10" | jq -e . >/dev/null 2>&1; echo $?)" "Release-Manifest: die Ausgabe ist gültiges JSON"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.schema')" = 1 ]; echo $?)" "Release-Manifest: schema = 1"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.repo')" = "nothra/dev-factory" ]; echo $?)" "Release-Manifest: repo = nothra/dev-factory"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.version')" = "v9.9.9" ]; echo $?)" "Release-Manifest: version = der Tag"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.commit')" = "$commit_rm_10" ]; echo $?)" "Release-Manifest: commit = die 40-stellige Commit-ID des Tags"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files | map(.path) | join(",")')" = "scripts/checks/ownership-check.sh,scripts/factory-release-manifest.sh,zz/a.txt,zz/b.txt" ]; echo $?)" \
+    "Release-Manifest: files = genau die Seite factory, nach Pfad sortiert (Projekt-Dateien fehlen)"
+  sha_a_rm_10="$(git -C "$TMP_RM_10" show v9.9.9:zz/a.txt | shasum -a 256 | cut -d' ' -f1)"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files[] | select(.path == "zz/a.txt") | .sha256')" = "$sha_a_rm_10" ]; echo $?)" \
+    "Release-Manifest: sha256 stammt vom Blob am Tag (nicht vom geänderten Arbeitsbaum)"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files[] | select(.path == "zz/a.txt") | .sha256')" != "$(shasum -a 256 < "$TMP_RM_10/zz/a.txt" | cut -d' ' -f1)" ]; echo $?)" \
+    "Release-Manifest (Diskriminierung): der Hash weicht vom veränderten Arbeitsbaum ab"
+  assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files | map(.sha256) | map(test("^[0-9a-f]{64}$")) | all')" = true ]; echo $?)" "Release-Manifest: jeder Hash hat 64 Hex-Zeichen"
+  # Fail-closed
+  (cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v0.0.0-gibt-es-nicht >/dev/null 2>&1)
+  assert_exit 2 "$?" "Release-Manifest: unbekannte Referenz → Exit 2 (fail-closed)"
+  (cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh >/dev/null 2>&1)
+  assert_exit 2 "$?" "Release-Manifest: ohne Referenz → Exit 2"
+  git -C "$TMP_RM_10" rm -q --cached docs/factory/OWNERSHIP.md
+  git -C "$TMP_RM_10" -c user.email=t@t.com -c user.name=t commit -q -m "ohne tabelle"
+  git -C "$TMP_RM_10" tag v9.9.8
+  (cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v9.9.8 >/dev/null 2>&1)
+  assert_exit 2 "$?" "Release-Manifest: Tag ohne OWNERSHIP.md → Exit 2 (fail-closed)"
+  rm -rf "$TMP_RM_10"
+else
+  [ -f "$RM_SCRIPT_10" ] || true
+  command -v jq >/dev/null 2>&1 || echo "  • Release-Manifest: Verhaltenstests übersprungen (jq fehlt)"
+fi
+
+# ─── Release-Prüfung und release.yml (Factory-ADR-063 D6/Q1, Factory-Issue #10) ──────────────────
+# factory-release-check.sh <tag>: Version in FACTORY.md == Tag und ein CHANGELOG-Abschnitt zum Tag (fail-closed);
+# --notes <tag> gibt genau diesen Abschnitt aus (Release Notes). release.yml verdrahtet beides mit dem Manifest.
+echo ""
+echo "Release-Prüfung (Factory-Issue #10):"
+RC_SCRIPT_10="$SCRIPTS_DIR/factory-release-check.sh"
+assert_true "$([ -f "$RC_SCRIPT_10" ]; echo $?)" "Release-Prüfung: scripts/factory-release-check.sh vorhanden"
+if [ -f "$RC_SCRIPT_10" ]; then
+  TMP_RC_10="$(mktemp -d)"; mkdir -p "$TMP_RC_10/docs/factory"
+  printf '# dm Development Factory · v1.2.3\n\ntext\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  printf '# Changelog\n\n## Unreleased\n\n- später\n\n## v1.2.3 – 2026-01-01\n\n### Breaking\n\n- keine\n\n## v1.2.2 – 2025-12-01\n\n- alt\n' > "$TMP_RC_10/CHANGELOG.md"
+  rc_10() { FACTORY_DIR="$TMP_RC_10" bash "$RC_SCRIPT_10" "$@"; }
+  rc_10 v1.2.3 >/dev/null 2>&1
+  assert_exit 0 "$?" "Release-Prüfung: Version und CHANGELOG-Abschnitt passen zum Tag → Exit 0"
+  out_rc_10="$(rc_10 v1.2.4 2>&1)"; rc_rc_10=$?
+  assert_exit 1 "$rc_rc_10" "Release-Prüfung: Tag ≠ Version in FACTORY.md → Exit 1"
+  assert_contains_286 "$out_rc_10" 'v1.2.3' "Release-Prüfung: die Meldung nennt die Version aus FACTORY.md"
+  printf '# dm Development Factory · v1.2.4\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  out_rc_10="$(rc_10 v1.2.4 2>&1)"; rc_rc_10=$?
+  assert_exit 1 "$rc_rc_10" "Release-Prüfung: Version passt, aber kein CHANGELOG-Abschnitt zum Tag → Exit 1"
+  assert_contains_286 "$out_rc_10" 'CHANGELOG' "Release-Prüfung: die Meldung nennt den fehlenden CHANGELOG-Abschnitt"
+  rc_10 1.2.3 >/dev/null 2>&1
+  assert_exit 2 "$?" "Release-Prüfung: ein Tag ohne führendes v → Exit 2 (Aufruffehler)"
+  rc_10 >/dev/null 2>&1
+  assert_exit 2 "$?" "Release-Prüfung: ohne Tag → Exit 2"
+  printf '# dm Development Factory · v1.2.3\n' > "$TMP_RC_10/docs/factory/FACTORY.md"
+  notes_rc_10="$(rc_10 --notes v1.2.3 2>&1)"; rc_rc_10=$?
+  assert_exit 0 "$rc_rc_10" "Release-Prüfung: --notes liefert den Abschnitt zum Tag"
+  assert_contains_286 "$notes_rc_10" '### Breaking' "Release-Prüfung: die Notes enthalten den Abschnitt „Breaking“"
+  assert_absent "$notes_rc_10" 'später' "Release-Prüfung: die Notes enthalten keinen fremden Abschnitt (Unreleased)"
+  assert_absent "$notes_rc_10" 'alt' "Release-Prüfung: die Notes enden vor dem nächsten Abschnitt"
+  assert_absent "$notes_rc_10" '## v1.2.3' "Release-Prüfung: die Überschrift des Abschnitts ist nicht Teil der Notes"
+  rc_10 --notes v9.9.9 >/dev/null 2>&1
+  assert_exit 1 "$?" "Release-Prüfung: --notes ohne Abschnitt → Exit 1"
+  rm -rf "$TMP_RC_10"
+fi
+
+RELEASE_YML_10="$FACTORY_ROOT/.github/workflows/release.yml"
+assert_true "$([ -f "$RELEASE_YML_10" ]; echo $?)" "release.yml vorhanden"
+if [ -f "$RELEASE_YML_10" ]; then
+  grep -qE "^\s+tags: \['v\*'\]|^\s+- 'v\*'|^\s+tags:\s*$" "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: läuft auf Tag-Push (v*)"
+  grep -q '^  push:' "$RELEASE_YML_10" && ! grep -q 'pull_request' "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: nur push, kein pull_request"
+  grep -qE 'contents: write' "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: contents: write für das Release"
+  grep -qF 'bash scripts/factory-release-check.sh' "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: ruft die Release-Prüfung auf"
+  grep -qF 'bash scripts/factory-release-manifest.sh' "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: erzeugt das Manifest"
+  grep -qF 'gh release create' "$RELEASE_YML_10" && grep -qF 'factory-release.json' "$RELEASE_YML_10"
+  assert_exit 0 "$?" "release.yml: legt das Release mit dem Manifest als Asset an"
+  # Anker ist die exakte `run:`-Zeile, nie ein Fragment: der Kopfkommentar nennt beide Schritte ebenfalls.
+  ln_check_10="$(grep -nF 'run: bash scripts/factory-release-check.sh "$TAG"' "$RELEASE_YML_10" | head -1 | cut -d: -f1)"
+  ln_create_10="$(grep -nF 'run: gh release create' "$RELEASE_YML_10" | head -1 | cut -d: -f1)"
+  { [ -n "$ln_check_10" ] && [ -n "$ln_create_10" ] && [ "$ln_check_10" -lt "$ln_create_10" ]; }
+  assert_true "$?" "release.yml: die Prüfung läuft vor dem Anlegen des Release (kein Release bei Abweichung)"
+  if [ "$HAS_YQ" = 1 ]; then yq '.' "$RELEASE_YML_10" >/dev/null 2>&1; assert_exit 0 "$?" "release.yml ist valides YAML"; else skip_yq "release.yml ist valides YAML"; fi
+fi
+
 # ─── Hook-Umgebung: GIT_DIR & Co. schlagen nicht in Wegwerf-Repos durch (Factory-Issue #6) ───────
 # Läuft die Suite als commands.test aus dem pre-push-Hook eines Worktrees, exportiert Git GIT_DIR/GIT_WORK_TREE/
 # GIT_INDEX_FILE – ohne Neutralisierung ändern die Wegwerf-Repos der Tests den echten Worktree (Branch, Remote, Dateien).
