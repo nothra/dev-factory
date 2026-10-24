@@ -2,7 +2,7 @@
 
 > **Nacharbeit nach Iteration 1 (erledigt = `[x]`):** alle Wichtig-Findings außer dem Out-of-Scope-Punkt sowie die kleinen Nitpicks, die ohnehin im selben Code lagen. Offen bleiben die als Issue/Kleinfund klassifizierten Funde und einzelne Nitpicks (siehe unten). Erst ein erneuter `/review` setzt „APPROVED“.
 
-Stand: Branch `feature/22-…` bei `d360f3b` (PR #25), Review-Iteration 1 von höchstens 3. Drei Runden (Logik, Qualität, Architektur); die
+Stand Iteration 1: Branch `feature/22-…` bei `d360f3b` (PR #25). Stand Iteration 2: `bb7f5ae` (Nacharbeit). Review-Iteration 2 von höchstens 3. Drei Runden (Logik, Qualität, Architektur); die
 Tatsachenbehauptungen der Wichtig-Findings 1, 2 und 7 sowie der Latenz-Fund zum Manifest-Skript wurden mit eigenen Repros im Orchestrator bestätigt.
 
 ## Kritische Findings (müssen behoben werden)
@@ -22,6 +22,14 @@ Keine.
 - [x] [scripts/project/tests/run-tests.sh:547–552, `hook_22`] Der Kommentar „erbt FACTORY_SELF_TEST_RUN nur, wenn der Aufruf es setzt" stimmt nur bei sauberer Umgebung; ist die Variable von außen exportiert, kippen `hook_22 0/1`. Setup mit `env -u FACTORY_SELF_TEST_RUN` isolieren (wie `nolib_22`), den Fall „gesetzt" mit `env FACTORY_SELF_TEST_RUN=1` aufrufen. *(Runde 2)*
 - [x] [docs/factory/PROJECT-CONTEXT.md, „Build, Test, Lint" → „Test-Framework"] Zeile nennt weiter nur die ausgelieferte Suite; an „zwei Suiten" angleichen. *(Runde 2)*
 - [ ] [Out-of-Scope, siehe Klassifizierung unten] Ausgelieferte Dateien verweisen auf `docs/factory/OWNERSHIP.md`, das Konsumenten nicht mehr bekommen: `.claude/commands/{review,codify,security-review}.md`, `docs/factory/FACTORY.md:3`, `OPERATING.md`, `guidelines/git-workflow.md:190`, `docs/factory/kleinfunde.md`. Im Lock-Modus zeigt der Link ins Leere; der in beiden Modi gültige Weg ist `ownership-check.sh --list factory`. *(Runde 3, Grep bestätigt)*
+
+
+### Iteration 2 (Stand `bb7f5ae`) – neue Wichtig-Findings
+- [ ] [scripts/checks/ownership-check.sh:96-115, `report_each` / `lock_report_problems`] Der Fundzähler läuft über Exit-Codes (gedeckelt auf 255, Magic Number zweimal inline) und liefert eine falsche Zahl: Repro bestätigt – 300 nicht getrackte Lock-Pfade ergeben 300 `✗`-Zeilen, aber die Schlusszeile lautet „255 Fund(e)". Der Aufrufer nutzt die Rückgabe nur als Wahrheitswert; Summe und zweiter 255-Deckel sind tote Komplexität. Zudem bleiben die drei Zeilen `… | report_each "…" || n=$?; bad=$((bad + n)); n=0` Copy-Paste. Fix: Funde je Klasse in eine Datei in `$WORK_DIR` schreiben und per `wc -l` zählen (oder `report_class <meldung>`), Kappung entfernen, Test mit > 255 Funden. *(Runde 2, Repro im Orchestrator bestätigt; Runde 1 stuft es als Nitpick N2/N3 ein: Exit 1 bleibt korrekt)*
+- [ ] [scripts/checks/tests/run-tests.sh:7690-7691, `NOJQ_TOOLS_22`] Der neue Kommentar „der Stub enthält genau die Werkzeuge, die ownership-check.sh sonst braucht; fehlt eines, bräche der Test mit Exit 127 statt 2" ist falsch. Repro bestätigt: ein Stub mit nur `bash` liefert weiter Exit 2 mit „Lock-Modus braucht jq" (das Skript bricht vor den übrigen Werkzeugen ab; fehlendes `dirname` erzeugt nur eine stderr-Zeile). Die Liste ist eine Obermenge (`head`, `git` nicht gebraucht). Kommentar korrigieren („belegt nur, dass die jq-Prüfung vor allen anderen Werkzeugen greift") oder Liste kürzen. *(Runde 2)*
+- [ ] [scripts/checks/ownership-check.sh:72 und :85-93, Kopfkommentar :21-22] Kommentar zu `lock_require_inputs` verspricht „Liste … mit mindestens einem Eintrag", die Leer-Prüfung steht aber in `lock_collect_sets`; der Kopfkommentar zählt den neuen Exit-2-Fall „leere Liste" nicht auf. Prüfung samt Normalisierung nach `lock_require_inputs` verschieben (oder die Funktion `lock_load_points` nennen) und den Kopfkommentar ergänzen. *(Runde 2)*
+- [ ] [docs/factory/adr/064-…md:112-113 (Konsequenzen), :151 (Bezug)] „Der Ruleset-Eintrag … wird als Folge-Issue verfolgt" stimmt nicht: Repro `gh issue list --state all` – offen sind nur #14, #15, #22, #23, #24, kein Issue zu `project-self-test`/Ruleset/`protect-main`. Derselbe Fehlertyp wie Lesson #211 (ADR behauptet Tracking, das nur eine Absicht ist). Issue anlegen und die Nummer ins ADR schreiben, oder Text auf „ist als Issue noch anzulegen" ändern. *(Runde 3, Repro im Orchestrator bestätigt)*
+- [ ] [Klassifizierung des Manifest-Skript-Funds, `scripts/factory-release-manifest.sh:39` / `ownership-check.sh:134`] Als Kleinfund (B) geführt, passt aber nicht zum Maßstab aus `git-workflow.md` („Ist der Auslöser in diesem Repo herstellbar?" → Issue): ein `factory.lock` im `FACTORY_DIR` genügt, in Iteration 1 per Repro bestätigt. Entweder im PR beheben (Manifest-Skript erzwingt `FACTORY_LOCK_FILE="$NO_LOCK_FILE"`-artig den Tabellenmodus, plus Test; `/dev/null` hilft nicht, `-e` ist wahr) oder als Issue mit Bezug #23 führen. *(Runde 3)*
 
 ## Nitpicks (optional)
 - [x] [scripts/checks/ownership-check.sh:131] Hängender Symlink `factory.lock` gilt als „kein Lock" (`-e`) und fällt ohne Meldung in den Tabellenmodus – das von F-22.1 verbotene stille Zurückfallen. Fix: `[ -e … ] || [ -L … ]`. *(Runde 1; Repro: Tabellenmodus meldet nur „Tabelle nicht lesbar")*
@@ -43,6 +51,22 @@ Keine.
 - [ ] [scripts/lib/gate-config.sh:60] `run_project_checks` zeigt die Hook-Ausgabe nur bei Fehler; die Projekt-Suite läuft lokal ohne Fortschrittsanzeige. Eine Zeile „läuft, ~N s" im Hook. *(Runde 3)*
 - [ ] [customization-points.txt / PROJECT-CONTEXT.md / OWNERSHIP.md] Dreifache Quelle derselben Aufzählung; der Drift-Guard sichert beide Richtungen, liegt aber nur im Factory-Repo. Die zusammengesetzten Ziele `.claude/settings.json` und `.gitignore` stehen nicht in der Liste. *(Runde 3)*
 
+
+### Iteration 2 – neue Nitpicks
+- [ ] [scripts/checks/ownership-check.sh:106-123] `sort -u lock.txt` wird dreimal neu berechnet, `lock_print_result` legt `factory-set.txt` neu an; einmal in `lock_collect_sets` ablegen. *(Runde 2)*
+- [ ] [scripts/checks/ownership-check.sh:97] `report_each` ist die einzige Lock-Hilfsfunktion ohne `lock_`-Präfix. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh, `lock_check_22`] Drei versteckte Parameter per Env-Präfix-Zuweisung (`TABLE_22`, `PATH_22`, `BASH_22`); `hook_22` nutzt für denselben Zweck `NAME=WERT`-Argumente – zwei Konventionen. Eine Konvention wählen. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh, `mk_lock_fixture_22`] Schlägt `mktemp` fehl, läuft `lock_check_22 ""` im leeren Verzeichnis; `|| return` ergänzen. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh:7649-7656, Umlaut-Test] Das Fixture-Repo ist nicht gegen die globale Git-Konfiguration isoliert; mit globalem `core.quotepath=false` wäre der Test zufällig grün. `git -C "$dir_22" config core.quotepath true` setzen (ebenso `commit.gpgsign=false`, `core.hooksPath`). *(Runde 1 N1, Runde 2)*
+- [ ] [docs/factory/adr/064-…md:149] „ADR-063 Q1" ist mehrdeutig (T1a-Nachtrag hat ein Q1, T1b-Nachtrag auch); „ADR-063 T1b Q1". *(Runde 2)*
+- [ ] [docs/factory/adr/063-…md:460] Leerzeile am Dateiende (`git diff --check`: „new blank line at EOF"). *(Runde 2)*
+- [ ] [docs/factory/adr/064-…md, Hinweis 5, Hinweis 3, Konsequenzen] (b) enthält nicht nur „OWNERSHIP.md → project", sondern auch die Projekt-Suite samt Drift-Guard; „zuerst Inventar, dann verschieben" widerspricht der Historie (Zählvergleich kam erst in `d360f3b`); „Verhalten im Tabellenmodus ändert sich nicht" gilt nicht für Nicht-ASCII-Pfade (Test F-22.3 deckt nur den Lock-Modus). Texte angleichen; „jeder Commit hält die Suite grün" ist nicht per Lauf je Commit belegt. *(Runde 3)*
+- [ ] [docs/factory/adr/063-…md:324-326 / Nachtrag] Die ältere Aussage „Check läuft … in der Self-Test-Suite (Required Check `factory-self-test`)" ist durch den Test-Schnitt teilweise überholt; ein Halbsatz „(Teil davon seit ADR-064 D6 in `project-self-test`)" und ein Hinweis auf die Required-Check-Listen in ADR-029/ADR-063 Q5 im Nachtrag. *(Runde 3)*
+- [ ] [docs/specs/spec-22-konsumenten-vertrag.md:7] Dangling Reference auf „ADR-063 Nachtrag … Q7/Q8", den es nicht gibt; Spec-Kopf auf „Factory-ADR-064 (und Verweis-Nachtrag in ADR-063 vom 2026-10-24)" korrigieren (Spec gehört dem Projekt). *(Runde 3)*
+- [ ] [scripts/project/checks/pre-push.d/10-project-tests.sh:15 / ADR-064] `FACTORY_SELF_TEST_RUN` wird mit `-n` geprüft, nicht mit „=1" (auch `=0` überspringt); im ADR als Test-Schnittstelle benennen, die auch ein Konsument erbt. *(Runde 3)*
+- [ ] [scripts/checks/tests/run-tests.sh] Kein Test für die Kappung (> 255 Funde); fällt mit dem Zähler-Fix weg. *(Runde 1 N3)*
+- [ ] [Out-of-Scope] Die Folgearbeit zu toten `OWNERSHIP.md`-Verweisen verweist auf „T2a-4", für das es kein Issue gibt – Issue anlegen (Bezug T2a-4), sonst ist sie nur in der Task-Datei versteckt. *(Runde 3)*
+
 ## Klassifizierung der Out-of-Scope-Funde (ADR-018/ADR-043) – Empfehlung, noch nichts angelegt
 - **A (Issue, oberhalb der Schwelle):** (1) Ruleset `protect-main`: `project-self-test` als Required Check eintragen, ADR-029-JSON und Required-Check-Liste in ADR-063 (T1b Q5) nachziehen – Admin-Schritt, Mergeschutz ist bis dahin schwächer. (2) Ausgelieferte Verweise auf `OWNERSHIP.md` modus-neutral formulieren (heute tote Links im Konsumenten; spätestens vor #23/#24). (3) Zweifel: die ausgelieferte Suite liest weiter projekteigene Dateien (`PROJECT-CONTEXT.md` im Label-Drift-Guard, `.gitignore.project`/`settings.project.json` als Compose-Fixture) – Klärung bis #23/#24.
 - **B (`docs/factory/kleinfunde.md`):** Manifest-Skript soll den Tabellenmodus erzwingen; Fortschrittsanzeige im Hook; zusammengesetzte Ziele in/zu `customization-points.txt`; `jq`-Vorabprüfung bei der Erst-Einbindung (gehört als Anforderung in #23).
@@ -54,6 +78,10 @@ Keine.
 - Test-Schnitt ist nachprüfbar (Name-für-Name-Vergleich: Altstand 1702 Zeilen vs. 1648 + 132; keine Prüfung ersatzlos entfallen) und im PR mit Zählvergleich belegt.
 - Hook und CI-Job sind an den echten Aufrufzeilen verdrahtet; Schutz gegen verschachtelte Läufe ist begründet und getestet; `OWNERSHIP.md` und `scripts/project/**` haben ihre Zeilen im selben PR; Task-Datei und `ci.yml` sind ehrlich zum Required-Check-Status.
 - Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) sauber in die Lib gewandert; Lib wird relativ zum Skript gesourct, beide Suiten brechen ohne sie hart ab.
+
+## Ergebnis Iteration 2
+Runde 1 (Logik): **APPROVED** – alle `[x]`-Funde an Mutanten-Kopien belegt (CRLF, Umlaut, Symlink kausal), keine neuen Fehler. Runde 2 (Qualität): NEEDS_REWORK (knapp) – drei Wichtig-Punkte zu Zähler, Kommentar, Zuständigkeit. Runde 3 (Architektur): NEEDS_REWORK (Kleinigkeit) – ADR behauptet ein nicht vorhandenes Folge-Issue; Klassifizierung des Manifest-Skript-Funds.
+Alle Wichtig-Punkte sind Text-/Zählermechanik ohne Verhaltensrisiko. Schwelle für eine dritte (letzte) Iteration laut Circuit Breaker: danach eskalieren.
 
 ## Empfehlung
 NEEDS_REWORK
