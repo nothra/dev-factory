@@ -1,0 +1,57 @@
+# Review: Task 22
+
+Stand: Branch `feature/22-…` bei `d360f3b` (PR #25), Review-Iteration 1 von höchstens 3. Drei Runden (Logik, Qualität, Architektur); die
+Tatsachenbehauptungen der Wichtig-Findings 1, 2 und 7 sowie der Latenz-Fund zum Manifest-Skript wurden mit eigenen Repros im Orchestrator bestätigt.
+
+## Kritische Findings (müssen behoben werden)
+Keine.
+
+## Wichtige Findings (sollten behoben werden)
+- [ ] [scripts/checks/ownership-check.sh:100] `customization-points.txt` wird nicht normalisiert: CRLF oder führende Leerzeichen lassen die Prüfung „Anpassungsstelle steht im Lock" still ins Leere laufen (Exit 0 statt 1) – fail-open, F-22.2 verlangt fail-closed. Repro bestätigt (`p_crlf`/`p_sp` → rc=0, LF → rc=1). Fix: CR entfernen und trimmen (oder CR/Leerraum-Zeilen mit Exit 2 ablehnen) + Test mit CRLF-Liste. *(Runde 1)*
+- [ ] [scripts/checks/ownership-check.sh:55, `load_tracked_files`] `git ls-files` quotet Nicht-ASCII-Pfade (`"docs/f\303\274r.md"`); ein Lock-Pfad `docs/für.md` wird im Lock-Modus fälschlich als „nicht getrackt" gemeldet (Exit 1). Repro bestätigt. Fix: `git -c core.quotepath=false ls-files` oder `-z` + Test mit Umlaut-Pfad (F-22.3 erweitern). *(Runde 1)*
+- [ ] [docs/factory/adr/064-…md, „Konsequenzen"] Aussage „Im Factory-Repo läuft die Suite zweimal … das Gate-Niveau bleibt" ist falsch (Lesson #211): die Suite ist aufgeteilt, und die Factory-spezifischen Gruppen liegen jetzt im Job `project-self-test`, der bis zum Ruleset-Eintrag kein Required Check ist – der Mergeschutz ist bis dahin schwächer als vorher (ADR-041 hat „Job, aber nicht required" verworfen). Text korrigieren und die Lücke ehrlich benennen. *(Runde 3)*
+- [ ] [docs/factory/adr/064-…md, D4/D6/Hinweise] Mechanik des PRs fehlt im ADR: `FACTORY_SELF_TEST_RUN` (Kopplung ausgelieferte Suite ↔ Projekt-Hook), Ort des Drift-Guards (Projekt-Suite, wird nicht ausgeliefert – „erzwingt beides" gilt nur im Factory-Repo), tatsächliche Commit-Reihenfolge ((c)+(d) in einem Commit), dass ein Konsument die zusammengesetzten Dateien `.claude/settings.json` und `.gitignore` mitbringen muss (stehen nicht in der Liste, nur die Fragmente). *(Runde 1/3)*
+- [ ] [docs/factory/adr/064-…md, docs/factory/adr/063-…md] D5 kehrt eine Aussage aus ADR-063 um (`OWNERSHIP.md` war ausgelieferte Factory-Datei). Querverweis in ADR-064 („Bezug zu anderen ADRs") und ein Satz im ADR-063-Nachtrag, dass der Konsumentenweg über `factory.lock` läuft. *(Runde 3)*
+- [ ] [scripts/checks/ownership-check.sh:57–110, `lock_mode`] Rund 45 Zeilen, fünf Aufgaben (Voraussetzungen, Lock validieren, drei Fundklassen sammeln, Seiten berechnen, ausgeben); die drei fast gleichen `while read … done < <(…)`-Schleifen lassen sich zusammenziehen. In kleine Funktionen teilen. *(Runde 2)*
+- [ ] [scripts/checks/ownership-check.sh:76] `WORK_DIR` ist eine undeklarierte Global-Variable nur für die EXIT-Trap; `lock_mode` ist nicht wiederholbar. Trap/Temp-Verzeichnis im Hauptteil aufsetzen oder Hilfsdateien per Prozesssubstitution lesen. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh:7465] `OWN_TABLE_426` ist nach dem Umzug eine tote Variable (Lesson #432). Entfernen. *(Runde 2)*
+- [ ] [scripts/project/tests/run-tests.sh:32 und :118] `own_side_426` und `own_side_22` haben denselben Rumpf (Lesson #240/#267/#310) – eine Funktion. In der ausgelieferten Suite ist `own_side_426` ohne Lock-Override absichtlich (Modus des Repos); ein Kommentar sollte das sagen. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh (Block „Konsumenten-Vertrag") und scripts/project/tests/run-tests.sh:32,55,118] Fixture-Aufbau mehrfach von Hand wiederholt (`lock_run_22`, `lock_bad_22` und vier weitere `mktemp`-Blöcke mit derselben Env-Trias) und der Magic String `/nicht/vorhanden/factory.lock` steht fünfmal inline. Ein Fixture-Helfer und eine Konstante (z. B. `NO_LOCK_FILE` in `assert-helpers.sh`); sonst rutschen Tests bei einem Rename von `FACTORY_LOCK_FILE` still in den Lock-Modus. *(Runde 2)*
+- [ ] [scripts/project/tests/run-tests.sh:547–552, `hook_22`] Der Kommentar „erbt FACTORY_SELF_TEST_RUN nur, wenn der Aufruf es setzt" stimmt nur bei sauberer Umgebung; ist die Variable von außen exportiert, kippen `hook_22 0/1`. Setup mit `env -u FACTORY_SELF_TEST_RUN` isolieren (wie `nolib_22`), den Fall „gesetzt" mit `env FACTORY_SELF_TEST_RUN=1` aufrufen. *(Runde 2)*
+- [ ] [docs/factory/PROJECT-CONTEXT.md, „Build, Test, Lint" → „Test-Framework"] Zeile nennt weiter nur die ausgelieferte Suite; an „zwei Suiten" angleichen. *(Runde 2)*
+- [ ] [Out-of-Scope, siehe Klassifizierung unten] Ausgelieferte Dateien verweisen auf `docs/factory/OWNERSHIP.md`, das Konsumenten nicht mehr bekommen: `.claude/commands/{review,codify,security-review}.md`, `docs/factory/FACTORY.md:3`, `OPERATING.md`, `guidelines/git-workflow.md:190`, `docs/factory/kleinfunde.md`. Im Lock-Modus zeigt der Link ins Leere; der in beiden Modi gültige Weg ist `ownership-check.sh --list factory`. *(Runde 3, Grep bestätigt)*
+
+## Nitpicks (optional)
+- [ ] [scripts/checks/ownership-check.sh:131] Hängender Symlink `factory.lock` gilt als „kein Lock" (`-e`) und fällt ohne Meldung in den Tabellenmodus – das von F-22.1 verbotene stille Zurückfallen. Fix: `[ -e … ] || [ -L … ]`. *(Runde 1; Repro: Tabellenmodus meldet nur „Tabelle nicht lesbar")*
+- [ ] [scripts/checks/ownership-check.sh:100] Leere oder nur aus Kommentaren bestehende Anpassungsstellen-Liste → Exit 0 ohne Meldung (Repro bestätigt). Vorschlag: Exit 2 bei 0 Einträgen. *(Runde 1)*
+- [ ] [scripts/checks/ownership-check.sh:98] Lock-Pfad mit Zeilenumbruch wird von `jq -r … | …` in zwei Pfade zerlegt; Pfade mit `\n` ablehnen (Exit 2). *(Runde 1)*
+- [ ] [scripts/checks/ownership-check.sh, `--list`] Im Lock-Modus gehen Fehler nach stderr, im Tabellenmodus `✗ …` nach stdout. Für Aufrufer von `--list` ein Unterschied; mindestens im Kopfkommentar festhalten. *(Runde 1)*
+- [ ] [scripts/checks/ownership-check.sh:~75] Leerzeilen in `OWNERSHIP_FILE_LIST` zählen im Lock-Modus als Datei der Seite `project` (nur Tests). *(Runde 1)*
+- [ ] [scripts/checks/ownership-check.sh:27] `CUSTOMIZATION_POINTS_FILE` leitet sich vom Skriptverzeichnis ab, `OWNERSHIP_FILE`/`LOCK_FILE` von `$FACTORY_DIR`; bei überschriebenem `FACTORY_DIR` kommt die Liste aus der Skriptkopie. *(Runde 3)*
+- [ ] [scripts/factory-release-manifest.sh:39 / ownership-check.sh:134] Latent: der Modus hängt am Arbeitsbaum, nicht am Tag. Mit einem `factory.lock` im `FACTORY_DIR` liefert `--list factory` die Lock-Pfade statt der Tabelle des Tags (Repro bestätigt: `a.txt` ohne Lock, `b.txt` mit Lock). Heute folgenlos (im Factory-Repo gibt es keinen Lock), relevant ab #23. Das Manifest-Skript sollte den Tabellenmodus erzwingen; `FACTORY_LOCK_FILE=/dev/null` hilft nicht (`-e` ist wahr). *(Runde 3)*
+- [ ] [scripts/checks/ownership-check.sh:12 und Meldung] „✓ Zuordnung vollständig und eindeutig" im Lock-Modus behauptet mehr als geprüft wird (Eindeutigkeit gilt per Konstruktion; geprüft werden Lock-Pfade gegen getrackte Dateien und Anpassungsstellen). Kopfkommentar ehrlicher fassen. *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh, AK2.15c] Die Tabellen-Tests sind funktional unverändert, haben aber `FACTORY_LOCK_FILE=/nicht/vorhanden/…` als Zusatz bekommen (steht im PR-Text). ADR-Hinweis 1 („Tabellenmodus-Code unverändert, Diff klein") ist ungenau: der Tabellenzweig wurde in `load_tracked_files` umgebaut, die Prüfreihenfolge der Fehlerklassen blieb gleich. *(Runde 1/3)*
+- [ ] [scripts/project/tests/run-tests.sh:31 und :133] `PCI_431` und `PROJECT_CI_FILE` zeigen auf dieselbe Datei. *(Runde 2)*
+- [ ] [scripts/project/tests/run-tests.sh:186, :206, :374] Einelementige Schleifen aus dem Verschieben (`for doc_file in …`, `for phrase in …`, `for chk_431 in lint`). *(Runde 2)*
+- [ ] [scripts/project/tests/run-tests.sh:87, :93] Inversion per `echo $(( $? == 0 ))` – im Repo gilt `$(! grep -q …; echo $?)`. *(Runde 2)*
+- [ ] [scripts/project/tests/run-tests.sh, Kopfzeilen der verschobenen Gruppen] Doppelte Kopfzeilen und überall „verschoben aus der ausgelieferten Suite". *(Runde 2)*
+- [ ] [scripts/checks/tests/run-tests.sh, „kein jq"-Block] Werkzeugliste im PATH-Stub ist ein Magic Set; benennen oder kommentieren. *(Runde 2)*
+- [ ] [docs/factory/adr/047-…md:111,145] Zeilenverweise (`run-tests.sh:1261-1264`) veraltet – nicht durch diese Task, nur Hinweis. *(Runde 2)*
+- [ ] [scripts/project/checks/pre-push.d/10-project-tests.sh:15] `FACTORY_SELF_TEST_RUN` in der Shell exportiert → Hook überspringt fail-open (nur lokal, CI fängt es). Umgebungsvariable statt Argument. *(Runde 3)*
+- [ ] [scripts/lib/gate-config.sh:60] `run_project_checks` zeigt die Hook-Ausgabe nur bei Fehler; die Projekt-Suite läuft lokal ohne Fortschrittsanzeige. Eine Zeile „läuft, ~N s" im Hook. *(Runde 3)*
+- [ ] [customization-points.txt / PROJECT-CONTEXT.md / OWNERSHIP.md] Dreifache Quelle derselben Aufzählung; der Drift-Guard sichert beide Richtungen, liegt aber nur im Factory-Repo. Die zusammengesetzten Ziele `.claude/settings.json` und `.gitignore` stehen nicht in der Liste. *(Runde 3)*
+
+## Klassifizierung der Out-of-Scope-Funde (ADR-018/ADR-043) – Empfehlung, noch nichts angelegt
+- **A (Issue, oberhalb der Schwelle):** (1) Ruleset `protect-main`: `project-self-test` als Required Check eintragen, ADR-029-JSON und Required-Check-Liste in ADR-063 (T1b Q5) nachziehen – Admin-Schritt, Mergeschutz ist bis dahin schwächer. (2) Ausgelieferte Verweise auf `OWNERSHIP.md` modus-neutral formulieren (heute tote Links im Konsumenten; spätestens vor #23/#24). (3) Zweifel: die ausgelieferte Suite liest weiter projekteigene Dateien (`PROJECT-CONTEXT.md` im Label-Drift-Guard, `.gitignore.project`/`settings.project.json` als Compose-Fixture) – Klärung bis #23/#24.
+- **B (`docs/factory/kleinfunde.md`):** Manifest-Skript soll den Tabellenmodus erzwingen; Fortschrittsanzeige im Hook; zusammengesetzte Ziele in/zu `customization-points.txt`; `jq`-Vorabprüfung bei der Erst-Einbindung (gehört als Anforderung in #23).
+- **Aus Review-Runde 1, nicht als Code in diesem PR nötig:** AK2.16a-Beleg liegt als dokumentierter Fixture-Lauf in PR #25/Task-Datei (Q-22.2: „kein eigener Aufwandsblock"); ein automatisierter Fixture-Test wäre zusätzlich möglich, ist aber nicht verlangt.
+
+## Positives
+- Klare Moduswahl (`-e`-Test, kein Mischmodus), fail-closed mit Exit 2 bei kaputtem Lock, fehlendem `jq`, fehlender Liste; Exit 1 pro Pfad namentlich; Funde werden gesammelt. `set -euo pipefail`-Fallen (`grep -c`, `comm`/`uniq`, `LC_ALL=C`, EXIT-Trap) sauber behandelt.
+- Alle Akzeptanzkriterien und Fehlerszenarien AK2.15a–d-0, AK2.16a–b-3, F-22.1–F-22.5 sind durch Code und Tests belegt; Negativtests mit pfadspezifischem Signal, „Gegen-Signal fehlt"-Assertions, kausale Mutationsbelege (`ci_ok_22`, `cmp -s`), Test für fehlendes `jq` bricht die Messung statt des Inputs.
+- Test-Schnitt ist nachprüfbar (Name-für-Name-Vergleich: Altstand 1702 Zeilen vs. 1648 + 132; keine Prüfung ersatzlos entfallen) und im PR mit Zählvergleich belegt.
+- Hook und CI-Job sind an den echten Aufrufzeilen verdrahtet; Schutz gegen verschachtelte Läufe ist begründet und getestet; `OWNERSHIP.md` und `scripts/project/**` haben ihre Zeilen im selben PR; Task-Datei und `ci.yml` sind ehrlich zum Required-Check-Status.
+- Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) sauber in die Lib gewandert; Lib wird relativ zum Skript gesourct, beide Suiten brechen ohne sie hart ab.
+
+## Empfehlung
+NEEDS_REWORK
