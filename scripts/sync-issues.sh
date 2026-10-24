@@ -76,7 +76,7 @@ while IFS= read -r f; do
     [ "$MODE" = check ] && log "OK: Task #${id} ↔ Issue #${id}"
   else
     # Newline-getrennt akkumulieren (nicht space-getrennt): Pfade können Leerzeichen
-    # enthalten (Bug #8) – die spätere Iteration liest zeilenweise.
+    # enthalten (Bug nothra/tch-gastro-services#8) – die spätere Iteration liest zeilenweise.
     if [ -z "$missing" ]; then missing="${id}:${f}"; else missing="${missing}"$'\n'"${id}:${f}"; fi
   fi
 done < <(find "$TASKS_DIR" -maxdepth 1 -name 'task-*.md' 2>/dev/null | sort)

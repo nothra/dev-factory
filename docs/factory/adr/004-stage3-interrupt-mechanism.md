@@ -15,7 +15,7 @@ Der ADR-Trigger-Check (Spec-002, ADR-002) weist den Coding-Agenten an, bei einer
 der vier Trigger-Kategorien zu **stoppen und den Menschen zu fragen**. Dieses
 Verhalten ist auf einen interaktiven Menschen ausgelegt. In Stage 3 ist offen,
 was passiert, wenn der Trigger feuert: hängen, still weiterlaufen oder stoppen –
-nichts davon ist spezifiziert (aufgedeckt im Review zu !9, Issue #4).
+nichts davon ist spezifiziert (aufgedeckt im Review zu !9, Issue nothra/tch-gastro-services#4).
 
 **Stilles Weiterlaufen ist das schlechteste Szenario:** die Pipeline meldet grün,
 obwohl eine architektonische Entscheidung aussteht – zwei Wahrheiten im System.
@@ -68,7 +68,7 @@ Der Agent beendet den Lauf mit einem speziellen Exit-Code.
 des Agenten durch; nicht zuverlässig steuerbar. Abgelehnt.
 
 ### Option C: Nichts tun (Status quo)
-**Nachteile:** genau das Design-Gap aus #4 – stiller Durchlauf oder Hängen.
+**Nachteile:** genau das Design-Gap aus nothra/tch-gastro-services#4 – stiller Durchlauf oder Hängen.
 Abgelehnt.
 
 ## Begründung

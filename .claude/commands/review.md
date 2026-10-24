@@ -34,7 +34,7 @@ Personas aus: `docs/factory/agents/review-agent.md`
 - Architektur-Entscheidungen aus ADRs eingehalten?
 - Keine Schicht-Verletzungen?
 - Konsistent mit bestehendem Code-Stil?
-- Bei Routen-Änderungen: `docs/routes.md` mitgepflegt (neue/geänderte/entfernte `page.tsx`/`route.ts`; Pfad, Funktion, Zugriff)? (#145)
+- Bei Routen-Änderungen: `docs/routes.md` mitgepflegt (neue/geänderte/entfernte `page.tsx`/`route.ts`; Pfad, Funktion, Zugriff)? (nothra/tch-gastro-services#145)
 
 ## Output-Format
 
@@ -86,7 +86,7 @@ stdout; im Review-Report referenzieren.
 
 **B – unterhalb der Schwelle:** Eintrag in
 [`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) (Fund an einer Factory-Datei) **oder**
-[`docs/project/kleinfunde.md`](../../docs/project/kleinfunde.md) (Fund an einer Projekt-Datei) ergänzen –
+`docs/project/kleinfunde.md` (Fund an einer Projekt-Datei) ergänzen –
 welche Datei, entscheidet die betroffene Datei laut
 [`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md). Schema,
 Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.

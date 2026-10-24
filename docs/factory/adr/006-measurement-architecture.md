@@ -17,9 +17,9 @@ Stufe 2 der Roadmap („Orchestrieren & messen") macht die Factory messbar. Beim
 Mess-Funktionalität trafen zwei Anforderungen aufeinander, die leicht zu einem einzigen,
 überladenen „Metrics"-Baustein verschmelzen würden:
 
-1. **Prozess-/Outcome-Kennzahlen** (Issue #12): Lead-Time, Autonomie-Rate, CI-Grün-Quote,
+1. **Prozess-/Outcome-Kennzahlen** (Issue nothra/tch-gastro-services#12): Lead-Time, Autonomie-Rate, CI-Grün-Quote,
    offene Interrupts. Quelle: Git-History + GitLab-API. Lokal berechenbar.
-2. **LLM-Nutzungs-Telemetrie** (Issue #17): Token, Kosten, Latenz, Modell-/Skill-Nutzung pro
+2. **LLM-Nutzungs-Telemetrie** (Issue nothra/tch-gastro-services#17): Token, Kosten, Latenz, Modell-/Skill-Nutzung pro
    Call. Quelle: client-seitige OpenTelemetry-Instrumentierung von Claude Code.
 
 Anstoß für (2) kam von **Rene Lengwinat** (Teams, 2026-06-17): Das Team prüft AI-Gateways zur
@@ -27,7 +27,7 @@ Reduktion der Anthropic-Abhängigkeit; Nutzungsmetriken lassen sich dort erfasse
 allerdings erst, wenn im Client die OTEL-Integration aktiviert ist – das sollte bei jeder
 Factory im Bauchladen enthalten sein."
 
-Ohne klare Grenze würde #12 anfangen, Token/Kosten selbst zu schätzen (aus Logs parsen o. ä.) –
+Ohne klare Grenze würde nothra/tch-gastro-services#12 anfangen, Token/Kosten selbst zu schätzen (aus Logs parsen o. ä.) –
 ein fragiler Nachbau dessen, was OTEL bereits liefert.
 
 ## Entscheidung
@@ -36,10 +36,10 @@ Die Factory misst auf **zwei getrennten Ebenen mit getrennten Quellen**:
 
 | Ebene | Misst | Quelle | Issue |
 |-------|-------|--------|-------|
-| **Prozess** | Lead-Time, Autonomie-Rate, CI-Quote, Interrupts, Tasks | Git + GitLab-API (`glab`) | #12 |
-| **Telemetrie** | Token, Kosten, Latenz, Modell-/Skill-/Agent-Nutzung | Claude Code OTEL → Gateway/Collector | #17 |
+| **Prozess** | Lead-Time, Autonomie-Rate, CI-Quote, Interrupts, Tasks | Git + GitLab-API (`glab`) | nothra/tch-gastro-services#12 |
+| **Telemetrie** | Token, Kosten, Latenz, Modell-/Skill-/Agent-Nutzung | Claude Code OTEL → Gateway/Collector | nothra/tch-gastro-services#17 |
 
-**Verbindliche Scope-Grenze:** Die Prozess-Ebene (#12) baut **kein** eigenes Token- oder
+**Verbindliche Scope-Grenze:** Die Prozess-Ebene (nothra/tch-gastro-services#12) baut **kein** eigenes Token- oder
 Kosten-Accounting nach. Diese Dimension kommt ausschließlich aus der Telemetrie-Ebene.
 
 **Telemetrie ist client-seitig und backend-unabhängig.** Verifiziert gegen
@@ -67,7 +67,7 @@ Prozess-Metriken, die OTEL nicht liefert – sie entstehen aus Issue/MR/Interrup
 ## Konsequenzen
 
 **Positiv:**
-- Jede Ebene bleibt in ihrer Spur; #12 wird kleiner und robuster.
+- Jede Ebene bleibt in ihrer Spur; nothra/tch-gastro-services#12 wird kleiner und robuster.
 - Telemetrie überlebt einen Gateway-/Modellwechsel, weil client-seitig – keine Mess-Lücke beim
   Anbieterwechsel.
 - Saubere Arbeitsteilung bei Kosten: Gateway = Wahrheit, OTEL = Attribution.
@@ -79,10 +79,10 @@ Prozess-Metriken, die OTEL nicht liefert – sie entstehen aus Issue/MR/Interrup
   Akzeptiert – für exakte Kosten ist ohnehin die Gateway-/Provider-Abrechnung maßgeblich.
 
 ## Betroffene Stellen
-- `config/otel.env.example` (#17) – Telemetrie-Ebene, default aus
-- README / CLAUDE.md – Dokumentation der Telemetrie-Aktivierung (#17)
-- `scripts/metrics.sh` + `/daily-metrics` (#12, Folge-MR) – Prozess-Ebene
-- `scripts/raise-interrupt.sh` (#12, Folge-MR) – append-only Interrupt-Log als Quelle der Autonomie-Rate
+- `config/otel.env.example` (nothra/tch-gastro-services#17) – Telemetrie-Ebene, default aus
+- README / CLAUDE.md – Dokumentation der Telemetrie-Aktivierung (nothra/tch-gastro-services#17)
+- `scripts/metrics.sh` + `/daily-metrics` (nothra/tch-gastro-services#12, Folge-MR) – Prozess-Ebene
+- `scripts/raise-interrupt.sh` (nothra/tch-gastro-services#12, Folge-MR) – append-only Interrupt-Log als Quelle der Autonomie-Rate
 
 ## Quelle
 Telemetrie-Ebene angestoßen durch Rene Lengwinat (Teams, 2026-06-17).

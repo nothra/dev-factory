@@ -4,7 +4,7 @@
 
 Accepted
 
-> **Schränkt [ADR-018](018-central-issue-seam.md) §5 ein** (#286): Die dort
+> **Schränkt [ADR-018](018-central-issue-seam.md) §5 ein** (nothra/tch-gastro-services#286): Die dort
 > festgehaltene Mensch-Entscheidung „`codify`/`review`/`security-review` dürfen autonom Issues
 > anlegen" gilt weiter, aber nicht mehr unbedingt – unterhalb einer Schwelle entsteht statt
 > eines Issues ein Eintrag in einer Sammeldatei. Der Seam `create_issue`/
@@ -23,8 +23,8 @@ das ohne Schwelle um ([`review.md:66`](../../../.claude/commands/review.md),
 [`codify.md:53`](../../../.claude/commands/codify.md)).
 
 Bei sieben Skills pro Task erzeugt das im Schnitt mehr als ein neues Factory-Issue pro Task.
-Messung aus #286 (Stand 2026-08-06, `main`): Juli 2026 stehen 38 App-Commits gegen 57
-Factory-/CI-Commits; über die letzten 20 Commits 3 gegen 17. Die #268-Kette erzeugte fünf
+Messung aus nothra/tch-gastro-services#286 (Stand 2026-08-06, `main`): Juli 2026 stehen 38 App-Commits gegen 57
+Factory-/CI-Commits; über die letzten 20 Commits 3 gegen 17. Die nothra/tch-gastro-services#268-Kette erzeugte fünf
 Folge-Issues zu einem einzigen Git-Hook, von denen drei auf einer in diesem Repo nicht
 existierenden Prämisse beruhten und als *not planned* geschlossen wurden.
 
@@ -32,7 +32,7 @@ Die Entscheidung ist architektonisch relevant, weil sie eine in einer ADR festge
 Mensch-Entscheidung einschränkt und weil die Frage „deterministischer Seam oder Agenten-Prosa"
 für den neuen Ablage-Pfad genauso gestellt werden muss, wie ADR-018 sie für die Issue-Anlage
 gestellt hat. Vorentschieden ist bereits (in `/requirements` mit dem Menschen abgestimmt, siehe
-[`spec-286`](../../specs/spec-286-kleinfunde-sammeldatei.md)): die Schwellen-Tabelle lebt in
+[`spec-286`](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-286-kleinfunde-sammeldatei.md)): die Schwellen-Tabelle lebt in
 `docs/factory/guidelines/git-workflow.md`, das Eintrags-Schema trägt keine laufende Nummer, und
 es entsteht kein Mechanismus gegen „Datei, die niemand liest".
 
@@ -101,7 +101,7 @@ plus Tests wäre neuer Factory-Apparat in einer Task, deren Zweck dessen Redukti
 ### Frage „ADR-Form": Option A – eigene ADR, die ADR-018 §5 einschränkt (gewählt)
 
 **Vorteile:** Folgt dem etablierten Muster des Repos – ADR-040 erweitert ADR-018 ebenfalls über
-eine eigene ADR plus Hinweis im Status-Block von ADR-018. Die Begründung (Messung, #268-Kette)
+eine eigene ADR plus Hinweis im Status-Block von ADR-018. Die Begründung (Messung, nothra/tch-gastro-services#268-Kette)
 bekommt einen eigenen Ort, statt einen fremden ADR-Text zu überwuchern. Die ursprüngliche
 Entscheidung bleibt als Historie lesbar.
 
@@ -162,7 +162,7 @@ vorhandenen Einträge oder die Schwellen-Tabelle sich ändern müssten.
   Anweisung selbst gegen Regression, nicht deren Befolgung. Diese Grenze ist strukturell, nicht
   behebbar, solange Skills Prompts sind.
 - **`kleinfunde.md` hat keinen Leser-Zwang.** Bewusst kein Zähl-Check und keine
-  Erinnerungszeile (#286 „Nicht inbegriffen"). Wächst die Datei ungelesen, ist das der
+  Erinnerungszeile (nothra/tch-gastro-services#286 „Nicht inbegriffen"). Wächst die Datei ungelesen, ist das der
   vorhersehbare Preis; das Gegenmittel wäre neuer Apparat.
 - **Formale Drift der Datei ist möglich**, weil das Schema nicht erzwungen wird.
 - Der Statusblock von ADR-018 bekommt einen zweiten Erweiterungs-Hinweis (nach ADR-040) – wer

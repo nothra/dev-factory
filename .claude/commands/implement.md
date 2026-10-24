@@ -85,7 +85,7 @@ Nur wenn beide grün: Schritt als abgeschlossen markieren.
 
 **Oberflächentests bei UI-berührenden Tasks (zusätzlich, nicht als Ersatz):**
 Sobald eine Task die Oberfläche berührt, wird das Verhalten gegen einen **lokal
-gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-/Proxy-grün (vgl. #63, wo ein
+gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-/Proxy-grün (vgl. nothra/tch-gastro-services#63, wo ein
 Handler-Direktaufruf die `proxy.ts`-Ebene umging):
 1. Voraussetzung: lokale Umgebung läuft (DB, `.env.local`) – Details und Kommandos:
    `PROJECT-CONTEXT.md` → „Lokale Umgebung & Oberflächentests".
@@ -114,7 +114,7 @@ protokollieren (Nachweis später über `/post-merge-verify`) – nicht still üb
 - Keine Features über den Task-Scope hinaus
 - Kein `TODO` ohne Ticket-Referenz
 - Keine auskommentierten Code-Blöcke
-- Bei Routen-Änderungen (`app/**/page.tsx`, `app/api/**/route.ts`): `docs/routes.md` im selben PR aktualisieren (Pfad, Funktion, Zugriff) – der Drift-Check blockiert sonst den Push (#145).
+- Bei Routen-Änderungen (`app/**/page.tsx`, `app/api/**/route.ts`): `docs/routes.md` im selben PR aktualisieren (Pfad, Funktion, Zugriff) – der Drift-Check blockiert sonst den Push (nothra/tch-gastro-services#145).
 - ADR-Trigger-Check: siehe Schritt 0 – vier Kategorien, bei Treffer stoppen und fragen.
 
 ## Output

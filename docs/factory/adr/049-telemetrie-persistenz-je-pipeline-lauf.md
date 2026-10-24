@@ -11,7 +11,7 @@ Accepted
 ## Kontext
 
 [ADR-006](006-measurement-architecture.md) trennt zwei Messebenen: **Prozess** (Git/GitHub) und
-**Telemetrie** (Token/Kosten/Modell-Nutzung via OTEL). Die Prozess-Ebene läuft seit #314
+**Telemetrie** (Token/Kosten/Modell-Nutzung via OTEL). Die Prozess-Ebene läuft seit nothra/tch-gastro-services#314
 automatisch je Lauf ([ADR-045](045-prozess-messung-je-pipeline-lauf.md)). Die Telemetrie-Ebene
 existiert dagegen nur als Beispiel-Datei mit Default aus – es entsteht **keine Historie**.
 
@@ -22,10 +22,10 @@ Kalibrierungs-Input ausdrücklich „OTEL-Historie (ADR-006) → Pro-Skill-Verte
 Defaults", und [ADR-047](047-import-kontext-guidelines-nach-erzwungenheit.md) musste ohne
 Kostenzahlen entscheiden. `spec-314` hat die „Ernte" bewusst vertagt: sie liege „genau auf der
 Grenze, die ADR-006 zieht (Option B …) – das braucht eine eigene ADR und eine eigene Issue".
-Issue = #334, ADR = diese.
+Issue = nothra/tch-gastro-services#334, ADR = diese.
 
 Anforderungen stehen in
-[`spec-334`](../../specs/spec-334-otel-metriken-je-lauf-persistieren.md) (AK1–AK8). Zwei
+[`spec-334`](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-334-otel-metriken-je-lauf-persistieren.md) (AK1–AK8). Zwei
 Auftraggeber-Vorgaben prägen jede Option:
 
 1. **Keine Personendaten in den persistierten Werten** (AK5, präzisiert am 2026-09-11). Die
@@ -332,7 +332,7 @@ ADR-Ablehnung stillschweigend.
   **Commit/Push der CSV zwischen `/codify` und `/pr-shepherd`** sowie im EXIT-Trap für den
   Abbruchfall – alles fail-open (Exit-Code unberührt); der Commit trägt eine explizite
   Identität (`-c user.email=…`/`-c user.name=…`), statt sich auf ambiente Git-Konfiguration
-  zu verlassen (Review-Runde 2, #334)
+  zu verlassen (Review-Runde 2, nothra/tch-gastro-services#334)
 - **Neu:** `scripts/lib/telemetry-harvest.sh` – Ernte-/Auswertungs-Logik als eigener,
   testbarer Seam inklusive der **Whitelist**-Projektion aus E5
 - `scripts/checks/tests/run-tests.sh` – die Assertion „OTEL ist opt-in" **ersetzt** (Default an
@@ -375,5 +375,5 @@ ADR-Ablehnung stillschweigend.
 ## Quelle
 
 Anforderung, Lokal-Vorgabe und die Default-an-Entscheidung: Auftraggeber (Sessions
-2026-09-10/11, Issue #334). Vertagt und bedingt gestellt von `spec-314` (#314).
+2026-09-10/11, Issue nothra/tch-gastro-services#334). Vertagt und bedingt gestellt von `spec-314` (nothra/tch-gastro-services#314).
 Telemetrie-Ebene ursprünglich angestoßen durch Rene Lengwinat (Teams, 2026-06-17, via ADR-006).

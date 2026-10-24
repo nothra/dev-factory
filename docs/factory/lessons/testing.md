@@ -6,11 +6,11 @@
 > Neue Learnings kommen in die Lesson-Datei **ihrer Seite** (Zuordnungsregel: betrifft das Learning eine
 > Datei der Factory laut `docs/factory/OWNERSHIP.md` → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
 > siehe `/codify` + ADR-037).
-> Projekt-Anteil dieses Themas: [`docs/project/lessons/testing.md`](../../project/lessons/testing.md).
+> Projekt-Anteil dieses Themas: `docs/project/lessons/testing.md`.
 
-### AC mit Direktive + Begründung: je separierbaren Teil eine eigene Assertion (aus #117, /test-Selbstfund)
+### AC mit Direktive + Begründung: je separierbaren Teil eine eigene Assertion (aus nothra/tch-gastro-services#117, /test-Selbstfund)
 
-Der `#117`-Doc-Guard prüfte, ob `pr-shepherd.md` Schritt 2 das Seam-**Kommando**
+Der `nothra/tch-gastro-services#117`-Doc-Guard prüfte, ob `pr-shepherd.md` Schritt 2 das Seam-**Kommando**
 (`factory-commit.sh`) nennt – deckte damit aber nur AC1 ab. Die Task hatte ein zweites,
 im selben Absatz stehendes Kriterium (AC2): die **fail-closed-Begründung mit ADR-019-Verweis**.
 Kommando und Begründung stehen auf **getrennten, einzeln entfernbaren Zeilen** – ein
@@ -18,7 +18,7 @@ Presence-`grep` auf das Kommando lässt die Begründung ungetestet. Aufgefallen 
 nicht schon in `/implement`: der Reflex ist, den auffälligsten Token (das Kommando) zu prüfen und
 den begleitenden Kontext (Rationale, ADR-Verweis, Warnung) als „mitgetestet" anzunehmen.
 
-**Smell (erweitert #51):** „Entferne ich die **Begründung**, lasse aber das **Kommando** stehen –
+**Smell (erweitert nothra/tch-gastro-services#51):** „Entferne ich die **Begründung**, lasse aber das **Kommando** stehen –
 schlägt ein Test fehl?" Wenn nein, ist das Begründungs-Kriterium ungetestet.
 
 **Regel:** Bündelt ein Akzeptanzkriterium eine **Direktive** (Kommando/Config-Wert) **und** ihre
@@ -28,15 +28,15 @@ Pflicht-Begleitung: Negativ-Nachweis, der die Unabhängigkeit belegt (Begründun
 Begründungs-Guard **rot**, Kommando-Guard **grün**). Deckt sich mit `testing-standards.md`
 (je Kriterium ein Test) und der Positiv-**und**-Negativ-Beispiel-Regel aus `clean-code.md`.
 
-### Neue gesourcte Lib in run-pipeline.sh → in ALLE Temp-Repo-Scaffoldings in run-tests.sh kopieren (aus #197)
+### Neue gesourcte Lib in run-pipeline.sh → in ALLE Temp-Repo-Scaffoldings in run-tests.sh kopieren (aus nothra/tch-gastro-services#197)
 
 `run-tests.sh` baut an mehreren Stellen eine minimale Pipeline-Repo-Kopie in `mktemp -d` auf und
 startet `run-pipeline.sh` darin (Preflight-Cleanup, Phase-1b-End-to-End, Turn-Budget-Dry-Run,
-`#101`-Lint-Gate …). Jede dieser Stellen kopiert die Laufzeit-Abhängigkeiten einzeln
+`nothra/tch-gastro-services#101`-Lint-Gate …). Jede dieser Stellen kopiert die Laufzeit-Abhängigkeiten einzeln
 (`config-validation-check.sh`, `factory.defaults.yml`, `lib/report-verdict.sh`). Sourct
-`run-pipeline.sh` eine **neue** Lib (in #197: `lib/tier-select.sh`), bricht das `source` in genau
+`run-pipeline.sh` eine **neue** Lib (in nothra/tch-gastro-services#197: `lib/tier-select.sh`), bricht das `source` in genau
 diesen Temp-Repos mit „No such file" ab – und zwar **nicht** in den Tests der neuen Lib (die kopieren
-sie), sondern in **fremden**, bestehenden Tests (hier `#101`, 2 rote Tests, deren Ursache erst auf
+sie), sondern in **fremden**, bestehenden Tests (hier `nothra/tch-gastro-services#101`, 2 rote Tests, deren Ursache erst auf
 den zweiten Blick sichtbar war).
 
 **Smell:** „Ich habe `run-pipeline.sh` ein `source …/lib/<neu>.sh` hinzugefügt – kopiert **jede**
@@ -47,7 +47,7 @@ in `run-tests.sh` finden (`grep -n 'cp .*lib/report-verdict.sh'` als Ankerpunkt 
 Muster) und die neue Lib daneben mitkopieren. Danach die **volle** Suite laufen lassen, nicht nur
 die neuen Fälle – die Regression zeigt sich in fremden Tests, nicht in den eigenen.
 
-### Strict-mode-/Umgebungs-Kontrakt-Tests gehören auf die Fehler-/No-Match-Zweige, nicht den Happy-Path (aus #207, Review-Finding W3)
+### Strict-mode-/Umgebungs-Kontrakt-Tests gehören auf die Fehler-/No-Match-Zweige, nicht den Happy-Path (aus nothra/tch-gastro-services#207, Review-Finding W3)
 
 `create_issue_idempotent` (Bash-Seam) bekam in der ersten `/implement`-Runde **einen**
 `set -euo pipefail`-Regressionstest – ausgerechnet auf dem **Treffer-Pfad**, der früh via
@@ -70,9 +70,9 @@ unter `set -u`) – insbesondere die **Fehler-/No-Match-/Fail-open-Zweige**, nic
 früh-returnenden Treffer-Pfad. Faustregel: je Kontrakt-Zweig ein eigener strict-mode-Durchlauf. Der
 Happy-Path ist fast nie der Zweig, an dem strict mode zuschlägt.
 
-### Spiegel-/Symmetrie-Akzeptanzkriterien: beide Richtungen explizit assertieren (aus #211, Review-Runde-1-Finding)
+### Spiegel-/Symmetrie-Akzeptanzkriterien: beide Richtungen explizit assertieren (aus nothra/tch-gastro-services#211, Review-Runde-1-Finding)
 
-#211 hatte für den Security-Anker eine Assertion in der einen Richtung (AK4: Verdict-Zeile
+nothra/tch-gastro-services#211 hatte für den Security-Anker eine Assertion in der einen Richtung (AK4: Verdict-Zeile
 `NEEDS_FIXES` + Fließtext-`PASSED` → `NEEDS_FIXES`), aber das **Spiegel-AK6** (Verdict-Zeile
 `PASSED` + Fließtext-`NEEDS_FIXES` → `PASSED`, Gate blockiert **nicht**) war nur transitiv über
 einen Wiring-Guard (Abwesenheits-Grep „kein Volltext-`grep` mehr") belegt – keine eigene
@@ -91,7 +91,7 @@ verschwunden") belegt die Verkabelung, nicht das Laufzeitverhalten der Gegenrich
 die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permissive Richtung
 („blockiert **nicht**") mindestens so wichtig zu testen wie die restriktive.
 
-**Rezidiv in neuer Domäne, außerhalb eines Spec-AK-Paars (aus #352, `/test`-Selbstfund):** Ein
+**Rezidiv in neuer Domäne, außerhalb eines Spec-AK-Paars (aus nothra/tch-gastro-services#352, `/test`-Selbstfund):** Ein
 manueller Rework-Schritt verschob einen Reset-Handler von `onClick` auf `onSubmit`
 (`VeranstaltungMetaForm.tsx`, siehe `lessons/frontend-react.md`) und schrieb dazu **einen**
 Test – für den gemeldeten Bug-Pfad (ungültiges Pflichtfeld, Reset darf nicht feuern). Die
@@ -104,9 +104,9 @@ Abdeckung der Gegenrichtung; (2) ein Coverage-Lauf **nach** einem selbst geschri
 kein Nice-to-have, sondern deckt genau diese Art Lücke auf, die eine reine Verhaltensprüfung des
 gemeldeten Bugs übersieht.
 
-### Deterministisches Gate/Backstop in einem Orchestrator-Skript braucht einen E2E-Verhaltenstest, nicht nur einen Wiring-Grep (aus #212, Review-Runde-2-Finding)
+### Deterministisches Gate/Backstop in einem Orchestrator-Skript braucht einen E2E-Verhaltenstest, nicht nur einen Wiring-Grep (aus nothra/tch-gastro-services#212, Review-Runde-2-Finding)
 
-#212 fügte `run-pipeline.sh` einen Endzustands-Verifikations-Backstop hinzu (Verletzung →
+nothra/tch-gastro-services#212 fügte `run-pipeline.sh` einen Endzustands-Verifikations-Backstop hinzu (Verletzung →
 `raise-interrupt INCOMPLETE_OUTCOME` → `exit 1`, sonst Erfolgs-Banner). Die reine Entscheidungslogik
 (`evaluate_final_state`) war gut unit-getestet, aber der **verdrahtete Pfad im Orchestrator** war
 zunächst nur per `grep` belegt („ruft `verify_final_state`", „enthält `INCOMPLETE_OUTCOME`",
@@ -124,17 +124,17 @@ gestubbten Agenten-/Tool-Aufrufen (`claude`/`gh` als PATH-Shim, no-op) starten, 
 Terminalzustand herstellen (hier: ein ungepushter Commit) und Exit-Code + Abwesenheit der
 Erfolgs-Ausgabe + den Log-/Interrupt-Effekt asserten – plus eine **Positiv-Gegenprobe** (sauberer
 Zustand → Erfolg), damit der Test nicht nur „scheitert immer" beweist. Ergänzt „Callback nur durch
-Codelesen belegt ist keine Testabdeckung" (#187) und „Reihenfolge-Guards: Kommando ≠ Prosa" (#114)
+Codelesen belegt ist keine Testabdeckung" (nothra/tch-gastro-services#187) und „Reihenfolge-Guards: Kommando ≠ Prosa" (nothra/tch-gastro-services#114)
 um Orchestrator-Gates.
 
-### Negativ-Test mit mehreren Fail-Pfaden muss auf den Ziel-Pfad isoliert werden – sonst grün aus dem falschen Grund (aus #214, Review-Finding W1, von 2 Personas unabhängig)
+### Negativ-Test mit mehreren Fail-Pfaden muss auf den Ziel-Pfad isoliert werden – sonst grün aus dem falschen Grund (aus nothra/tch-gastro-services#214, Review-Finding W1, von 2 Personas unabhängig)
 
-#214 führte einen Drift-Guard mit mehreren unabhängigen Fail-closed-Pfaden ein (fehlender
+nothra/tch-gastro-services#214 führte einen Drift-Guard mit mehreren unabhängigen Fail-closed-Pfaden ein (fehlender
 Verdict-Anker **und** fehlende Findings-Sektionen führen je zu `exit 1`). Der Negativtest für
 Fehlerszenario 2 („Verdict-Anker nur im Fließtext, nicht als Überschrift → rot") nutzte ein
 Fixture, das **weder** den Verdict-Anker als Überschrift **noch** die Findings-Sektionen enthielt.
 Damit trug bereits die Sektions-Prüfung das `exit 1` – der Test war grün, belegte aber **nicht** die
-exakt-verankerte Verdict-Logik. Hätte jemand genau diese (die #211-Regression: Verdict unankert
+exakt-verankerte Verdict-Logik. Hätte jemand genau diese (die nothra/tch-gastro-services#211-Regression: Verdict unankert
 gematcht), wäre der Test **trotzdem grün** geblieben, weil die fehlenden Sektionen das Exit trugen.
 
 **Smell:** „Kann die zu prüfende Funktion in diesem Negativtest über **mehr als einen** Pfad rot
@@ -143,7 +143,7 @@ werden – und stelle ich sicher, dass **nur der eine** Pfad greift, den der Tes
 **Regel:** Ein Negativ-/Fehlerfall-Test gegen eine Einheit mit mehreren unabhängigen Fail-Pfaden
 muss das Fixture so bauen, dass **alle anderen** Bedingungen erfüllt bleiben und **nur** der
 Zielpfad fehlschlägt – und zusätzlich das **pfadspezifische Fehlersignal** assertieren (Meldung/
-Konstante), nicht bloß `exit != 0`. Konkret in #214: das Fixture aus der echten Quelldatei ableiten
+Konstante), nicht bloß `exit != 0`. Konkret in nothra/tch-gastro-services#214: das Fixture aus der echten Quelldatei ableiten
 und nur das Zielmerkmal brechen (die `## Empfehlung`-Überschrift → Fließtext), sodass die Sektionen
 intakt bleiben; dann `grep` auf `report_verdict(review)` in der Ausgabe **und** die Abwesenheit der
 anderen Fehlermeldung (`count_section_items` darf **nicht** erscheinen) prüfen. Ergänzt „Guard-
@@ -151,7 +151,7 @@ Clause-Branches brauchen dedizierte Tests" um Einheiten mit mehreren gleichzeiti
 Fail-Pfaden. (Der TDD-Stub `guard() { return 0; }` beweist nur Nicht-Vakuität – dass der Test
 **überhaupt** rot werden kann –, nicht die Isolation; beides ist nötig.)
 
-### Kopplungs-/Drift-Guard, der Quelle A gegen Quelle B prüft, braucht einen Negativtest je Seite (aus #214, /test-Selbstfund zu AC6)
+### Kopplungs-/Drift-Guard, der Quelle A gegen Quelle B prüft, braucht einen Negativtest je Seite (aus nothra/tch-gastro-services#214, /test-Selbstfund zu AC6)
 
 #214s Guard liest die erwarteten Konstanten aus den Parser-Skripten (`report-verdict.sh`,
 `run-pipeline.sh`) und prüft, ob sie als Anker in den Command-Contracts (`review.md`,
@@ -167,10 +167,10 @@ der **A** mutiert, **und** einen, der **B** mutiert – oder mutiere ich immer n
 **Regel:** Für einen Guard, der zwei Quellen koppelt, je Seite einen eigenen Negativtest: einmal
 Quelle A brechen (B echt lassen), einmal Quelle B brechen (A echt lassen) – jeweils rot + korrekte
 Konstante. Zusätzlich den Fail-closed-Fall „Quelle unlesbar/Format geändert → Extraktion leer → rot,
-nicht still grün" abdecken. Spezialfall der #211-Symmetrie-Regel, zugeschnitten auf Kopplungs-/
+nicht still grün" abdecken. Spezialfall der nothra/tch-gastro-services#211-Symmetrie-Regel, zugeschnitten auf Kopplungs-/
 Drift-Guards.
 
-### Neue Regressions-Assertion-Schleife gegen bereits vorhandene Schleife mit identischem Rumpf abgleichen, bevor eine parallele Schleife angelegt wird (aus #240, /test→/refactor-Diskrepanz)
+### Neue Regressions-Assertion-Schleife gegen bereits vorhandene Schleife mit identischem Rumpf abgleichen, bevor eine parallele Schleife angelegt wird (aus nothra/tch-gastro-services#240, /test→/refactor-Diskrepanz)
 
 `/test` ergänzte in `run-tests.sh` 11 neue Einzel-Assertionen für vorbestehende
 `Write(<verzeichnis>/**)`-Einträge (Regressionslücke: nur ein pauschaler Blanket-Check deckte
@@ -193,15 +193,15 @@ Prüfart (z. B. „Eintrag X darf nicht mehr in `allow`/`deny` vorkommen") im se
 nach einer bereits vorhandenen Schleife mit identischem Prüfausdruck suchen (`grep -n
 "index(\$v) == null"` als Ankerpunkt) und deren Eintragsliste um die neuen Werte erweitern,
 statt eine zweite, strukturgleiche Schleife danebenzustellen. Konkrete Instanz von „Neue
-Verfügbarkeits-/Capability-Prüfung gegen bereits vorhandene abgleichen" (aus #224,
+Verfügbarkeits-/Capability-Prüfung gegen bereits vorhandene abgleichen" (aus nothra/tch-gastro-services#224,
 `code-style.md`) – gilt genauso für Regressions-Assertion-Schleifen in Bash-Testsuiten, nicht
 nur für Capability-Checks wie `command -v`.
 
-**Rezidiv trotz vorhandener Lesson, ausgelöst durch mehrdeutigen Spec-Wortlaut (aus #251,
+**Rezidiv trotz vorhandener Lesson, ausgelöst durch mehrdeutigen Spec-Wortlaut (aus nothra/tch-gastro-services#251,
 Review-Runde-1-Finding):** `/implement` legte für `run-tests.sh` erneut eine rumpfidentische
 Schleife neben eine bestehende an (`jq -e --arg v "$entry" '.permissions.allow | index($v) !=
 null' ...`, nur andere Werteliste) – **obwohl** genau diese Lesson bereits existierte und im
-selben File ein Merge-Präzedenzfall (die #240-AK1-Schleife) sichtbar war. Ursache: Die Spec
+selben File ein Merge-Präzedenzfall (die nothra/tch-gastro-services#240-AK1-Schleife) sichtbar war. Ursache: Die Spec
 (`spec-251`) formulierte das AK selbst zweideutig – „die Werteliste an geeigneter Stelle
 ergänzen/**eine neue Schleife direkt daneben platzieren**" – und bot damit eine scheinbar
 gleichwertige Alternative an, die dem eigentlichen Lesson-Verbot widerspricht. Der Implementer
@@ -217,7 +217,7 @@ gewichtet den Lesson-Text höher, wenn Spec und Lesson widersprüchlich klingen.
 Eintragsgruppe/-liste" ist **nie** eine hinreichende Begründung für eine zweite,
 prüfausdrucksidentische Schleife.
 
-**4. Vorkommnis, jetzt bei Einzel-Assertions statt Schleifen (aus #267, /implement→/refactor-
+**4. Vorkommnis, jetzt bei Einzel-Assertions statt Schleifen (aus nothra/tch-gastro-services#267, /implement→/refactor-
 Diskrepanz):** `/implement` schrieb für sechs neue Präsenz-/Abwesenheits-Prüfungen in
 `run-tests.sh` (AK1/AK2/AK3/AK4-Mutationsbelege plus zwei AK5-Checks) jeweils den vollen
 `printf '%s' "$x" | grep -qF "$y"; assert_true "$([ $? -ne 0 ]; echo $?)" "..."`-Rumpf **inline**,
@@ -235,7 +235,7 @@ Sprachkonstrukt-Ebene – Schleife, Capability-Check **oder einzelne Assert-Zeil
 Dateianfang (`assert_contains_286`, `assert_absent`, `flat_286`, `ls_mode_matches` u. Ä.)
 gegenprüfen, ob der exakte Rumpf schon als Funktion existiert.
 
-**5. Vorkommnis, jetzt bei Test-Scaffolding statt Assertionen (aus #310, Review-Runde-1-Finding
+**5. Vorkommnis, jetzt bei Test-Scaffolding statt Assertionen (aus nothra/tch-gastro-services#310, Review-Runde-1-Finding
 W3):** `/implement` legte für die neuen Report-Guard-Tests eine eigene, **parallele**
 Scaffold-Funktion (`scaffold_310`) an, die ein komplettes Wegwerf-Repo von Grund auf neu aufbaut
 – obwohl im selben File bereits `_mk_pipe_repo` existierte und exakt dasselbe Repo-Grundgerüst
@@ -252,11 +252,11 @@ Grundgerüst liefert. Wenn ja, diese aufrufen und nur die tatsächliche Differen
 Dateien, Stubs, Task-Daten) ergänzen – keine parallele Funktion, die das Grundgerüst dupliziert,
 selbst wenn sie inhaltlich nicht Zeile-für-Zeile identisch mit der bestehenden ist.
 
-### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus #240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus #249, umgekehrte Kausalrichtung)
+### `grep -qF`-Fixed-String-Regressionstest gegen Markdown-Prosa: beim Umformulieren/Umbrechen die exakte Testphrase auf einer Zeile halten (aus nothra/tch-gastro-services#240, /review-Rework-Selbstfund, 2× in derselben PR-Session; 3. Vorkommnis aus nothra/tch-gastro-services#249, umgekehrte Kausalrichtung)
 
 Ein Review-Fix korrigierte stale `Write(...)`-Prosa in `factory-workflow.md` und brach dabei
-**zweimal hintereinander** einen bestehenden `grep -qF 'ist seit #224 über eine generische'
-"$WORKFLOW_LESSON"`-Regressionstest (aus #224, AK7) – nicht durch einen inhaltlichen Fehler,
+**zweimal hintereinander** einen bestehenden `grep -qF 'ist seit nothra/tch-gastro-services#224 über eine generische'
+"$WORKFLOW_LESSON"`-Regressionstest (aus nothra/tch-gastro-services#224, AK7) – nicht durch einen inhaltlichen Fehler,
 sondern weil die neu formulierten Sätze beim manuellen Zeilenumbruch die vom Test erwartete
 Zeichenkette über einen Zeilenumbruch verteilten. `grep -qF` matched nur **innerhalb einer
 Zeile** – eine über zwei Zeilen gebrochene Phrase erzeugt keinen Syntaxfehler und keine
@@ -277,7 +277,7 @@ Zeilenumbruch; die Fehlerquelle ist sonst überraschend schwer zu finden. Bei la
 einer testkritischen Phrase notfalls die Phrase bewusst unformatiert auf einer langen Zeile
 lassen (Prettier reflowt Markdown-Prosa standardmäßig nicht) statt sie „schöner" umzubrechen.
 
-**Drittes Vorkommnis, umgekehrte Kausalrichtung (aus #249, /test-Selbstfund):** Bei Task 249
+**Drittes Vorkommnis, umgekehrte Kausalrichtung (aus nothra/tch-gastro-services#249, /test-Selbstfund):** Bei Task 249
 lag der Fehler nicht in einer Umformulierung, sondern in der **Reihenfolge**: `/implement`
 schrieb einen neuen Kommentar-Absatz in `factory.config.yml.example`, der die Phrase „NICHT
 override-bar" naturgemäß über einen Zeilenumbruch verteilte (kein Fehler für sich – reiner
@@ -291,7 +291,7 @@ bereits vorhandenen Fließtext vorher `grep -n '<Teil-Phrase>' <Zieldatei>` gege
 laufen lassen, um zu verifizieren, dass die volle Testphrase tatsächlich auf einer Zeile steht –
 nicht erst durch den ersten (roten) Testlauf herausfinden.
 
-**Viertes Vorkommnis, wieder „neuer Test bricht an bereits vorhandener Prosa" (aus #286,
+**Viertes Vorkommnis, wieder „neuer Test bricht an bereits vorhandener Prosa" (aus nothra/tch-gastro-services#286,
 /test-Selbstfund):** Ein Testing-Persona-Audit ergänzte in `run-tests.sh` eine neue
 `grep -qF 'funktionaler Defekt mit reproduzierbarem Auslöser'`-Assertion gegen `review.md` –
 obwohl die Lesson zu diesem Zeitpunkt bereits existierte und im selben Task-286-Block mehrfach
@@ -316,9 +316,9 @@ Mehrwort-Content-Check gegen dieselbe Datei/Dateifamilie geschrieben wird, lohnt
 zeilenumbruch-tolerantes Lese-Helper-Pattern (Datei flach einlesen vor dem Matchen) gegenüber
 dem Reflex, jede einzelne Testphrase in der Zieldatei auf einer Zeile zu halten.
 
-### „Kein Argument übergeben"-Test simuliert nicht automatisch Abwesenheit, wenn das Skript einen echten Repo-Datei-Default hat (aus #254, Review-Finding)
+### „Kein Argument übergeben"-Test simuliert nicht automatisch Abwesenheit, wenn das Skript einen echten Repo-Datei-Default hat (aus nothra/tch-gastro-services#254, Review-Finding)
 
-Task 254 ergänzte Gate #254 AK6 („kein Override-File vorhanden → neue Checks übersprungen").
+Task 254 ergänzte Gate nothra/tch-gastro-services#254 AK6 („kein Override-File vorhanden → neue Checks übersprungen").
 Der erste Testentwurf rief `bash "$GATE" "$DEFAULTS" >/dev/null 2>&1` — also ohne zweites
 Argument, in der Annahme, das simuliere „kein Override vorhanden". `config-validation-check.sh`
 defaultet `$OVERRIDE` bei fehlendem `$2` aber nicht auf einen leeren/nicht-existenten Pfad,
@@ -341,7 +341,7 @@ Existenzprüfung (hier `override_present()`) nachweislich `false` zu machen — 
 einfach weglassen. Gilt für jedes Bash-Gate mit einem `${N:-$REPO_ROOT/...}`-Default-Muster,
 nicht nur `config-validation-check.sh`.
 
-### YAML-Testfixture per `printf >>` an eine Kopie mit bereits vorhandenem Top-Level-Key anhängen erzeugt ein Duplicate-Key-Dokument – Test besteht nur zufällig (aus #255, Review-Runde-3-Finding)
+### YAML-Testfixture per `printf >>` an eine Kopie mit bereits vorhandenem Top-Level-Key anhängen erzeugt ein Duplicate-Key-Dokument – Test besteht nur zufällig (aus nothra/tch-gastro-services#255, Review-Runde-3-Finding)
 
 Ein Negativ-Test für Task 249 (`model_tiers.heavy` nicht override-bar) kopierte das reale
 `factory.config.yml` (enthält bereits `model_tiers: { light: ... }`) und hängte per
@@ -366,12 +366,12 @@ werden, einen echten Merge nutzen (`yq -i eval '.<pfad> = "<wert>"' <datei>`), n
 (hier `model_tiers.light`) im Ergebnis erhalten geblieben sind – ein verschwundener
 Geschwister-Wert ist das Signal für ein Duplicate-Key-Problem, nicht nur ein Nebenaspekt.
 
-### Neuer git-Repo-Fixture-Helper, der committet, braucht lokale Git-Identität – auch wenn er lokal zufällig ohne sie durchläuft (aus #265, Review-Finding)
+### Neuer git-Repo-Fixture-Helper, der committet, braucht lokale Git-Identität – auch wenn er lokal zufällig ohne sie durchläuft (aus nothra/tch-gastro-services#265, Review-Finding)
 
-Ein neuer Testfixture-Helper (`hi_repo()` im #265-Abschnitt von `run-tests.sh`, AK4-Worktree-Test)
+Ein neuer Testfixture-Helper (`hi_repo()` im nothra/tch-gastro-services#265-Abschnitt von `run-tests.sh`, AK4-Worktree-Test)
 rief `git init` + später `git commit` auf, ohne vorher `user.email`/`user.name` lokal zu setzen –
 anders als jeder andere commit-erzeugende Helper in derselben Datei (u. a. das direkte
-Schwestermuster `ih_repo()` aus dem #262-Abschnitt, das denselben Worktree-Aufbau nutzt und dort
+Schwestermuster `ih_repo()` aus dem nothra/tch-gastro-services#262-Abschnitt, das denselben Worktree-Aufbau nutzt und dort
 explizit `git config user.email`/`user.name` setzt). Auf macOS/den meisten Linux-Entwickler-
 umgebungen fällt `git commit` ohne gesetzte Identität auf `whoami@hostname` zurück und läuft
 klaglos durch – der Test war lokal grün, aber nur zufällig. In einer Umgebung ohne auflösbare
@@ -394,13 +394,13 @@ Zeile ist die Abweichung, nicht die Norm. Gilt als Spezialfall von „Flaky Test
 (`testing-standards.md`) – Umgebungsabhängigkeit ist eine Flakiness-Quelle, auch wenn sie beim
 Schreiben nicht auffällt.
 
-### Positivkontrolle für einen Mutations-Fixture darf nicht denselben Fail-closed-Pfad eines anderen Guards teilen (aus #284, Review-Runde-2-Nitpick + /test-Selbstfund)
+### Positivkontrolle für einen Mutations-Fixture darf nicht denselben Fail-closed-Pfad eines anderen Guards teilen (aus nothra/tch-gastro-services#284, Review-Runde-2-Nitpick + /test-Selbstfund)
 
 Task #284s Guard-Familie (`poll_trigger_guard`/`poll_dispatch_guard`/`poll_permission_guard`)
 belegt Regressionen über `! poll_*_guard "$mutant.yml"`. Review-Runde 2 merkte an: dieser
 Fail-Pfad ist identisch mit dem Fail-closed-Fall „Datei nicht lesbar" (AK6) – bliebe die
 Mutanten-Datei aus (`mktemp` schlägt fehl, Redirect geht ins Leere), würden alle Belege grün,
-ohne etwas geprüft zu haben (Lesson #214-Klasse). Der Fix: je Mutant eine **Positivkontrolle** –
+ohne etwas geprüft zu haben (Lesson nothra/tch-gastro-services#214-Klasse). Der Fix: je Mutant eine **Positivkontrolle** –
 ein anderer Guard soll gegen dieselbe Datei grün bleiben und damit Existenz + Parsbarkeit
 belegen. Der erste Versuch griff dafür auf einen **bereits vorhandenen** Mutanten zurück
 (`ohne-dispatch.yml`, gebaut um `poll_dispatch_guard` rot zu machen) und ließ `poll_trigger_guard`
@@ -419,10 +419,10 @@ Mutanten wählt, der ausschließlich das eine Zielsignal des jeweils **anderen**
 verändert und alle Vorbedingungen des Kontroll-Guards intakt lässt – nicht reflexhaft den
 nächstliegenden vorhandenen Mutanten wiederverwenden. Die Kontrolle tatsächlich laufen lassen und
 beobachten, ob sie wirklich grün wird: RED-vor-GREEN gilt auch für Positivkontrollen, nicht nur
-für Negativtests. Ergänzt #214 („Negativtest auf Zielpfad isolieren") – hier ist es der
+für Negativtests. Ergänzt nothra/tch-gastro-services#214 („Negativtest auf Zielpfad isolieren") – hier ist es der
 **grüne** Kontroll-Pfad, der isoliert werden muss.
 
-### Zähl-Assertion in einem per awk extrahierten Funktionsrumpf: Label behauptet mehr, als das Fenster messen kann (aus #312, Review-Runde-3-Finding W1)
+### Zähl-Assertion in einem per awk extrahierten Funktionsrumpf: Label behauptet mehr, als das Fenster messen kann (aus nothra/tch-gastro-services#312, Review-Runde-3-Finding W1)
 
 Eine Assertion zählte Vorkommen von `report_verdict` im per `awk` extrahierten Rumpf von
 `run_skill()` und war korrekt auf `1` gepinnt. Ihr Label lautete jedoch „run_skill() liest den
@@ -437,7 +437,7 @@ Aufrufe) – erst eine dritte, gezielt nachbauende Prüfung (Hilfsfunktion mit Z
 einen Versuch nachgestellt) deckte die Diskrepanz auf.
 
 **Smell:** Eine Zähl-Assertion extrahiert bewusst nur einen Teil einer Funktion (Performance,
-Fokus, Vermeidung von Fragment-Fallen wie #114) – **aber ihr Label spricht über die ganze
+Fokus, Vermeidung von Fragment-Fallen wie nothra/tch-gastro-services#114) – **aber ihr Label spricht über die ganze
 Funktion oder den ganzen Aufruf-Pfad**, nicht über das tatsächlich extrahierte Fenster.
 
 **Regel:** Das Label einer Zähl-Assertion darf nur behaupten, was der extrahierte Bereich
@@ -449,11 +449,11 @@ Bei jedem neuen Zähl-Guard dieser Art: „Ruft die als isoliert behandelte Funk
 etwas auf, das denselben Wert erneut liest – und liegt dieser Aufruf außerhalb meines
 Extraktionsfensters?"
 
-### Neuer EXIT-Trap/Hook, der ein externes CLI aufruft: geteiltes Test-Scaffold braucht einen deterministischen Stub, nicht ambientes Fail-Fast (aus #314, Review-Runde-2-Finding)
+### Neuer EXIT-Trap/Hook, der ein externes CLI aufruft: geteiltes Test-Scaffold braucht einen deterministischen Stub, nicht ambientes Fail-Fast (aus nothra/tch-gastro-services#314, Review-Runde-2-Finding)
 
-Task #314 verdrahtete `metrics.sh --quiet --publish` als `trap … EXIT` in `run-pipeline.sh` –
+Task nothra/tch-gastro-services#314 verdrahtete `metrics.sh --quiet --publish` als `trap … EXIT` in `run-pipeline.sh` –
 ab sofort läuft bei **jedem** echten (nicht `--dry-run`) Pipeline-Lauf ein `gh`-Aufruf mit, auch
-in den bereits bestehenden `scaffold_310`-basierten Testfällen (#310/#312-Report-Guard-Familie),
+in den bereits bestehenden `scaffold_310`-basierten Testfällen (nothra/tch-gastro-services#310/#312-Report-Guard-Familie),
 die von der neuen Mechanik nichts wissen. Die Tests blieben trotzdem grün – aber nur, weil ein
 auf der Testmaschine ambient installierter `gh` gegen den lokalen Bare-Remote der Wegwerf-Repos
 (kein bekannter GitHub-Host) sofort mit Exit ungleich 0 scheitert. Funktional richtig, aber eine
@@ -474,9 +474,9 @@ Toolchain-Installation abzuhängen. Ein Scaffold, das bereits ein `bin/`-Verzeic
 PATH-Vorrang anlegt (hier: `run_310()`s `PATH="$dir/bin:$PATH"`), braucht dafür nur eine
 zusätzliche Stub-Datei, keine neue Infrastruktur.
 
-### Zeilen-Gap-Assertion auf deterministischem Output: unbegründete Toleranz statt Ist-Wert (aus #322, Review-Runde-2-Finding)
+### Zeilen-Gap-Assertion auf deterministischem Output: unbegründete Toleranz statt Ist-Wert (aus nothra/tch-gastro-services#322, Review-Runde-2-Finding)
 
-Ein neuer Test in Task #322 sollte belegen, dass eine Ausgabe-Zeile "unmittelbar" auf eine andere
+Ein neuer Test in Task nothra/tch-gastro-services#322 sollte belegen, dass eine Ausgabe-Zeile "unmittelbar" auf eine andere
 folgt (`start-work.sh`s Session-Empfehlung direkt unter der `/implement`-Zeile). Der erste Wurf
 prüfte `rec_gap -ge 1 && -le 3` – ein Toleranzbereich, der nie begründet wurde und der aus der
 Beschreibung "unmittelbar" nicht folgt. Der tatsächliche Abstand ist bei diesem Skript
@@ -496,12 +496,12 @@ Variabilitätsquelle existiert (z. B. eine optionale Zeile, die je nach Bedingun
 erscheinen kann) – sonst verschenkt die Toleranz genau die Präzision, die der Test laut seiner
 eigenen Beschreibung ("unmittelbar", "direkt danach") behaupten soll.
 
-### Coverage-Ausgabe nur in ignorierte Pfade schreiben (ADR-040, verschoben aus `testing-standards.md`, #319)
+### Coverage-Ausgabe nur in ignorierte Pfade schreiben (ADR-040, verschoben aus `testing-standards.md`, nothra/tch-gastro-services#319)
 
 Coverage-Artefakte (HTML-Report, `coverage-summary.json`, sonstige Zwischenausgaben) dürfen
 **nie** in einen von Git getrackten Pfad geschrieben werden. Ein versehentlich committetes
 Coverage-Verzeichnis blockiert später den Push-Gate (Prettier) – und ein unbeaufsichtigter
-Pipeline-Lauf lief genau daran auf (#212: `.coverage-tmp209/coverage-summary.json`).
+Pipeline-Lauf lief genau daran auf (nothra/tch-gastro-services#212: `.coverage-tmp209/coverage-summary.json`).
 
 **Regel:** Coverage-Ausgabe zielt ausschließlich auf einen `.gitignore`-abgedeckten Pfad:
 - Standard-Report von `pnpm test:coverage` (Vitest): Default-Verzeichnis `coverage/` – bereits
@@ -512,7 +512,7 @@ Pipeline-Lauf lief genau daran auf (#212: `.coverage-tmp209/coverage-summary.jso
 
 Kurz: Wenn Coverage nach `git status` auftaucht, ist der Zielpfad falsch gewählt.
 
-### Fail-closed-Zusicherung eines Gates braucht einen Test, der die MESSUNG bricht – nicht nur den Input (aus #319, Security-Review-Finding)
+### Fail-closed-Zusicherung eines Gates braucht einen Test, der die MESSUNG bricht – nicht nur den Input (aus nothra/tch-gastro-services#319, Security-Review-Finding)
 
 Ein Gate, das „fail-closed" zusichert, wird üblicherweise gegen **Inputs** getestet: zu groß →
 rot, zulässig → grün, Datei fehlt → rot. Alle diese Tests prüfen den Fall, dass die Messung
@@ -539,7 +539,7 @@ Dazu die **Kontrolle**, dass derselbe Fixture ohne Manipulation rot ist – sons
 nicht, dass der Stub die Ursache war. Und die zweite Assertion ist kein Luxus: der Exit-Code
 allein unterscheidet nicht zwischen „korrekt gemessen und abgelehnt" und „nichts gemessen".
 
-### Content-Scan-Guard, dessen Suchphrase als Literal in der gescannten Datei steht, ist immer rot (aus #319, /implement-Selbstfund)
+### Content-Scan-Guard, dessen Suchphrase als Literal in der gescannten Datei steht, ist immer rot (aus nothra/tch-gastro-services#319, /implement-Selbstfund)
 
 Ein Guard, der eine Datei nach einer verbotenen Phrase durchsucht, scannt sich selbst mit, wenn
 die Datei **die Testdatei ist**. Die Phrase steht dann zwangsläufig darin – als Argument des
@@ -551,7 +551,7 @@ assert_absent "$(flat_286 "$CHECKS_DIR/tests/run-tests.sh")" \
 ```
 
 Der Guard ist damit **nie erfüllbar**, unabhängig vom tatsächlichen Repo-Zustand. Verwandt mit
-dem #312-Learning (verzeichnisweiter Scan ist blind für Tracked-Status), aber eigenständig: dort
+dem nothra/tch-gastro-services#312-Learning (verzeichnisweiter Scan ist blind für Tracked-Status), aber eigenständig: dort
 war eine fremde Datei die Störquelle, hier ist es die geprüfte Datei selbst.
 
 **Smell:** Ein Abwesenheits-Guard über eine Datei, die auch den Guard enthält – erkennbar daran,
@@ -568,7 +568,7 @@ assert_absent "$(flat_286 "$DATEI")" "$IC_OLD_HOME: Exhaustiveness-Guards" "…"
 Gegenprobe nicht vergessen: Ein Guard, der **sofort** rot ist, ist genauso verdächtig wie einer,
 der nie rot wird – beide prüfen nicht, was ihr Label behauptet.
 
-### Ein Anker, der mit `-` beginnt, macht die assert-Helfer still falsch (aus #319, dritter Fall derselben Regel im selben PR)
+### Ein Anker, der mit `-` beginnt, macht die assert-Helfer still falsch (aus nothra/tch-gastro-services#319, dritter Fall derselben Regel im selben PR)
 
 `assert_contains_286`/`assert_absent` reichen ihren Suchwert als `grep -qF "$2"` weiter – **ohne**
 `--`. Beginnt die Phrase mit einem Bindestrich (`-Kontext unter dem Deckel`), liest `grep` sie als
@@ -576,7 +576,7 @@ Option. Das Ergebnis ist kein Fehler, sondern ein **stiller Fehlschlag**: der Pr
 rot, obwohl die Phrase in der Datei steht.
 
 Die Fehldiagnose liegt nahe und kostet Zeit – man sucht den Fehler in der Zieldatei („warum fehlt
-der Satz?"), nicht im Anker. In #319 ist die Regel aus `clean-code.md` („Config-/nutzerkontrollierte
+der Satz?"), nicht im Anker. In nothra/tch-gastro-services#319 ist die Regel aus `clean-code.md` („Config-/nutzerkontrollierte
 Werte als Daten, `--` vor das Pattern") im selben PR dreimal aufgelaufen: einmal bei einem
 Ad-hoc-`grep -nF` auf eine Zeile, die mit `- ` beginnt, einmal an diesem Helfer, einmal als
 Argument-Injection-Fläche im Gate selbst (`@-v` als awk-Option).
@@ -588,7 +588,7 @@ Abwesenheits-Guard ist grün, obwohl sie da ist. Erster Blick: **beginnt der Ank
 eigenen `grep`-Aufrufen mit variablem Wert grundsätzlich `grep -qF -- "$wert"` schreiben. Der Fix
 in den geteilten Helfern selbst ist als Kleinfund erfasst.
 
-### Claude-Stub-Nebenwirkung ohne Skill-/Task-Bindung lässt ein Testszenario über einen fremden Guard statt den behaupteten Pfad bestehen (aus #334, /test-Selbstfund)
+### Claude-Stub-Nebenwirkung ohne Skill-/Task-Bindung lässt ein Testszenario über einen fremden Guard statt den behaupteten Pfad bestehen (aus nothra/tch-gastro-services#334, /test-Selbstfund)
 
 Ein neues E2E-Szenario sollte belegen, dass zwei **normale, vollständig durchlaufende** Läufe
 sich gegenseitig nicht überschreiben. Der `claude`-Stub des ersten Laufs schrieb dafür die
@@ -618,16 +618,16 @@ behauptet (hier: regulärer Aufrufort statt EXIT-Trap-Fallback), diesen Pfad zus
 Mutationstest isoliert bestätigen – ein grüner Test allein belegt nur, dass IRGENDEIN Pfad zum
 erwarteten Endzustand geführt hat, nicht welcher.
 
-### Locale-abhängige Zahlenformatierung/-parsing in Shell-Test-Utilities (aus #96, #341)
+### Locale-abhängige Zahlenformatierung/-parsing in Shell-Test-Utilities (aus nothra/tch-gastro-services#96, nothra/tch-gastro-services#341)
 
-Sowohl bash `printf '%.1f'` (#96, `metrics.sh`) als auch ein `awk`-Ausdruck, der Dezimalzahlen
+Sowohl bash `printf '%.1f'` (nothra/tch-gastro-services#96, `metrics.sh`) als auch ein `awk`-Ausdruck, der Dezimalzahlen
 parst (`s+=$N`) oder formatiert (`printf "%.Nf"`), sind locale-abhängig: unter einer
 Komma-Dezimaltrenner-Locale (z. B. `de_DE.UTF-8`) bricht das Parsen eines Punkt-Dezimalwerts
 ab, bzw. der Punkt wird beim Formatieren durch ein Komma ersetzt. Beide Vorfälle blieben
 unentdeckt, bis ein Rechner mit deutscher Locale die jeweilige Suite lokal rot färbte – in CI
 (C-Locale) blieb sie grün. Das Muster ist also umgebungsabhängig unsichtbar (nicht
-gate-blockierend), kostet aber bei jedem betroffenen lokalen Lauf eine Fehlersuche; #341 ist
-ein Rezidiv derselben Fehlerklasse wie #96, nur in `awk` statt bash-`printf`, und war bis dahin
+gate-blockierend), kostet aber bei jedem betroffenen lokalen Lauf eine Fehlersuche; nothra/tch-gastro-services#341 ist
+ein Rezidiv derselben Fehlerklasse wie nothra/tch-gastro-services#96, nur in `awk` statt bash-`printf`, und war bis dahin
 nirgends als Lesson festgehalten – nur inline im jeweiligen Testkommentar.
 
 **Smell:** Ein neuer `awk`- oder `printf`-Aufruf in einem Shell-Testskript parst oder
@@ -636,18 +636,18 @@ diesen Aufruf fixiert ist.
 
 **Regel:** Jeder awk-/bash-Aufruf, der Dezimalzahlen parst oder formatiert, bekommt ein
 **lokales** `LC_ALL=C`-Präfix direkt vor dem Aufruf – nicht global am Skriptanfang, da ein
-suite-weites `LC_ALL=C` bewusst locale-abhängig getestete Stellen wie den #96-Test selbst
+suite-weites `LC_ALL=C` bewusst locale-abhängig getestete Stellen wie den nothra/tch-gastro-services#96-Test selbst
 maskieren würde. Wird der Ausdruck sowohl von der echten Assertion als auch von einem
 Locale-Regressionstest gebraucht, in einen gemeinsamen Helfer extrahieren statt den Ausdruck
 zu kopieren (Drift-Risiko, siehe Mutationsbeleg-Regel oben).
 
-### Ein Config-/Gate-Wert, der als „gültig" akzeptiert wird, ist damit noch nicht als „angewendet" belegt (aus #348, /test-Selbstfund)
+### Ein Config-/Gate-Wert, der als „gültig" akzeptiert wird, ist damit noch nicht als „angewendet" belegt (aus nothra/tch-gastro-services#348, /test-Selbstfund)
 
-Task #348 hob `MAX_TURNS_CEILING` (Gate-Policy-Konstante, `config-validation-check.sh`) samt
+Task nothra/tch-gastro-services#348 hob `MAX_TURNS_CEILING` (Gate-Policy-Konstante, `config-validation-check.sh`) samt
 dem zugehörigen `factory.config.yml`-Override für `/implement` von 50 auf 80 an. `/implement`
 schrieb dafür zwei Grenzfall-Tests: `max_turns: 80` wird vom Gate akzeptiert, `max_turns: 81`
 bleibt fail-closed abgelehnt. Beide Tests waren echte Verhaltenstests (kein reiner Wiring-Grep,
-vgl. #212) – und trotzdem blieb eine Lücke: Sie belegen nur, dass das **Validierungs-Gate**
+vgl. nothra/tch-gastro-services#212) – und trotzdem blieb eine Lücke: Sie belegen nur, dass das **Validierungs-Gate**
 den Wert 80 für **gültig** hält, nicht, dass der **Konsument** der effektiven Config
 (`run-pipeline.sh`, ein anderes Skript als das Gate) den Wert für `/implement` auch
 tatsächlich **anwendet** – ein Tippfehler in der Auflösungslogik von `run-pipeline.sh` selbst
@@ -666,13 +666,13 @@ eine End-to-End-Assertion ergänzen, die den **realen** Konsumenten mit den **re
 Repo-Dateien (nicht nur einem synthetischen Testwert) ausführt und den tatsächlich verwendeten
 Wert im Output prüft (hier: `run-pipeline.sh <id> --dry-run` gegen die reale
 `factory.config.yml`, Assertion auf „max 80 turns" im Klartext-Output). Ergänzt „Deterministisches
-Gate/Backstop braucht E2E-Verhaltenstest, nicht nur Wiring-Grep" (#212) um den Fall, dass der
+Gate/Backstop braucht E2E-Verhaltenstest, nicht nur Wiring-Grep" (nothra/tch-gastro-services#212) um den Fall, dass der
 fehlende Beweis nicht die Existenz eines Branches ist, sondern die **Weiterleitung** eines
 bereits validierten Werts an eine andere Komponente. **Laden bei:** `/implement`, `/test` bei
 Änderungen an `MAX_TURNS_CEILING`, `model_tiers`, `tier_by_size` oder anderen Gate-geprüften
 Config-Werten mit eigenem Konsumenten außerhalb des Gates selbst.
 
-### Test, der die Git-Historie liest (`git log --follow`), braucht in CI einen Shallow-Clone-Skip (aus #426, /implement-Selbstfund)
+### Test, der die Git-Historie liest (`git log --follow`), braucht in CI einen Shallow-Clone-Skip (aus nothra/tch-gastro-services#426, /implement-Selbstfund)
 
 `actions/checkout` klont per Default flach (`fetch-depth: 1`). Ein Test, der die Historie vor einem `git mv`
 belegen soll (`git log --follow`, `git blame`, Alt-Pfad-Lookup), findet dort nur den einen Commit und wird
@@ -683,7 +683,7 @@ Skip **sichtbar** ausgeben (eigene Zeile, kein stilles Weglassen); das Verhalten
 nicht historienabhängigen Test (Datei liegt am Neu-Ort, am Alt-Ort fehlt sie) abgedeckt. Den Skip nicht durch
 `fetch-depth: 0` im Workflow ersetzen – das verlängert jeden Lauf für einen einzigen Test.
 
-### `assert_contains_286` (Pipe-`grep -q`) auf Datei-Haystacks ist ein Race – in CI rot, lokal grün (aus #426, CI-Befund nach `/refactor`)
+### `assert_contains_286` (Pipe-`grep -q`) auf Datei-Haystacks ist ein Race – in CI rot, lokal grün (aus nothra/tch-gastro-services#426, CI-Befund nach `/refactor`)
 
 Der Helfer reicht den Haystack per `printf | grep -q` weiter. `grep -q` beendet sich beim ersten Treffer, `printf`
 schreibt noch weiter, bekommt SIGPIPE, und `pipefail` macht den Treffer zum Falsch-Rot (bash-gotchas #3). Das ist
@@ -696,13 +696,13 @@ behauptet; erst der zweite CI-Lauf zeigte die Rezidiv-Stelle in `own_side_426`.
 (`grep -q … <<< "$var"`), nie `printf | grep -q`. Den Helfer nur für kurze Literale (Zeilen/Absätze) nutzen. Nach
 einem Test-Refactor die CI-Läufe abwarten, bevor „identisch grün" behauptet wird.
 
-### Rezidiv #348: Gate-Kommando „aus der Config" an einem dritten Konsumenten nur per Grep belegt – Review fand die Lücke (aus #431, Review-Iteration 1)
+### Rezidiv nothra/tch-gastro-services#348: Gate-Kommando „aus der Config" an einem dritten Konsumenten nur per Grep belegt – Review fand die Lücke (aus nothra/tch-gastro-services#431, Review-Iteration 1)
 
-`/implement` zu #431 verlegte die Gate-Kommandos (`commands.*`) aus hartkodierten pnpm-Defaults in
+`/implement` zu nothra/tch-gastro-services#431 verlegte die Gate-Kommandos (`commands.*`) aus hartkodierten pnpm-Defaults in
 `factory.config.yml`. Für `pre-commit.sh` und `pre-push.sh` entstanden Verhaltenstests (Config-Kommando läuft,
 Env hat Vorrang, fehlender Schlüssel → rot). Für den dritten Konsumenten `run-pipeline.sh` blieb es bei einem
 Grep auf `gate_command lint required` – der Struktur-Test blieb grün, auch wenn die Auflösung selbst falsch gewesen
-wäre. Erst `/review` Iteration 1 fand das; das Rezidiv der #348-Regel entstand, weil die Verhaltenstests zuerst für die
+wäre. Erst `/review` Iteration 1 fand das; das Rezidiv der nothra/tch-gastro-services#348-Regel entstand, weil die Verhaltenstests zuerst für die
 beiden Hooks geschrieben und die Pipeline als „gleiche Lib, also gleich" abgehakt wurde.
 
 **Regel:** Wird eine Quelle (Config-Schlüssel) auf **mehrere** Konsumenten umgestellt, bekommt **jeder** Konsument
@@ -711,7 +711,7 @@ Pflichtwert **vor** der ersten teuren Aktion, Exit-Code mitassertiert). Eine gem
 Beim Anlegen der Tests die Konsumenten-Liste aus der Spec (hier AK-H3: Hooks **und** Pipeline) abhaken, nicht aus
 dem Gedächtnis.
 
-### Die laufende Test-Suite nicht editieren – Bash liest ein Skript inkrementell (aus #431, /implement-Selbstfund)
+### Die laufende Test-Suite nicht editieren – Bash liest ein Skript inkrementell (aus nothra/tch-gastro-services#431, /implement-Selbstfund)
 
 `run-tests.sh` (9 000+ Zeilen, ~6 Minuten) lief im Hintergrund, während ich dieselbe Datei per Python-Skript erweiterte.
 Bash liest ein laufendes Skript Stück für Stück von der Platte: Zeilenverschiebungen mitten im Lauf lassen es an einer

@@ -32,7 +32,7 @@ Du reviewst wie ein erfahrener Kollege: sachlich, konstruktiv, klar priorisiert.
   Mehrfach-Write-Data-Layer-Funktion die projektweite Atomaritäts-Klammer (`runAtomic`,
   `db/atomic.ts`), nicht `db.transaction()` direkt? Ein grünes lokales/CI-Testergebnis beweist
   hier nichts, wenn der Test über einen anderen Treiber läuft als die Produktion (Lesson
-  `db-drizzle.md`, aus #345 – dieser Fund entging Logik- und Code-Qualitäts-Fokus gleichermaßen).
+  `db-drizzle.md`, aus nothra/tch-gastro-services#345 – dieser Fund entging Logik- und Code-Qualitäts-Fokus gleichermaßen).
 
 ## Deine Regeln
 

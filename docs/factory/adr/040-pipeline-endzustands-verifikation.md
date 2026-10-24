@@ -33,13 +33,13 @@ Die deterministische Garantie lautet also nur: **„Sentinel existiert → Stopp
 sagt nichts über den Fall, in dem **kein** Signal gesetzt wird, der Agent aber die
 Arbeit nicht abgeschlossen hat.
 
-Genau dieser Fall trat in #212 ein (Lauf `PR_SHEPHERD=true … 209`): `/pr-shepherd`
+Genau dieser Fall trat in nothra/tch-gastro-services#212 ein (Lauf `PR_SHEPHERD=true … 209`): `/pr-shepherd`
 traf auf ein den Push-Gate blockierendes getracktes Artefakt und **fragte interaktiv
 nach Freigabe**, statt zu eskalieren. Da niemand antwortete, endete der `--print`-Lauf
 mit Exit 0, kein Sentinel wurde geschrieben – die Pipeline meldete Erfolg, obwohl der
-PR (#210) Draft/ungemergt war und zwei Commits ungepusht vorlagen.
+PR (nothra/tch-gastro-services#210) Draft/ungemergt war und zwei Commits ungepusht vorlagen.
 
-Verwandt mit #211 (dort las die Verdict-Erkennung Fließtext statt der Anker-Zeile).
+Verwandt mit nothra/tch-gastro-services#211 (dort las die Verdict-Erkennung Fließtext statt der Anker-Zeile).
 Beide Vorfälle sind Instanzen desselben Musters: **Die Pipeline behauptet Erfolg auf
 Basis eines Proxy-Signals statt des beobachteten realen Zustands.**
 
@@ -112,7 +112,7 @@ sprach-/formulierungsabhängig und prüft weiterhin nicht den realen Zustand.
 
 ### Option C: Nur die Agenten-Seite härten (pr-shepherd eskaliert statt zu fragen)
 
-**Nachteile:** Lässt den von ADR-004 benannten Model-Best-Effort-Spalt offen; #212
+**Nachteile:** Lässt den von ADR-004 benannten Model-Best-Effort-Spalt offen; nothra/tch-gastro-services#212
 belegt, dass der Anker allein nicht genügt. Keine deterministische Garantie.
 **Abgelehnt** als alleinige Maßnahme (bleibt aber als komplementäre Schicht, s. o.).
 
@@ -125,7 +125,7 @@ Teile – und es verifiziert weiterhin nur, dass der Agent sich für fertig *hä
 
 ## Begründung
 
-Der wiederkehrende Fehler (#211, #212) ist, dass die Pipeline **Proxy-Signale** (Exit-
+Der wiederkehrende Fehler (nothra/tch-gastro-services#211, nothra/tch-gastro-services#212) ist, dass die Pipeline **Proxy-Signale** (Exit-
 Code, Report-Text) mit **Wahrheit** verwechselt. Die einzige robuste Abhilfe ist, die
 Wahrheit direkt zu beobachten – `git`/`gh` sind die kanonischen Quellen für Push-/PR-/
 Merge-Zustand. Die Garantie liegt damit im Skript und ist unabhängig vom
@@ -143,7 +143,7 @@ Ein unbeaufsichtigter Lauf kann nicht beliebig auf server-seitige CI warten;
 **Positiv:**
 
 - Kein „Erfolg trotz Draft-PR / ungepushter Commits" mehr – deterministisch verhindert.
-- Fängt generisch auch unbekannte künftige Fehlverhalten ab (nicht #212-spezifisch).
+- Fängt generisch auch unbekannte künftige Fehlverhalten ab (nicht nothra/tch-gastro-services#212-spezifisch).
 - Autonomie-Rate (ADR-006) bleibt ehrlich: verifikationsbedingte Stopps werden geloggt.
 - Ohne echte Infrastruktur testbar (sourcebare Funktion, gestubbte `git`/`gh`).
 - ADR-004/019 bleiben unverändert gültig; 040 ist eine additive Schicht.
@@ -158,7 +158,7 @@ Ein unbeaufsichtigter Lauf kann nicht beliebig auf server-seitige CI warten;
   scheitern (rote CI nach Übergabe). Das ist bewusst außerhalb des Pipeline-Laufs und
   wird von `/post-merge-verify` (ADR-007) abgedeckt.
 
-## Nachtrag (2026-08-15, #298): PR MERGED zählt unabhängig von der Unpushed-Prüfung als Erfolg
+## Nachtrag (2026-08-15, nothra/tch-gastro-services#298): PR MERGED zählt unabhängig von der Unpushed-Prüfung als Erfolg
 
 **Kontext.** Punkt 1 der Entscheidung beschreibt unbedingt: „Beide Modi: Working Tree
 sauber **und** keine ungepushten Commits" – erst **zusätzlich** kommt bei
@@ -169,8 +169,8 @@ delete head branches" aktiv hat (`git-workflow.md`), existiert `origin/<branch>`
 jedem gemergten (Squash-)PR nicht mehr – `unpushed` wird dadurch `NO_UPSTREAM`
 (nicht-numerisch, fail-closed), und die Funktion bricht ab, **bevor** der
 MERGED-Kurzschluss je greift. AK6 war damit für den in diesem Repo üblichen Fall
-(Squash-Merge + Branch-Auto-Delete) faktisch unerreichbar. Beobachtet in Issue #298
-(Task #182, PR #296: vollständig erfolgreicher, gemergter Pipeline-Lauf endete dennoch
+(Squash-Merge + Branch-Auto-Delete) faktisch unerreichbar. Beobachtet in Issue nothra/tch-gastro-services#298
+(Task nothra/tch-gastro-services#182, PR nothra/tch-gastro-services#296: vollständig erfolgreicher, gemergter Pipeline-Lauf endete dennoch
 mit `exit 1` und Fehlalarm-Interrupt).
 
 **Entscheidung.** Kein neuer Design-Fork – Option A (deterministische Verifikation
@@ -184,5 +184,5 @@ unberührt und weiterhin vorgeschaltet). Details und vollständige Akzeptanzkrit
 
 **Betroffene Artefakte (Ergänzung):** `scripts/lib/verify-final-state.sh`
 (`evaluate_final_state()` – MERGED-Kurzschluss vor die Unpushed-Prüfung gezogen),
-`scripts/checks/tests/run-tests.sh` (#212-Block: neue Testfälle für
+`scripts/checks/tests/run-tests.sh` (nothra/tch-gastro-services#212-Block: neue Testfälle für
 MERGED+`NO_UPSTREAM` sowie Regressions-Guard für Nicht-MERGED+`NO_UPSTREAM`).

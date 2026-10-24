@@ -13,8 +13,8 @@ Das dm-Factory-Template wurde ursprünglich für die dm-interne GitLab-Instanz
 für Merge Requests, Issues und Labels, GitLab Container Registry + kaniko für die
 CI-Images, und der Async-Trigger (ADR-008) als GitLab Scheduled Pipeline.
 
-Dieses Projekt (**TCH Gastro Services**) wird jedoch auf **GitHub** verwaltet
-(`github.com/nothra/tch-gastro-services`). Damit passten die plattformspezifischen
+Das Ursprungs-Projekt (`github.com/nothra/tch-gastro-services`) wird jedoch auf
+**GitHub** verwaltet. Damit passten die plattformspezifischen
 Teile der Factory nicht mehr: die GitLab-Pipeline läuft auf GitHub nicht, und `glab`
 ist gegen die falsche Instanz konfiguriert.
 
@@ -31,7 +31,7 @@ konkrete Plattform-Umsetzung wechselt:
 | Aspekt | Vorher (GitLab) | Nachher (GitHub) |
 |--------|-----------------|------------------|
 | CI | `.gitlab-ci.yml` | `.github/workflows/factory-ci.yml` |
-| Async-Trigger | Scheduled Pipeline + `resource_group` | `.github/workflows/factory-poll.yml` (`schedule` + `concurrency`; `schedule` seit #284 stillgelegt, s. [ADR-008 Update 2026-08-12](008-async-trigger-mechanism.md#status)) |
+| Async-Trigger | Scheduled Pipeline + `resource_group` | `.github/workflows/factory-poll.yml` (`schedule` + `concurrency`; `schedule` seit nothra/tch-gastro-services#284 stillgelegt, s. [ADR-008 Update 2026-08-12](008-async-trigger-mechanism.md#status)) |
 | CLI (PR/Issues/Labels) | `glab` | `gh` |
 | CI-Runtime | Prebuilt-Image (kaniko + Registry) | `ubuntu-latest` (yq/claude zur Laufzeit geholt) |
 | PR-Update | `glab mr rebase` | `gh pr update-branch` |

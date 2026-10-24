@@ -85,7 +85,7 @@ YYYY-MM-DD
 ## Index
 
 Every ADR in this directory, in number order (the test suite checks that this list matches the
-directory). Duplicate numbers (040) are known, see #321.
+directory). Duplicate numbers (040) are known, see nothra/tch-gastro-services#321.
 
 | Nr. | Titel | Status |
 |---|---|---|

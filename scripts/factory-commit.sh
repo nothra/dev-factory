@@ -40,7 +40,7 @@ EOF
 }
 
 # `-h`/`--help` als einziges Argument ist eine Hilfe-Anfrage, keine Commit-Message.
-# Ohne dieses Guard würde das Flag wörtlich zur Commit-Message (#262) – hier: nur Usage,
+# Ohne dieses Guard würde das Flag wörtlich zur Commit-Message (nothra/tch-gastro-services#262) – hier: nur Usage,
 # kein git add/commit/push.
 if [ "$#" -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
   usage
@@ -90,7 +90,7 @@ git add -A
 
 # Nichts zu committen? Kein harter Fehler – die Pipeline soll nicht abbrechen, nur
 # weil ein Schritt keine Änderungen produziert hat (ADR-019 §1). Ein zuvor
-# fehlgeschlagener Push darf dabei aber nicht liegen bleiben (#239): steht der Branch
+# fehlgeschlagener Push darf dabei aber nicht liegen bleiben (nothra/tch-gastro-services#239): steht der Branch
 # vor seinem Upstream oder hat er noch keinen, wird der Push nachgeholt.
 if git diff --cached --quiet; then
   if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 ||

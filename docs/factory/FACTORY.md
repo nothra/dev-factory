@@ -74,7 +74,7 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
   Token-Accounting nach. Veröffentlichung (`--publish`) optional an `$GITHUB_STEP_SUMMARY`
   (in CI) und als Kommentar an `FACTORY_METRICS_ISSUE` (Tracking-Issue) – lokal ohne beides
   bleibt es bei der Report-Datei.
-- **Telemetrie:** läuft seit #334 automatisch je Pipeline-Lauf ([Factory-ADR-049](adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
+- **Telemetrie:** läuft seit nothra/tch-gastro-services#334 automatisch je Pipeline-Lauf ([Factory-ADR-049](adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
   Default **an**, Abschaltung per `--no-telemetry`. Der Lauf erntet die OTEL-Ist-Werte der CLI
   (Token/Kosten je Schritt, Modell und Sub-Agent – nie selbst gerechnet), schreibt sie
   **personenfrei** (Whitelist) nach `tasks/telemetry-<task-id>-<zeitstempel>.csv` und
@@ -90,7 +90,7 @@ Fehler → `POST_MERGE_FAIL`-Interrupt (Factory-ADR-007).
 **Async-Start (optional, Factory-ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`) startet
 die Pipeline für Issues mit Label `factory::run` – fail-closed hinter einem Budget-Guard
 (Label-Eintrittstür + Concurrency=1 + Tageskappe). Default aus; Aktivierung = Schedule + Labels
-+ Auth-Variable (Spur B). Der `schedule`-Trigger ist seit #284 **stillgelegt** – der Workflow
++ Auth-Variable (Spur B). Der `schedule`-Trigger ist seit nothra/tch-gastro-services#284 **stillgelegt** – der Workflow
 läuft nur auf manuelles `workflow_dispatch`; das Wiedereintragen ist Teil der
 Scharfschalt-Checkliste (`docs/factory/OPERATING.md` §0.4).
 
@@ -141,7 +141,7 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 1. **Nie direkt auf `main`/`master`** committen oder pushen – jede Änderung über Feature-Branch + PR. Der pre-push-Hook ist dabei nur lokales, **umgehbares** Feedback (`--no-verify`, zweiter Clone); fail-closed ist allein das serverseitige Ruleset `protect-main` (auch für Admins).
 2. **Branch-Typ aus der Tabelle in `git-workflow.md`:** `feature/` `fix/` `improvement/` `hotfix/` `refactor/` `docs/` `test/` `chore/` – kanonisch ist die Tabelle in `git-workflow.md`, nicht diese Liste. `branch-name-check.sh` prüft sie nur als Claude-Code-Hook auf `checkout -b`/`switch -c`; kein Push- oder CI-Gate fängt einen falschen Branch-Typ.
 3. **`Closes #<id>` im PR-Body** – eine bloße Erwähnung (`(#<id>)`, „Behebt #<id>") schließt das Issue nicht.
-4. **Rebase statt Merge:** vor dem Start `git checkout main && git pull --rebase origin main`, vor dem Push `git fetch origin` + `git rebase origin/main` – nie `git merge origin/main` in den Feature-Branch. Auf einem **bereits gepushten** Branch rebast kein Zwischenschritt eigenständig gegen `main`; das bleibt bei `/pr-shepherd` (sonst erzwingt es einen Force-Push, #249).
+4. **Rebase statt Merge:** vor dem Start `git checkout main && git pull --rebase origin main`, vor dem Push `git fetch origin` + `git rebase origin/main` – nie `git merge origin/main` in den Feature-Branch. Auf einem **bereits gepushten** Branch rebast kein Zwischenschritt eigenständig gegen `main`; das bleibt bei `/pr-shepherd` (sonst erzwingt es einen Force-Push, nothra/tch-gastro-services#249).
 5. **Commit-Message:** `<typ>: <kurze Beschreibung im Imperativ>` mit `typ` ∈ `feat` `fix` `docs` `refactor` `test` `chore`. Kein „WIP", kein „asdf". (Kein Hook prüft das Format – der `commit-msg`-Hook lehnt nur `--help`/`-h` als Message ab.)
 6. **Task-ID = GitHub-Issue-Nummer** (Factory-ADR-013): jede `tasks/task-<id>-*.md` hat ein Issue #`<id>`; Anlage Issue-first über `scripts/start-work.sh`.
 7. **Labels, Issue-Anlage und die Schwelle „Issue oder `kleinfunde.md`" nie aus dem Gedächtnis** – sie stehen **kanonisch in** `git-workflow.md` → „GitHub-Labels" bzw. „Zentraler Anlage-Weg (Factory-ADR-018)" (Schwelle: Factory-ADR-043) und werden dort von einem Drift-Guard bewacht. Vor jeder Issue-Anlage dort nachlesen; hier steht bewusst keine Kopie.
@@ -188,26 +188,26 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   lehnt Commit-Messages ab, die in Wahrheit ein CLI-Flag sind (`--help`/`-h`, `commit-msg-check.sh`).
   In einem frischen Clone bzw. einem vor dieser Regel initialisierten Repo einmalig ausführen;
   die Hooks liegen im gemeinsamen `.git` und gelten damit für alle Worktrees.
-- **`yq` kommt in CI ausschließlich aus `bash scripts/install-yq.sh`** (kanonische Quelle, #258).
+- **`yq` kommt in CI ausschließlich aus `bash scripts/install-yq.sh`** (kanonische Quelle, nothra/tch-gastro-services#258).
   Das Skript pinnt Version **und** SHA-256 (`YQ_VERSION` + `YQ_SHA256` – ein Bump ändert genau
   diese zwei Zeilen) und verifiziert fail-closed, bevor das Ausführbar-Bit fällt. Braucht ein
   neuer Workflow-Job `yq`, ruft er den Seam auf – **kein** eigener `wget`/`curl`+`chmod`-Block,
   auch nicht mit gepinnter URL. Grund für die Regel: genau dieser Block lag dreifach kopiert und
-  unverifiziert in CI, bis #258 ihn zusammengezogen hat. Gleiches Muster für weitere
+  unverifiziert in CI, bis nothra/tch-gastro-services#258 ihn zusammengezogen hat. Gleiches Muster für weitere
   Fremd-Binaries, die CI herunterlädt: gepinnter, verifizierter Seam statt Inline-Download.
 - Keine offenen Checkboxen in der Task-Datei → kein Done
 - **Der `@import`-Dauerkontext ist gedeckelt.** `scripts/checks/import-context-limit-check.sh`
   summiert `CLAUDE.md` + die `@`-eingebundenen Dateien und blockiert den Push, wenn die Grenze
   reißt ([Factory-ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4). Wie jeder
   Hook ist er lokal und mit `--no-verify` umgehbar; server-seitig greift er bislang nur mittelbar
-  über die Self-Test-Suite (Issue #328 zieht einen eigenen CI-Check nach). Neue Regeln also
+  über die Self-Test-Suite (Issue nothra/tch-gastro-services#328 zieht einen eigenen CI-Check nach). Neue Regeln also
   verdichten oder als Lesson auslagern (`docs/factory/lessons/` + Index-Zeile), nicht anhängen –
   Factory-ADR-037 wollte das per Konvention erreichen und lief von ~80 auf 341 Zeilen.
 - **Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge.** Die letzte Checkbox
   (`Fertig / PR erstellt`) und alle Abschluss-Notizen müssen **im Branch** gesetzt sein, bevor
   `/pr-shepherd` (bzw. der Merge) läuft. Nach dem Merge liegt die Datei auf `main` und lässt sich
   nur noch über einen **neuen PR** ändern (Direkt-Commit auf `main` ist verboten) – für ein Häkchen
-  unverhältnismäßig. (aus #63)
+  unverhältnismäßig. (aus nothra/tch-gastro-services#63)
 - Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren
 - **Empfehlung (keine Pflicht): Für den `/implement`-Schritt einer Task eine neue
   Claude-Session öffnen.** `start-work.sh` und das anschließende `/requirements` (ggf.
@@ -219,7 +219,7 @@ Jeder Agent bekommt nur die Tools, die er braucht:
   Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-PR ist angelegt.
 - **Parallele Sessions arbeiten in getrennten git-Worktrees.** `start-work.sh` legt jede neue Task
   per Default in einem **eigenen Worktree** an (kein `checkout` im geteilten Baum) – so verschieben
-  zwei gleichzeitige Sessions nie gegenseitig `HEAD` (Ursache des Kollisionsvorfalls #71). In den
+  zwei gleichzeitige Sessions nie gegenseitig `HEAD` (Ursache des Kollisionsvorfalls nothra/tch-gastro-services#71). In den
   ausgegebenen Worktree-Pfad wechseln und dort arbeiten; nach dem Merge `git worktree remove`.
   Details: `docs/factory/guidelines/git-workflow.md` → „Parallele Sessions: eigener Worktree".
 

@@ -20,7 +20,7 @@ git push origin feature/<kurzbeschreibung>
 **Der PR-Body muss das Issue mit einem Closing-Keyword schließen: `Closes #<id>`**
 (alternativ `Fixes`/`Resolves`). Nur dann schließt GitHub das Issue beim Merge automatisch.
 Eine bloße Referenz wie `(#<id>)` im Titel oder ein deutsches „Behebt #<id>" ist nur eine
-Erwähnung – das Issue bleibt offen (beobachtet an #74/#71/#76, deren gemergte PRs die Issues
+Erwähnung – das Issue bleibt offen (beobachtet an nothra/tch-gastro-services#74/#71/#76, deren gemergte PRs die Issues
 nicht schlossen). `start-work.sh` setzt die `Closes`-Zeile im Draft-PR bereits automatisch.
 
 Branch-Konvention (aligned mit Conventional Commits):
@@ -61,13 +61,13 @@ bash scripts/install-hooks.sh
 ```
 
 Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch der neue
-`commit-msg`-Hook (Flag-Guard, #262). Kanonisch ist jeweils das aufgerufene Check-Skript:
+`commit-msg`-Hook (Flag-Guard, nothra/tch-gastro-services#262). Kanonisch ist jeweils das aufgerufene Check-Skript:
 
 | Hook | Ruft auf | Zweck (Stand der Check-Skripte) |
 |------|----------|---------------------------------|
 | `pre-commit` | `scripts/checks/pre-commit.sh` | Merge-Konflikte, Debug-Statements, TODO-ohne-Ticket (Warnung), hardkodierte Credentials, Lint |
-| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Git-Hooks-Installiert-Check (inkl. `core.hooksPath`, #265/#268), @import-Kontext-Deckel (ADR-047 §4, #319), Schutz gegen Push auf `main`/`master` |
-| `commit-msg` | `scripts/checks/commit-msg-check.sh` | Flag-Guard: lehnt `--help`/`-h` als Commit-Message ab (#262) |
+| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Git-Hooks-Installiert-Check (inkl. `core.hooksPath`, nothra/tch-gastro-services#265/#268), @import-Kontext-Deckel (ADR-047 §4, nothra/tch-gastro-services#319), Schutz gegen Push auf `main`/`master` |
+| `commit-msg` | `scripts/checks/commit-msg-check.sh` | Flag-Guard: lehnt `--help`/`-h` als Commit-Message ab (nothra/tch-gastro-services#262) |
 
 - **Neue Projekte:** `scripts/init-factory.sh` ruft `install-hooks.sh` auf – die
   Hook-Inhalte stehen nur an dieser einen Stelle, kein zweiter Heredoc-Block.
@@ -77,7 +77,7 @@ Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch 
 - **`core.hooksPath`:** Ist die Option gesetzt (z. B. durch husky), bricht der Installer
   fail-closed ab, statt wirkungslos nach `.git/hooks` zu schreiben – dann bewusst entscheiden
   (Option entfernen oder die Factory-Checks dort einbinden). Das **wiederkehrende** Push-Gate
-  (`scripts/checks/hooks-installed-check.sh`, #268) prüft dieselbe Option zusätzlich bei jedem
+  (`scripts/checks/hooks-installed-check.sh`, nothra/tch-gastro-services#268) prüft dieselbe Option zusätzlich bei jedem
   Push – anders als der einmalige Installer kennt dieser Check keine „einbinden"-Alternative:
   er liest ausschließlich `$GIT_COMMON_DIR/hooks` und bleibt bei gesetztem `core.hooksPath`
   dauerhaft rot, bis die Option entfernt wird (kein Opt-out implementiert, s. ADR-042
@@ -96,7 +96,7 @@ Task-ID aus dessen Nummer ab):
 
 ```bash
 bash scripts/start-work.sh "user-login implementieren"     # legt Issue an → Task-ID = Issue-Nr.
-bash scripts/start-work.sh 42 user-login-implementieren     # bestehendes Issue #42 (wird validiert)
+bash scripts/start-work.sh 42 user-login-implementieren     # bestehendes Issue nothra/tch-gastro-services#42 (wird validiert)
 ```
 
 Prüfen/Reparieren:
@@ -134,7 +134,7 @@ Generisch (`labels.aspects` in `factory.defaults.yml`):
 | `test` | Tests / Test-Infrastruktur (Unit, E2E) |
 
 > **`security` ist für tatsächliche Findings, nicht für RBAC als Feature-Eigenschaft**
-> (aus #50): Dass ein Feature von mehreren Rollen mit unterschiedlichen Rechten genutzt
+> (aus nothra/tch-gastro-services#50): Dass ein Feature von mehreren Rollen mit unterschiedlichen Rechten genutzt
 > wird (z. B. Verwalter vs. Veranstalter), ist für sich genommen **kein** Grund für das
 > `security`-Label – RBAC-Rollentrennung ist normales Produktverhalten, keine Härtung.
 > Das Label gehört auf ein Issue, wenn eine echte Schwachstelle, ein Auth-/Secret-/
@@ -170,7 +170,7 @@ Kein eigenes `gh issue create` an neuen Stellen – immer den Seam sourcen. Die 
 Label-Menge steht allein in der Konfiguration (`labels.*`), ihre Beschreibung in diesem Abschnitt
 (generisch) bzw. in `PROJECT-CONTEXT.md` (projekteigen).
 
-**Schwelle: Issue oder Sammeldatei (ADR-043, #286).** Nicht jeder Out-of-Scope-Fund
+**Schwelle: Issue oder Sammeldatei (ADR-043, nothra/tch-gastro-services#286).** Nicht jeder Out-of-Scope-Fund
 rechtfertigt einen eigenen Pipeline-Lauf über sieben Skills. Die drei Skills klassifizieren
 jeden Fund gegen diese Tabelle:
 
@@ -179,7 +179,7 @@ jeden Fund gegen diese Tabelle:
 | Merge-Blocker im aktuellen PR | sofort beheben – weder Issue noch Sammeldatei |
 | Echtes Sicherheitsrisiko (ausnutzbar, Secret-/Auth-/Zahlungs-Pfad) | Issue über den Seam (Aspekt-Label `security`) |
 | Funktionaler Defekt mit reproduzierbarem Auslöser | Issue über den Seam |
-| Alles andere (Nitpick, Doku-Drift, hypothetischer Zustand, „unter zehn Zeilen") | Eintrag in [`docs/factory/kleinfunde.md`](../kleinfunde.md) (Fund an einer Factory-Datei) bzw. [`docs/project/kleinfunde.md`](../../project/kleinfunde.md) (Projekt-Datei) |
+| Alles andere (Nitpick, Doku-Drift, hypothetischer Zustand, „unter zehn Zeilen") | Eintrag in [`docs/factory/kleinfunde.md`](../kleinfunde.md) (Fund an einer Factory-Datei) bzw. `docs/project/kleinfunde.md` (Projekt-Datei) |
 
 **Zweifelsregel:** Ist ein Fund nicht eindeutig zuzuordnen, gilt **„im Zweifel Issue"** – die
 Schwelle ist einseitig fail-safe zugunsten des Trackers, damit kein echter Sicherheitsfund in
@@ -201,7 +201,7 @@ betroffene Datei laut [`OWNERSHIP.md`](../OWNERSHIP.md) entscheidet (Seite `fact
 | `factory::interrupted` | Gestoppt – menschliche Entscheidung nötig | Pipeline (automatisch) |
 
 > **Achtung:** `factory::run` ist kein Klassifizierungs-Label, sondern ein **Eintritts-Trigger**.
-> Reine Backlog-/Doku-Issues (wie #66–#68) erhalten es **nicht**, sonst startet der Auto-Trigger
+> Reine Backlog-/Doku-Issues (wie nothra/tch-gastro-services#66–nothra/tch-gastro-services#68) erhalten es **nicht**, sonst startet der Auto-Trigger
 > ungewollt einen Pipeline-Lauf. Die Status-Labels (`running`/`done`/`failed`/`interrupted`) werden
 > von der Pipeline verwaltet und nicht von Hand gesetzt.
 
@@ -281,7 +281,7 @@ Gemergte Branches werden weitgehend automatisch entfernt – dreistufig:
 > `[gone]` bedeutet hier verlässlich „PR gemergt, Remote gelöscht". Nur wer einen Remote-Branch
 > **ohne** Merge löscht, verlöre lokalen Stand – im PR-Workflow praktisch kein Thema.
 
-> **Secret-Hygiene (seit #236):** Ein Worktree enthält seit der automatischen `.env.local`-Kopie
+> **Secret-Hygiene (seit nothra/tch-gastro-services#236):** Ein Worktree enthält seit der automatischen `.env.local`-Kopie
 > (siehe „Parallele Sessions" unten) eine eigene Kopie der lokalen Secrets (`DATABASE_URL`,
 > `AUTH_SECRET`, `SEED_ADMIN_*`). `git worktree remove` löscht diese Kopie mit – ein von Hand
 > abgehängter oder per `FACTORY_WORKTREE_BASE` in einen synchronisierten Ordner (iCloud/Dropbox/
@@ -330,7 +330,7 @@ Das Skript gibt am Ende immer einen Hinweis dazu.
 
 **Das Repository hat genau einen geteilten Arbeitsbaum – aber `HEAD`, Index und Working
 Tree sind darin geteilter Zustand.** Laufen zwei Sessions im selben Verzeichnis, verschiebt
-ein `git checkout`/`commit` der einen den `HEAD` unter der anderen. Beobachteter Vorfall (#71):
+ein `git checkout`/`commit` der einen den `HEAD` unter der anderen. Beobachteter Vorfall (nothra/tch-gastro-services#71):
 ein Commit landete auf dem falschen Branch, und der pre-push-Hook las fälschlich „auf `main`".
 
 **Regel:** Jede Task arbeitet in einem **eigenen git-Worktree**. `start-work.sh` erzwingt das
@@ -346,7 +346,7 @@ cd <ausgegebener-worktree-pfad>                    # dort arbeiten (eigene Sessi
 - **Env-Schalter:** `FACTORY_NO_WORKTREE=1` = altes In-Place-Verhalten (nur bewusst nutzen);
   `FACTORY_WORKTREE_BASE=<dir>` = Basisordner der Worktrees; `FACTORY_WT_SKIP_INSTALL=1` = kein
   Install-Schritt (`commands.install`) im neuen Worktree; `FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`
-  **nicht** in den neuen Worktree kopieren (Default: kopieren, #236 – eine dort vorhandene Datei
+  **nicht** in den neuen Worktree kopieren (Default: kopieren, nothra/tch-gastro-services#236 – eine dort vorhandene Datei
   wird nie überschrieben). **Quelle** ist der Baum, in dem `start-work.sh` liegt (`$FACTORY_DIR`) –
   üblicherweise, aber nicht zwingend der Haupt-Baum: startet man die Task aus einem Worktree, der
   selbst keine `.env.local` hat, wird nichts kopiert.

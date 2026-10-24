@@ -124,7 +124,7 @@ ist gefährlicher als gar keins.
   ein Positiv- **und** ein Negativ-Beispiel laufen lässt – sonst merkt niemand,
   wenn das Muster nicht mehr greift.
 - **Config-/nutzerkontrollierte Werte als Daten behandeln, nie als Optionen/Code**
-  (aus #36-Codify, ADR-010): Bei `grep -F`/`grep` mit variablem Suchwert immer `--`
+  (aus nothra/tch-gastro-services#36-Codify, ADR-010): Bei `grep -F`/`grep` mit variablem Suchwert immer `--`
   vor das Pattern setzen (`grep -qxF -- "$wert"`), sonst wird ein Wert wie `-x` als
   Option interpretiert. Werte vor arithmetischen Tests (`[ "$n" -lt 1 ]`) erst per
   `case "$n" in ''|*[!0-9]*)` als Integer absichern. Faustregel für Validierungs-Gates:

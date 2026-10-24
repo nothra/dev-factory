@@ -17,7 +17,7 @@
 #                                 Promote), nicht hier (ADR-017 §Alternatives).
 #   FACTORY_HEALTHCHECK_STATUS    Erwarteter HTTP-Status für die URL (Default: 200).
 #   FACTORY_HEALTHCHECK_RETRIES   Zusätzliche Versuche nach dem ersten (Default 3) –
-#                                 fängt Deploy-Lag ab (#24): direkt nach dem Merge ist
+#                                 fängt Deploy-Lag ab (nothra/tch-gastro-services#24): direkt nach dem Merge ist
 #                                 das Deployment evtl. noch nicht live.
 #   FACTORY_HEALTHCHECK_INTERVAL  Basis-Wartezeit zwischen Versuchen in Sekunden
 #                                 (Default 10), linearer Backoff (10s, 20s, 30s …).
@@ -79,7 +79,7 @@ fi
 [ -n "$CMD" ] && echo "→ Post-Merge-Smoke-Command: ${CMD}" \
               || echo "→ Post-Merge-Healthcheck: $URL (erwartet HTTP $EXPECT)"
 
-# Retry/Poll gegen Deploy-Lag (#24): 1 + RETRIES Versuche, linearer Backoff.
+# Retry/Poll gegen Deploy-Lag (nothra/tch-gastro-services#24): 1 + RETRIES Versuche, linearer Backoff.
 total=$((RETRIES + 1))
 attempt=1
 while :; do

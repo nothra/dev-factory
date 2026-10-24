@@ -4,7 +4,7 @@
 #
 #   report_file <skill> <task_id> [tasks_dir]
 #     → druckt den Pfad der Report-Datei des Skills, bei jedem anderen Skill nichts.
-#       Die Skill→Datei-Zuordnung steht NUR hier (ein Ort, #310 AK9) – run-pipeline.sh
+#       Die Skill→Datei-Zuordnung steht NUR hier (ein Ort, nothra/tch-gastro-services#310 AK9) – run-pipeline.sh
 #       baut keinen Report-Pfad mehr selbst.
 #
 #   is_report_skill <skill> <task_id> [tasks_dir]
@@ -18,7 +18,7 @@
 #     → Exit immer 0; der Aufrufer entscheidet am (nicht-)leeren stdout.
 #
 #   report_fingerprint <skill> <task_id> [tasks_dir]
-#     → druckt einen Fingerprint des Report-INHALTS (Änderungserkennung, #310).
+#     → druckt einen Fingerprint des Report-INHALTS (Änderungserkennung, nothra/tch-gastro-services#310).
 #
 # EINE Quelle für zwei Nutzer in scripts/run-pipeline.sh, damit sie nicht
 # auseinanderdriften (ADR-019 §4 „ein Ort"):
@@ -27,8 +27,8 @@
 #     inkl. „Reached max turns" – nur als ERFOLG, wenn report_verdict für dieses Skill einen
 #     eindeutigen Verdict liefert UND sich der Report seit dem Beginn dieses Skill-Aufrufs
 #     verändert hat (report_fingerprint). Das deckt beide Richtungen ab: ein Turn-Limit NACH
-#     fertigem Report ist Erfolg (#91), ein stehengebliebener oder verdictloser Report ist
-#     keiner – auch dann nicht, wenn das Skill mit Exit 0 endet (#312). Bei allen anderen
+#     fertigem Report ist Erfolg (nothra/tch-gastro-services#91), ein stehengebliebener oder verdictloser Report ist
+#     keiner – auch dann nicht, wenn das Skill mit Exit 0 endet (nothra/tch-gastro-services#312). Bei allen anderen
 #     Skills entscheidet unverändert der Exit-Code.
 #   - pipeline_summary(): zeigt denselben Verdict an.
 #
@@ -36,7 +36,7 @@
 # verbindlichen Anker-Überschrift gelesen (review → '## Empfehlung',
 # security-review → '## Ergebnis'; .claude/commands/review.md / security-review.md).
 # Eine Fließtext-Erwähnung eines Verdict-Wortes an anderer Stelle im Report darf das
-# Ergebnis nicht mehr verfälschen (#211: ein Volltext-Grep wertete bei #206 ein
+# Ergebnis nicht mehr verfälschen (nothra/tch-gastro-services#211: ein Volltext-Grep wertete bei nothra/tch-gastro-services#206 ein
 # NEEDS_REWORK-Review wegen einer späteren APPROVED-Erwähnung fälschlich als bestanden).
 # Fail-closed: fehlender Anker, kein oder mehrdeutiges Token → leeres Verdict, kein Raten.
 # Case-sensitiv wie im Report; nur POSIX-Regex / portables awk, macOS/BSD + GNU/Alpine
@@ -52,7 +52,7 @@ report_file() {
 
 # Prädikat „erzeugt dieses Skill überhaupt einen Report?" – dieselbe Zuordnung wie report_file,
 # nur als Frage formuliert. Der run_skill()-Report-Guard verzweigt darauf und bekommt dabei
-# bewusst keinen Report-Pfad in die Hand (ADR-019 §4 „ein Ort"); vor #312 stand an der
+# bewusst keinen Report-Pfad in die Hand (ADR-019 §4 „ein Ort"); vor nothra/tch-gastro-services#312 stand an der
 # Aufrufstelle ein `[ -n "$(report_file …)" ]`, das sich beim Lesen wie eine Datei-Existenz-
 # Prüfung las. Genau das ist es NICHT: die Report-Datei entsteht erst im Skill-Lauf.
 # Argumente wie report_file: <skill> <task_id> [tasks_dir].
@@ -60,10 +60,10 @@ is_report_skill() {
   [ -n "$(report_file "$@")" ]
 }
 
-# Frische-Fingerprint (#310): Der Report-Guard darf einen Verdict nur honorieren, wenn er im
+# Frische-Fingerprint (nothra/tch-gastro-services#310): Der Report-Guard darf einen Verdict nur honorieren, wenn er im
 # LAUFENDEN Skill-Aufruf entstanden ist. Ohne diese Prüfung gilt ein stehengebliebener Verdict
-# aus einer früheren Review-Iteration desselben Laufs (#310, Task 308: Circuit Breaker trotz
-# fertigem Rework) oder aus einem früheren Pipeline-Lauf (#91: fail-open ohne jedes Review) als
+# aus einer früheren Review-Iteration desselben Laufs (nothra/tch-gastro-services#310, Task 308: Circuit Breaker trotz
+# fertigem Rework) oder aus einem früheren Pipeline-Lauf (nothra/tch-gastro-services#91: fail-open ohne jedes Review) als
 # frischer Erfolg. Verglichen wird der Inhalt, nicht die mtime – ein Agent, der die Datei
 # unverändert neu schreibt, soll nicht schon dadurch als „fertig" gelten.
 #
@@ -86,7 +86,7 @@ report_fingerprint() {
   # Reihenfolge der Redirections: die stderr-Umleitung steht VOR der Eingabe-Umleitung. Bash
   # wertet Redirections von links nach rechts aus – stünde sie danach, schriebe eine
   # scheiternde Eingabe-Umleitung ihre „Permission denied"-Meldung noch ins Pipeline-Log,
-  # obwohl der Zweig sie schlucken will (#310 Review-Finding W1; das Ergebnis war schon
+  # obwohl der Zweig sie schlucken will (nothra/tch-gastro-services#310 Review-Finding W1; das Ergebnis war schon
   # vorher fail-closed).
   checksum="$(cksum 2>/dev/null < "$file")" || checksum=""
   [ -n "$checksum" ] || { printf 'UNREADABLE\n'; return 0; }

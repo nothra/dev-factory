@@ -45,8 +45,8 @@ Parser und liest nichts anderes:
 | factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
-| factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, #431) |
-| factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; TCH-Abschnitte stehen in `docs/project/betrieb.md` |
+| factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, nothra/tch-gastro-services#431) |
+| factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; projektspezifische Abschnitte stehen im Betriebsdokument des Projekts (`docs/project/betrieb.md`) |
 | factory | `docs/factory/OWNERSHIP.md` | diese Tabelle |
 | factory | `docs/factory/kleinfunde.md` | Kleinfunde zu Factory-Dateien (Q6) |
 | factory | `docs/factory/agents/**` | Agenten-Personas |
@@ -55,7 +55,7 @@ Parser und liest nichts anderes:
 | factory | `docs/factory/adr/**` | Factory-ADRs (ADR-063 D8, Nummern unverändert) |
 | factory | `factory.defaults.yml` | Konfigurations-Defaults (ADR-009) |
 | factory | `factory.config.yml.example` | Vorlage der Projekt-Konfiguration |
-| factory | `scripts/checks/adr-links-check.sh` | Gate: kein toter ADR-Link (Spec #426 AK-B3) |
+| factory | `scripts/checks/adr-links-check.sh` | Gate: kein toter ADR-Link (Spec nothra/tch-gastro-services#426 AK-B3) |
 | factory | `scripts/checks/branch-name-check.sh` | Hook: Branch-Namen |
 | factory | `scripts/checks/check.sh` | Hook-Einstieg (PreToolUse) |
 | factory | `scripts/checks/commit-msg-check.sh` | Hook: Commit-Message-Flag-Guard |
@@ -70,7 +70,7 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/pre-commit.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-commit.d/` |
 | factory | `scripts/checks/pre-push.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-push.d/` |
 | factory | `scripts/checks/tests/**` | Self-Test-Suite der Factory |
-| factory | `scripts/checks/tests/lib/**` | gemeinsame Prüf-Helfer der Test-Suiten; Factory- und Projekt-Suite sourcen sie (#432, Q10) |
+| factory | `scripts/checks/tests/lib/**` | gemeinsame Prüf-Helfer der Test-Suiten; Factory- und Projekt-Suite sourcen sie (nothra/tch-gastro-services#432, Q10) |
 | factory | `scripts/factory-sync.sh` | Setzt `settings.json`/`.gitignore` aus Fragmenten zusammen (`--compose`, ADR-063 Q2) |
 | factory | `.claude/settings.factory.json` | Factory-Anteil der Settings (Hooks, generische Permissions) |
 | factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |

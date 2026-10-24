@@ -5,7 +5,7 @@
 #
 # Konfiguration für adoptierte Projekte (nach /setup-project):
 #   - Lint/Test des Projekts laufen NICHT hier, sondern im projekteigenen ci.yml
-#     (Jobs `lint`/`test`, #431) – diese Datei enthält nur Factory-Jobs.
+#     (Jobs `lint`/`test`, nothra/tch-gastro-services#431) – diese Datei enthält nur Factory-Jobs.
 #   - FACTORY_HEALTHCHECK_URL bzw. FACTORY_HEALTHCHECK_CMD für post-merge-verify
 #     (optional, nur wenn ein Deploy-Ziel existiert). Achtung Timing: post-merge-verify
 #     läuft parallel zum Deploy-Gate (vor dem Promote) – FACTORY_HEALTHCHECK_URL daher
@@ -27,7 +27,7 @@ jobs:
   # ─── PR-Closing-Keyword-Gate ────────────────────────────────────────────────
   # Ein gemergter PR schließt sein Issue nur, wenn der PR-Body ein GitHub-Closing-
   # Keyword mit Issue-Referenz enthält (z. B. "Closes #<id>"). Fehlt es, bleibt das
-  # Issue offen (beobachtet #71/#74/#76/#78) und start-work.sh legt später einen
+  # Issue offen (beobachtet nothra/tch-gastro-services#71/#74/#76/#78) und start-work.sh legt später einen
   # redundanten Worktree an. Läuft nur bei pull_request (bei push gibt es keinen Body).
   pr-closes-issue:
     if: github.event_name == 'pull_request'
@@ -55,7 +55,7 @@ jobs:
   # ─── Config-Validation-Gate (ADR-041, Task 255) ─────────────────────────────
   # Fail-closed Validierung der geschichteten Factory-Config (factory.defaults.yml
   # * factory.config.yml) als eigener, benannter Required-Check — bislang lief das
-  # Gate in CI nur indirekt über eine Testzeile in run-tests.sh (Gate #249 AK5).
+  # Gate in CI nur indirekt über eine Testzeile in run-tests.sh (Gate nothra/tch-gastro-services#249 AK5).
   # Ruft das Gate explizit gegen die realen Repo-Dateien auf, unabhängig von
   # run-pipeline.sh oder einer Test-Fixture. Kein Node-Setup nötig (analog issue-sync).
   config-validation:
@@ -77,7 +77,7 @@ jobs:
   # weil die gedogfoodete Self-Test-Suite run-pipeline.sh ausführt, das
   # factory.defaults.yml via yq liest (ADR-009, Phase 1b). Die Bereitstellung läuft in
   # jedem Job über scripts/install-yq.sh – gepinnte Version + SHA-256-Verifikation gegen
-  # die Release-Checksums, statt ein `latest`-Asset ungeprüft auszuführen (#258).
+  # die Release-Checksums, statt ein `latest`-Asset ungeprüft auszuführen (nothra/tch-gastro-services#258).
   factory-self-test:
     runs-on: ubuntu-latest
     steps:
@@ -86,8 +86,8 @@ jobs:
         run: sudo bash scripts/install-yq.sh
       # Ein frischer CI-Checkout hat wie jeder frische Clone keine installierten Hooks
       # (README/CLAUDE.md: einmalig auszuführen). scripts/checks/tests/run-tests.sh ruft
-      # pre-push.sh weiter unten (#149-Format-Gate-Test) echt gegen dieses Checkout auf –
-      # ohne installierte Hooks schlägt der Git-Hooks-Installiert-Check (#265, ADR-042)
+      # pre-push.sh weiter unten (nothra/tch-gastro-services#149-Format-Gate-Test) echt gegen dieses Checkout auf –
+      # ohne installierte Hooks schlägt der Git-Hooks-Installiert-Check (nothra/tch-gastro-services#265, ADR-042)
       # dort IMMER fehl und reißt den Format-Gate-Test mit (falsch-rot, kein echter Defekt).
       - name: Git-Hooks installieren
         run: bash scripts/install-hooks.sh

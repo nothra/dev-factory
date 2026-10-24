@@ -22,19 +22,19 @@ Grund angehoben, und reißt jetzt am dritten Mal wieder:**
 
 | Anlass | Änderung | Symptom |
 |---|---|---|
-| Task #49 (2026-07-14) | `implement` 20 → 40 | 2× „Reached max turns" ohne Ergebnis bei Default 20 |
-| Task #53 (`c300d14`, Review-Notiz `tasks/review-53.md:58`) | `implement` 40 → 50 (+ Tier auf `heavy`) | Sonnet 5 riss 3× ab bei größerem Scope (Auslagenerstattung) |
-| **Issue #324** (aktuell) | Ceiling selbst reicht nicht mehr | `/implement` riss **erneut 3×** ab – diesmal *am bereits maximal erlaubten Wert* (50), obwohl im Arbeitsbaum ein funktional fast fertiger, committierbarer Diff über 6 Module/15 AC lag (`docs/factory/lessons/factory-workflow.md` „Turn-Limit-Exhaustion", Nachtrag #324; `tasks/codify-324.md`) |
+| Task nothra/tch-gastro-services#49 (2026-07-14) | `implement` 20 → 40 | 2× „Reached max turns" ohne Ergebnis bei Default 20 |
+| Task nothra/tch-gastro-services#53 (`c300d14`, Review-Notiz `tasks/review-53.md:58`) | `implement` 40 → 50 (+ Tier auf `heavy`) | Sonnet 5 riss 3× ab bei größerem Scope (Auslagenerstattung) |
+| **Issue nothra/tch-gastro-services#324** (aktuell) | Ceiling selbst reicht nicht mehr | `/implement` riss **erneut 3×** ab – diesmal *am bereits maximal erlaubten Wert* (50), obwohl im Arbeitsbaum ein funktional fast fertiger, committierbarer Diff über 6 Module/15 AC lag (`docs/factory/lessons/factory-workflow.md` „Turn-Limit-Exhaustion", Nachtrag nothra/tch-gastro-services#324; `tasks/codify-324.md`) |
 
 Jede Runde hatte dasselbe Muster: `/implement` bricht bei größerem Scope mehrfach mit
 „Reached max turns" ab, ohne committierbares Ergebnis, bis der Turn-Deckel angehoben wird.
-Anders als bei #49/#53 hilft diesmal keine reine Config-Änderung – `/implement` steht bereits
+Anders als bei nothra/tch-gastro-services#49/#53 hilft diesmal keine reine Config-Änderung – `/implement` steht bereits
 auf der Policy-Obergrenze. Ohne eine dokumentierte Anhebung der Ceiling selbst bleibt der
-einzige Ausweg der manuelle Nachtrag durch einen Menschen (wie in #324 geschehen), was den
+einzige Ausweg der manuelle Nachtrag durch einen Menschen (wie in nothra/tch-gastro-services#324 geschehen), was den
 Automatisierungsgrad der Pipeline unterläuft.
 
 Ein verwandter, aber **separater** Defekt (Orchestrator `run_skill()` prüft zwischen Retries
-nicht auf `git status`, retryt blind – Issue #275, dokumentiert im selben Lesson-Eintrag)
+nicht auf `git status`, retryt blind – Issue nothra/tch-gastro-services#275, dokumentiert im selben Lesson-Eintrag)
 verschärft die Kosten dieses Symptoms (drei komplette Neuversuche statt Fortsetzung), ist aber
 nicht Gegenstand dieser Entscheidung: Selbst ein perfekter Retry-Mechanismus würde einem
 15-AC/6-Modul-Task nicht helfen, wenn schon der **erste** Versuch beim aktuellen Limit (50)
@@ -57,7 +57,7 @@ eine kurze Erweiterungs-Notiz auf diese ADR (Drift-Regel, `PROJECT-CONTEXT.md`).
 ### Option A: Globale Ceiling auf 80 anheben (gewählt)
 
 **Vorteile:** Minimale, reversible Änderung an genau einer Stelle (Skript-Konstante) plus dem
-betroffenen Team-Override; folgt demselben, bereits zweimal bewährten Muster (#49, #53); keine
+betroffenen Team-Override; folgt demselben, bereits zweimal bewährten Muster (nothra/tch-gastro-services#49, nothra/tch-gastro-services#53); keine
 neue Mechanik, keine neue Abhängigkeit; sofort wirksam für den nächsten großen `/implement`-Lauf.
 
 **Nachteile:** Erhöht implizit den möglichen Kosten-Rahmen für **alle** Skills (die Ceiling ist
@@ -78,23 +78,23 @@ Skill je sein Maximum gerissen; eine Pro-Skill-Ceiling löst ein Problem, das ni
 **Abgelehnt für v1** – bleibt additiv nachrüstbar, falls je ein anderer Skill sein Maximum
 reißt.
 
-### Option C: Nur den Orchestrator-Retry-Defekt (#275) beheben, Ceiling unverändert lassen
+### Option C: Nur den Orchestrator-Retry-Defekt (nothra/tch-gastro-services#275) beheben, Ceiling unverändert lassen
 
 **Vorteile:** Behebt die Ursache, warum aus einem Abbruch drei komplette Neuversuche werden
 (kein `git status`-Check zwischen Retries) – reduziert verschwendete Turns strukturell.
 
-**Nachteile:** Löst das eigentliche Symptom aus #324 nicht: Der **erste** Versuch selbst
+**Nachteile:** Löst das eigentliche Symptom aus nothra/tch-gastro-services#324 nicht: Der **erste** Versuch selbst
 erreichte bereits das Limit (50), bevor überhaupt ein Retry nötig war. Ein Task mit 15 AC über
 6 Module braucht mehr als 50 Turns für eine vollständige TDD-Implementierung – daran ändert ein
-besseres Retry-Verhalten nichts. **Abgelehnt als Ersatz** (Issue #275 bleibt trotzdem sinnvoll,
+besseres Retry-Verhalten nichts. **Abgelehnt als Ersatz** (Issue nothra/tch-gastro-services#275 bleibt trotzdem sinnvoll,
 aber komplementär, nicht alternativ – bewusst außerhalb des Scopes dieser Task, siehe
-[spec-348](../../specs/spec-348-max-turns-ceiling-implement.md) „Nicht inbegriffen").
+[spec-348](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-348-max-turns-ceiling-implement.md) „Nicht inbegriffen").
 
 ## Begründung
 
 Option A ist die einfachste Änderung, die das dokumentierte, wiederkehrende Problem behebt
 (YAGNI, `architecture-principles.md` „Reversible Entscheidungen: schnell treffen, günstig zu
-ändern"). Die Eskalationshistorie (#49 → #53 → #324) zeigt, dass eine Anhebung des Turn-Budgets
+ändern"). Die Eskalationshistorie (nothra/tch-gastro-services#49 → nothra/tch-gastro-services#53 → nothra/tch-gastro-services#324) zeigt, dass eine Anhebung des Turn-Budgets
 für `/implement` bei größerem Scope bereits zweimal die richtige, wirksame Maßnahme war – die
 dritte Wiederholung desselben Symptoms ist kein Zufall, sondern ein Hinweis, dass 50 für Tasks
 dieser Größenordnung strukturell zu knapp ist. Die Entscheidung ist **reversibel**: eine
@@ -105,7 +105,7 @@ senken.
 Option B wäre die „vorsichtigere" Wahl, löst aber kein reales Problem (kein anderer Skill ist je
 an sein Maximum gestoßen) und widerspricht der in ADR-010 bereits getroffenen
 Einfachheits-Entscheidung. Option C behebt einen echten, aber **anderen** Defekt und wird durch
-diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (#275) bestehen.
+diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (nothra/tch-gastro-services#275) bestehen.
 
 ## Konsequenzen
 
@@ -127,7 +127,7 @@ diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (#275) beste
   „Folge der abgeleiteten Key-Oberfläche …"), keine neue Regel nötig.
 - Reißt `/implement` das Limit erneut (z. B. bei noch größerem Scope), ist die richtige nächste
   Maßnahme **nicht** eine dritte unbedingte Anhebung, sondern vorrangig: (a) den
-  Orchestrator-Retry-Defekt (#275) beheben, und/oder (b) den Task vor `/implement` in kleinere
+  Orchestrator-Retry-Defekt (nothra/tch-gastro-services#275) beheben, und/oder (b) den Task vor `/implement` in kleinere
   Akzeptanzkriterien-Schnitte teilen. Eine Ceiling, die bei jedem Anlass einfach mitwächst,
   verliert ihren Zweck als harte Obergrenze (ADR-009 §6) – diese Empfehlung gehört in den
   nächsten `/codify`-Lauf, falls das Muster ein viertes Mal auftritt.
@@ -142,7 +142,7 @@ diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (#275) beste
   - Zeile 50: `implement: { max_turns: 50 }` → `implement: { max_turns: 80 }`.
   - `@reason`-Kommentar (Zeilen ~38-48): die überholte Notiz „ein Versuch mit 80 wurde vom
     config-validation-check hart abgelehnt" ersetzen durch einen Verweis auf ADR-051 und die
-    Eskalationshistorie (#49/#53/#324) – nicht nur den Zahlenwert ändern, sonst erklärt der
+    Eskalationshistorie (nothra/tch-gastro-services#49/#53/#324) – nicht nur den Zahlenwert ändern, sonst erklärt der
     Kommentar nicht mehr, warum 80 jetzt sicher ist.
 - **`docs/factory/adr/010-config-validation-gate.md`:** kurze Blockquote-Notiz („Erweitert durch
   ADR-051") direkt am Absatz „Heimat der Obergrenze … Es gibt in v1 genau eine Obergrenze"
@@ -160,4 +160,4 @@ diese ADR nicht ersetzt, sondern bleibt als eigenständige Härtung (#275) beste
   - Bestehende Fixtures (`typo.yml`, `zero.yml`, `nonint.yml`, `tier.yml`, `broken.yml`)
     unverändert lassen – sie sind ceiling-wert-unabhängig.
 - **`docs/factory/lessons/factory-workflow.md`** (optional, empfohlen – kein hartes AC):
-  kurzer Nachtrag beim #324-Eintrag „Ceiling seit #348/ADR-051 auf 80 angehoben".
+  kurzer Nachtrag beim nothra/tch-gastro-services#324-Eintrag „Ceiling seit nothra/tch-gastro-services#348/ADR-051 auf 80 angehoben".

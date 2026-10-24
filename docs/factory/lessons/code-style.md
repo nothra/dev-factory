@@ -6,9 +6,9 @@
 > Neue Learnings kommen in die Lesson-Datei **ihrer Seite** (Zuordnungsregel: betrifft das Learning eine
 > Datei der Factory laut `docs/factory/OWNERSHIP.md` → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
 > siehe `/codify` + ADR-037).
-> Projekt-Anteil dieses Themas: [`docs/project/lessons/code-style.md`](../../project/lessons/code-style.md).
+> Projekt-Anteil dieses Themas: `docs/project/lessons/code-style.md`.
 
-### WHAT-Kommentar am Modul-Level (aus #67, Refactoring-Finding)
+### WHAT-Kommentar am Modul-Level (aus nothra/tch-gastro-services#67, Refactoring-Finding)
 
 Ein Kommentar `Die Route importiert nur diese Instanz und bleibt dünn.` beschrieb in der
 **Modul-Definition** (`lib/rate-limit.ts`), wie ein externer Konsument (die Route) das Modul
@@ -21,7 +21,7 @@ Nutzung durch Konsumenten gehören an die **Aufrufstelle** oder in die öffentli
 Dokumentation – nicht in die Modul-Implementierung. Bereits durch `clean-code.md` abgedecktes
 Prinzip; hier als konkretes Muster festgehalten.
 
-### Fail-Safe/Guard symmetrisch auf ALLE Inputs einer Vergleichsoperation (aus #197, Review-Finding)
+### Fail-Safe/Guard symmetrisch auf ALLE Inputs einer Vergleichsoperation (aus nothra/tch-gastro-services#197, Review-Finding)
 
 `select_tier(size, threshold, fallback)` sicherte zunächst nur `size` gegen „nicht bestimmbar"
 (leer/nicht-numerisch → Fallback), nicht aber `threshold`. Bei nicht-numerischem `threshold` wird
@@ -37,14 +37,14 @@ Input erweckt den Eindruck durchgängiger Absicherung, den der zweite bricht.
 für jeden Input**, der in dieselbe Vergleichs-/Rechenoperation fließt – sonst leckt die Invariante
 über den ungeprüften Zweig. Die Guard-Klausel je Input duplizieren (`case "$x" in ''|*[!0-9]*) …`),
 nicht nur für den „offensichtlich unsicheren" Wert. Jeder Guard bekommt zudem einen eigenen Test
-(vgl. [`lessons/testing.md`](testing.md) → Exhaustiveness-Guards; bis #319 in
+(vgl. [`lessons/testing.md`](testing.md) → Exhaustiveness-Guards; bis nothra/tch-gastro-services#319 in
 `testing-standards.md`).
 
-### Fix für einen falschen WHY-Kommentar deckt nur die gemeldete Zeile ab, nicht die kopierten Geschwister (aus #264, Review-Runde-1-Finding, Rezidiv in Runde 3)
+### Fix für einen falschen WHY-Kommentar deckt nur die gemeldete Zeile ab, nicht die kopierten Geschwister (aus nothra/tch-gastro-services#264, Review-Runde-1-Finding, Rezidiv in Runde 3)
 
 Review-Runde 1 fand einen falschen WHY-Kommentar (behauptete eine Kausalkette – „Skript
 kehrt vor Phase X zurück" –, die im Code nachweislich nicht existiert) an zwei Stellen
-(`#101`, `#212 AK8`) und beide wurden korrigiert. Runde 3 fand **dieselbe falsche
+(`nothra/tch-gastro-services#101`, `nothra/tch-gastro-services#212 AK8`) und beide wurden korrigiert. Runde 3 fand **dieselbe falsche
 Kausalkette** an einer dritten, strukturell identischen Stelle (Dry-Run-Ausnahme-Kommentar +
 Spec-Prosa) wieder – copy-paste-verwandt zu den ersten beiden, aber beim Fixen in Runde 1
 übersehen, weil dort nur die explizit gemeldete Zeile korrigiert wurde.
@@ -57,14 +57,14 @@ wortgleich oder sinngleich wiederkehrt.
 **Regel:** Beim Beheben eines falschen-WHY-Kommentar-Findings den zentralen Claim (Kern der
 Kausalkette, z. B. „kehrt vor X zurück") per `grep -n` über die betroffene Datei **und** alle
 im selben PR entstandenen Doku-/Spec-Stellen suchen, nicht nur die gemeldete Zeile fixen.
-Gleiche Sweep-Pflicht wie bei Magic Numbers (oben, #142) und Terminologie (#144) – nur auf
+Gleiche Sweep-Pflicht wie bei Magic Numbers (oben, nothra/tch-gastro-services#142) und Terminologie (nothra/tch-gastro-services#144) – nur auf
 Kommentar-Kausalketten statt Literale/Begriffe angewendet.
 
-### Zähl-/Aufzählungs-nennender Modul-Header wird beim Hinzufügen einer Einheit zur Lüge (aus #207, Review-Finding W1)
+### Zähl-/Aufzählungs-nennender Modul-Header wird beim Hinzufügen einer Einheit zur Lüge (aus nothra/tch-gastro-services#207, Review-Finding W1)
 
 Der Datei-Header von `scripts/lib/create-issue.sh` lautete „Diese Datei … stellt **EINE** Funktion
 bereit:" und dokumentierte nur `create_issue`. Beim Hinzufügen der zweiten öffentlichen Funktion
-`create_issue_idempotent` (#207) blieb der Header unverändert – er verschwieg die neue Funktion und
+`create_issue_idempotent` (nothra/tch-gastro-services#207) blieb der Header unverändert – er verschwieg die neue Funktion und
 behauptete eine falsche Anzahl. Erst im Clean-Code-Review (W1) aufgefallen. Der Reflex ist, unten die
 neue Funktion samt Doc-Kommentar zu ergänzen und den zusammenfassenden Header oben als „allgemeine
 Einleitung" zu übersehen.
@@ -77,11 +77,11 @@ gerade eine weitere Einheit hinzu (oder entferne eine)?" Dann ist der Header Tei
 benennt, ist Teil des Vertrags und wird beim Hinzufügen/Entfernen einer Einheit **im selben Commit**
 mitgepflegt (Zahlwort **und** Aufzählungsblock). Wo möglich, solche Header **zählungsfrei**
 formulieren (z. B. „stellt folgende Funktionen bereit:"), damit sie nicht bei jeder Erweiterung
-nachgezogen werden müssen. Dieselbe Drift-Klasse wie die ADR-Mechanik-Regel (#211/#55: eine
+nachgezogen werden müssen. Dieselbe Drift-Klasse wie die ADR-Mechanik-Regel (nothra/tch-gastro-services#211/#55: eine
 Code-Änderung, die eine beschreibende Doku betrifft, pflegt die Doku im selben PR mit) – hier auf
 Modul-Docstring-Ebene statt ADR.
 
-### Neue Verfügbarkeits-/Capability-Prüfung immer gegen bereits vorhandene im selben File abgleichen (aus #224, Review-Runde-1-Finding, unabhängig von allen drei Review-Perspektiven aufgegriffen)
+### Neue Verfügbarkeits-/Capability-Prüfung immer gegen bereits vorhandene im selben File abgleichen (aus nothra/tch-gastro-services#224, Review-Runde-1-Finding, unabhängig von allen drei Review-Perspektiven aufgegriffen)
 
 In `scripts/checks/tests/run-tests.sh` wurde eine dritte, abweichende jq-Verfügbarkeitsprüfung
 (`[ "$(command -v jq >/dev/null 2>&1; echo $?)" -eq 0 ]`) ergänzt, obwohl dieselbe Datei bereits
@@ -102,7 +102,7 @@ einzuführen. Gilt insbesondere für Shell-Skripte mit wachsender Testsuite, wo 
 (`HAS_JQ`, `HAS_YQ`, `skip_yq`) bereits etabliert sind – Konsistenz mit dem etablierten Idiom
 schlägt eine lokal „einfachere" Neuerfindung.
 
-### „Empirisch verifiziert" im Kommentar ohne tatsächliche Prüfung – Rezidiv trotz Fix an anderer Stelle (aus #268, Review-Runde 2 W3 + Runde 4 W1)
+### „Empirisch verifiziert" im Kommentar ohne tatsächliche Prüfung – Rezidiv trotz Fix an anderer Stelle (aus nothra/tch-gastro-services#268, Review-Runde 2 W3 + Runde 4 W1)
 
 In Task 268 behauptete ein WHY-Kommentar „empirisch verifiziert" bzw. „empirisch mit git 2.51
 verifiziert", obwohl die Reproduktion in der Sandbox durchgehend permission-blockiert war
@@ -121,7 +121,7 @@ nennt eine konkrete Versionsnummer/einen konkreten Messwert als Beleg – wurde 
 liegende Prüfung (Befehl ausführen, Version abfragen) in **dieser** Session tatsächlich
 ausgeführt, oder nur aus einer früheren Notiz/Annahme übernommen? Sandbox-/Permission-Blocker bei
 `git`-Aufrufen in Wegwerf-Repos sind in diesem Projekt der Normalfall, nicht die Ausnahme (wiederholt
-in #268 Runde 2–4 beobachtet).
+in nothra/tch-gastro-services#268 Runde 2–4 beobachtet).
 
 **Regel:** Vor „empirisch verifiziert"/„empirisch geprüft" im Kommentar oder in Doku den
 zugrunde liegenden Befehl in der aktuellen Session tatsächlich ausführen (z. B. `git --version`
@@ -129,12 +129,12 @@ für Versionsangaben). Ist die Reproduktion blockiert (Sandbox-Permission, Wegwe
 Kommentar auf „analytisch begründet – in dieser Umgebung nicht reproduzierbar: [Grund]"
 formulieren, nie auf „empirisch" aufwerten. Nach dem Beheben eines solchen Findings zusätzlich
 projektweit nach Kopien derselben Behauptung/Versionsangabe suchen (`grep -rn` auf die konkrete
-Zahl/Formulierung) – dieselbe Sweep-Pflicht wie beim WHY-Kommentar-Fix oben (#264), hier speziell
+Zahl/Formulierung) – dieselbe Sweep-Pflicht wie beim WHY-Kommentar-Fix oben (nothra/tch-gastro-services#264), hier speziell
 für Evidenz-Überziehung statt Kausalketten.
 
-### TL;DR-Merksatz über einem umformulierten Absatz nicht mitgezogen (aus #322, Review-Runde-3-Finding)
+### TL;DR-Merksatz über einem umformulierten Absatz nicht mitgezogen (aus nothra/tch-gastro-services#322, Review-Runde-3-Finding)
 
-Task #322 formulierte einen Doku-Abschnitt um: aus „Neue Claude-Session **je Task** ist
+Task nothra/tch-gastro-services#322 formulierte einen Doku-Abschnitt um: aus „Neue Claude-Session **je Task** ist
 Empfehlung" (ein Satz pro Task) wurde die nuanciertere Regel „Regelfall: eine Session für
 start-work.sh+/requirements, separate Empfehlung nur für `/implement`" (potenziell zwei Phasen,
 zwei Empfehlungen). Der Detail-Absatz wurde korrekt umgeschrieben – aber der kurze
@@ -152,13 +152,13 @@ neue Nuance widersprechen.
 Zusammenfassungs-Zeile suchen, die dieselbe Aussage bereits vor der Änderung auf den Punkt
 gebracht hat (typischerweise die erste Zeile/der erste Bullet des Abschnitts) – und sie
 mitziehen, auch wenn sie nicht als eigenes Finding gemeldet wurde. Diese Prüfung ist unabhängig
-von der Cross-Datei-Sweep-Pflicht aus #211/#176/#264: hier reicht es, den umgebenden Abschnitt in
+von der Cross-Datei-Sweep-Pflicht aus nothra/tch-gastro-services#211/#176/#264: hier reicht es, den umgebenden Abschnitt in
 derselben Datei noch einmal komplett zu lesen, nicht nur die geänderte Zeile.
 
-### Eine Erzwingungs-Behauptung ist eine Tatsachenbehauptung über Code – vor dem Schreiben den Enforcer lesen (aus #319, dreimal im selben PR)
+### Eine Erzwingungs-Behauptung ist eine Tatsachenbehauptung über Code – vor dem Schreiben den Enforcer lesen (aus nothra/tch-gastro-services#319, dreimal im selben PR)
 
 Sätze der Form „X erzwingt Y", „geprüft von X", „X blockiert das fail-closed" lesen sich wie
-Prosa, sind aber **überprüfbare Aussagen über fremden Code**. In #319 standen davon drei
+Prosa, sind aber **überprüfbare Aussagen über fremden Code**. In nothra/tch-gastro-services#319 standen davon drei
 gleichzeitig im selben PR, jede plausibel und jede falsch:
 
 | Behauptung | Wirklichkeit | Prüfaufwand |
@@ -185,11 +185,11 @@ geöffnet**.
 beantworten: (1) *Wo* ist er verdrahtet (`grep -rl <name>` über `*.sh`, `*.yml`, `*.json` – ein
 Hook, ein Push-Gate, ein CI-Job, ein Ruleset?) und (2) *was genau* lehnt er ab (der Scope steht
 meist im eigenen Header)? Trägt er die Behauptung nicht, wird sie auf das eingeschränkt, was gilt.
-Und wie bei der falschen Kausalkette aus #264 gilt: Ist eine solche Behauptung einmal falsch, per
+Und wie bei der falschen Kausalkette aus nothra/tch-gastro-services#264 gilt: Ist eine solche Behauptung einmal falsch, per
 Grep nach den **Geschwister-Stellen** suchen – sie treten in Rudeln auf, weil dieselbe Annahme
 mehrere Absätze getragen hat.
 
-**Rezidiv trotz vorhandener Lesson (aus #59):** ein viermal kopierter Testkommentar behauptete,
+**Rezidiv trotz vorhandener Lesson (aus nothra/tch-gastro-services#59):** ein viermal kopierter Testkommentar behauptete,
 der Drift-Guard aus `db/catalog.test.ts` halte ein test-lokales Literal gegen Produktionskonstante
 und Migration – der Guard liest diese vier Testdateien nie, er prüft ausschließlich
 `db/catalog.ts` gegen die Migrationsdatei. Erst `/review` fand es, nicht das Schreiben des
@@ -198,7 +198,7 @@ Kommentars selbst. Zeigt: die Regel „vor dem Schreiben den Enforcer öffnen" w
 übersprungen, weil der erste Blick nur dem Kopiervorgang gilt, nicht der Behauptung selbst –
 gerade das Kopieren verlangt die erneute Prüfung, nicht nur das Erstschreiben.
 
-**Rezidiv in einer sicherheitsrelevanten Risikoakzeptanz-Begründung (aus #352, Security-Review-Finding):**
+**Rezidiv in einer sicherheitsrelevanten Risikoakzeptanz-Begründung (aus nothra/tch-gastro-services#352, Security-Review-Finding):**
 Ein WHY-Kommentar zu einer bewusst akzeptierten TOCTOU-Lücke (`deleteVeranstaltungAction`)
 benannte den nebenläufigen, unauthentifizierten Schreiber als
 „`adjustVerzehrByTokenAction`/`kassiereZeileAction` … kein `requireRole`". Zweiteres ist falsch:
@@ -216,7 +216,7 @@ Eigenschaftsbehauptung (hier: „kein `requireRole`") **jede einzeln** öffnen, 
 Repräsentant der Gruppe – und wenn die Behauptung eine Sicherheitseinstufung trägt, wiegt eine
 falsche Aufzählung schwerer als anderswo.
 
-### Massen-Ersetzung beim Extrahieren eines Helfers trifft den Rumpf des neuen Helfers (aus #319, /refactor-Selbstfund)
+### Massen-Ersetzung beim Extrahieren eines Helfers trifft den Rumpf des neuen Helfers (aus nothra/tch-gastro-services#319, /refactor-Selbstfund)
 
 Wer eine wiederholte Codefolge in einen Helfer zieht und die Aufrufstellen per Regex/`sed`
 ersetzt, hat nach dem Anlegen des Helfers **eine Fundstelle mehr** als vorher: dessen eigenen
@@ -243,7 +243,7 @@ Ersetzung gezielt gegenprüfen: „enthält der neue Helfer noch das Original?" 
 '/^name() {/,/^}/p'`). Die reine Zählung der ersetzten Stellen genügt **nicht** – sie zählt den
 Selbsttreffer als Erfolg.
 
-### BSD-`awk`: Zeichenklasse mit `\\`, `[`/`]` und Sonderzeichen scheitert still – `index()` statt Bracket-Ausdruck (aus #426, /implement-Selbstfund)
+### BSD-`awk`: Zeichenklasse mit `\\`, `[`/`]` und Sonderzeichen scheitert still – `index()` statt Bracket-Ausdruck (aus nothra/tch-gastro-services#426, /implement-Selbstfund)
 
 Ein Glob→Regex-Übersetzer, der Sonderzeichen mit `c ~ /[\\.+?(){}\[\]^$|]/` erkennt, verhält sich in macOS-awk
 (BSD) anders als in gawk/mawk: die Klasse wird falsch geparst, einzelne Zeichen werden nicht escaped, das Gate

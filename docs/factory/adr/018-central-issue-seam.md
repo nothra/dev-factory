@@ -3,12 +3,12 @@
 ## Status
 Accepted
 
-> **Erweitert durch [ADR-040](040-idempotenter-issue-seam-fuer-pipeline-retries.md)** (#207): der
+> **Erweitert durch [ADR-040](040-idempotenter-issue-seam-fuer-pipeline-retries.md)** (nothra/tch-gastro-services#207): der
 > Seam bekommt eine opt-in-Idempotenz-Variante `create_issue_idempotent` daneben (offener
 > Titel-Treffer → keine Duplikat-Anlage bei Pipeline-Retries). `create_issue` selbst bleibt
 > unverändert.
 >
-> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (#286): §5 –
+> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (nothra/tch-gastro-services#286): §5 –
 > die autonome Anlage durch `codify`/`review`/`security-review` gilt nur noch oberhalb einer
 > Schwelle, darunter greift `docs/factory/kleinfunde.md`. `create_issue` selbst bleibt
 > unverändert.
@@ -20,7 +20,7 @@ Accepted
 
 Issues entstehen an mehreren Stellen der Factory, jede mit eigener `gh issue create`-Logik:
 
-- `scripts/start-work.sh` legt seit #80 ein aus dem Branch-Typ abgeleitetes **Art-Label** an,
+- `scripts/start-work.sh` legt seit nothra/tch-gastro-services#80 ein aus dem Branch-Typ abgeleitetes **Art-Label** an,
   mit fail-open-Fallback (Retry ohne Label + Warnung, falls das Label im Repo fehlt).
 - `scripts/sync-issues.sh --create` legt fehlende Issues **ohne jedes Label** an
   (`sync-issues.sh:108`) → verletzt still die „genau ein Art-Label"-Konvention aus
@@ -51,7 +51,7 @@ Neu: `scripts/lib/` als Ort für sourcebare Shell-Bibliotheken.
 **2 · Interface-Kontrakt (Testbarkeit):** Nutzdaten (die Issue-Nummer) gehen **ausschließlich
 auf stdout**, alle Diagnostik/Warnungen auf **stderr**. So bleibt `num=$(create_issue …)` sauber.
 Exit ≠ 0 nur, wenn **gar kein Issue** entsteht (fail-closed auf die Anlage). `gh` bleibt über
-einen Stub testbar (Muster `GH_LOG` aus `run-tests.sh`, #80).
+einen Stub testbar (Muster `GH_LOG` aus `run-tests.sh`, nothra/tch-gastro-services#80).
 
 **3 · Labels: fail-open, ohne harte Validierung.** Der Seam prüft übergebene Labels **nicht**
 gegen eine erlaubte Menge. Er reicht Art- + Aspekt-Labels an `gh` durch und **degradiert**
@@ -67,7 +67,7 @@ Das **verpflichtende Art-Label** wird also nie durch ein fehlendes Aspekt-Label 
 Die kanonische Label-Liste bleibt allein in `git-workflow.md` → „GitHub-Labels"; der Seam
 dupliziert sie nicht.
 
-**Eine Ausnahme – der reservierte `factory::`-Präfix (Security-Review #82, H-1):** Der Seam
+**Eine Ausnahme – der reservierte `factory::`-Präfix (Security-Review nothra/tch-gastro-services#82, H-1):** Der Seam
 **verwirft** übergebene Labels mit `factory::`-Präfix (Art wie Aspekt, Warnung auf stderr).
 Das ist bewusst **keine** Taxonomie-Allowlist (die bleibt abgelehnt, s. o.), sondern eine
 schmale **Denylist eines einzigen, privilegienrelevanten Präfix**: `factory::run`/`::running`/
@@ -87,7 +87,7 @@ aus dem Arbeitsverzeichnis. Die Slug-Ableitung selbst zu konsolidieren ist ein e
 und Art- + Aspekt-Labels mitgeben, statt nur eine Empfehlung in eine Datei zu schreiben. Die
 jeweilige Skill-Doku wird entsprechend angewiesen.
 
-> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (#286): Die
+> **Eingeschränkt durch [ADR-043](043-schwelle-fuer-autonome-issue-anlage.md)** (nothra/tch-gastro-services#286): Die
 > autonome Anlage gilt seit 2026-08 nicht mehr unbedingt, sondern nur noch **oberhalb einer
 > Schwelle** (Merge-Blocker/echtes Sicherheitsrisiko/reproduzierbarer Defekt). Darunter
 > entsteht ein Eintrag in `docs/factory/kleinfunde.md`. Die Schwellen-Tabelle steht in
@@ -109,7 +109,7 @@ Aufruf; schlechter testbar als eine gesourcte Funktion.
 ### Frage 2 „Label-Validierung": Option A – fail-open pass-through (gewählt)
 **Pros:** keine Duplikation der kanonischen Label-Liste (die liegt in `git-workflow.md`; eine
 Kopie im Seam wäre genau der bekannte „kanonische Quellen driften"-Stolperstein); der Seam
-bleibt eine dünne, robuste Hülle; entspricht dem etablierten #80-Verhalten (fail-open aufs
+bleibt eine dünne, robuste Hülle; entspricht dem etablierten nothra/tch-gastro-services#80-Verhalten (fail-open aufs
 Label). **Cons:** ein Tippfehler im Label wird nicht hart abgelehnt, sondern nur als Warnung
 sichtbar (das Issue entsteht trotzdem, ggf. ohne das falsche Label).
 
@@ -128,7 +128,7 @@ ohne den Schutz von B. Der Nutzen (Warnung) wird bereits durch die fail-open-War
 ## Begründung
 
 Option A/A treffen die YAGNI-Linie der Factory: ein dünner, gut testbarer Seam, der genau die
-schon bewährte #80-Logik zentralisiert und um Aspekt-Labels erweitert. Die Entscheidung gegen
+schon bewährte nothra/tch-gastro-services#80-Logik zentralisiert und um Aspekt-Labels erweitert. Die Entscheidung gegen
 harte Label-Validierung folgt zwei bestehenden Prinzipien direkt: „kanonische Quellen immer
 referenzieren" (keine zweite Label-Liste) und die Guardrail-Faustregel „fail-closed nur dort,
 wo es die Korrektheit schützt" – die Issue-*Anlage* ist wichtiger als die Label-*Kosmetik*,

@@ -14,7 +14,7 @@ Gate, bevor es als fertig gilt.
 Alle Begründungs- und Trade-off-Texte leben **nur** in `factory.defaults.yml`
 (Annotations-Konvention **ADR-011**: Tags `@reason` / `@tradeoff` am Knopf). Dieser Skill
 **zitiert sie zur Laufzeit** aus dieser Datei — er hält **keine eigene Kopie** (Anti-Drift,
-Spec #35 Kriterium C). Beim Anzeigen eines Knopfes immer den aktuellen Text aus den
+Spec nothra/tch-gastro-services#35 Kriterium C). Beim Anzeigen eines Knopfes immer den aktuellen Text aus den
 Defaults extrahieren, nicht hier hineinschreiben.
 
 ## Aufgabe
@@ -64,7 +64,7 @@ ergänzen/ersetzen.
 
 ### 4. Über das Gate validieren (vor „fertig")
 
-Vor dem Abschluss **immer** das Validierungs-Gate (#36) aufrufen:
+Vor dem Abschluss **immer** das Validierungs-Gate (nothra/tch-gastro-services#36) aufrufen:
 
 ```bash
 bash scripts/checks/config-validation-check.sh

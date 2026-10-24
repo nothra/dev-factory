@@ -13,7 +13,7 @@ NC='\033[0m'
 
 # Prüfe alle Task-Dateien auf offene Checkboxen.
 # Newline-sichere Iteration (while read) statt `for f in $VAR` – sonst werden
-# Pfade mit Leerzeichen am Space zerlegt (Bug #8: "…/TCH Gastro Services").
+# Pfade mit Leerzeichen am Space zerlegt (Bug nothra/tch-gastro-services#8: "…/Mein Projekt").
 # head -5 kann SIGPIPE auslösen → Pipeline mit `|| true` gegen pipefail absichern.
 found_open=0
 while IFS= read -r task_file; do

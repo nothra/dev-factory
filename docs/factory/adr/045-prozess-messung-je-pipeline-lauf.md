@@ -13,14 +13,14 @@ Accepted
 [ADR-006](006-measurement-architecture.md) legt **zwei Messebenen** fest (Prozess aus
 Git/GitHub, Telemetrie aus OTEL) und benennt für die Prozess-Ebene Quelle, Kennzahlen und das
 Degradationsverhalten. Was sie **nicht** festlegt, ist der **Auslöser**: wann `scripts/metrics.sh`
-läuft. Genau diese Lücke ist der Grund für #314 – das Skript existiert seit Stufe 2, ein Auslöser
+läuft. Genau diese Lücke ist der Grund für nothra/tch-gastro-services#314 – das Skript existiert seit Stufe 2, ein Auslöser
 nie:
 
 - Geprüft gegen alle vier Workflows (`factory-ci.yml`, `factory-poll.yml`, `deploy-gate.yml`,
   `deploy-freeze-release.yml`): **kein** Job ruft `metrics.sh`. Die einzigen Aufrufe stehen in
   `scripts/checks/tests/run-tests.sh` und im manuellen Skill `/daily-metrics`.
 - Ein `schedule`-Trigger existiert im Repo nirgends. Der halbstündliche cron in
-  `factory-poll.yml` ist seit #284 stillgelegt; sein Wiedereintragen ist Teil der
+  `factory-poll.yml` ist seit nothra/tch-gastro-services#284 stillgelegt; sein Wiedereintragen ist Teil der
   Scharfschalt-Checkliste (`OPERATING.md` §0.4) und damit an eine bewusste Mensch-Entscheidung
   über den **Auto-Trigger** gebunden – eine Kopplung, die eine reine Messung nicht braucht.
 
@@ -103,7 +103,7 @@ keine `issues: write`-Rechte für den Kommentar-Weg.
 **Vorteile:** kein neuer Workflow, ein Trigger für Auto-Pipeline und Messung.
 **Nachteile:** koppelt die Messung an die Scharfschaltung des Auto-Triggers samt Budget-Guard
 und Tageskappe (§0.4). Eine reine Lese-Messung müsste dann auf eine Entscheidung über
-unbeaufsichtigte Agenten-Läufe warten. #284 hat den cron bewusst stillgelegt – ihn für die
+unbeaufsichtigte Agenten-Läufe warten. nothra/tch-gastro-services#284 hat den cron bewusst stillgelegt – ihn für die
 Messung zu reaktivieren würde diese Entscheidung durch die Hintertür aufweichen.
 
 ### Option D (gewählt): Fail-open Exit-Hook im Pipeline-Runner + `--publish` in `metrics.sh`
@@ -133,7 +133,7 @@ lässt sich später einem Lauf, einem Task und (wenn die Kostenernte kommt) dess
 zuordnen. Das ist auch die Vorbedingung dafür, dass die abgespaltene Telemetrie-Seite
 andockbar bleibt, ohne die Prozess-Ebene erneut umzubauen.
 
-Der Ausschluss von Option C folgt der Entscheidung aus #284: der stillgelegte cron ist eine
+Der Ausschluss von Option C folgt der Entscheidung aus nothra/tch-gastro-services#284: der stillgelegte cron ist eine
 Sicherheitsgrenze für unbeaufsichtigte Agenten-Läufe, keine freie Trigger-Ressource.
 
 Die Aufteilung „Trap ruft, `metrics.sh` veröffentlicht" (Entscheidung 4) folgt der
@@ -179,7 +179,7 @@ gefärbt.
 - ~~OTEL bleibt opt-in: die Verdrahtung fasst `config/otel.env*` nicht an. Die bestehende
   Assertion in `run-tests.sh` („OTEL ist opt-in, nicht in `run-pipeline.sh` gesourct") bleibt
   gültig.~~ **Überholt durch [ADR-049](049-telemetrie-persistenz-je-pipeline-lauf.md)**
-  (#334, 2026-09-11): die Telemetrie-Erzeugung ist dort in `run-pipeline.sh` integriert und
+  (nothra/tch-gastro-services#334, 2026-09-11): die Telemetrie-Erzeugung ist dort in `run-pipeline.sh` integriert und
   **standardmäßig an** (abschaltbar per Parameter); die genannte Assertion wurde durch eine
   ersetzt, die diese neue Zusicherung bewacht. Für die Entscheidung **dieser** ADR war die
   Invariante gültig, und ihr Kern bleibt es: die Verdrahtung *dieser* ADR fasst
@@ -207,7 +207,7 @@ gefärbt.
 - **Trap-Idiom mit Exit-Code-Erhalt:** `$?` als **erste** Anweisung der Hook-Funktion sichern;
   danach jeden Befehl `|| true`-geschützt halten. Ohne `exit` im Trap behält die Shell den
   auslösenden Status – ein ungeschützter Fehlschlag im Trap würde ihn unter `set -e` ersetzen.
-  Präzedenz: das set-e-sichere `|| true`-Idiom in `run-pipeline.sh` (K-1-Regression, #261).
+  Präzedenz: das set-e-sichere `|| true`-Idiom in `run-pipeline.sh` (K-1-Regression, nothra/tch-gastro-services#261).
 - **`metrics.sh --quiet`-Fix:** die letzte Zeile darf nicht der Wahrheitswert des `QUIET`-Tests
   sein. Der Fix braucht einen eigenen Test, der den Exit-Code **0** bei `--quiet` festnagelt –
   sonst kehrt der Fehler unbemerkt zurück.
@@ -218,7 +218,7 @@ gefärbt.
   (Lesson: „Reihenfolge-/Präsenz-Guards: Kommando ≠ Prosa-Erwähnung", fünftes Rezidiv).
 - **Negativtests isolieren:** AK7 (kein Ziel) und AK8 (nicht-numerisch) haben beide „kein
   `gh`-Aufruf" als Symptom. Je Test nur den Ziel-Pfad scharf schalten und ein pfadspezifisches
-  Signal prüfen, sonst ist der Test grün aus dem falschen Grund (Lesson aus #214).
+  Signal prüfen, sonst ist der Test grün aus dem falschen Grund (Lesson aus nothra/tch-gastro-services#214).
 - **`gh`-Stub statt echtem Netz:** bestehende Muster in `run-tests.sh` nutzen (Fake-`gh` im
   `PATH`, das Mutationen mitloggt – siehe der Block um `TMP_W2`), damit die Tests ohne
   GitHub-Zugriff laufen.

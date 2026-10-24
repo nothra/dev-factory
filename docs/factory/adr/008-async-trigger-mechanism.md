@@ -14,7 +14,7 @@ MR-Beschreibung — End-to-End-Verifikation erst nach Spur B.
 > Label-State-Maschine sind unverändert. Historischer Text unten beschreibt die
 > GitLab-Variante.
 
-> **Update (2026-08-12, [#284](https://github.com/nothra/tch-gastro-services/issues/284)):**
+> **Update (2026-08-12, [nothra/tch-gastro-services#284](https://github.com/nothra/tch-gastro-services/issues/284)):**
 > Der `schedule`-Trigger in `factory-poll.yml` ist **stillgelegt**; einziger Trigger ist
 > `workflow_dispatch`. Option A (Scheduled-Poll) bleibt die getroffene Entscheidung – nur ihr
 > Aktivierungszustand ändert sich. Grund: Die ADR nennt „Default aus; Aktivierung = Schedule +
@@ -27,7 +27,7 @@ MR-Beschreibung — End-to-End-Verifikation erst nach Spur B.
 > Job, `permissions`, `concurrency` und beide Steps bleiben unverändert – das
 > Scharfschalten trägt den `schedule`-Block in einem Schritt wieder ein (Checkliste in
 > [OPERATING.md §0.4](../OPERATING.md#04-async-trigger-scharfschalten-unbeaufsichtigte-pipeline-in-ci),
-> Vorbedingung: gepinnte claude-CLI, #290).
+> Vorbedingung: gepinnte claude-CLI, nothra/tch-gastro-services#290).
 
 ## Datum
 2026-06-17 (Entwurf) · 2026-06-19 (Accepted)
@@ -37,9 +37,9 @@ MR-Beschreibung — End-to-End-Verifikation erst nach Spur B.
 `run-pipeline.sh` startet heute ausschließlich manuell (`bash scripts/run-pipeline.sh <id>`).
 Das **definierende L4-Merkmal** („Systems Orchestrator") ist die **asynchrone, event-getriggerte
 Ausführung**: die Pipeline startet, wenn ein Issue erstellt/gelabelt wird – nicht, wenn jemand
-ein Terminal öffnet (Issue #10, Stufe 2).
+ein Terminal öffnet (Issue nothra/tch-gastro-services#10, Stufe 2).
 
-Voraussetzung erfüllt: CI-Gates (#8) sind da. Damit ist Async-Trigger entblockt.
+Voraussetzung erfüllt: CI-Gates (nothra/tch-gastro-services#8) sind da. Damit ist Async-Trigger entblockt.
 
 ### Entscheidungstreiber
 
@@ -74,7 +74,7 @@ GitLab Issue-Webhook → Endpunkt → ruft Pipeline-Trigger-API mit Token.
 
 ### Option C — Status quo (manuell)
 
-`bash run-pipeline.sh <id>`. **−** Kein L4-Async – verfehlt den Zweck von #10. Nur als Baseline gelistet.
+`bash run-pipeline.sh <id>`. **−** Kein L4-Async – verfehlt den Zweck von nothra/tch-gastro-services#10. Nur als Baseline gelistet.
 
 ## Empfehlung (zur Bestätigung)
 
@@ -88,7 +88,7 @@ Variante zu verbauen.
 - **Kosten-Guard (Pflicht):** async-Lauf nur per explizitem Label + Obergrenze (z. B. max. N
   Auto-Läufe/Tag oder Concurrency-Cap). Kein Auto-Trigger ohne Deckel.
 - **Auth:** Credentials als *masked* CI/CD-Variable (`ANTHROPIC_API_KEY`/OAuth) **oder** –
-  elegant – über die **Gateway-Base-URL aus Renes Track** (#17/OTEL-Gateway): das Gateway hält
+  elegant – über die **Gateway-Base-URL aus Renes Track** (nothra/tch-gastro-services#17/OTEL-Gateway): das Gateway hält
   die Credentials, der Runner kennt nur die URL. Verzahnt Async-Trigger mit der Gateway-Arbeit.
 - **Idempotenz / Label-Statemaschine:** `factory::run` → `factory::running` →
   `factory::done` | `factory::interrupted` | `factory::failed`. Verhindert, dass derselbe
@@ -105,7 +105,7 @@ Variante zu verbauen.
   (API-Fehler) beendet mit exit 3 (roter Job), nie als stiller Leerlauf.
 - **Interrupt-Propagation:** async-Läufe ehren den Interrupt-Mechanismus (ADR-004) – bereits
   task-isoliert, kein Umbau nötig.
-- **Komposition:** Async-Trigger reiht sich vor `pr-shepherd` (#7, Auto-Merge) ein → ein
+- **Komposition:** Async-Trigger reiht sich vor `pr-shepherd` (nothra/tch-gastro-services#7, Auto-Merge) ein → ein
   gelabeltes Issue kann theoretisch bis zum Merge durchlaufen. Bewusst erst nach stabilem
   Kosten-Guard freischalten.
 
@@ -113,8 +113,8 @@ Variante zu verbauen.
 
 1. **Poll-Intervall:** 15 min Default, per `FACTORY_POLL_INTERVAL` konfigurierbar. Leerläufe ~gratis, Latenz beim async-Use-Case egal.
 2. **Budget-Guard:** alle drei kombiniert, **fail-closed** — Label `factory::run` als einzige Eintrittstür + **Concurrency-Cap = 1** + harte Tageskappe `FACTORY_MAX_RUNS_PER_DAY` (konservativ, z. B. 5). Guard greift **vor** dem ersten Claude-Lauf. Nicht verhandelbar.
-3. **Auth:** masked `ANTHROPIC_API_KEY` als Default, Gateway-Base-URL (#17) als dokumentierter Upgrade-Pfad über **eine** Env-Var. Bewusst **nicht** auf #17 warten (keine Track-Kopplung).
-4. **Branch/MR:** bestehenden `start-work.sh`-Pfad → `run-pipeline.sh` → bei **Draft-MR stoppen**; Auto-Merge via `pr-shepherd` (#7) erst nach stabilem Guard. Reuse ist nicht gratis — siehe Vorbedingung V-1.
+3. **Auth:** masked `ANTHROPIC_API_KEY` als Default, Gateway-Base-URL (nothra/tch-gastro-services#17) als dokumentierter Upgrade-Pfad über **eine** Env-Var. Bewusst **nicht** auf nothra/tch-gastro-services#17 warten (keine Track-Kopplung).
+4. **Branch/MR:** bestehenden `start-work.sh`-Pfad → `run-pipeline.sh` → bei **Draft-MR stoppen**; Auto-Merge via `pr-shepherd` (nothra/tch-gastro-services#7) erst nach stabilem Guard. Reuse ist nicht gratis — siehe Vorbedingung V-1.
 5. **Runner:** Custom-Image mit claude-CLI Pflicht (V-2); shared Runner ok, wenn er das Image zieht; self-hosted als Upgrade.
 
 ## Vorbedingungen & unterschätzte Aufwände (CM-Review !25 — aus dem Code geprüft)
@@ -150,7 +150,7 @@ ein neuer Scheduled-Poll-Job ist kollisionsfrei additiv einbaubar.
 
 ## Konsequenzen (erwartet, bei Option A)
 
-**Positiv:** L4-Async erreicht; Trigger repo-intern + abschaltbar; verzahnt mit Gateway (#17) und pr-shepherd (#7).
+**Positiv:** L4-Async erreicht; Trigger repo-intern + abschaltbar; verzahnt mit Gateway (nothra/tch-gastro-services#17) und pr-shepherd (nothra/tch-gastro-services#7).
 **Negativ / Trade-offs:** Latenz bis Poll-Intervall; Scheduled Pipeline läuft auch leer (billig);
 echte Kostenkontrolle hängt am Guard – ohne den ist Async-Trigger bewusst NICHT zu aktivieren.
 

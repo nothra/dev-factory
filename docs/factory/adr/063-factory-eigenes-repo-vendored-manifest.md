@@ -1,19 +1,19 @@
 # ADR 063: Factory in eigenes Repo – versionierte Übernahme per Manifest
 
 ## Status
-Accepted (2026-10-19, mit T1a-1, #426)
+Accepted (2026-10-19, mit T1a-1, nothra/tch-gastro-services#426)
 
 ## Date
 2026-10-19
 
 ## Kontext
 
-Spec [#424](../../specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die dm Development
-Factory aus dem TCH-Repo in ein eigenes Repo auszulagern und als wiederverwendbares, versioniertes
+Spec [nothra/tch-gastro-services#424](https://github.com/nothra/tch-gastro-services/blob/main/docs/specs/spec-424-factory-in-eigenes-repo-auslagern.md) verlangt, die dm Development
+Factory aus dem Ursprungs-Repo in ein eigenes Repo auszulagern und als wiederverwendbares, versioniertes
 Werkzeug zu betreiben. Bereits entschieden (Spec, Entscheidungstabelle): Historie wird mitgenommen,
 neue Versionen kommen als automatischer Update-PR, lokale Änderungen an übernommenen Dateien sind
 verboten, Factory-Funde aus Projekt-Arbeit gehen direkt ins Factory-Repo, die Factory entwickelt
-sich mit der eigenen Pipeline, `factory-pipeline` wandert ins Factory-Repo und TCH bekommt
+sich mit der eigenen Pipeline, `factory-pipeline` wandert ins Factory-Repo und das Ursprungs-Projekt bekommt
 `build-pipeline`.
 
 **Befund der Bestandsaufnahme (2026-10-19):**
@@ -22,23 +22,23 @@ sich mit der eigenen Pipeline, `factory-pipeline` wandert ins Factory-Repo und T
   `protect-main` aktiv, ADR-029); der Account läuft im **Free-Plan**. Ein **privates** Factory-Repo
   hätte im Free-Plan **keinen** serverseitigen `main`-Schutz (Rulesets für private Repos gesperrt) –
   AK1.6 wäre nicht erfüllbar – und bräuchte in jedem Projekt einen Lese-Token. Der Factory-Inhalt
-  ist über das öffentliche TCH-Repo ohnehin schon öffentlich. **Entscheidung mit dem Entwickler
+  ist über das öffentliche Ursprungs-Repo ohnehin schon öffentlich. **Entscheidung mit dem Entwickler
   (2026-10-19): Factory-Repo öffentlich**, Name **`nothra/dev-factory`** (korrigiert die
   Spec-Entscheidung „privat").
-- **Mischdateien:** `CLAUDE.md` (Factory-Regeln + TCH-Regeln wie Routen-Doku), `.claude/settings.json`
+- **Mischdateien:** `CLAUDE.md` (Factory-Regeln + Ursprungs-Regeln wie Routen-Doku), `.claude/settings.json`
   (Factory-Hooks/-Permissions + `Edit(app/**)` u. ä.), `.gitignore`,
   `.github/workflows/factory-ci.yml` (Factory-Jobs + pnpm-`lint`/`test`), `pre-push.sh` (ruft
   hart `routes-doc-check.sh`), Skill-/Agent-/Guideline-Texte mit pnpm-/DB-Hinweisen
   (`implement.md`, `coding-agent.md`, `review-agent.md`, `git-workflow.md`, `testing-standards.md`,
   `bash-gotchas.md`), die Label-Tabelle in `git-workflow.md`, der Lessons-Index in
   `PROJECT-CONTEXT.md`.
-- **TCH-spezifische Factory-nahe Dateien:** `scripts/neon-reset-int.sh`, `scripts/deploy-freeze*.sh`,
+- **Ursprungs-spezifische Factory-nahe Dateien:** das Datenbank-Reset-Skript für die Integrationsumgebung, `scripts/deploy-freeze*.sh`,
   `.github/workflows/deploy-gate.yml`, `deploy-freeze-release.yml`, `scripts/checks/routes-doc-check.sh`,
   Lessons `frontend-react.md`, `db-drizzle.md`, `next-auth.md`, Teile von `build-tooling.md`/`testing.md`.
 - **Gemischte Self-Test-Suite:** `scripts/checks/tests/run-tests.sh` (~8 600 Zeilen) testet auch die
-  TCH-spezifischen Skripte.
+  Ursprungs-spezifischen Skripte.
 - **ADR-Verweise:** übernommene Dateien zitieren Factory-ADRs hundertfach (z. B. ADR-019 49×,
-  ADR-018 33×). Die gemeinsame Nummernfolge enthält Dubletten (027, 032, 040 – #321).
+  ADR-018 33×). Die gemeinsame Nummernfolge enthält Dubletten (027, 032, 040 – nothra/tch-gastro-services#321).
 - **Vorhandene Bausteine:** ADR-009 sieht bereits „Defaults vom Template + Team-Override" vor;
   der Issue-Seam (ADR-018) nimmt schon einen Ziel-Repo-Slug (`$FACTORY_REPO`) entgegen.
 
@@ -73,7 +73,7 @@ PR-Erstellung mit einem **Fine-grained PAT `FACTORY_SYNC_TOKEN`** statt `GITHUB_
 `GITHUB_TOKEN` erstellte PRs keine `pull_request`-Workflows auslösen – die Gates würden nicht
 laufen. Rechte: Projekt-Repo *contents:write* + *pull-requests:write*; `nothra/dev-factory`
 *issues:write* (D7). Laufzeit max. 1 Jahr → Rotation in `OPERATING.md` dokumentieren. Der Workflow
-verbraucht keine Claude-Tokens; der stillgelegte `factory-poll`-Schedule (#284) ist davon unberührt.
+verbraucht keine Claude-Tokens; der stillgelegte `factory-poll`-Schedule (nothra/tch-gastro-services#284) ist davon unberührt.
 
 Pull statt Push (Factory-Release schreibt in Konsumenten-Repos), weil die Factory dann kein
 Konsumenten-Register und keine Schreibrechte in fremde Repos braucht.
@@ -90,11 +90,11 @@ Marker-Blöcke in übernommenen Dateien. Mischdateien werden so aufgelöst:
 | `.gitignore` | **zusammengesetzt** aus `docs/factory/gitignore.factory` (übernommen) + `.gitignore.project` (projekteigen) |
 | `factory-ci.yml` | übernommen, nur noch Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-self-test`, `factory-integrity`, `post-merge-verify`); `lint`/`test` wandern in projekteigenes `ci.yml` (Job-Namen bleiben → Required Checks in `protect-main` unverändert, nur `factory-integrity` kommt hinzu) |
 | `pre-commit.sh`/`pre-push.sh` | übernommen; rufen zusätzlich jedes ausführbare Skript in `scripts/project/checks/pre-commit.d/` bzw. `pre-push.d/` (projekteigen, lexikalisch, fail-closed). `routes-doc-check.sh` wandert dorthin. |
-| Gate-Kommandos (`pnpm lint` …) | Werte aus `factory.config.yml` → `commands.{lint,test,typecheck,format,coverage}` (ADR-009-Schichtung); `factory.defaults.yml` liefert **keinen** pnpm-Default, fehlender Wert = klarer Fehler. TCH setzt seine heutigen Werte → Verhalten unverändert (AKE.1). |
-| Label-Tabelle | übernommene Art-/Aspekt-Labels in `factory.defaults.yml` → `labels.aspects`; projekteigene in `factory.config.yml` → `labels.aspects_extra` (TCH: `build-pipeline`), Bedeutung/Zuordnungsregel in `PROJECT-CONTEXT.md` (AK3.9). `start-work.sh` und Seam validieren gegen die Vereinigung. `git-workflow.md` beschreibt nur das Schema. |
+| Gate-Kommandos (`pnpm lint` …) | Werte aus `factory.config.yml` → `commands.{lint,test,typecheck,format,coverage}` (ADR-009-Schichtung); `factory.defaults.yml` liefert **keinen** pnpm-Default, fehlender Wert = klarer Fehler. Das Ursprungs-Projekt setzt seine heutigen Werte → Verhalten unverändert (AKE.1). |
+| Label-Tabelle | übernommene Art-/Aspekt-Labels in `factory.defaults.yml` → `labels.aspects`; projekteigene in `factory.config.yml` → `labels.aspects_extra` (Ursprungs-Projekt: `build-pipeline`), Bedeutung/Zuordnungsregel in `PROJECT-CONTEXT.md` (AK3.9). `start-work.sh` und Seam validieren gegen die Vereinigung. `git-workflow.md` beschreibt nur das Schema. |
 | Skill-/Agent-/Guideline-Texte mit pnpm/DB/E2E-Details | generisch formulieren, Projekt-Details in `PROJECT-CONTEXT.md` (neuer Abschnitt „Lokale Umgebung & Oberflächentests"), auf den die Texte verweisen |
-| Lessons | generische bleiben in `docs/factory/lessons/` (übernommen); TCH-spezifische nach `docs/project/lessons/` (projekteigen). `PROJECT-CONTEXT.md` indiziert beide. |
-| TCH-only-Skripte/Workflows (`neon-reset-int.sh`, `deploy-freeze*`, `deploy-gate.yml` …) | projekteigen; Skripte nach `scripts/project/`; ihre Self-Tests nach `scripts/project/tests/` |
+| Lessons | generische bleiben in `docs/factory/lessons/` (übernommen); Ursprungs-spezifische nach `docs/project/lessons/` (projekteigen). `PROJECT-CONTEXT.md` indiziert beide. |
+| Ursprungs-only-Skripte/Workflows (Datenbank-Reset-Skript, `deploy-freeze*`, `deploy-gate.yml` …) | projekteigen; Skripte nach `scripts/project/`; ihre Self-Tests nach `scripts/project/tests/` |
 
 **Zusammengesetzte Dateien** (`.claude/settings.json`, `.gitignore`): Weil Claude Code genau eine
 geteilte Projekt-Settings-Datei und Git eine Wurzel-`.gitignore` liest, erzeugt
@@ -128,11 +128,11 @@ Im Factory-Repo selbst (Quelle, kein `factory.lock`) ist der Check ein No-op mit
 
 ### D5 · Historie: `git filter-repo` mit Pfad-Allowlist + Vorab-Scan
 
-Das Factory-Repo entsteht aus einem **frischen Klon** von TCH per `git filter-repo` mit einer
+Das Factory-Repo entsteht aus einem **frischen Klon** vom Ursprungs-Repo per `git filter-repo` mit einer
 **Allowlist** genau der übernommenen Pfade (aus der Zuordnungstabelle in T1a, AK1.5); dadurch
-fehlen App-Code (`app/`, `db/`, `lib/` …), Tasks, Specs und TCH-Doku in der gesamten Historie
+fehlen App-Code (`app/`, `db/`, `lib/` …), Tasks, Specs und Ursprungs-Doku in der gesamten Historie
 (AK1.4). Vor dem ersten Push: Secret-Scan über **die ganze umgeschriebene Historie** (`gitleaks`)
-plus Grep auf TCH-Domänenbegriffe und E-Mail-Muster in Datei-Inhalten (AK1.3/1.4, F5) – das Repo
+plus Grep auf Ursprungs-Domänenbegriffe und E-Mail-Muster in Datei-Inhalten (AK1.3/1.4, F5) – das Repo
 ist öffentlich, ein Fund ist danach nicht mehr rückholbar. Commit-Autoren-Metadaten bleiben (die
 eigenen Adressen des Entwicklers; kein Anwendungsdatum).
 
@@ -173,7 +173,7 @@ bleiben gültig). App-ADRs bleiben in `docs/adr/`. Ab der Trennung führen beide
 Nummernfolgen ab der jeweils höchsten vorhandenen Nummer. Auflösung von Verweisen ist
 **ortsabhängig**: `ADR-NNN` in übernommenen Dateien → `docs/factory/adr/`, in projekteigenen →
 `docs/adr/`; projekteigene Texte, die eine Factory-ADR meinen, schreiben `Factory-ADR-NNN`. Ein
-Verweis-Check prüft beides (AK3.2, F6). Die Dubletten aus #321 werden je Seite in #321 gelöst
+Verweis-Check prüft beides (AK3.2, F6). Die Dubletten aus nothra/tch-gastro-services#321 werden je Seite in nothra/tch-gastro-services#321 gelöst
 (zieht als Factory-Issue mit um, soweit Factory-ADRs betroffen sind).
 
 ### D9 · Factory-Repo nutzt sich selbst
@@ -182,7 +182,7 @@ Verweis-Check prüft beides (AK3.2, F6). Die Dubletten aus #321 werden je Seite 
 (`commands.lint` = ShellCheck über `scripts/`, `commands.test` = `run-tests.sh`), eigene
 `PROJECT-CONTEXT.md`, eigene `docs/specs/`, `tasks/`, Ruleset `protect-main`, CI mit
 `factory-self-test`. `start-work.sh` und die Skills laufen dort unverändert (AK1.7). Die
-Issue-Nummerierung beginnt dort neu; alte TCH-Tasks/-Specs bleiben als Archiv in TCH.
+Issue-Nummerierung beginnt dort neu; alte Ursprungs-Tasks/-Specs bleiben als Archiv im Ursprungs-Repo.
 
 ### D10 · Neues Projekt aufsetzen
 
@@ -198,10 +198,10 @@ Zuhause hat und kein Teil das Turn-Limit sprengt.
 
 | Task | Inhalt | Repo |
 |---|---|---|
-| **T1a · Trennlinie ziehen** | D3 vollständig in TCH umsetzen, verhaltensneutral: Erweiterungspunkte, Zuordnungstabelle `docs/factory/OWNERSHIP.md`, TCH-Spezifika an projekteigene Orte, Factory-ADRs nach `docs/factory/adr/`, Tests aufteilen | TCH |
+| **T1a · Trennlinie ziehen** | D3 vollständig im Ursprungs-Repo umsetzen, verhaltensneutral: Erweiterungspunkte, Zuordnungstabelle `docs/factory/OWNERSHIP.md`, Ursprungs-Spezifika an projekteigene Orte, Factory-ADRs nach `docs/factory/adr/`, Tests aufteilen | Ursprungs-Repo |
 | **T1b · Herauslösen** | D5, D6, D9: `nothra/dev-factory` per filter-repo, Scan, Ruleset, CI, `v0.6.0` | dev-factory |
-| **T2 · Abholen** | D1, D2, D4, D7, D10 + TCH auf `factory.lock` umstellen | beide |
-| **T3 · Umziehen** | Issues übertragen, Labels (`factory-pipeline` → dev-factory, `build-pipeline` in TCH), Doku-Verweise, Verweis-Check | beide |
+| **T2 · Abholen** | D1, D2, D4, D7, D10 + das Ursprungs-Projekt auf `factory.lock` umstellen | beide |
+| **T3 · Umziehen** | Issues übertragen, Labels (`factory-pipeline` → dev-factory, `build-pipeline` im Ursprungs-Repo), Doku-Verweise, Verweis-Check | beide |
 
 AK-Zuordnung: AK1.5 → T1a; AK1.1–1.4, 1.6–1.8 → T1b; AK2.x → T2; AK3.2/3.3 überwiegend T1a
 (Dateien), Verweis-Check T3; übrige AK3.x → T3.
@@ -211,7 +211,7 @@ AK-Zuordnung: AK1.5 → T1a; AK1.1–1.4, 1.6–1.8 → T1b; AK2.x → T2; AK3.2
 ### A · Verteilung als Git-Submodul
 **Pro:** echte Versionierung über Commit-Pointer, keine Kopie. **Contra:** Dateien müssten an fixen
 Pfaden (`.claude/commands`, Wurzel-Hooks) liegen, die ein Submodul nicht bedienen kann; jeder Klon,
-jeder Worktree (Default von `start-work.sh`), CI und Vercel brauchen rekursiven Checkout;
+jeder Worktree (Default von `start-work.sh`), CI und der Hosting-Build brauchen rekursiven Checkout;
 Änderungs-Gate entfällt nicht, wird aber unsichtbar. **Verworfen.**
 
 ### B · `git subtree`
@@ -241,7 +241,7 @@ brechen oder müssten umgeschrieben werden; Commit-Messages bleiben ohnehin alt.
 zugunsten D8.
 
 ### G · Factory-Repo privat (ursprüngliche Spec-Entscheidung)
-**Pro:** nicht öffentlich. **Contra:** Inhalt ist via TCH bereits öffentlich; im Free-Plan kein
+**Pro:** nicht öffentlich. **Contra:** Inhalt ist über das Ursprungs-Repo bereits öffentlich; im Free-Plan kein
 serverseitiger `main`-Schutz (AK1.6 verfehlt); Lese-Token in jedem Projekt; begrenzte
 Actions-Minuten. **Verworfen** mit dem Entwickler.
 
@@ -263,8 +263,8 @@ das Repo verlässt.
   `docs/factory/OWNERSHIP.md`, Fragment-Dateien, `scripts/project/`, `docs/project/lessons/`,
   `docs/factory/adr/`, `templates/` (nur dev-factory).
 - **Secret `FACTORY_SYNC_TOKEN`** in jedem Konsumenten-Repo, mit Ablaufdatum → Rotation ist Betriebsaufgabe.
-- **Required Checks** in TCH: `factory-integrity` kommt hinzu (ADR-029 nachtragen).
-- **Factory-Änderungen aus TCH heraus sind nicht mehr möglich** – auch kleine Fixes gehen über
+- **Required Checks** im Ursprungs-Repo: `factory-integrity` kommt hinzu (ADR-029 nachtragen).
+- **Factory-Änderungen aus dem Ursprungs-Repo heraus sind nicht mehr möglich** – auch kleine Fixes gehen über
   `dev-factory` + Release + Update-PR. Das ist gewollt (AK2.5), verlängert aber den Weg; Mitigation:
   PATCH-Releases sind billig.
 - **ADR-009** wird um `commands.*`, `labels.*`, `upstream.repo` erweitert (Nachtrag, kein Widerspruch).
@@ -282,7 +282,7 @@ das Repo verlässt.
   verschieben – jede Datei genau eine Zeile. Factory-ADRs per `git mv`, damit `--follow` greift.
 - T1a: `AKE.1` belegen – `run-tests.sh` + App-Gates vor und nach grün, Required-Check-Namen unverändert.
 - T1b: Allowlist für filter-repo aus `OWNERSHIP.md` generieren, nicht von Hand. Scan-Ergebnis im
-  T1b-PR dokumentieren. Erster Push auf leeres Repo nur mit `--no-verify` (wie TCH-Bootstrap), danach
+  T1b-PR dokumentieren. Erster Push auf leeres Repo nur mit `--no-verify` (wie Ursprungs-Bootstrap), danach
   sofort Ruleset.
 - T2: `factory-sync.sh` atomar (Temp-Dir, dann `mv`), Bash 3.2-kompatibel (macOS), Dateihashes per
   `shasum -a 256` (BSD + GNU).
@@ -290,26 +290,26 @@ das Repo verlässt.
   (Reihenfolge-/Präsenz-Guards an der echten Aufrufzeile, Fixture-Identität bei `git commit`,
   explizite `-c user.email` in Pipeline-Commits) und `bash-gotchas.md`.
 
-## Nachtrag 2026-10-19 · Detailentscheidungen aus T1a (Spec #426, Q1–Q6)
+## Nachtrag 2026-10-19 · Detailentscheidungen aus T1a (Spec nothra/tch-gastro-services#426, Q1–Q6)
 
 Entschieden mit dem Entwickler; sie liegen **innerhalb** von D3/D8/D11 und ändern keine
 Grundsatzentscheidung.
 
 - **Q1 · Schnitt von T1a:** T1a ist mit 54 Akzeptanzkriterien zu groß für einen Pipeline-Lauf
   (Turn-Limit-Schwelle > 25 AK / > 40 Dateien) und wird in drei nacheinander laufende PRs geteilt:
-  **T1a-1 · Dokumente sortieren (#426)** – Zuordnungstabelle, ADRs, Lessons, Kleinfunde;
-  **T1a-2 · Mischdateien & Gates (#431)** – `CLAUDE.md`/`FACTORY.md`, zusammengesetzte Dateien,
-  Workflows, Erweiterungspunkte, `commands.*`, Labels; **T1a-3 · Projekt-Orte & Texte (#432)** –
-  TCH-Skripte und -Tests nach `scripts/project/`, Factory-Texte generisch. Jeder PR ist für sich
+  **T1a-1 · Dokumente sortieren (nothra/tch-gastro-services#426)** – Zuordnungstabelle, ADRs, Lessons, Kleinfunde;
+  **T1a-2 · Mischdateien & Gates (nothra/tch-gastro-services#431)** – `CLAUDE.md`/`FACTORY.md`, zusammengesetzte Dateien,
+  Workflows, Erweiterungspunkte, `commands.*`, Labels; **T1a-3 · Projekt-Orte & Texte (nothra/tch-gastro-services#432)** –
+  Ursprungs-Skripte und -Tests nach `scripts/project/`, Factory-Texte generisch. Jeder PR ist für sich
   verhaltensneutral und hält die Zuordnungstabelle aktuell.
 - **Q2 · Zusammensetzen vor T2:** `scripts/factory-sync.sh` entsteht in T1a-2 mit **nur** dem Modus
   `--compose` (der in D3 genannte Aufruf); T2 ergänzt die übrigen Modi.
 - **Q3 · ADR-Zuordnung:** **Factory** (`docs/factory/adr/`): 001–013, 018, 019, 029, 030, 037, 038,
   040 (beide), 041, 042, 043, 045, 047, 049, 051, 063. **Projekt** (`docs/adr/`): alle übrigen.
-  Grenzfälle: ADR-029 (Ruleset) ist ein generisches Factory-Prinzip mit TCH-Check-Namen → Factory;
+  Grenzfälle: ADR-029 (Ruleset) ist ein generisches Factory-Prinzip mit Ursprungs-Check-Namen → Factory;
   ADR-063 regelt die Verteilung → Factory; ADR-015/017/032 (Deploy-Gate, Deploy-Freeze) → Projekt.
-  Nummern und Dateinamen bleiben, auch die Dubletten (#321 löst sie später je Seite).
-- **Q4 · Worktree-Vorbereitung:** die TCH-spezifischen Schritte von `start-work.sh` (`pnpm install`,
+  Nummern und Dateinamen bleiben, auch die Dubletten (nothra/tch-gastro-services#321 löst sie später je Seite).
+- **Q4 · Worktree-Vorbereitung:** die Ursprungs-spezifischen Schritte von `start-work.sh` (`pnpm install`,
   Hinweis „vor dem ersten E2E-Lauf seeden") kommen aus optionalen Schlüsseln `commands.install` und
   `start_work.hint` in `factory.config.yml` (gleiches Muster wie `commands.*`); ohne Eintrag entfällt
   der Schritt still.
@@ -326,30 +326,30 @@ Grundsatzentscheidung.
   erzeugt über `--list factory` die `git filter-repo`-Allowlist für T1b (D5). Der Check läuft im
   lokalen `pre-push.sh` und in der Self-Test-Suite (Required Check `factory-self-test`).
 
-## Nachtrag 2026-10-23 · Detailentscheidungen aus T1b (Spec #427, Q1–Q6)
+## Nachtrag 2026-10-23 · Detailentscheidungen aus T1b (Spec nothra/tch-gastro-services#427, Q1–Q6)
 
 Entschieden mit dem Entwickler; sie verfeinern D5/D6/D9/D11. Drei Punkte **weichen** vom
 ursprünglichen Wortlaut ab und sind als solche markiert (D5-Begriffs-Grep vor dem Push,
 D6-Versionsangabe, D9-Lint).
 
 - **Q6 · Schnitt von T1b:** T1b wird in zwei nacheinander laufende Tasks geteilt.
-  **T1b-1 (#427, nur TCH):** dieser Nachtrag, das Herauslöse-Werkzeug mit Tests und ein Probelauf
-  mit Scan-Bericht – **kein** Push. **T1b-2 (#436, Klammer-Task in TCH, Arbeit im Factory-Repo):**
-  Herauslösen aus dem **gemergten** TCH-`main`, Scan, Freigabe, Bootstrap-Push, Ruleset,
+  **T1b-1 (nothra/tch-gastro-services#427, nur Ursprungs-Repo):** dieser Nachtrag, das Herauslöse-Werkzeug mit Tests und ein Probelauf
+  mit Scan-Bericht – **kein** Push. **T1b-2 (nothra/tch-gastro-services#436, Klammer-Task im Ursprungs-Repo, Arbeit im Factory-Repo):**
+  Herauslösen aus dem **gemergten** `main` des Ursprungs-Repos, Scan, Freigabe, Bootstrap-Push, Ruleset,
   Bootstrap- und Bereinigungs-PR, Probe, `v0.6.0`. Grund: Der Nachtrag ist eine Factory-Datei und
-  muss vor dem Herauslösen auf TCH-`main` liegen, die Task-Datei muss vor dem Merge abgeschlossen
-  sein (Guardrail aus #63), und T1b hätte mit 24 AK die Turn-Limit-Schwelle erreicht.
-- **Q2 · Werkzeug:** `scripts/project/factory-extract.sh` – **projekteigen in TCH** (einmaliges
-  Werkzeug, kennt den TCH-Slug, wandert nicht mit). Unterbefehle:
+  muss vor dem Herauslösen auf `main` des Ursprungs-Repos liegen, die Task-Datei muss vor dem Merge abgeschlossen
+  sein (Guardrail aus nothra/tch-gastro-services#63), und T1b hätte mit 24 AK die Turn-Limit-Schwelle erreicht.
+- **Q2 · Werkzeug:** `scripts/project/factory-extract.sh` – **projekteigen im Ursprungs-Repo** (einmaliges
+  Werkzeug, kennt den Ursprungs-Slug, wandert nicht mit). Unterbefehle:
   - `paths` – Ausgabe von `ownership-check.sh --list factory` plus deren Altpfade aus
     `git log --follow --name-only --format=`, `LC_ALL=C` sortiert, eindeutig (AK A1).
-  - `run <ziel>` – `git clone --no-local` von TCH-`main` nach `<ziel>`, dort
+  - `run <ziel>` – `git clone --no-local` von `main` des Ursprungs-Repos nach `<ziel>`, dort
     `git filter-repo --paths-from-file <paths> --replace-message <regeln>`; der Arbeitsklon und
     sein `origin` bleiben unberührt (AK X2). Die Message-Regeln sind die Umschreibregel plus die
     Trailer-Regel (s. u.).
-  - `verify <ziel>` – A2 (alle Pfade aller Commits ⊆ Liste, keiner in einem App-/TCH-Bereich),
-    A3 (`--follow` jeder Factory-Datei reicht im Ziel über dieselben Namen wie in TCH),
-    A4 (kein unqualifiziertes `#<nr>` in Messages), A5 (Autor/Datum gegen TCH, über die commit-map
+  - `verify <ziel>` – A2 (alle Pfade aller Commits ⊆ Liste, keiner in einem App-/Ursprungs-Bereich),
+    A3 (`--follow` jeder Factory-Datei reicht im Ziel über dieselben Namen wie im Ursprungs-Repo),
+    A4 (kein unqualifiziertes `#<nr>` in Messages), A5 (Autor/Datum gegen das Ursprungs-Repo, über die commit-map
     von filter-repo).
   - `scan <ziel>` – `gitleaks` über alle Commits **und** über alle Commit-/Tag-Messages
     (`gitleaks stdin`), E-Mail-Muster über alle Blobs (`git rev-list --all --objects`) **und** alle
@@ -372,8 +372,8 @@ D6-Versionsangabe, D9-Lint).
     den Scan rot (es würde Funde ohne Begründung unterdrücken); ein Platzhalter im Domain-Teil der
     Erlaubt-Liste ist nur unter reservierten Test-Domains zulässig (`*@*.example`, nicht `*@*.de`);
     ein gitleaks ohne Versionsangabe bricht ab, und per Umgebung ersetzte Werkzeuge nennt der
-    Bericht (Security-Review und Re-Review #427).
-  - `qualify <ziel>` – schreibt TCH-Nummern im **Inhalt** des Arbeitsbaums aus (C3; in T1b-2
+    Bericht (Security-Review und Re-Review nothra/tch-gastro-services#427).
+  - `qualify <ziel>` – schreibt Ursprungs-Nummern im **Inhalt** des Arbeitsbaums aus (C3; in T1b-2
     im Bereinigungs-PR aufgerufen): Markdown vollständig, Shell-Skripte **nur in Kommentarzeilen**
     (erstes Nicht-Leerzeichen `#`, nicht `#!`), damit Test-Fixtures wie `"Closes #42"` unverändert
     bleiben. Andere Dateitypen (z. B. YAML-Kommentare) fasst `qualify` nicht an. Was der Regel
@@ -388,43 +388,43 @@ D6-Versionsangabe, D9-Lint).
   vorausgeht → `nothra/tch-gastro-services#<ziffern>`. Bereits qualifizierte Verweise
   (`owner/repo#n`), Farbcodes mit Buchstaben (`#1e40af`) oder mit sechs Ziffern (`#333333`),
   HTML-Entities wie `&#8212;` und Markdown-Sprunganker wie `](#12-abschnitt)` bleiben; kürzere
-  reine Ziffern-Farbcodes (`#000`) trifft die Regel – im Inhalt fängt die Durchsicht im PR-Diff
+  reine Ziffern-Farbcodes (`nothra/tch-gastro-services#000`) trifft die Regel – im Inhalt fängt die Durchsicht im PR-Diff
   sie ab; in den Commit-Messages gibt es keinen PR-Diff, dort kommen sie heute nicht vor.
-  **Konvention ab jetzt:** Im Factory-Repo steht vor jeder TCH-Nummer der Repo-Slug;
+  **Konvention ab jetzt:** Im Factory-Repo steht vor jeder Ursprungs-Nummer der Repo-Slug;
   unqualifiziertes `#<nr>` meint das Factory-Repo selbst.
-- **Trailer-Regel (Entscheidung des Entwicklers, Security-Review #427):** `Co-authored-by`-Zeilen
+- **Trailer-Regel (Entscheidung des Entwicklers, Security-Review nothra/tch-gastro-services#427):** `Co-authored-by`-Zeilen
   in Commit-Messages, deren Adresse keine noreply-Adresse ist (Firmen- oder Privatadresse,
   Personalnummer), fallen beim Herauslösen ersatzlos weg; noreply-Trailer (Claude, GitHub) bleiben.
   Die Regel steht in `scripts/project/factory-extract.trailers` und gilt nur für Messages (`run`),
   nicht für Datei-Inhalte (`qualify`). Commit-Autor und -Committer bleiben unverändert (D5, AK A5);
   B2 Messages prüft das Ergebnis.
-- **Altpfade, die in TCH noch leben:** `CLAUDE.md` und `.claude/settings.json` sind Altpfade von
-  Factory-Dateien (`FACTORY.md`, `settings.factory.json`), existieren in TCH aber weiter als
-  Projekt-Dateien. Sie kommen daher mit ihrer TCH-Fassung ins Factory-Repo; der Bootstrap-PR ersetzt
+- **Altpfade, die im Ursprungs-Repo noch leben:** `CLAUDE.md` und `.claude/settings.json` sind Altpfade von
+  Factory-Dateien (`FACTORY.md`, `settings.factory.json`), existieren im Ursprungs-Repo aber weiter als
+  Projekt-Dateien. Sie kommen daher mit ihrer Ursprungs-Fassung ins Factory-Repo; der Bootstrap-PR ersetzt
   sie durch die eigenen Fassungen des Factory-Repos (dessen `CLAUDE.md`, zusammengesetzte
   `settings.json` aus eigenen Projekt-Fragmenten). Ihr alter Inhalt bleibt in der Historie – er ist
-  über TCH ohnehin öffentlich. `.gitignore` ist laut Probelauf **kein** `--follow`-Altpfad von
+  über das Ursprungs-Repo ohnehin öffentlich. `.gitignore` ist laut Probelauf **kein** `--follow`-Altpfad von
   `gitignore.factory` (Git erkennt die Aufteilung nicht als Umbenennung) und kommt nicht mit; der
   Bootstrap-PR setzt sie aus den eigenen Fragmenten neu zusammen.
 - **Q5 · Reihenfolge im Factory-Repo:** (1) Bootstrap-Push = herausgelöste Historie, Inhalt
-  unverändert, nur Messages umgeschrieben – nichts, was nicht schon über TCH öffentlich ist; erster
+  unverändert, nur Messages umgeschrieben – nichts, was nicht schon über das Ursprungs-Repo öffentlich ist; erster
   Push mit `--no-verify`. (2) **Sofort** Ruleset `protect-main` (kein Bypass, PR-Pflicht, Squash,
   kein Force-Push; Required Checks `pr-closes-issue`, `config-validation`, `factory-self-test`,
   `lint`). (3) Bootstrap-PR (Factory-Issue #1): eigene Anpassungsstellen, `ci.yml`, Labels.
   (4) Bereinigungs-PR: `qualify` + Begriffs-Bereinigung. (5) Wegwerf-Probe. (6) Release.
-  Bis (4) gemergt ist, stehen TCH-Begriffe auf `main`; vor dem Release sind sie weg (AK C1).
-  **Abweichung von D5:** Der dort verlangte Grep auf TCH-Domänenbegriffe **vor** dem ersten Push
+  Bis (4) gemergt ist, stehen Ursprungs-Begriffe auf `main`; vor dem Release sind sie weg (AK C1).
+  **Abweichung von D5:** Der dort verlangte Grep auf Ursprungs-Domänenbegriffe **vor** dem ersten Push
   entfällt; vor dem Push laufen nur Secret- und E-Mail-Scan (`scan`). Grund: Der Bootstrap-Push
-  enthält keinen Inhalt, der nicht schon über das öffentliche TCH-Repo öffentlich ist – TCH-Begriffe
+  enthält keinen Inhalt, der nicht schon über das öffentliche Ursprungs-Repo öffentlich ist – Ursprungs-Begriffe
   sind dort kein Geheimnis, sondern nur im Factory-Repo fehl am Platz; sie verschwinden im
   Bereinigungs-PR (4) unter CI und Ruleset, und C1 prüft das vor dem Release.
 - **Q4 · Besitz im Factory-Repo:** dort eine eigene `docs/factory/OWNERSHIP.md` im selben Format.
-  Seite `factory` = ausgeliefert (heute die 111 Dateien der TCH-Liste); Seite `project` = gehört
+  Seite `factory` = ausgeliefert (heute die 111 Dateien der Ursprungs-Liste); Seite `project` = gehört
   dem Factory-Repo selbst: `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `factory.config.yml`,
   `docs/factory/PROJECT-CONTEXT.md`, `.claude/settings.project.json`, `.gitignore.project`, die
   zusammengesetzten `.claude/settings.json`/`.gitignore`, `.github/workflows/ci.yml`,
   `.github/workflows/release.yml`, `docs/specs/**`, `tasks/**` und ab T2 `templates/**`.
-  Self-Tests, die TCH-Zustände prüfen (Dateizahlen, Fixtures der T1a-Aufteilung), werden auf das
+  Self-Tests, die Ursprungs-Zustände prüfen (Dateizahlen, Fixtures der T1a-Aufteilung), werden auf das
   Factory-Repo umgestellt, nicht übersprungen.
 - **Q1 · Release-Manifest (Vertrag für T2):** Asset `factory-release.json` je Release:
   `{"schema":1,"repo":"nothra/dev-factory","version":"vX.Y.Z","commit":"<40 hex>","files":[{"path":"…","sha256":"…"}]}`,
@@ -443,11 +443,11 @@ D6-Versionsangabe, D9-Lint).
   `bash -n` über alle getrackten `*.sh`, CI-Job `lint` in `ci.yml` des Factory-Repos. ShellCheck
   folgt als Issue im Factory-Repo, wenn der Fundbestand bekannt ist.
 - **Q3 · Bereinigung auch von ADRs und Lessons:** Im Factory-Repo werden ADRs und Lessons sprachlich
-  von TCH gelöst (Wortlaut und Beispiele, keine Entscheidung, keine Regel). Das ist die einzige
+  vom Ursprungs-Repo gelöst (Wortlaut und Beispiele, keine Entscheidung, keine Regel). Das ist die einzige
   erlaubte Änderung an angenommenen ADRs; erlaubte Rest-Treffer sind qualifizierte
   Herkunftsverweise und der Herkunftshinweis in `README.md`/`CHANGELOG.md` (AK C1).
 - **Tests (TDD) für T1b-1** in `scripts/project/tests/`: `paths` gegen ein Fixture-Repo mit
   Umbenennung; die Umschreibregel gegen Beispiel-Messages und -Zeilen (inkl. Gegenbeispiele:
   qualifiziert, Farbcode, `#!`, String-Fixture); `verify`/`scan`-Entscheidungslogik gegen
   präparierte Fixture-Repos mit `gitleaks`-Stub im `PATH` (Messung brechen, nicht nur Input – Lesson
-  aus #319). `git filter-repo` selbst läuft in keinem Test und in keiner CI.
+  aus nothra/tch-gastro-services#319). `git filter-repo` selbst läuft in keinem Test und in keiner CI.

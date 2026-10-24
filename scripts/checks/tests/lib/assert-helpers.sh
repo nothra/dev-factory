@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# assert-helpers.sh – gemeinsame Prüf-Helfer der Test-Suiten (Factory-Datei, #432 / Q10)
+# assert-helpers.sh – gemeinsame Prüf-Helfer der Test-Suiten (Factory-Datei, nothra/tch-gastro-services#432 / Q10)
 #
 # Wird gesourct – nie direkt ausgeführt – von `scripts/checks/tests/run-tests.sh` (Factory-Suite)
 # und `scripts/project/tests/run-project-tests.sh` (Projekt-Suite). Es gibt genau eine Kopie:
@@ -43,10 +43,10 @@ assert_true() {
 # Mehrwort-Content-Checks gegen Markdown-Prosa prüfen eine Aussage, keine Kommando-/Aufrufzeile –
 # ein harmloser Umbruch mitten im Satz macht einen reinen `grep -qF`-Mehrwort-Anker sonst lautlos
 # rot (Präsenz-Guard) bzw. lautlos grün (Abwesenheits-Guard). Lesson factory-workflow.md
-# ("grep -qF-Fixed-String-Regressionstest gegen Markdown-Prosa", #240/#249/#286): ab zwei
+# ("grep -qF-Fixed-String-Regressionstest gegen Markdown-Prosa", nothra/tch-gastro-services#240/#249/#286): ab zwei
 # Mehrwort-Checks gegen dieselbe Datei lohnt der Helper mehr als Zeilen-für-Zeile-Vorsicht.
-# Der Namenssuffix stammt aus dem #286-Block, in dem der Helper entstand; er steht hier oben,
-# weil ihn inzwischen mehrere Blöcke nutzen (#236, #286).
+# Der Namenssuffix stammt aus dem nothra/tch-gastro-services#286-Block, in dem der Helper entstand; er steht hier oben,
+# weil ihn inzwischen mehrere Blöcke nutzen (nothra/tch-gastro-services#236, nothra/tch-gastro-services#286).
 # Das zweite `tr` fasst Leerzeichen-Folgen zusammen: der dominante Markdown-Stil dieser Doku
 # rückt Folgezeilen um zwei Leerzeichen ein, sonst wäre die Umbruch-Toleranz genau bei
 # eingerückten Fortsetzungen wieder wirkungslos. Preis: Phrasen mit MEHREREN aufeinander
@@ -55,12 +55,12 @@ flat_286() { tr '\n' ' ' < "$1" | tr -s ' '; }
 
 # assert_contains_286 <geflachter-inhalt> <phrase> <beschreibung>
 #
-# Das `--` vor dem Pattern (seit #334) ist nicht kosmetisch: ohne es liest grep eine Phrase,
+# Das `--` vor dem Pattern (seit nothra/tch-gastro-services#334) ist nicht kosmetisch: ohne es liest grep eine Phrase,
 # die mit `-` beginnt (`--no-telemetry`, `-v`, …), als OPTION und bricht mit einem
 # Usage-Fehler ab – der Test wird rot bzw. der Abwesenheits-Spiegel grün, ohne dass die
-# Phrase je gesucht wurde. Genau diese Falle traf #319 dreimal im selben PR und #334 erneut;
+# Phrase je gesucht wurde. Genau diese Falle traf nothra/tch-gastro-services#319 dreimal im selben PR und nothra/tch-gastro-services#334 erneut;
 # clean-code.md („Config-/nutzerkontrollierte Werte als Daten behandeln") verlangt das `--`
-# ohnehin. Die Kontroll-Assertion dazu steht im #334-Block.
+# ohnehin. Die Kontroll-Assertion dazu steht im nothra/tch-gastro-services#334-Block.
 # Verdichtet das wiederkehrende "enthält der geflachte Inhalt die Phrase?" auf einen Aufruf.
 assert_contains_286() {
   printf '%s' "$1" | grep -qF -- "$2"
@@ -80,7 +80,7 @@ assert_absent() {
 # mk_feature_repo <verzeichnis> <branch> – leeres git-Repo auf einem Feature-Branch, bereit für
 # einen echten pre-push.sh-Lauf. Die lokale Git-Identität wird explizit gesetzt: ohne sie
 # scheitert der Commit in einer identitätslosen Umgebung (CI), wo kein globaler Fallback
-# existiert (Lesson aus #265). Genutzt von den pre-push-Verhaltenstests in #149 und #319.
+# existiert (Lesson aus nothra/tch-gastro-services#265). Genutzt von den pre-push-Verhaltenstests in nothra/tch-gastro-services#149 und nothra/tch-gastro-services#319.
 mk_feature_repo() {
   git -C "$1" init -q
   git -C "$1" checkout -q -b "$2"
@@ -107,7 +107,7 @@ skip_yq() { echo "  • ${1} – übersprungen (yq fehlt, ADR-009)"; }
 # Nötig, weil eine Prüfung über das ganze File an einem Fremd-Job vorbeirutschen kann (ein
 # anderer Job nutzt pnpm/yq durchaus). Bricht sowohl am nächsten Job-Key als auch am nächsten
 # Job-Trennkommentar ("  # ─── …") ab – reine Key-Erkennung würde den führenden Kommentarkopf
-# des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen (Lesson #255).
+# des Folge-Jobs (kein "wort:"-Muster) fälschlich mit einschließen (Lesson nothra/tch-gastro-services#255).
 ci_job_block() {
   awk -v j="$1" '$0 ~ "^  " j ":" {f=1; next} /^  ([A-Za-z0-9_-]+:|# ───)/{if (f) exit} f' "$2"
 }

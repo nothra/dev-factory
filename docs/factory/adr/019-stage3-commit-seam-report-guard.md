@@ -11,10 +11,10 @@ Accepted
 Die Stage-3-Pipeline (`scripts/run-pipeline.sh`) ruft jeden Skill non-interaktiv über
 `FACTORY_STAGE=3 claude --print … --max-turns N` auf. Permissions kommen ausschließlich aus
 `.claude/settings.json`; ein Prompt kann nicht beantwortet werden, jede nicht erlaubte Aktion
-blockiert den Schritt. Zwei Lücken traten beim Live-Lauf für #66 (nach #88) auf – Details in
+blockiert den Schritt. Zwei Lücken traten beim Live-Lauf für nothra/tch-gastro-services#66 (nach nothra/tch-gastro-services#88) auf – Details in
 `docs/specs/spec-91-stage3-commit-turn-budget.md`:
 
-1. **Kein Commit/Push möglich.** #88 gab `Edit`/`Write` frei, aber ein `git commit`/`git push`
+1. **Kein Commit/Push möglich.** nothra/tch-gastro-services#88 gab `Edit`/`Write` frei, aber ein `git commit`/`git push`
    matcht keinen Allow-List-Eintrag → Stage-3-Prompt → Interrupt. `/implement`, `/test`,
    `/refactor` schrieben korrekte Änderungen, konnten sie aber nicht committen; die Pipeline lief
    „erfolgreich" durch, ohne dass je etwas gepusht/gemergt worden wäre.
@@ -61,7 +61,7 @@ nicht der Exit-Code über den Erfolg, sondern das Artefakt: ein Versuch gilt gen
 **Erfolg**, wenn der zugehörige Report **in diesem Skill-Aufruf** verändert wurde **und**
 einen eindeutigen Verdict trägt. Diese Bedingung gilt **auf beiden Rückkehrpfaden** – beim
 non-zero Exit (inkl. „Reached max turns") ebenso wie bei Exit 0 (Frische-Bedingung und
-Symmetrie: siehe die Nachträge #310 und #312 unten). Betroffen sind **nur** die zwei
+Symmetrie: siehe die Nachträge nothra/tch-gastro-services#310 und nothra/tch-gastro-services#312 unten). Betroffen sind **nur** die zwei
 report-erzeugenden Skills:
 - `review` → `tasks/review-<id>.md` enthält `APPROVED` oder `NEEDS_REWORK`.
 - `security-review` → `tasks/security-<id>.md` enthält `PASSED` oder `NEEDS_FIXES`.
@@ -69,12 +69,12 @@ report-erzeugenden Skills:
 Die Verdict-Erkennung liest den Verdict ausschließlich aus der ersten nicht-leeren Zeile unter
 der verbindlichen Anker-Überschrift des Reports (`## Empfehlung` → `APPROVED|NEEDS_REWORK`,
 `## Ergebnis` → `PASSED|NEEDS_FIXES`); eine Fließtext-Erwähnung anderswo kippt den Verdict nicht
-mehr (fail-closed bei fehlendem/mehrdeutigem Anker – #211, ersetzt das frühere „letztes
+mehr (fail-closed bei fehlendem/mehrdeutigem Anker – nothra/tch-gastro-services#211, ersetzt das frühere „letztes
 Vorkommen gewinnt" per Volltext-Grep). Sie ist in **einen** Helper gezogen
 (`scripts/lib/report-verdict.sh`), damit Guard und Summary nicht auseinanderdriften (kanonische
 Quelle, ein Ort).
 
-**Frische-Bedingung (Nachtrag #310).** Der Guard honoriert einen Verdict nur, wenn sich die
+**Frische-Bedingung (Nachtrag nothra/tch-gastro-services#310).** Der Guard honoriert einen Verdict nur, wenn sich die
 Report-Datei **seit dem Beginn dieses Skill-Aufrufs verändert** hat. `run_skill()` erhebt dafür
 **einmal vor dem ersten Versuch** eines Aufrufs einen Inhalts-Fingerprint der Report-Datei
 (`report_fingerprint` in derselben Lib, POSIX-`cksum`; Marker `ABSENT`, wenn die Datei fehlt,
@@ -86,14 +86,14 @@ Ein im Versuch **signalisierter** Interrupt stoppt die Pipeline trotzdem sofort:
 Stale-Zweig ruft `interrupt-check.sh` ebenso auf wie die Erfolgs-Zweige – sonst folgten zwei
 weitere Heavy-Versuche, und der Blocker-Eintrag in der Task-Datei entfiele.
 Ohne diese Bedingung galt ein stehengebliebener Verdict als frischer Erfolg: innerhalb eines
-Laufs in der Review-Iterationsschleife (#310, Task 308 – der Circuit Breaker brach bei
-fertigem Rework mit `exit 2` ab) und über Läufe hinweg bei bereits committetem Report (#91 –
+Laufs in der Review-Iterationsschleife (nothra/tch-gastro-services#310, Task 308 – der Circuit Breaker brach bei
+fertigem Rework mit `exit 2` ab) und über Läufe hinweg bei bereits committetem Report (nothra/tch-gastro-services#91 –
 fail-open ohne jedes Review). Weil `run_skill()` den Fingerprint pro Aufruf erhebt, deckt die
 Prüfung beide Fälle mit derselben Mechanik ab. Die Skill→Report-Datei-Zuordnung liegt dazu
 ebenfalls nur in der Lib (`report_file`); `run-pipeline.sh` baut keinen Report-Pfad mehr selbst.
 
 Die hier für den Fehlerpfad formulierte Bedingung („nach dem Fehlversuch") wertet `run_skill()`
-seit #312 auf **beiden** Rückkehrpfaden aus – Mechanik und Begründung im Nachtrag #312 unten,
+seit nothra/tch-gastro-services#312 auf **beiden** Rückkehrpfaden aus – Mechanik und Begründung im Nachtrag nothra/tch-gastro-services#312 unten,
 damit sie nicht in zwei Absätzen parallel gepflegt werden muss.
 
 Für alle anderen Skills entscheidet unverändert allein der Exit-Code (non-zero = Fehlversuch),
@@ -111,7 +111,7 @@ Factory-Philosophie „deterministische Skripte kapseln riskante Ops" und zum Se
 **Cons:** Skills müssen den Wrapper aufrufen statt rohem git; ein neues Skript mehr.
 
 ### Frage A: Option B – granulare git-Allow-List (`Bash(git commit:*)`, `Bash(git push:*)`)
-Näher am #88-Muster (reine Config). **Cons:** Prefix-Globs können `git push` **nicht** von
+Näher am nothra/tch-gastro-services#88-Muster (reine Config). **Cons:** Prefix-Globs können `git push` **nicht** von
 `git push --force <feature>` trennen → Schutz vor Force-Push/main hinge allein am pre-push-Hook;
 die Guard-Absicht (kein Force außer Wegwerf-Refs) ließe sich in `settings.json` nicht ausdrücken;
 Logik über mehrere Muster verstreut statt an einem Ort testbar.
@@ -128,7 +128,7 @@ minimal mehr Logik in `run_skill()`.
 
 ### Frage B: Option B – nur `max_turns` anheben
 **Pros:** trivialste Änderung (nur YAML). **Cons:** brittle – ein Lauf, der auch bei 14 Turns
-nach dem Report weiterarbeitet, scheitert weiter (genau das Muster aus #66); behandelt das
+nach dem Report weiterarbeitet, scheitert weiter (genau das Muster aus nothra/tch-gastro-services#66); behandelt das
 Symptom, nicht die Ursache.
 
 ### Frage B: Option C – nur Report-Guard, `max_turns` bei 8
@@ -167,18 +167,18 @@ Permissions-Grenze und die Erfolgssemantik der Orchestrierung dauerhaft prägen.
 - `.claude/settings.json` – read-only-git + granulare `gh`-Verben in `allow`; `deny` unverändert
   (`.claude/**`, `.env*`). Kein `Bash(git *)`/`Bash(gh *)`.
 - `scripts/run-pipeline.sh` – Report-Guard in `run_skill()` inkl. Frische-Fingerprint pro
-  Aufruf (#310); geteilter Verdict-Helper mit `pipeline_summary()`.
+  Aufruf (nothra/tch-gastro-services#310); geteilter Verdict-Helper mit `pipeline_summary()`.
 - `scripts/lib/report-verdict.sh` – `report_file` (Skill→Datei), `report_verdict` (Anker-Parser,
-  #211), `report_fingerprint` (Frische-Fingerprint, #310).
+  nothra/tch-gastro-services#211), `report_fingerprint` (Frische-Fingerprint, nothra/tch-gastro-services#310).
 - `factory.defaults.yml` – `review`/`security-review` `max_turns: 8 → 14` (mit `@reason`).
 - Skill-Dateien `implement`/`test`/`refactor`/`bug-fix` – committen/pushen über `factory-commit.sh`.
 - `scripts/checks/tests/run-tests.sh` – Tests für Wrapper (Happy-Path/main-Verweigerung/leer) und
   Report-Guard (Verdict da **und** frisch → Erfolg; stale oder fehlend → Fehlschlag),
-  git-Stub-Muster (#80).
+  git-Stub-Muster (nothra/tch-gastro-services#80).
 
 ## Implementierungs-Hinweise (für den Coding-Agenten)
 - **TDD:** Wrapper und Guard sind reine Shell-Logik → Self-Tests in `run-tests.sh` zuerst
-  (Red → Green), git via Stub (`GH_LOG`/PATH-Stub-Muster aus #80).
+  (Red → Green), git via Stub (`GH_LOG`/PATH-Stub-Muster aus nothra/tch-gastro-services#80).
 - **Portabilität:** nur POSIX-Shell/-Regex, kein PCRE; variable Werte als Daten (`grep -F --`,
   Integer-Guards) – `clean-code.md` „Portabilität in Gate-Skripten" + `bash-gotchas.md` + ADR-010.
 - **`gh`-Verbliste** vor Umsetzung gegen die aktuelle `.claude/commands/pr-shepherd.md` gegenprüfen
@@ -186,7 +186,7 @@ Permissions-Grenze und die Erfolgssemantik der Orchestrierung dauerhaft prägen.
 - **stdout/stderr-Hygiene** im Wrapper: Diagnostik auf stderr; Fehler weiterreichen, kein stiller
   „committed aber nicht gepusht"-Zustand.
 
-## Nachtrag (2026-07-26, #239): Push-Nachholung im „nichts zu committen"-Zweig
+## Nachtrag (2026-07-26, nothra/tch-gastro-services#239): Push-Nachholung im „nichts zu committen"-Zweig
 
 **Kontext.** Der in §1 beschriebene „nichts zu committen"-Zweig (bewusst kein harter Fehler)
 prüfte bislang **nur** auf einen leeren `git diff --cached` – nicht darauf, ob der Branch noch
@@ -213,7 +213,7 @@ Details/Testfälle: `docs/specs/spec-239-factory-commit-push-nachholen.md`.
 idealerweise Push-Logik in einem gemeinsamen Helper statt dupliziert), `scripts/checks/tests/
 run-tests.sh` (neue Fälle: nichts zu committen + ungepusht/kein-Upstream/Push-scheitert).
 
-## Nachtrag (2026-08-02, #252): `max_turns` für review/security-review weiter auf 30 kalibriert
+## Nachtrag (2026-08-02, nothra/tch-gastro-services#252): `max_turns` für review/security-review weiter auf 30 kalibriert
 
 **Kontext.** §5 („Budget-Puffer") hob `max_turns` für `review`/`security-review` von `8` auf `14`
 an. In der Praxis reichte auch `14` bei größeren Diffs wiederholt nicht (Task 91, Task 241) – ein
@@ -234,16 +234,16 @@ kalibriert wurde (14 → 30) und verweist auf den aktuellen Wert als kanonisch i
 entfernt), `scripts/checks/tests/run-tests.sh` (Dry-Run-Assertions auf „max 30 turns"
 aktualisiert).
 
-## Nachtrag (2026-08-27, #312): Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad
+## Nachtrag (2026-08-27, nothra/tch-gastro-services#312): Frische-Prüfung auch auf dem Exit-0-Rückkehrpfad
 
-**Kontext.** Der #310-Nachtrag beschrieb die Frische-Bedingung ausdrücklich für den Fehlerpfad
+**Kontext.** Der nothra/tch-gastro-services#310-Nachtrag beschrieb die Frische-Bedingung ausdrücklich für den Fehlerpfad
 („Ist der Fingerprint **nach dem Fehlversuch** unverändert …"), und genau dort saß sie auch im
 Code. Endete `claude --print` mit **Exit 0**, kehrte `run_skill()` mit `return 0` zurück, ohne
 den erhobenen Fingerprint je anzusehen. Beendete `/review` einen Aufruf mit Exit 0, **ohne**
 seinen Report (neu) zu schreiben, las Phase 2 den stehengebliebenen Verdict aus einer früheren
 Iteration bzw. einem früheren, committeten Lauf: ein alter `APPROVED` ließ die Pipeline den
 Review-Loop verlassen, ohne dass in diesem Lauf ein Review stattfand – dieselbe
-fail-open-Richtung wie #91/#310, nur über den Erfolgs- statt den Fehlerpfad. Beim Lesen fiel
+fail-open-Richtung wie nothra/tch-gastro-services#91/#310, nur über den Erfolgs- statt den Fehlerpfad. Beim Lesen fiel
 zusätzlich auf, dass das Security-Gate in Phase 5 **nur** bei einem eindeutigen `NEEDS_FIXES`
 blockierte und damit auch einen fehlenden Report oder einen Report ohne auswertbaren
 Verdict-Anker durchwinkte.
@@ -275,16 +275,16 @@ Details/Testfälle: `docs/specs/spec-312-verdict-konsum-frische-pruefung.md`.
 
 **Betroffene Artefakte (Ergänzung):** `scripts/run-pipeline.sh` (`report_is_fresh_and_valid`,
 symmetrische Auswertung in `run_skill()`, umgedrehtes Security-Gate),
-`scripts/checks/tests/run-tests.sh` (#312-E2E-Block auf dem #310-Harness inkl.
+`scripts/checks/tests/run-tests.sh` (nothra/tch-gastro-services#312-E2E-Block auf dem nothra/tch-gastro-services#310-Harness inkl.
 Mutationsbelegen), `docs/factory/lessons/factory-workflow.md` (Report-Guard-Absatz).
 
-## Nachtrag (2026-08-02, #262): `-h`/`--help` ist eine Hilfe-Anfrage, kein Pflicht-Argument
+## Nachtrag (2026-08-02, nothra/tch-gastro-services#262): `-h`/`--help` ist eine Hilfe-Anfrage, kein Pflicht-Argument
 
-**Kontext.** §1 formuliert „Die Message ist Pflicht-Argument", und der #239-Nachtrag nennt die
-davor laufenden Guards „main/master, Argumentanzahl, kein `--force`". Task #262 setzt vor die
+**Kontext.** §1 formuliert „Die Message ist Pflicht-Argument", und der nothra/tch-gastro-services#239-Nachtrag nennt die
+davor laufenden Guards „main/master, Argumentanzahl, kein `--force`". Task nothra/tch-gastro-services#262 setzt vor die
 Argumentanzahl-Prüfung ein weiteres Guard: `factory-commit.sh -h` bzw. `--help` (als **einziges**
 Argument) gibt nur die Usage aus und endet mit **exit 0** – ohne `git add`/`commit`/`push`. Grund
-ist derselbe Fehlgriff, der #262 auslöste: ohne dieses Guard würde das Flag wörtlich zur
+ist derselbe Fehlgriff, der nothra/tch-gastro-services#262 auslöste: ohne dieses Guard würde das Flag wörtlich zur
 Commit-Message (siehe `docs/specs/spec-262-flag-guard-commit-message.md`, ADR-042).
 
 **Entscheidung.** Kein neuer Design-Fork – §1 bleibt inhaltlich gültig, ist aber im Wortlaut

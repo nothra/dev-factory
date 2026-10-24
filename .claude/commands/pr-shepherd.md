@@ -112,7 +112,7 @@ Wenn Schritt 2–5 alle grün. **Reihenfolge ist kritisch (Squash-Merge):** Die
 Abschlussnotiz muss auf dem Feature-Branch **committet und gepusht** sein, *bevor*
 Auto-Merge aktiviert wird. Sonst landet eine nur lokal geschriebene Notiz **nie auf
 `main`** – nach dem Merge liegt die Task-Datei auf `main` und ist nur noch über einen
-neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
+neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: nothra/tch-gastro-services#112/#114.
 
 1. Ergebnis in die Task-Datei schreiben:
    ```
@@ -145,7 +145,7 @@ neuen PR änderbar (Direkt-Commit auf `main` ist verboten). Vorfall: #112/#114.
 - **Unter `FACTORY_STAGE=3` (nicht-interaktiv) niemals eine interaktive Freigabe-/Rückfrage
   stellen.** Jeder nicht autonom auflösbare Blocker wird über `scripts/raise-interrupt.sh`
   eskaliert (deterministischer Stopp, ADR-004). Auf eine Antwort zu warten, die niemand gibt,
-  endet sonst als stiller Exit 0 mit ungemergtem PR (Vorfall #212).
+  endet sonst als stiller Exit 0 mit ungemergtem PR (Vorfall nothra/tch-gastro-services#212).
 - **Keine index-/history-mutierenden Git-Operationen außerhalb der dokumentierten Schritte** –
   insbesondere **kein autonomes `git rm --cached`** o. Ä. Trifft der Push-Gate auf ein fremdes,
   ihn blockierendes getracktes Artefakt (z. B. versehentlich committete Coverage-Ausgaben),

@@ -5,7 +5,7 @@ Accepted (2026-07-22)
 
 ## Kontext
 
-Spec #197 (`docs/specs/spec-197-modell-tiers-gezielter-vergeben.md`) verlangt, die
+Spec nothra/tch-gastro-services#197 (`docs/specs/spec-197-modell-tiers-gezielter-vergeben.md`) verlangt, die
 Modell-Tier-Wahl **vom Aufwand des einzelnen Laufs** abhängig zu machen statt von einer
 pauschalen Skill-Zuordnung:
 

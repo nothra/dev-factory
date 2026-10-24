@@ -11,7 +11,7 @@ Der bei **jeder** Session und **jedem** Pipeline-Agenten per `@import` geladene 
 Abschnitt „Bekannte Stolpersteine" in `PROJECT-CONTEXT.md` mit **45 `/codify`-Learnings
 (~978 Zeilen ≈ 47 % des gesamten @import-Kontexts)**. Ein Stage-3-Lauf sind ~7 sequenzielle
 Agenten, die diesen Ballast je komplett neu laden — davon ist für eine konkrete Task fast
-alles irrelevant (z. B. Turbopack/pdfkit #193, pnpm@11 #167, aria-modal #134).
+alles irrelevant (z. B. Turbopack/pdfkit nothra/tch-gastro-services#193, pnpm@11 nothra/tch-gastro-services#167, aria-modal nothra/tch-gastro-services#134).
 
 Ursache ist eine **Governance-Lücke**: `/codify` hängt jedes Feature-Learning an den
 @import-Pfad an; keines wird je ausgelagert. Das widerspricht `token-efficiency.md` §5
@@ -26,13 +26,13 @@ und `bash-gotchas.md`. Spec: `docs/specs/spec-196-import-kontext-verschlanken.md
 
    | Datei | Thema | Zugeordnete Learnings (Herkunft) |
    |-------|-------|----------------------------------|
-   | `frontend-react.md` | React/UI, client components, route-neutrale UI-Bausteine | #49, #52, #53(W1), #134, #54, #183, #188(×2) |
-   | `next-auth.md` | Next.js-Framework, `proxy.ts`, NextAuth/Session, öffentliche Routen | #48(proxy), #48(JWT), #63, #164/#170 |
-   | `db-drizzle.md` | Drizzle ORM, Migrationen, IDOR, Soft-Delete, Joins, guarded UPDATE, Zod-Obergrenzen | #48(Migration), #50, #49(Zod), #51(IDOR), #51(Soft-Delete), #53(K1), #55(guarded) |
-   | `testing.md` | Vitest, Coverage, Guard-Tests, Zod-Meldungs-Tests | #48(vitest), #51(guard-clause), #117, #116 |
-   | `build-tooling.md` | pnpm, Turbopack/Vercel-Bundling, Typecheck-Gate, gitignore-Artefakte | #67(gitignore), #137, #167, #193 |
-   | `code-style.md` | Clean-Code-Muster (Naming, Kommentar-Ort) | #67(WHAT-Kommentar), #105 |
-   | `factory-workflow.md` | Git/CI, Pipeline-Skills, Patch-Workflow, Branch/Label, Review-Scope, Terminologie-Sweep, kanonische Quellen, Blocker | Task002(×2), #40/42, #120, #155, #91(×2), #114(×2), #52-Import?, #145, #144, #155/158, #160, #161, #55(ADR-Drift), #185 |
+   | `frontend-react.md` | React/UI, client components, route-neutrale UI-Bausteine | nothra/tch-gastro-services#49, nothra/tch-gastro-services#52, nothra/tch-gastro-services#53(W1), nothra/tch-gastro-services#134, nothra/tch-gastro-services#54, nothra/tch-gastro-services#183, nothra/tch-gastro-services#188(×2) |
+   | `next-auth.md` | Next.js-Framework, `proxy.ts`, NextAuth/Session, öffentliche Routen | nothra/tch-gastro-services#48(proxy), nothra/tch-gastro-services#48(JWT), nothra/tch-gastro-services#63, nothra/tch-gastro-services#164/#170 |
+   | `db-drizzle.md` | Drizzle ORM, Migrationen, IDOR, Soft-Delete, Joins, guarded UPDATE, Zod-Obergrenzen | nothra/tch-gastro-services#48(Migration), nothra/tch-gastro-services#50, nothra/tch-gastro-services#49(Zod), nothra/tch-gastro-services#51(IDOR), nothra/tch-gastro-services#51(Soft-Delete), nothra/tch-gastro-services#53(K1), nothra/tch-gastro-services#55(guarded) |
+   | `testing.md` | Vitest, Coverage, Guard-Tests, Zod-Meldungs-Tests | nothra/tch-gastro-services#48(vitest), nothra/tch-gastro-services#51(guard-clause), nothra/tch-gastro-services#117, nothra/tch-gastro-services#116 |
+   | `build-tooling.md` | pnpm, Turbopack/Hosting-Bundling, Typecheck-Gate, gitignore-Artefakte | nothra/tch-gastro-services#67(gitignore), nothra/tch-gastro-services#137, nothra/tch-gastro-services#167, nothra/tch-gastro-services#193 |
+   | `code-style.md` | Clean-Code-Muster (Naming, Kommentar-Ort) | nothra/tch-gastro-services#67(WHAT-Kommentar), nothra/tch-gastro-services#105 |
+   | `factory-workflow.md` | Git/CI, Pipeline-Skills, Patch-Workflow, Branch/Label, Review-Scope, Terminologie-Sweep, kanonische Quellen, Blocker | Task002(×2), nothra/tch-gastro-services#40/42, nothra/tch-gastro-services#120, nothra/tch-gastro-services#155, nothra/tch-gastro-services#91(×2), nothra/tch-gastro-services#114(×2), nothra/tch-gastro-services#52-Import?, nothra/tch-gastro-services#145, nothra/tch-gastro-services#144, nothra/tch-gastro-services#155/158, nothra/tch-gastro-services#160, nothra/tch-gastro-services#161, nothra/tch-gastro-services#55(ADR-Drift), nothra/tch-gastro-services#185 |
 
    > Die exakte Zuordnung je Eintrag ist in `/implement` beim Verschieben verbindlich; die
    > Tabelle ist die Leitlinie. Jede Lesson bleibt **inhaltlich unverändert** (verlustfreies
@@ -98,7 +98,7 @@ berührt (jede Server Action validiert per Zod und schreibt via Drizzle).
   `lessons/<thema>.md`; bestehende Cross-Verweise (`[[…]]`, „siehe #NN", ADR-Verweise)
   müssen beim Verschieben nachgezogen werden (AC6).
 - ~~Guidelines-Dateien und ihre `@import`-Einbindung bleiben unverändert.~~ **Überholt durch
-  [ADR-047](047-import-kontext-guidelines-nach-erzwungenheit.md) (#319):** Der hier bewusst
+  [ADR-047](047-import-kontext-guidelines-nach-erzwungenheit.md) (nothra/tch-gastro-services#319):** Der hier bewusst
   ausgenommene Guidelines-Block wurde nach dem Kriterium „ist die Regel technisch erzwungen?"
   geschnitten – `git-workflow.md` und `architecture-principles.md` sind aus dem `@import`
   genommen (Kurzregeln + „Laden bei"-Trigger inline), `tdd-principles.md` und

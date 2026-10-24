@@ -7,7 +7,7 @@ Accepted (2026-06-24)
 > „Betroffene Stellen" ein „JSON-Schema" und in §6 ein Maximum „im Schema"; diese ADR
 > entscheidet konkret **wie** validiert wird, nachdem klar ist, dass die Toolchain keinen
 > JSON-Schema-Validator hat. Sie ändert keine Entscheidung von ADR-009, sondern füllt eine
-> offene Umsetzungsfrage (siehe Task #36 „Offene Fragen").
+> offene Umsetzungsfrage (siehe Task nothra/tch-gastro-services#36 „Offene Fragen").
 
 ## Date
 2026-06-24
@@ -58,9 +58,9 @@ Default — sie gehört bewusst nicht in die merge-bare Config (sonst könnte ei
 eigenes Maximum anheben und den Guard aushebeln). Kommen weitere Obergrenzen hinzu, werden sie
 in eine deklarative Policy-Datei neben dem Gate promotet (siehe Konsequenzen).
 
-> **Erweitert durch [ADR-051](051-turn-limit-ceiling-implement-80.md) (#348):** Der konkrete
+> **Erweitert durch [ADR-051](051-turn-limit-ceiling-implement-80.md) (nothra/tch-gastro-services#348):** Der konkrete
 > Wert von `MAX_TURNS_CEILING` wurde von 50 auf 80 angehoben (wiederkehrendes Turn-Limit-
-> Exhaustion-Muster bei `/implement`, zuletzt #324). Der hier beschriebene Mechanismus
+> Exhaustion-Muster bei `/implement`, zuletzt nothra/tch-gastro-services#324). Der hier beschriebene Mechanismus
 > (Skript-Konstante, nicht Team-überschreibbar) ist davon unberührt.
 
 **Aufrufpunkte (zwei, fail-closed):**
@@ -111,7 +111,7 @@ berührt nur dieses Skript, nicht die Aufrufer.
 - Keine neue Toolchain-Abhängigkeit; CI-Images unverändert.
 - Erlaubte Keys bleiben automatisch synchron mit den Defaults (kein Pflege-Doppel).
 - Das Gate ist eigenständig testbar und wird von `run-pipeline.sh` **und** der Test-Suite genutzt.
-- Schafft die Vorbedingung für **Task #35** (Ph.3-Wizard validiert seine erzeugte Config hierüber).
+- Schafft die Vorbedingung für **Task nothra/tch-gastro-services#35** (Ph.3-Wizard validiert seine erzeugte Config hierüber).
 
 **Negativ / Trade-offs:**
 - Validierungs-Regeln sind Bash/yq-Code statt eines deklarativen Standards — bei künftig
@@ -126,7 +126,7 @@ berührt nur dieses Skript, nicht die Aufrufer.
   `{heavy, light}` ebenso. Bewusst für v1 — Profile/Erweiterbarkeit sind additiv nachrüstbar
   (ADR-009 §3), ohne die Aufrufer zu berühren.
 
-## Implementierungs-Hinweise (für den Coding-Agenten, Task #36)
+## Implementierungs-Hinweise (für den Coding-Agenten, Task nothra/tch-gastro-services#36)
 
 - **Neues Skript** `scripts/checks/config-validation-check.sh`:
   - Eingabe: Pfad zu defaults + optional override (Default: die Repo-Dateien). Exit 0 = gültig,
@@ -143,9 +143,9 @@ berührt nur dieses Skript, nicht die Aufrufer.
 - **Tests in `run-tests.sh`:** je Regel ein Positiv- und ein Negativ-Fixture
   (gültiger Override, unbekannter Key, `schemaVersion`-Mismatch, `max_turns` über Ceiling,
   kaputtes YAML, gültige Defaults-only). Alles unter `HAS_YQ` → sonst `skip_yq`, nie rot.
-  Fixtures unter `scripts/checks/tests/` (Test-Artefakte; **nicht** das in #35 ausgelieferte
+  Fixtures unter `scripts/checks/tests/` (Test-Artefakte; **nicht** das in nothra/tch-gastro-services#35 ausgelieferte
   `factory.config.yml.example`).
 - **Abgrenzung:** Coverage-Schwelle (ADR-009 §D, raise-only) lebt heute in `PROJECT-CONTEXT.md`,
-  nicht in `factory.config.yml` — **nicht** Teil von #36. Sobald sie in die Config wandert,
+  nicht in `factory.config.yml` — **nicht** Teil von nothra/tch-gastro-services#36. Sobald sie in die Config wandert,
   ergänzt eine raise-only-Regel dieses Gate.
-- **Reihenfolge:** #36 **vor** #35 mergen (der Wizard baut darauf auf).
+- **Reihenfolge:** nothra/tch-gastro-services#36 **vor** nothra/tch-gastro-services#35 mergen (der Wizard baut darauf auf).

@@ -8,7 +8,7 @@ Accepted
 
 ## Kontext
 
-Issue #262 (Spec: `docs/specs/spec-262-flag-guard-commit-message.md`) verlangt einen
+Issue nothra/tch-gastro-services#262 (Spec: `docs/specs/spec-262-flag-guard-commit-message.md`) verlangt einen
 neuen `commit-msg`-Git-Hook (lehnt Commit-Messages ab, die wie `--help`/`-h` aussehen),
 zusätzlich zu einem in derselben Task neu entstehenden `-h|--help`-Guard in
 `scripts/factory-commit.sh`.
@@ -88,18 +88,18 @@ und `scripts/factory-commit.sh` (eigenes CLI-Argument-Parsing) stehen. Eine geme
 „Known-Flags"-Quelle für zwei Literale in zwei konzeptionell unterschiedlichen Skripten wäre
 Over-Engineering (kein Kompromiss bei Clean Code heißt hier: keine Abstraktion für zwei
 Zeilen Code an zwei unterschiedlichen Konzern-Grenzen). **Neu zu bewerten, sobald eine dritte
-Stelle dazukommt** – konkret Issue **#131** („`start-work.sh`: `--help`/`-h` behandeln"): drei
+Stelle dazukommt** – konkret Issue **nothra/tch-gastro-services#131** („`start-work.sh`: `--help`/`-h` behandeln"): drei
 Vorkommen sind der Punkt, an dem eine gemeinsame Quelle günstiger wird als die Duplikation.
 
 Der `-h`/`--help`-Guard in `scripts/factory-commit.sh` berührt den Seam-Kontrakt aus
-**ADR-019 §1** („Die Message ist Pflicht-Argument") – dort als Nachtrag (#262) präzisiert.
+**ADR-019 §1** („Die Message ist Pflicht-Argument") – dort als Nachtrag (nothra/tch-gastro-services#262) präzisiert.
 
 ## Alternatives
 
 ### Option A: `install-hooks.sh` als Single Source, `init-factory.sh` ruft es auf (gewählt)
 **Vorteile:**
 - Eine Stelle für Hook-Inhalt – keine Drift zwischen Neuprojekt- und Retrofit-Pfad
-  (passend zu den wiederholt aufgetretenen Drift-Lessons in diesem Projekt, z. B. #214).
+  (passend zu den wiederholt aufgetretenen Drift-Lessons in diesem Projekt, z. B. nothra/tch-gastro-services#214).
 - Löst das Retrofit-Problem für dieses und jedes andere bereits initialisierte Repo direkt
   und wiederholt ausführbar.
 - Isoliert testbar (Positiv-/Negativ-Fall je Hook), ohne den kompletten
@@ -153,24 +153,24 @@ lässt (idempotentes Skript statt vollständiger Bootstrap-Lauf).
   also nicht – der Preis dafür, dass ein repo-weiter Hook keine älteren Branches blockiert.
 - In Repos mit gesetztem `core.hooksPath` bleibt die Hook-Installation ein manueller
   Entscheidungsschritt (der Installer bricht dort ab).
-- Der wiederkehrende Push-Gate-Check `scripts/checks/hooks-installed-check.sh` (#265/#268)
+- Der wiederkehrende Push-Gate-Check `scripts/checks/hooks-installed-check.sh` (nothra/tch-gastro-services#265/#268)
   prüft `core.hooksPath` ebenfalls fail-closed – anders als dieser einmalige Installer bietet
   er **keine** „Factory-Checks im konfigurierten Pfad einbinden"-Alternative: er liest
   ausschließlich `$GIT_COMMON_DIR/hooks` und bleibt bei gesetztem `core.hooksPath` dauerhaft
   rot, solange kein Opt-out existiert. Ein Escape-Hatch für Adopter-Repos mit echtem
-  husky-Einsatz (z. B. eine `FACTORY_HOOKS_PATH_ACK`-Umgehung) ist bewusst nicht Teil von #268
-  (YAGNI ohne konkreten Bedarf) – getrackt als Issue **#278**.
+  husky-Einsatz (z. B. eine `FACTORY_HOOKS_PATH_ACK`-Umgehung) ist bewusst nicht Teil von nothra/tch-gastro-services#268
+  (YAGNI ohne konkreten Bedarf) – getrackt als Issue **nothra/tch-gastro-services#278**.
 - `core.hooksPath=""` (Leerstring) verhält sich **nicht** wie „nicht gesetzt" (empirisch mit
-  git 2.50 verifiziert, #268): Git löst den Hook-Pfad dann auf das Arbeitsverzeichnis auf und
+  git 2.50 verifiziert, nothra/tch-gastro-services#268): Git löst den Hook-Pfad dann auf das Arbeitsverzeichnis auf und
   ruft `$GIT_COMMON_DIR/hooks` nicht mehr auf. Der `[ -n "$HOOKS_PATH_CONFIG" ]`-Guard in
   diesem Skript (s. o., „Fail-closed bei gesetztem `core.hooksPath`") behandelt einen
   Leerstring also fälschlich als „nicht gesetzt" – ein bestehender Blindspot, der außerhalb
-  des Scopes von #268 liegt (`hooks-installed-check.sh` behandelt den Leerstring bewusst
-  abweichend fail-closed, s. dort), getrackt als Issue **#279**.
+  des Scopes von nothra/tch-gastro-services#268 liegt (`hooks-installed-check.sh` behandelt den Leerstring bewusst
+  abweichend fail-closed, s. dort), getrackt als Issue **nothra/tch-gastro-services#279**.
 - Die Ausführung von `scripts/install-hooks.sh` in diesem bestehenden Repo bleibt ein
   manueller Schritt nach dem Merge (keine Automatisierung, siehe Spec) – ein potenzieller
   „vergessen, auszuführen"-Fehlerpunkt, der außerhalb dieses PRs liegt. Getrackt als Issue
-  **#265** (inkl. Vorschlag, die Hook-Präsenz im `pre-push`-Check fail-closed zu verifizieren),
+  **nothra/tch-gastro-services#265** (inkl. Vorschlag, die Hook-Präsenz im `pre-push`-Check fail-closed zu verifizieren),
   damit der Schritt nicht nur in der nach dem Merge kaum gelesenen Task-Datei steht.
 - Ein `init-factory.sh`-Bootstrap, bei dem der Installer fail-closed abbricht, endet jetzt mit
   eigenem Banner und Exit ≠ 0 statt mit der Erfolgsmeldung – sonst hätte die Aufrufstelle den

@@ -5,12 +5,12 @@ Task-Dateien) und gibt ihn optional als GitHub-Kommentar aus.
 
 > **Mess-Ebene (ADR-006):** Dieser Skill misst **Prozess** – Lead-Time,
 > Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. **Token und Kosten gehören
-> NICHT hierher** – die liefert die Telemetrie-Ebene (OTEL). Sie läuft seit #334 automatisch
+> NICHT hierher** – die liefert die Telemetrie-Ebene (OTEL). Sie läuft seit nothra/tch-gastro-services#334 automatisch
 > je Pipeline-Lauf und legt ihre Werte in `tasks/telemetry-<task-id>-<zeitstempel>.csv` ab
 > (ADR-049); `config/otel.env.example` ist nur noch die Vorlage für den manuellen/Gateway-Weg.
 > Kein eigenes Token-Accounting nachbauen.
 
-> **Läuft bereits automatisch (ADR-045, #314):** `scripts/metrics.sh` ist ein
+> **Läuft bereits automatisch (ADR-045, nothra/tch-gastro-services#314):** `scripts/metrics.sh` ist ein
 > Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs (EXIT-Trap, fail-open – läuft auch bei
 > Abbruch, verändert nie den Exit-Code der Pipeline). Dieser Skill ist der **manuelle** Weg
 > dorthin – z. B. für einen Zwischenstand außerhalb eines Pipeline-Laufs – und erreicht über
@@ -54,7 +54,7 @@ abgesichert). Ohne `--publish` genügt der Datei-Report (heutiges Verhalten unve
 
 ## Regeln
 
-- Keine Token-/Kosten-Metriken (kommen aus der Telemetrie-Ebene: OTEL – ADR-006, seit #334
+- Keine Token-/Kosten-Metriken (kommen aus der Telemetrie-Ebene: OTEL – ADR-006, seit nothra/tch-gastro-services#334
   je Lauf persistiert in `tasks/telemetry-<task-id>-*.csv`, ADR-049)
 - Nichts erfinden: nur ausgeben, was `metrics.sh` aus echten Quellen berechnet
 - Fehlende API-Daten ehrlich als „übersprungen" ausweisen, nicht schätzen
@@ -67,6 +67,6 @@ abgesichert). Ohne `--publish` genügt der Datei-Report (heutiges Verhalten unve
 
 ## Hinweis für Stage 3 / Automatisierung
 
-Deterministisch, kein Gesprächsgedächtnis nötig – und seit #314 bereits verdrahtet: der
+Deterministisch, kein Gesprächsgedächtnis nötig – und seit nothra/tch-gastro-services#314 bereits verdrahtet: der
 EXIT-Trap in `run-pipeline.sh` ruft `bash scripts/metrics.sh --quiet --publish` als
 Abschluss-Schritt jedes Pipeline-Laufs auf (ADR-045), kein separater Scheduled Workflow nötig.
