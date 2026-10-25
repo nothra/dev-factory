@@ -2,7 +2,7 @@
 
 > **Nacharbeit nach Iteration 1 (erledigt = `[x]`):** alle Wichtig-Findings außer dem Out-of-Scope-Punkt sowie die kleinen Nitpicks, die ohnehin im selben Code lagen. Offen bleiben die als Issue/Kleinfund klassifizierten Funde und einzelne Nitpicks (siehe unten). Erst ein erneuter `/review` setzt „APPROVED“.
 
-Stand Iteration 1: Branch `feature/22-…` bei `d360f3b` (PR #25). Stand Iteration 2: `bb7f5ae` (Nacharbeit). Review-Iteration 2 von höchstens 3. Drei Runden (Logik, Qualität, Architektur); die
+Stand Iteration 1: Branch `feature/22-…` bei `d360f3b` (PR #25). Stand Iteration 2: `bb7f5ae` (Nacharbeit). Stand Iteration 3: `76ffcf9` (Nacharbeit). Review-Iteration 3 von höchstens 3 (Circuit Breaker: danach eskalieren). Drei Runden (Logik, Qualität, Architektur); die
 Tatsachenbehauptungen der Wichtig-Findings 1, 2 und 7 sowie der Latenz-Fund zum Manifest-Skript wurden mit eigenen Repros im Orchestrator bestätigt.
 
 ## Kritische Findings (müssen behoben werden)
@@ -21,7 +21,7 @@ Keine.
 - [x] [scripts/checks/tests/run-tests.sh (Block „Konsumenten-Vertrag") und scripts/project/tests/run-tests.sh:32,55,118] Fixture-Aufbau mehrfach von Hand wiederholt (`lock_run_22`, `lock_bad_22` und vier weitere `mktemp`-Blöcke mit derselben Env-Trias) und der Magic String `/nicht/vorhanden/factory.lock` steht fünfmal inline. Ein Fixture-Helfer und eine Konstante (z. B. `NO_LOCK_FILE` in `assert-helpers.sh`); sonst rutschen Tests bei einem Rename von `FACTORY_LOCK_FILE` still in den Lock-Modus. *(Runde 2)*
 - [x] [scripts/project/tests/run-tests.sh:547–552, `hook_22`] Der Kommentar „erbt FACTORY_SELF_TEST_RUN nur, wenn der Aufruf es setzt" stimmt nur bei sauberer Umgebung; ist die Variable von außen exportiert, kippen `hook_22 0/1`. Setup mit `env -u FACTORY_SELF_TEST_RUN` isolieren (wie `nolib_22`), den Fall „gesetzt" mit `env FACTORY_SELF_TEST_RUN=1` aufrufen. *(Runde 2)*
 - [x] [docs/factory/PROJECT-CONTEXT.md, „Build, Test, Lint" → „Test-Framework"] Zeile nennt weiter nur die ausgelieferte Suite; an „zwei Suiten" angleichen. *(Runde 2)*
-- [ ] [Out-of-Scope, siehe Klassifizierung unten] Ausgelieferte Dateien verweisen auf `docs/factory/OWNERSHIP.md`, das Konsumenten nicht mehr bekommen: `.claude/commands/{review,codify,security-review}.md`, `docs/factory/FACTORY.md:3`, `OPERATING.md`, `guidelines/git-workflow.md:190`, `docs/factory/kleinfunde.md`. Im Lock-Modus zeigt der Link ins Leere; der in beiden Modi gültige Weg ist `ownership-check.sh --list factory`. *(Runde 3, Grep bestätigt)*
+- [x] [Out-of-Scope, siehe Klassifizierung unten] (verfolgt in Issue #27) Ausgelieferte Dateien verweisen auf `docs/factory/OWNERSHIP.md`, das Konsumenten nicht mehr bekommen: `.claude/commands/{review,codify,security-review}.md`, `docs/factory/FACTORY.md:3`, `OPERATING.md`, `guidelines/git-workflow.md:190`, `docs/factory/kleinfunde.md`. Im Lock-Modus zeigt der Link ins Leere; der in beiden Modi gültige Weg ist `ownership-check.sh --list factory`. *(Runde 3, Grep bestätigt)*
 
 
 ### Iteration 2 (Stand `bb7f5ae`) – neue Wichtig-Findings
@@ -30,6 +30,12 @@ Keine.
 - [x] [scripts/checks/ownership-check.sh:72 und :85-93, Kopfkommentar :21-22] Kommentar zu `lock_require_inputs` verspricht „Liste … mit mindestens einem Eintrag", die Leer-Prüfung steht aber in `lock_collect_sets`; der Kopfkommentar zählt den neuen Exit-2-Fall „leere Liste" nicht auf. Prüfung samt Normalisierung nach `lock_require_inputs` verschieben (oder die Funktion `lock_load_points` nennen) und den Kopfkommentar ergänzen. *(Runde 2)*
 - [x] [docs/factory/adr/064-…md:112-113 (Konsequenzen), :151 (Bezug)] „Der Ruleset-Eintrag … wird als Folge-Issue verfolgt" stimmt nicht: Repro `gh issue list --state all` – offen sind nur #14, #15, #22, #23, #24, kein Issue zu `project-self-test`/Ruleset/`protect-main`. Derselbe Fehlertyp wie Lesson #211 (ADR behauptet Tracking, das nur eine Absicht ist). Issue anlegen und die Nummer ins ADR schreiben, oder Text auf „ist als Issue noch anzulegen" ändern. *(Runde 3, Repro im Orchestrator bestätigt)*
 - [x] [Klassifizierung des Manifest-Skript-Funds, `scripts/factory-release-manifest.sh:39` / `ownership-check.sh:134`] Als Kleinfund (B) geführt, passt aber nicht zum Maßstab aus `git-workflow.md` („Ist der Auslöser in diesem Repo herstellbar?" → Issue): ein `factory.lock` im `FACTORY_DIR` genügt, in Iteration 1 per Repro bestätigt. Entweder im PR beheben (Manifest-Skript erzwingt `FACTORY_LOCK_FILE="$NO_LOCK_FILE"`-artig den Tabellenmodus, plus Test; `/dev/null` hilft nicht, `-e` ist wahr) oder als Issue mit Bezug #23 führen. *(Runde 3)*
+
+
+### Iteration 3 (Stand `76ffcf9`) – neue Wichtig-Findings (nur Doku/Verfolgung, kein Code- oder Verhaltensfund)
+- [ ] [docs/factory/adr/064-…md, D2 (Z. ~39) und D5 (Z. ~55)] Die Mechanik des Manifest-Skripts ist im ADR nicht beschrieben (Lesson #211): `factory-release-manifest.sh` setzt jetzt `FACTORY_LOCK_FILE` auf einen nicht existierenden Pfad und erzwingt den Tabellenmodus am Tag-Stand; D2 nennt `FACTORY_LOCK_FILE` nur „Test-Override“ (jetzt auch produktiv genutzt), D5 sagt „liest die Tabelle weiter aus dem Factory-Repo“ statt „am Tag-Stand, nicht ein `factory.lock` im Arbeitsbaum“. Ein bis zwei Sätze ergänzen. *(Runde 3)*
+- [ ] [Klassifizierung A(3), unten] Der Zweifel „ausgelieferte Suite liest projekteigene Dateien“ (`PROJECT-CONTEXT.md` im Label-Drift-Guard, `.gitignore.project`/`settings.project.json` als Compose-Fixture) hat weiter kein Issue – dieselbe Lücke wie bei #26 in Iteration 2 (Absicht nur in einer Datei). Kurzes Issue (Bezug #23/#24) anlegen oder als Prüfpunkt in den Body von #23 aufnehmen und die Klassifizierung nachziehen. *(Runde 3)*
+- [ ] [docs/factory/kleinfunde.md] Die Funde der Klasse B (Fortschrittsanzeige im Hook; zusammengesetzte Ziele in/zu `customization-points.txt`; `jq`-Vorabprüfung bei der Erst-Einbindung) stehen nur in dieser Datei, nicht in `kleinfunde.md` (Repro: `git diff 3557ae1..HEAD -- docs/factory/kleinfunde.md` ist leer). Drei Einträge nach Schema anlegen; die `jq`-Anforderung zusätzlich als Kommentar auf #23. *(Runde 3)*
 
 ## Nitpicks (optional)
 - [x] [scripts/checks/ownership-check.sh:131] Hängender Symlink `factory.lock` gilt als „kein Lock" (`-e`) und fällt ohne Meldung in den Tabellenmodus – das von F-22.1 verbotene stille Zurückfallen. Fix: `[ -e … ] || [ -L … ]`. *(Runde 1; Repro: Tabellenmodus meldet nur „Tabelle nicht lesbar")*
@@ -58,14 +64,24 @@ Keine.
 - [ ] [scripts/checks/tests/run-tests.sh, `lock_check_22`] Drei versteckte Parameter per Env-Präfix-Zuweisung (`TABLE_22`, `PATH_22`, `BASH_22`); `hook_22` nutzt für denselben Zweck `NAME=WERT`-Argumente – zwei Konventionen. Eine Konvention wählen. *(Runde 2)*
 - [x] [scripts/checks/tests/run-tests.sh, `mk_lock_fixture_22`] Schlägt `mktemp` fehl, läuft `lock_check_22 ""` im leeren Verzeichnis; `|| return` ergänzen. *(Runde 2)*
 - [x] [scripts/checks/tests/run-tests.sh:7649-7656, Umlaut-Test] Das Fixture-Repo ist nicht gegen die globale Git-Konfiguration isoliert; mit globalem `core.quotepath=false` wäre der Test zufällig grün. `git -C "$dir_22" config core.quotepath true` setzen (ebenso `commit.gpgsign=false`, `core.hooksPath`). *(Runde 1 N1, Runde 2)*
-- [ ] [docs/factory/adr/064-…md:149] „ADR-063 Q1" ist mehrdeutig (T1a-Nachtrag hat ein Q1, T1b-Nachtrag auch); „ADR-063 T1b Q1". *(Runde 2)*
+- [x] [docs/factory/adr/064-…md:149] „ADR-063 Q1" ist mehrdeutig (T1a-Nachtrag hat ein Q1, T1b-Nachtrag auch); „ADR-063 T1b Q1". *(Runde 2)*
 - [x] [docs/factory/adr/063-…md:460] Leerzeile am Dateiende (`git diff --check`: „new blank line at EOF"). *(Runde 2)*
-- [ ] [docs/factory/adr/064-…md, Hinweis 5, Hinweis 3, Konsequenzen] (b) enthält nicht nur „OWNERSHIP.md → project", sondern auch die Projekt-Suite samt Drift-Guard; „zuerst Inventar, dann verschieben" widerspricht der Historie (Zählvergleich kam erst in `d360f3b`); „Verhalten im Tabellenmodus ändert sich nicht" gilt nicht für Nicht-ASCII-Pfade (Test F-22.3 deckt nur den Lock-Modus). Texte angleichen; „jeder Commit hält die Suite grün" ist nicht per Lauf je Commit belegt. *(Runde 3)*
+- [x] [docs/factory/adr/064-…md, Hinweis 5, Hinweis 3, Konsequenzen] (b) enthält nicht nur „OWNERSHIP.md → project", sondern auch die Projekt-Suite samt Drift-Guard; „zuerst Inventar, dann verschieben" widerspricht der Historie (Zählvergleich kam erst in `d360f3b`); „Verhalten im Tabellenmodus ändert sich nicht" gilt nicht für Nicht-ASCII-Pfade (Test F-22.3 deckt nur den Lock-Modus). Texte angleichen; „jeder Commit hält die Suite grün" ist nicht per Lauf je Commit belegt. *(Runde 3)*
 - [x] [docs/factory/adr/063-…md:324-326 / Nachtrag] Die ältere Aussage „Check läuft … in der Self-Test-Suite (Required Check `factory-self-test`)" ist durch den Test-Schnitt teilweise überholt; ein Halbsatz „(Teil davon seit ADR-064 D6 in `project-self-test`)" und ein Hinweis auf die Required-Check-Listen in ADR-029/ADR-063 Q5 im Nachtrag. *(Runde 3)*
 - [x] [docs/specs/spec-22-konsumenten-vertrag.md:7] Dangling Reference auf „ADR-063 Nachtrag … Q7/Q8", den es nicht gibt; Spec-Kopf auf „Factory-ADR-064 (und Verweis-Nachtrag in ADR-063 vom 2026-10-24)" korrigieren (Spec gehört dem Projekt). *(Runde 3)*
 - [x] [scripts/project/checks/pre-push.d/10-project-tests.sh:15 / ADR-064] `FACTORY_SELF_TEST_RUN` wird mit `-n` geprüft, nicht mit „=1" (auch `=0` überspringt); im ADR als Test-Schnittstelle benennen, die auch ein Konsument erbt. *(Runde 3)*
 - [x] [scripts/checks/tests/run-tests.sh] Kein Test für die Kappung (> 255 Funde); fällt mit dem Zähler-Fix weg. *(Runde 1 N3)*
 - [x] [Out-of-Scope] Die Folgearbeit zu toten `OWNERSHIP.md`-Verweisen verweist auf „T2a-4", für das es kein Issue gibt – Issue anlegen (Bezug T2a-4), sonst ist sie nur in der Task-Datei versteckt. *(Runde 3)*
+
+
+### Iteration 3 – neue Nitpicks
+- [ ] [scripts/checks/ownership-check.sh:101-102] Der Kommentar „die wären bei 255 gekappt“ ist ungenau: Exit-Codes werden modulo 256 umgebrochen, nicht gekappt (`f(){ return 300; }; f; echo $?` → 44; 256 Funde ergäben 0, fail-open). Die Wahl der Datei als Zähler ist richtig, nur das Wort nicht: „Exit-Codes tragen nur 0–255 (modulo 256)“. *(Runde 2)*
+- [ ] [scripts/checks/ownership-check.sh:125] `bad="$(grep -c '' findings.txt)" || bad=0` fängt auch Exit 2 (Datei fehlt) als „0 Funde“ ab; praktisch unerreichbar, weil die Datei zwei Zeilen vorher angelegt wird. Härtbar mit `|| [ $? -eq 1 ]` oder `|| lock_internal_error`; dazu ein Kommentar, dass `lock_report_problems` im `|| exit 1`-Kontext ohne `set -e` läuft. *(Runde 1/2)*
+- [ ] [scripts/checks/tests/run-tests.sh, Manifest-Block] Der Mutationsbeleg wirkt indirekt: im Fixture fehlt `customization-points.txt`, der Mutant endet deshalb mit Exit 2 statt mit sichtbar falscher Dateiliste. Eine `customization-points.txt` ins Fixture legen, dann diskriminiert auch die zweite Assertion (Dateiliste) für sich. *(Runde 2)*
+- [ ] [docs/factory/adr/064-…md, Hinweis 3] „Inventar per Aufruf-Trace vor dem Schnitt“ ist nur halb belegt: die Task-Datei enthält den Zählvergleich, aber kein Inventar „Gruppe → Assertion-Zahl“ und keinen Trace-Beleg. Halbsatz abschwächen oder Inventar nachtragen. *(Runde 2)*
+- [ ] [docs/factory/adr/064-…md, Hinweis 5, letzter Satz] „Jeder Commit hält `run-tests.sh` grün“ widerspricht Hinweis 3 (Lauf je Commit nicht belegt): „Ziel: jeder Commit grün; belegt ist der Endstand“. *(Runde 3)*
+- [ ] [tasks/task-22-…md, „Technische Notizen“] Planstand („Zuerst Inventar, dann verschieben“, Commit-Reihenfolge) weicht vom tatsächlichen Ablauf ab; Zusatz „(Plan; tatsächlicher Ablauf siehe Umsetzungs-Notizen)“. *(Runde 3)*
+- [ ] [docs/factory/adr/064-…md, Absatz Tabellenmodus] Für „Nicht-ASCII-Pfade werden im Tabellenmodus jetzt unquotet zugeordnet“ gibt es keinen Test (F-22.3 deckt nur den Lock-Modus). *(Runde 2)*
 
 ## Klassifizierung der Out-of-Scope-Funde (ADR-018/ADR-043)
 
@@ -86,6 +102,10 @@ Ursprüngliche Empfehlung:
 ## Ergebnis Iteration 2
 Runde 1 (Logik): **APPROVED** – alle `[x]`-Funde an Mutanten-Kopien belegt (CRLF, Umlaut, Symlink kausal), keine neuen Fehler. Runde 2 (Qualität): NEEDS_REWORK (knapp) – drei Wichtig-Punkte zu Zähler, Kommentar, Zuständigkeit. Runde 3 (Architektur): NEEDS_REWORK (Kleinigkeit) – ADR behauptet ein nicht vorhandenes Folge-Issue; Klassifizierung des Manifest-Skript-Funds.
 Alle Wichtig-Punkte sind Text-/Zählermechanik ohne Verhaltensrisiko. Nacharbeit nach Iteration 2: alle Wichtig-Findings und die zugehörigen Nitpicks sind behoben (`[x]`); offen bleiben die älteren kleinen Nitpicks. Iteration 3 ist laut Circuit Breaker die letzte.
+
+## Ergebnis Iteration 3
+Runde 1 (Logik): **APPROVED** – Fundzähler für n = 1, 2, 255, 256, 257, 300, 1000 korrekt; Mutationen (Exit-Code-Zähler, Deckel, Manifest-Skript ohne `FACTORY_LOCK_FILE`) machen genau die zuständigen Tests rot; kein neuer Fehler. Runde 2 (Qualität): **APPROVED** mit Nitpicks; Zahlen 1662 / 133 / 1795 am echten Lauf bestätigt. Runde 3 (Architektur): NEEDS_REWORK (knapp) – kein Code- oder Verhaltensfund, drei Doku-/Verfolgungs-Lücken (siehe „Wichtige Findings“, Iteration 3).
+**Circuit Breaker:** Dieser Review lief zum dritten Mal auf demselben Code. Es wird nicht weiter iteriert; die drei offenen Punkte sind reine Doku/Verwaltung und gehen zur Entscheidung an den Menschen (beheben ohne vierten Review, oder bewusst akzeptieren).
 
 ## Empfehlung
 NEEDS_REWORK
