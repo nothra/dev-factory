@@ -7987,39 +7987,45 @@ echo ""
 echo "#431 AK-E: Fragmente + factory-sync.sh --compose:"
 SYNC_431="$FACTORY_ROOT/scripts/factory-sync.sh"
 assert_true "$([[ -f "$SYNC_431" ]]; echo $?)" "#431 AK-E3: scripts/factory-sync.sh existiert"
-for f_431 in .claude/settings.factory.json .claude/settings.project.json docs/factory/gitignore.factory .gitignore.project; do
-  assert_true "$([[ -f "$FACTORY_ROOT/$f_431" ]]; echo $?)" "#431 AK-E1/E2: Fragment $f_431 existiert"
+for f_431 in .claude/settings.factory.json docs/factory/gitignore.factory; do
+  assert_true "$([[ -f "$FACTORY_ROOT/$f_431" ]]; echo $?)" "#431 AK-E1/E2: Factory-Fragment $f_431 existiert"
 done
-for f_431 in .claude/settings.factory.json .claude/settings.project.json; do
-  jq -e . "$FACTORY_ROOT/$f_431" >/dev/null 2>&1
-  assert_exit 0 "$?" "#431 AK-E1: $f_431 ist gültiges JSON"
-done
+jq -e . "$FACTORY_ROOT/.claude/settings.factory.json" >/dev/null 2>&1
+assert_exit 0 "$?" "#431 AK-E1: .claude/settings.factory.json ist gültiges JSON"
 
 # compose_431 <wurzel> [args…] – führt den echten Compose-Modus gegen eine Fixture-Wurzel aus.
 compose_431() { local r="$1"; shift; FACTORY_DIR="$r" bash "$SYNC_431" --compose "$@" 2>&1; }
-# Fixture: nur die vier Fragmente + die committeten Ziele aus dem echten Repo.
+# Fixture (Factory-Issue #23, AK-28a): die Factory-Fragmente stammen aus dem Repo (Seite factory), die Projekt-Fragmente baut
+# der Test selbst – die ausgelieferte Suite liest weder Projekt-Fragmente noch committete zusammengesetzte Dateien des echten
+# Repos (deren Zustand prüft die Projekt-Suite bzw. das Integritäts-Gate des Konsumenten).
 fixture_431() {
   local d; d="$(mktemp -d)"; mkdir -p "$d/.claude" "$d/docs/factory"
-  cp "$FACTORY_ROOT/.claude/settings.factory.json" "$FACTORY_ROOT/.claude/settings.project.json" "$FACTORY_ROOT/.claude/settings.json" "$d/.claude/" 2>/dev/null
-  cp "$FACTORY_ROOT/docs/factory/gitignore.factory" "$d/docs/factory/" 2>/dev/null
-  cp "$FACTORY_ROOT/.gitignore.project" "$FACTORY_ROOT/.gitignore" "$d/" 2>/dev/null
+  cp "$FACTORY_ROOT/.claude/settings.factory.json" "$d/.claude/"
+  cp "$FACTORY_ROOT/docs/factory/gitignore.factory" "$d/docs/factory/"
+  printf '{"permissions":{"allow":["Bash(echo fixture:*)"]},"env":{"FIXTURE":"1"}}\n' > "$d/.claude/settings.project.json"
+  printf 'fixture-ignore/\n' > "$d/.gitignore.project"
   printf '%s' "$d"
 }
 FX_431="$(fixture_431)"
 
-# AK-E3: Zusammensetzung == committete Datei, deterministisch.
-compose_431 "$FX_431" --check >/dev/null
-assert_exit 0 "$?" "#431 AK-E3: committete settings.json/.gitignore == Zusammensetzung der Fragmente (--check)"
-rm -f "$FX_431/.claude/settings.json" "$FX_431/.gitignore"
+# AK-E3: Zusammensetzung deterministisch, aus Factory- und Fixture-Fragment.
 compose_431 "$FX_431" >/dev/null
 assert_exit 0 "$?" "#431 AK-E3: --compose erzeugt beide Dateien"
-cmp -s "$FX_431/.claude/settings.json" "$FACTORY_ROOT/.claude/settings.json"
-assert_exit 0 "$?" "#431 AK-E3: settings.json byte-identisch zur committeten Datei"
-cmp -s "$FX_431/.gitignore" "$FACTORY_ROOT/.gitignore"
-assert_exit 0 "$?" "#431 AK-E3: .gitignore byte-identisch zur committeten Datei"
+compose_431 "$FX_431" --check >/dev/null
+assert_exit 0 "$?" "#431 AK-E3: frisch zusammengesetzte Dateien == Zusammensetzung der Fragmente (--check)"
+jq -e '.permissions.allow | index("Bash(echo fixture:*)")' "$FX_431/.claude/settings.json" >/dev/null 2>&1
+assert_exit 0 "$?" "#431 AK-E3: settings.json enthält die Permission des Fixture-Projekt-Fragments"
+assert_true "$([ "$(cat "$FX_431/.gitignore")" = "$(cat "$FACTORY_ROOT/docs/factory/gitignore.factory" "$FX_431/.gitignore.project")" ]; echo $?)" "#431 AK-E3: .gitignore = Factory-Fragment + Fixture-Projekt-Fragment"
 first_431="$(cat "$FX_431/.claude/settings.json" "$FX_431/.gitignore" | cksum)"
 compose_431 "$FX_431" >/dev/null
 assert_true "$([ "$first_431" = "$(cat "$FX_431/.claude/settings.json" "$FX_431/.gitignore" | cksum)" ]; echo $?)" "#431 AK-E3: zweimal zusammengesetzt = gleiches Ergebnis"
+# AK-28a: ein Projekt-Fragment mit anderem Inhalt ändert das Ergebnis, ohne dass ein Test es als „Ist“ voraussetzt
+printf '{}\n' > "$FX_431/.claude/settings.project.json"; printf '' > "$FX_431/.gitignore.project"
+compose_431 "$FX_431" >/dev/null
+assert_exit 0 "$?" "#431 AK-28a: leere Projekt-Fragmente werden zusammengesetzt"
+assert_true "$([ "$(cat "$FX_431/.gitignore")" = "$(cat "$FACTORY_ROOT/docs/factory/gitignore.factory")" ]; echo $?)" "#431 AK-28a: .gitignore bei leerem Projekt-Fragment = Factory-Fragment"
+printf '{"permissions":{"allow":["Bash(echo fixture:*)"]}}\n' > "$FX_431/.claude/settings.project.json"; printf 'fixture-ignore/\n' > "$FX_431/.gitignore.project"
+compose_431 "$FX_431" >/dev/null
 
 # F-4: Abweichung je Seite → rot, mit Dateiname (Mutation: committete Datei bzw. Fragment ändern).
 printf '\n# drift\n' >> "$FX_431/.gitignore"
@@ -8043,7 +8049,7 @@ rm -f "$FX_431/.claude/settings.project.json"
 compose_431 "$FX_431" >/dev/null
 assert_exit 1 "$?" "#431 AK-E3: fehlendes Fragment → --compose bricht ab (fail-closed)"
 FACTORY_DIR="$FX_431" bash "$SYNC_431" >/dev/null 2>&1
-assert_exit 1 "$?" "#431 AK-E3: ohne Modus → exit 1 (nur --compose existiert)"
+assert_exit 1 "$?" "#431 AK-E3: ohne Modus → exit 1"
 rm -rf "$FX_431"
 
 # AK-E1: Das Factory-Fragment trägt keine App-Pfade (die gehören dem Projekt-Fragment adoptierender Projekte).
@@ -8062,8 +8068,8 @@ echo "#431 AK-F: factory-ci.yml nur Factory, ci.yml projekteigen:"
 FCI_431="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 jobs_of_431() { awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^  /,"");sub(/:.*/,"");print}' "$1" | sort | tr '\n' ' '; }
 
-assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-self-test issue-sync post-merge-verify pr-closes-issue " ]; echo $?)" \
-  "#431 AK-F1: factory-ci.yml enthält genau die fünf Factory-Jobs (Ist: $(jobs_of_431 "$FCI_431"))"
+assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-integrity factory-self-test issue-sync post-merge-verify pr-closes-issue " ]; echo $?)" \
+  "#431 AK-F1: factory-ci.yml enthält genau die sechs Factory-Jobs (Ist: $(jobs_of_431 "$FCI_431"))"
 grep -q 'pnpm' "$FCI_431"
 assert_exit 1 "$?" "#431 AK-F1: factory-ci.yml enthält keinen pnpm-Aufruf"
 
@@ -8527,6 +8533,12 @@ for var_env_6 in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX 
   assert_true "$([ "$left_env_6" = unset ]; echo $?)" "Hook-Umgebung: $var_env_6 ist nach dem Sourcen der Helfer nicht mehr gesetzt"
 done
 rm -rf "$TMP_ENV_6"
+
+# ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
+source "$CHECKS_DIR/tests/factory-lock-tests.sh" || {
+  echo "run-tests: Testgruppe nicht ladbar: $CHECKS_DIR/tests/factory-lock-tests.sh (fail-closed)" >&2
+  exit 2
+}
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

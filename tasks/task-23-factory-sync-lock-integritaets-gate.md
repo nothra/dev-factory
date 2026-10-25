@@ -1,7 +1,7 @@
 # Task 23: factory-sync-lock-integritaets-gate
 
 ## Status
-- [ ] In Bearbeitung
+- [x] In Bearbeitung
 - [ ] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
@@ -19,31 +19,31 @@ Spec: [`docs/specs/spec-23-factory-sync-lock-integritaets-gate.md`](../docs/spec
 
 ## Akzeptanzkriterien
 <!-- Volltext in der Spec -->
-- [ ] AK2.1a – Lock nennt Repo, Tag, Commit, Pfad + SHA-256, gleich dem Release-Manifest; FACTORY.md-Version passt
-- [ ] AK2.1b – Gate: Hashes lokal, Pfadmenge Lock == Manifest in CI (je Stufe Gegenprobe)
-- [ ] AK2.1c – nach Abholung ist `ownership-check.sh` im Lock-Modus grün
-- [ ] AK2.2a – Abholung lädt den Tag ohne Token, prüft gegen Manifest, schreibt Lock
-- [ ] AK2.2b – Abbruch an jeder Stelle → nichts verändert (Messung per Stub gebrochen)
-- [ ] AK2.2c – entfallene Dateien gelöscht, neue angelegt, fremde unberührt
-- [ ] AK2.2e – Erstabholung ohne Lock: Abbruch mit Liste, mit Schalter Übernahme + Liste; Schalter mit Lock abgelehnt
-- [ ] AK2.3 – keine Anpassungsstelle/kein Projektbereich geändert; solches Manifest abgelehnt
-- [ ] AK2.3b – zusammengesetzte Dateien nach Abholung neu zusammengesetzt
-- [ ] AK2.5a – lokale Stufe lehnt Änderung/Löschung ab, nennt Datei + Hinweis; verdrahtet in pre-commit/pre-push
-- [ ] AK2.5b – CI-Job `factory-integrity` fängt auch Datei + Hash gemeinsam geändert
-- [ ] AK2.5c – im Factory-Repo No-op mit Hinweis
-- [ ] AK2.5d – CI-Stufe fail-closed, wenn Factory-Repo/Tag/Manifest nicht erreichbar
-- [ ] AK2.6 – Hebung N → N+1 besteht beide Stufen
-- [ ] F2 – lokal geänderte Datei → Abholung bricht vor dem Schreiben ab
-- [ ] AK2.8 – offline: lokale Stufe, Ownership-Check, `--compose` laufen
-- [ ] AK-28a – Compose-Tests der ausgelieferten Suite mit festen Fixtures
-- [ ] AK-28b – Abgleich committet == Zusammensetzung im Gate; Repo-Prüfungen in der Projekt-Suite
-- [ ] AK-28c – ADR-064 D6 um „prüft Zustand projekteigener Dateien" ergänzt
-- [ ] FS-T2.1 – Manifest fehlt/ungültig/unbekanntes Schema → Abbruch
-- [ ] FS-T2.2 – Hash-Abweichung → Abbruch
-- [ ] FS-T2.4 – Tag ohne Release/Manifest → nicht eingebunden
-- [ ] F-23.1 – Manifest widerspricht Tag (version/commit/repo) → Abbruch
-- [ ] F-23.2 – Lock unlesbar/ungültig → fail-closed
-- [ ] F-23.3 – Manifest-Pfad absolut oder mit `..` → Abbruch
+- [x] AK2.1a – Lock nennt Repo, Tag, Commit, Pfad + SHA-256, gleich dem Release-Manifest; FACTORY.md-Version passt
+- [x] AK2.1b – Gate: Hashes lokal, Pfadmenge Lock == Manifest in CI (je Stufe Gegenprobe)
+- [x] AK2.1c – nach Abholung ist `ownership-check.sh` im Lock-Modus grün
+- [x] AK2.2a – Abholung lädt den Tag ohne Token, prüft gegen Manifest, schreibt Lock
+- [x] AK2.2b – Abbruch an jeder Stelle → nichts verändert (Messung per Stub gebrochen)
+- [x] AK2.2c – entfallene Dateien gelöscht, neue angelegt, fremde unberührt
+- [x] AK2.2e – Erstabholung ohne Lock: Abbruch mit Liste, mit Schalter Übernahme + Liste; Schalter mit Lock abgelehnt
+- [x] AK2.3 – keine Anpassungsstelle/kein Projektbereich geändert; solches Manifest abgelehnt
+- [x] AK2.3b – zusammengesetzte Dateien nach Abholung neu zusammengesetzt
+- [x] AK2.5a – lokale Stufe lehnt Änderung/Löschung ab, nennt Datei + Hinweis; verdrahtet in pre-commit/pre-push
+- [x] AK2.5b – CI-Job `factory-integrity` fängt auch Datei + Hash gemeinsam geändert
+- [x] AK2.5c – im Factory-Repo No-op mit Hinweis
+- [x] AK2.5d – CI-Stufe fail-closed, wenn Factory-Repo/Tag/Manifest nicht erreichbar
+- [x] AK2.6 – Hebung N → N+1 besteht beide Stufen
+- [x] F2 – lokal geänderte Datei → Abholung bricht vor dem Schreiben ab
+- [x] AK2.8 – offline: lokale Stufe, Ownership-Check, `--compose` laufen
+- [x] AK-28a – Compose-Tests der ausgelieferten Suite mit festen Fixtures
+- [x] AK-28b – Abgleich committet == Zusammensetzung im Gate; Repo-Prüfungen in der Projekt-Suite
+- [x] AK-28c – ADR-064 D6 um „prüft Zustand projekteigener Dateien" ergänzt
+- [x] FS-T2.1 – Manifest fehlt/ungültig/unbekanntes Schema → Abbruch
+- [x] FS-T2.2 – Hash-Abweichung → Abbruch
+- [x] FS-T2.4 – Tag ohne Release/Manifest → nicht eingebunden
+- [x] F-23.1 – Manifest widerspricht Tag (version/commit/repo) → Abbruch
+- [x] F-23.2 – Lock unlesbar/ungültig → fail-closed
+- [x] F-23.3 – Manifest-Pfad absolut oder mit `..` → Abbruch
 
 ## Technische Notizen
 Entscheidung: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9). Kurzfassung für `/implement`:
@@ -79,6 +79,19 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9). Kurzfassung für `
 - [x] Q-23.6 Größe → ein PR (~20 Dateien)
 - [x] Q-23.4 Release → nach #24 (`v0.7.0`), Issue-Text von #23 anpassen
 - [x] Q-23.5 Erstabholung → nur mit Schalter
+
+## Umsetzungs-Notizen (/implement)
+- Neu: `scripts/lib/factory-lock.sh`, `scripts/checks/factory-integrity-check.sh`, Tests in
+  `scripts/checks/tests/factory-lock-tests.sh` (von `run-tests.sh` gesourct, 158 Assertions, offline gegen Fixture-Upstream
+  mit zwei Tags). Geändert: `factory-sync.sh` (`<version> [--adopt]`), `pre-commit.sh`, `pre-push.sh`, `factory-ci.yml`
+  (Job `factory-integrity`), `factory.defaults.yml` (`upstream.repo`), OWNERSHIP, ADR-064 D6.
+- Abweichung von ADR-063 E4: Die Prüfung `FACTORY.md`-Versionszeile == Tag läuft zusätzlich in Phase 1 (AK2.1a).
+- **Vorher/Nachher AK-28b (aus der ausgelieferten Suite in die Projekt-Suite verschoben):** Existenz von
+  `.claude/settings.project.json` und `.gitignore.project`; Gültigkeit von `settings.project.json`; „committete
+  `settings.json`/`.gitignore` == Zusammensetzung (`--check`)“; „settings.json/.gitignore byte-identisch zur committeten
+  Datei“. In der ausgelieferten Suite bleiben die Compose-Tests mit selbstgebauten Fixture-Fragmenten (Mutations- und
+  Fail-closed-Fälle F-4, fehlendes Fragment erhalten); der Abgleich beim Konsumenten läuft im Gate (AK-28b).
+- Kein Release (`v0.7.0` nach #24).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

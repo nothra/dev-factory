@@ -63,7 +63,11 @@ nach `scripts/project/tests/run-tests.sh`, geteilte Helfer bleiben in `scripts/c
 Aufruf im Factory-Repo: `scripts/project/checks/pre-push.d/` (lokal, Erweiterungspunkt) und ein
 zusätzlicher Job in `ci.yml` (projekteigen). **Kriterium „Factory-Repo-spezifisch":** die Gruppe liest
 `.github/workflows/ci.yml`, `release.yml`, `OWNERSHIP.md` als Zuordnungs-Fixture des echten Repos,
-zählt Dateien des echten Repos oder prüft Release-/Manifest-Zustand des Factory-Repos.
+zählt Dateien des echten Repos, prüft Release-/Manifest-Zustand des Factory-Repos **oder prüft den Zustand
+projekteigener Dateien des echten Repos** (Vorhandensein oder Inhalt von z. B. `.gitignore.project`,
+`.claude/settings.project.json`, `PROJECT-CONTEXT.md`; Nachtrag aus Factory-Issue #23, AK-28c). Das Lesen einer
+Factory-Datei oder eine Mutation auf einer Kopie zählt nicht dazu. Der Abgleich „committete zusammengesetzte
+Dateien == Zusammensetzung der Fragmente“ gehört beim Konsumenten ins Integritäts-Gate (lokale Stufe).
 Beleg: Inventar der Testgruppen mit Assertion-Zahl vor und nach dem Schnitt.
 
 ## Alternativen
