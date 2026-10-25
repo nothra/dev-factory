@@ -264,6 +264,18 @@ install_file() { # $1 = Quelldatei, $2 = Pfad im Repo
   mkdir -p "$ROOT/$(dirname "$2")" && cp -p "$1" "$ROOT/$2" || die "Schreiben von $2 fehlgeschlagen"
 }
 
+# Entfallene Pfade des alten Locks gehen durch dieselbe Schutzprüfung wie das neue Manifest: Projektbesitz wird nie gelöscht.
+reject_protected_removals() {
+  local findings rc
+  jq -R -n '{files: [inputs | {path: .}]}' < "$WORK/removed.txt" > "$WORK/removed.json" || die "Pfade des alten Locks nicht auswertbar (fail-closed)"
+  findings="$(fl_protected_findings "$WORK/removed.json")"; rc=$?
+  [ "$rc" -eq 0 ] || die "Anpassungsstellen nicht prüfbar (fail-closed)"
+  if [ -n "$findings" ]; then
+    printf '%s\n' "$findings" | sed 's/^/✗ /; s/\t/: würde als entfallen gelöscht, ist aber geschützt (/; s/$/)/' >&2
+    die "alter Lock nennt geschützte Pfade – Abbruch, nichts geändert"
+  fi
+}
+
 apply_version() {
   local path removed=0
   : > "$WORK/backed.txt"; : > "$WORK/created.txt"
@@ -274,6 +286,7 @@ apply_version() {
   fi
   LC_ALL=C sort "$WORK/manifest-paths.txt" > "$WORK/new-sorted.txt"
   LC_ALL=C comm -23 "$WORK/old-paths.txt" "$WORK/new-sorted.txt" > "$WORK/removed.txt"
+  reject_protected_removals
   while IFS= read -r path; do check_target_path "$path"; done < "$WORK/removed.txt"
   while IFS= read -r path; do backup_target "$path"; done < "$WORK/manifest-paths.txt"
   while IFS= read -r path; do backup_target "$path"; done < "$WORK/removed.txt"

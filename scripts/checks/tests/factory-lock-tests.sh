@@ -307,6 +307,16 @@ for tgt_23 in .gitignore .claude/settings.json; do
   assert_true "$([ "$before_23" = "$(snap_23 "$C1_23")" ]; echo $?)" "#23 E4: $tgt_23 als Symlink → nichts verändert"
 done
 
+# Entfallene Pfade des alten Locks laufen durch dieselbe Schutzprüfung wie das neue Manifest (Projektbesitz wird nie gelöscht)
+world_23 r1
+jq --arg h "$(shasum -a 256 < "$C1_23/README.md" | cut -c1-64)" '.files += [{"path":"README.md","sha256":$h}]' "$C1_23/factory.lock" > "$C1_23/x" && mv "$C1_23/x" "$C1_23/factory.lock"
+gate_23 "$C1_23" >/dev/null; assert_exit 0 "$?" "#23 E6 (Voraussetzung): Lock mit Anpassungsstelle und passendem Hash passiert die lokale Stufe"
+before_23="$(snap_23 "$C1_23")"
+out_23="$(sync_23 "$C1_23" v2.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "#23 E6: Anpassungsstelle im alten Lock → Abholung bricht ab (würde sie als entfallen löschen)"
+assert_contains_286 "$out_23" 'README.md' "#23 E6: die Meldung nennt die geschützte Datei"
+assert_true "$([ "$before_23" = "$(snap_23 "$C1_23")" ]; echo $?)" "#23 E6: README.md und alles Übrige unverändert"
+
 # ── AK2.3 / FS-T2.x / F-23.x: ungültige Manifeste → Abbruch, nichts verändert ─────────────────────────────────────────
 reject_23() { # $1 = Beschreibung, $2 = erwartete Meldung, Manifest ist bereits verändert; Wurzel C0_23
   local desc="$1" needle="$2" b

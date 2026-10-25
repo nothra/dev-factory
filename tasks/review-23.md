@@ -8,10 +8,10 @@ Suiten grün (1843 + 143), Lint grün.
 _keine_
 
 ## Wichtige Findings (sollten behoben werden)
-- [ ] `CHANGELOG.md` (Abschnitt „Unreleased“): Kein Eintrag zu #23 (Abholen per `factory-sync.sh <version> [--adopt]`, `factory.lock`, Integritäts-Gate lokal/CI, neuer Schlüssel `upstream.repo`). #22 hat seinen Eintrag im selben Abschnitt angelegt; der Abschnitt zum Tag ist Voraussetzung des Releases (Factory-ADR-063 D6) und `v0.7.0` fasst #23 und #24 zusammen. Ohne Eintrag fehlt dem Release die Beschreibung der Hauptneuerung.
+- [x] `CHANGELOG.md` (Abschnitt „Unreleased“): Kein Eintrag zu #23 (Abholen per `factory-sync.sh <version> [--adopt]`, `factory.lock`, Integritäts-Gate lokal/CI, neuer Schlüssel `upstream.repo`). #22 hat seinen Eintrag im selben Abschnitt angelegt; der Abschnitt zum Tag ist Voraussetzung des Releases (Factory-ADR-063 D6) und `v0.7.0` fasst #23 und #24 zusammen. Ohne Eintrag fehlt dem Release die Beschreibung der Hauptneuerung.
 
 ## Nitpicks (optional)
-- [ ] `scripts/factory-sync.sh` (`apply_version`, Berechnung von `removed.txt`): Die Pfade des **alten Locks**, die gelöscht werden, laufen durch `check_target_path`, aber nicht durch die Prüfung auf Projektbereiche/Anpassungsstellen (`fl_protected_findings`), die für das neue Manifest gilt. Ein von Hand editierter Lock mit gültigem Hash könnte so `README.md` zur „entfallenen“ Datei machen. Wirkung begrenzt (die CI-Stufe lehnt einen vom Manifest abweichenden Lock ab, die lokale Abholung läuft erst nach der Gate-Prüfung), Härtung wäre ein Zweizeiler plus Test.
+- [x] `scripts/factory-sync.sh` (`apply_version`, Berechnung von `removed.txt`): Die Pfade des **alten Locks**, die gelöscht werden, laufen durch `check_target_path`, aber nicht durch die Prüfung auf Projektbereiche/Anpassungsstellen (`fl_protected_findings`), die für das neue Manifest gilt. Ein von Hand editierter Lock mit gültigem Hash könnte so `README.md` zur „entfallenen“ Datei machen. Wirkung begrenzt (die CI-Stufe lehnt einen vom Manifest abweichenden Lock ab, die lokale Abholung läuft erst nach der Gate-Prüfung), Härtung wäre ein Zweizeiler plus Test.
 
 ## Positives
 - Rework sauber und im Scope: Symlink-Prüfung jetzt für alle Schreibziele, vor `APPLYING=1` (nichts zurückzubauen), mit Test, der den Symlink-Inhalt gleich hält und so den Pfad wirklich erreicht.
@@ -22,3 +22,5 @@ _keine_
 
 ## Empfehlung
 NEEDS_REWORK
+
+_Rework (Iteration 2) umgesetzt: CHANGELOG-Eintrag und Schutzprüfung der entfallenen Lock-Pfade (mit Test)._

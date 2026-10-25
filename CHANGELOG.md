@@ -11,8 +11,17 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   gilt allein der Lock (Seite `factory` = seine Pfadmenge), ohne Lock weiter `OWNERSHIP.md`. Die Liste der
   Anpassungsstellen liefert die Factory als `scripts/checks/customization-points.txt` mit.
 
+- **Abholen und Integritäts-Gate (Factory-ADR-063 Nachtrag 2026-10-25):** `bash scripts/factory-sync.sh <version> [--adopt]`
+  holt einen Tag aus `upstream.repo` (neuer Schlüssel in `factory.defaults.yml`, Default `nothra/dev-factory`), prüft jede Datei
+  gegen das Release-Manifest, übernimmt atomar (Backup + Rückbau) und schreibt `factory.lock`. `--adopt` erlaubt die
+  Erstabholung über abweichende Dateien. `scripts/checks/factory-integrity-check.sh` verhindert, dass ein Projekt übernommene
+  Dateien still ändert: lokale Stufe offline in `pre-commit.sh`/`pre-push.sh`, CI-Stufe (`--ci`, Job `factory-integrity`)
+  zusätzlich gegen das Release-Manifest des Tags. Beschreibung in `docs/factory/OPERATING.md` §5.5a.
+
 ### Geändert
 
+- Die Compose-Tests der ausgelieferten Self-Test-Suite bauen ihre Projekt-Fragmente selbst; der Abgleich „committete
+  `settings.json`/`.gitignore` == Zusammensetzung“ liegt beim Konsumenten im Integritäts-Gate, im Factory-Repo in der Projekt-Suite.
 - `docs/factory/OWNERSHIP.md` gehört dem Repo (Seite `project`) und ist nicht mehr Teil des Release-Manifests.
 - Die ausgelieferte Self-Test-Suite ist konsumenten-neutral; Prüfungen, die das Factory-Repo voraussetzen, laufen in
   `scripts/project/tests/` (lokal über `pre-push.d/`, in CI als Job `project-self-test`).
