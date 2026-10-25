@@ -33,9 +33,12 @@ Release-Manifest der eingebundenen Version, unverändert übernommen (`schema`, 
 `commit`, `files[].path`, `files[].sha256`). Wer es schreibt (#23), kopiert das heruntergeladene
 Manifest; wer es liest (#22, #23), nutzt `jq`. Ablage: `factory.lock` im Repo-Wurzelverzeichnis.
 
-**D2 · Moduswahl in `ownership-check.sh`.** Existiert `$FACTORY_DIR/factory.lock` (Test-Override
-`FACTORY_LOCK_FILE`), gilt **allein** der Lock-Modus; sonst der Tabellenmodus, unverändert. Es gibt
-keinen Mischmodus. Die Ausgabe nennt den Modus.
+**D2 · Moduswahl in `ownership-check.sh`.** Existiert `$FACTORY_DIR/factory.lock` (Override
+`FACTORY_LOCK_FILE` für Tests und für das Manifest-Skript), gilt **allein** der Lock-Modus; sonst der
+Tabellenmodus, unverändert. Es gibt keinen Mischmodus. Die Ausgabe nennt den Modus. Die Wahl hängt am
+Arbeitsbaum, nicht an einem Tag-Stand: `scripts/factory-release-manifest.sh` liest die Tabelle AM Tag und
+setzt deshalb `FACTORY_LOCK_FILE` auf einen nicht existierenden Pfad – ein `factory.lock` im Arbeitsbaum
+verändert die Dateiliste des Tags nicht (Test im Manifest-Block der Suite).
 
 **D3 · Lock-Modus-Semantik.** Seite `factory` = Menge `files[].path`; alle übrigen getrackten Dateien
 = `project`. Pfade werden wörtlich verglichen (keine Globs). Fehlerklassen:
@@ -52,8 +55,8 @@ Anpassungsstellen). Drift-Guard: jeder Eintrag steht auf Seite `project` laut Ta
 `PROJECT-CONTEXT.md` „Eigene Anpassungsstellen" genannte Datei steht in der Liste.
 
 **D5 · `OWNERSHIP.md` wird `project`.** Die Zeile wechselt von `factory` auf `project`. Das
-Release-Manifest (erzeugt am Tag-Stand, liest die Tabelle weiter aus dem Factory-Repo) enthält die
-Datei damit nicht mehr. Konsumenten pflegen keine Zuordnungstabelle.
+Release-Manifest (erzeugt am Tag-Stand, liest die Tabelle am Tag-Stand im Tabellenmodus – nicht ein
+`factory.lock` im Arbeitsbaum, siehe D2) enthält die Datei damit nicht mehr. Konsumenten pflegen keine Zuordnungstabelle.
 
 **D6 · Test-Schnitt.** Factory-spezifische Testgruppen wandern aus `scripts/checks/tests/run-tests.sh`
 nach `scripts/project/tests/run-tests.sh`, geteilte Helfer bleiben in `scripts/checks/tests/lib/`.
@@ -134,15 +137,15 @@ an `tasks/**`/`docs/specs/**` gescheitert. Der Drift-Guard prüft deshalb beide 
    Lock-Pfad fehlt / Anpassungsstelle im Lock / doppelter Pfad / unlesbarer Lock / `schema` ≠ 1 /
    `jq` fehlt (Stub im `PATH`, nicht nur Input) / Anpassungsstellen-Liste fehlt.
 3. Test-Schnitt: Inventar (Testgruppe → Assertion-Zahl) und Zählvergleich vorher/nachher gehören in die Task-Datei und den PR als Beleg
-   (umgesetzt: Inventar per Aufruf-Trace vor dem Schnitt, der Vergleich in der Task-Datei nach dem Schnitt). Der Lauf je Commit
+   (umgesetzt: der Zählvergleich in der Task-Datei und im PR; die verschobenen Gruppen stehen mit Assertion-Zahl im PR und in den Kopfzeilen der Projekt-Suite). Der Lauf je Commit
    wurde nicht einzeln belegt; belegt ist der Endstand.
    Neue gesourcte Libs in allen Scaffoldings mitkopieren (Lesson #197); `source` relativ zum Skript
    (Lesson #431).
 4. Eine neue Datei je Zeile in `OWNERSHIP.md` im selben PR (Seite `project` für `scripts/project/**`,
    `factory` für `customization-points.txt`).
 5. Reihenfolge der Commits: (a) Lock-Modus mit Tests, (b) `OWNERSHIP.md` → `project` samt neuer Projekt-Suite mit Drift-Guard, (c) Test-Schnitt und (d) Verdrahtung
-   `pre-push.d` + `ci.yml` – (c) und (d) liegen in einem Commit, weil die Wiring-Tests an derselben Projekt-Suite hängen. Jeder Commit
-   hält `bash scripts/checks/tests/run-tests.sh` grün.
+   `pre-push.d` + `ci.yml` – (c) und (d) liegen in einem Commit, weil die Wiring-Tests an derselben Projekt-Suite hängen. Ziel: jeder
+   Commit hält `bash scripts/checks/tests/run-tests.sh` grün; belegt ist der Endstand.
 
 ## Bezug zu anderen ADRs
 

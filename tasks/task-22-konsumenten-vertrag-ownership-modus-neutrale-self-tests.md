@@ -101,6 +101,10 @@ ist Exit 2, nicht „ein Fund“); `factory-release-manifest.sh` erzwingt den Ta
 nennt Issue #26, korrigierte Commit-Reihenfolge, die Ausnahme für Nicht-ASCII-Pfade und den „nicht leer“-Test der Markierung; ADR-063-Nachtrag mit Halbsatz zu `project-self-test`;
 Spec-Kopf ohne das nicht vorhandene „Q7/Q8“. Angelegt: Issue #26 (Ruleset) und Issue #27 (tote `OWNERSHIP.md`-Verweise, T2a-4). Konsumenten-Fixture: **1662 grün, 0 rot**.
 
+**Review-Nacharbeit Iteration 3 (ohne vierten Review, Entscheidung des Menschen):** ADR-064 D2/D5 beschreiben, dass das Manifest-Skript den Tabellenmodus am Tag-Stand
+erzwingt; Hinweis 3/5 ehrlicher (Zählvergleich als Beleg, Endstand statt „jeder Commit grün“); Issue #28 für den Zweifel „ausgelieferte Suite liest projekteigene
+Dateien“; drei Kleinfunde in `docs/factory/kleinfunde.md` (Hook-Fortschrittsanzeige, zusammengesetzte Ziele, `jq`-Vorabprüfung für #23).
+
 **Offen / Folgearbeit**
 - `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, Issue #26).
 - Skills und Doku (`/codify`, `/review`, `/security-review`) nennen `docs/factory/OWNERSHIP.md` als Zuordnungstabelle; im Lock-Modus eines Konsumenten gibt es sie nicht.

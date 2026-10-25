@@ -99,7 +99,7 @@ lock_collect_sets() {
 }
 
 # lock_report_class <meldung>: je Pfad auf stdin eine Zeile `✗ <pfad>: <meldung>` auf stderr; jeder Fund wird in
-# $WORK_DIR/findings.txt vermerkt (gezählt wird dort, nicht über Exit-Codes: die wären bei 255 gekappt).
+# $WORK_DIR/findings.txt vermerkt (gezählt wird dort, nicht über Exit-Codes: sie tragen nur 0–255, modulo 256).
 lock_report_class() {
   local path
   while IFS= read -r path; do
