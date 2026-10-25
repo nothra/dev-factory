@@ -262,3 +262,10 @@
 - **Was:** Ein Konsument ohne `jq` bekommt im Lock-Modus erst beim ersten Push Exit 2 („Lock-Modus braucht jq“). Der Lock selbst und das Gate aus T2a-2 (Issue #23) brauchen `jq` ebenfalls.
 - **Fix:** `jq` bei der Erst-Einbindung vorab prüfen (Init-Schritt bzw. `hooks-installed-check.sh`) und mit klarer Meldung abbrechen. Etwa fünf Zeilen; gehört als Anforderung zu Issue #23.
 - **Herkunft:** `/review` zu Task 22 (Iteration 1, Runde 3), PR #25.
+
+### Lock-Pfade mit Zeilenumbruch werden zerlegt statt abgelehnt
+
+- **Wo:** `scripts/checks/ownership-check.sh:96` (`jq -r '.files[].path'` in `lock_collect_sets`), verifiziert am 2026-10-25.
+- **Was:** Ein Lock-Pfad mit Zeilenumbruch (`\n`) wird zu mehreren Pfaden (Repro: Pfad `evil.sh\nREADME.md` ergibt `README.md: Anpassungsstelle steht im Lock`, Exit 1). Kein Rechtegewinn, fail-closed bleibt erhalten; der Pfad ist aber ungültig und sollte als ungültiger Lock gelten (Exit 2).
+- **Fix:** im `jq`-Gate von `lock_require_inputs` `(.path | test("[\\n\\r]") | not)` ergänzen, dazu ein Test mit Zeilenumbruch-Pfad (Exit 2). Etwa vier Zeilen.
+- **Herkunft:** `/review` (Iteration 1, Runde 1) und `/security-review` zu Task 22, PR #25.

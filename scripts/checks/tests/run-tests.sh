@@ -7641,6 +7641,14 @@ out_22="$(lock_run_22 "$(seq -f 'x%g.txt' 1 300)\n" 'a.md\n' 'CLAUDE.md\n')"
 assert_exit 1 $? "#22 AK2.15b: 300 fehlende Lock-Pfade → Exit 1"
 assert_contains_286 "$out_22" '300 Fund(e)' "#22 AK2.15b: die Schlusszeile nennt die echte Fundzahl (300, nicht auf 255 gekappt)"
 
+# Security-Review (Task 22): ein Lock-Pfad, der wie eine echo-Option aussieht (`-n`, `-e`, `-E`), darf den Fundzähler nicht verschlucken –
+# sonst endet ein Lock mit nicht getracktem Pfad „-n“ mit Exit 0 (fail-open im Ownership-Gate).
+for opt_22 in -n -e -E; do
+  out_22="$(lock_run_22 "$opt_22\n" 'a.md\n' 'CLAUDE.md\n')"
+  assert_exit 1 $? "#22 Security: nicht getrackter Lock-Pfad '$opt_22' → Exit 1 (kein Fail-open durch echo-Option)"
+  assert_contains_286 "$out_22" '1 Fund(e)' "#22 Security: Lock-Pfad '$opt_22' wird als Fund gezählt"
+done
+
 # F-22.4: doppelter Lock-Pfad → Exit 1 mit Pfad, nicht still zusammengefasst
 out_22="$(lock_run_22 'scripts/a.sh\nscripts/a.sh\n' 'scripts/a.sh\n' 'CLAUDE.md\n')"
 assert_exit 1 $? "#22 F-22.4: doppelter Lock-Pfad → Exit 1"

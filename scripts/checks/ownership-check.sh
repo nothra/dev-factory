@@ -104,7 +104,7 @@ lock_report_class() {
   local path
   while IFS= read -r path; do
     echo "✗ $path: $1" >&2
-    echo "$path" >> "$WORK_DIR/findings.txt"
+    printf '%s\n' "$path" >> "$WORK_DIR/findings.txt"   # nicht echo: ein Pfad `-n` wäre sonst eine Option und der Fund ginge verloren
   done
 }
 

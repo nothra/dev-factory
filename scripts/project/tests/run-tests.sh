@@ -119,6 +119,17 @@ own_side_426 project docs/factory/OWNERSHIP.md
 assert_exit 0 $? "#22 AK2.15d-0: docs/factory/OWNERSHIP.md steht auf Seite project"
 own_side_426 factory docs/factory/OWNERSHIP.md
 assert_exit 1 $? "#22 AK2.15d-0: docs/factory/OWNERSHIP.md steht nicht auf Seite factory (nicht im Release-Manifest)"
+# Security-Review (Task 22): Im Factory-Repo gilt die Tabelle. Ein committetes `factory.lock` würde ownership-check.sh dort still in den
+# Lock-Modus schalten und die Vollständigkeitsprüfung der Tabelle abschalten – darum darf es im Factory-Repo keins geben.
+# (Gehört in die Projekt-Suite: ein Konsument HAT einen Lock; die ausgelieferte Suite bleibt neutral.)
+repo_without_lock_22() { [ ! -e "$1/factory.lock" ] && [ ! -L "$1/factory.lock" ]; }
+repo_without_lock_22 "$FACTORY_ROOT"
+assert_exit 0 $? "#22 Security: das Factory-Repo trägt kein factory.lock (sonst wäre die Tabellenprüfung abgeschaltet)"
+dir_22="$(mktemp -d)"; : > "$dir_22/factory.lock"
+repo_without_lock_22 "$dir_22"
+assert_exit 1 $? "#22 Security (Kontrolle): ein factory.lock im Verzeichnis wird vom Guard erkannt"
+rm -rf "$dir_22"
+
 # AK2.16b-3: der Projekt-Test-Ordner trägt keine factory-Zeile
 own_side_426 factory scripts/project/tests/run-tests.sh
 assert_exit 1 $? "#22 AK2.16b-3: scripts/project/tests/run-tests.sh steht nicht auf Seite factory"
