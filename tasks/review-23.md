@@ -1,31 +1,24 @@
 # Review: Task 23
 
-Review-Runde 1 (Diff `origin/main...HEAD`, 15 Dateien, Spec `spec-23-factory-sync-lock-integritaets-gate.md`).
-Alle 24 Kriterien der Spec haben mindestens einen Test; Suiten grün (1835 + 143).
+Review-Runde 2 (Diff `origin/main...HEAD`, Stand `06d5945`; Rework zu Runde 1 geprüft). Alle Findings der Runde 1 sind
+behoben und durch Tests belegt (Symlink-Ziele rot→grün, echte Mutationsbelege, `pre-push.sh`-Verhaltenstest, OPERATING.md §5.5a).
+Suiten grün (1843 + 143), Lint grün.
 
 ## Kritische Findings (müssen behoben werden)
 _keine_
 
 ## Wichtige Findings (sollten behoben werden)
-- [x] `scripts/factory-sync.sh` (`apply_version`, Zeilen um `for path in "$SETTINGS_TARGET" …`): `check_target_path` prüft nur Manifest- und entfallene Pfade, nicht die Ziele `.claude/settings.json`, `.gitignore` und `factory.lock`. Ist eine davon im Repo ein Symlink, schreibt `install_file` (`cp -p`) durch den Link und damit außerhalb des Repos – genau der Fall, den E4/F-23.3 ausschließen wollen. Fix: dieselbe Prüfung für die drei Ziele in Phase 1 (vor `APPLYING=1`) plus Test (Symlink als `.gitignore` → Abbruch, nichts geändert).
-- [x] `scripts/checks/tests/factory-lock-tests.sh` („Verdrahtung“, je zwei Zeilen „(Mutation)“ für Hooks und CI-Job): Die Mutationsbelege sind Tautologien. `grep -vF <zeile> | grep -qF <zeile>` scheitert immer, egal ob der Guard taugt; sie beweisen nichts über die davor stehende Präsenz-Assertion (Lesson „Mutationsbeleg muss denselben Assert-Ausdruck ausführen“, aus nothra/tch-gastro-services#286). Fix: Guard als Funktion (wie `ci_ok_22` in der Projekt-Suite) und dieselbe Funktion einmal auf Original, einmal auf die Mutante anwenden.
-- [x] `scripts/checks/pre-push.sh`: Das Gate ist nur per Grep belegt, nur `pre-commit.sh` hat einen Verhaltenstest (Lesson nothra/tch-gastro-services#431: je Konsument ein eigener Test). Ein Test mit `mk_feature_repo` + echtem `pre-push.sh` (Vorbild nothra/tch-gastro-services#149) oder zumindest ein Lauf mit manipulierter Datei fehlt.
-- [x] `docs/factory/OPERATING.md`: Die Betriebsanleitung nennt nur `factory-sync.sh --compose` (Zeile 484). Abholen (`<version> [--adopt]`), das Gate (lokal/`--ci`) und der Job `factory-integrity` sind dort nicht beschrieben; Lesson „Doku im Präsens beschreibt eine Mechanik“ (aus nothra/tch-gastro-services#176). Kurzer Abschnitt reicht (Aufruf, Exit-Codes, Fehlerbild „Änderung gehört nach `nothra/dev-factory`“).
+- [ ] `CHANGELOG.md` (Abschnitt „Unreleased“): Kein Eintrag zu #23 (Abholen per `factory-sync.sh <version> [--adopt]`, `factory.lock`, Integritäts-Gate lokal/CI, neuer Schlüssel `upstream.repo`). #22 hat seinen Eintrag im selben Abschnitt angelegt; der Abschnitt zum Tag ist Voraussetzung des Releases (Factory-ADR-063 D6) und `v0.7.0` fasst #23 und #24 zusammen. Ohne Eintrag fehlt dem Release die Beschreibung der Hauptneuerung.
 
 ## Nitpicks (optional)
-- [x] `scripts/factory-sync.sh` (`collect_diverging`, `clone_and_verify`) und `scripts/checks/factory-integrity-check.sh` (`check_files`): derselbe Hash-Vergleich (`awk … want[$2] != $1`) und derselbe `jq … | sort`-Aufbau der Soll-Tabelle stehen dreimal. In die Lib auslagern (`fl_manifest_tsv`, `fl_diff_hashes`).
-- [x] `scripts/factory-sync.sh` (`run_pull`): `path` ist nicht `local` deklariert (läuft über Schleifen, aber globaler Zustand).
-- [x] `scripts/checks/tests/factory-lock-tests.sh`: ungenutzte Variablen (`a` in `reject_23`, `before_23` in Szenario w1, `out_23` im FS-T2.1-Fall); `shasum` wird in den Test-Helfern direkt gerufen statt über die Lib-Wahl (`sha256sum`-only-Umgebungen).
-- [x] `scripts/checks/factory-integrity-check.sh` / `factory-sync.sh`: Fehlt `factory-integrity-check.sh` im Konsumenten, meldet `precheck_local_state` „lokal geändert oder Lock ungültig“ statt „Check fehlt“.
+- [ ] `scripts/factory-sync.sh` (`apply_version`, Berechnung von `removed.txt`): Die Pfade des **alten Locks**, die gelöscht werden, laufen durch `check_target_path`, aber nicht durch die Prüfung auf Projektbereiche/Anpassungsstellen (`fl_protected_findings`), die für das neue Manifest gilt. Ein von Hand editierter Lock mit gültigem Hash könnte so `README.md` zur „entfallenen“ Datei machen. Wirkung begrenzt (die CI-Stufe lehnt einen vom Manifest abweichenden Lock ab, die lokale Abholung läuft erst nach der Gate-Prüfung), Härtung wäre ein Zweizeiler plus Test.
 
 ## Positives
-- Zwei-Phasen-Ablauf wie in ADR-063 E4: Phase 1 schreibt nichts, Phase 2 mit Backup und `trap`-Rückbau; Lock zuletzt; jede Abbruchstelle hat einen Test, der die Messung bricht (Stubs für `curl`, `git`, Hash-Werkzeug, nicht beschreibbares Ziel).
-- Versionsmuster vor jedem Netzzugriff, `--`-Trennung bei `git clone`, `./`-Präfix beim Hashen, Pfad-/Duplikat-/Projektbereich-Prüfung im Manifest – saubere Eingabehärtung.
-- Ein Hash-Aufruf für alle Dateien, `-e || -L`-Moduswahl, `lock.repo == upstream.repo` (Lock nie Quelle) umgesetzt.
-- Mutationsbeleg für den Manifest-Vergleich der CI-Stufe ist echt (Mutant läuft und besteht die Manipulation).
-- Compose-Tests konsumenten-neutral umgestellt, Vorher/Nachher-Liste in der Task-Datei, Guard „Factory-Repo trackt kein `factory.lock`“.
+- Rework sauber und im Scope: Symlink-Prüfung jetzt für alle Schreibziele, vor `APPLYING=1` (nichts zurückzubauen), mit Test, der den Symlink-Inhalt gleich hält und so den Pfad wirklich erreicht.
+- Mutationsbelege prüfen jetzt denselben Ausdruck auf Original und Mutante (`wired_23`, `ci_wired_23`).
+- Hash-Vergleich und Soll-Tabelle einmalig in der Lib (`fl_manifest_tsv`, `fl_diff_hashes`); Sync und Gate nutzen dieselben Funktionen.
+- Doku (`OPERATING.md` §5.5a) deckt Aufruf, `--adopt`, Gate-Stufen und Exit-Codes ab und korrigiert den veralteten Satz zur Self-Test-Suite.
+- Alle Akzeptanzkriterien und Fehlerszenarien der Spec weiterhin mit Tests belegt.
 
 ## Empfehlung
 NEEDS_REWORK
-
-_Rework (Iteration 1) umgesetzt: alle Findings behoben, einzig der `shasum`-Direktaufruf in den Test-Helfern bleibt bewusst (ubuntu-latest und macOS haben `shasum`)._
