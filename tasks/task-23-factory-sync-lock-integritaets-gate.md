@@ -25,8 +25,8 @@ Spec: [`docs/specs/spec-23-factory-sync-lock-integritaets-gate.md`](../docs/spec
 - [ ] AK2.2a – Abholung lädt den Tag ohne Token, prüft gegen Manifest, schreibt Lock
 - [ ] AK2.2b – Abbruch an jeder Stelle → nichts verändert (Messung per Stub gebrochen)
 - [ ] AK2.2c – entfallene Dateien gelöscht, neue angelegt, fremde unberührt
-- [ ] AK2.2e – Erstabholung ohne Lock: Abbruch mit Liste, mit Schalter Übernahme + Liste
-- [ ] AK2.3 – keine Anpassungsstelle geändert; Manifest mit Anpassungsstelle abgelehnt
+- [ ] AK2.2e – Erstabholung ohne Lock: Abbruch mit Liste, mit Schalter Übernahme + Liste; Schalter mit Lock abgelehnt
+- [ ] AK2.3 – keine Anpassungsstelle/kein Projektbereich geändert; solches Manifest abgelehnt
 - [ ] AK2.3b – zusammengesetzte Dateien nach Abholung neu zusammengesetzt
 - [ ] AK2.5a – lokale Stufe lehnt Änderung/Löschung ab, nennt Datei + Hinweis; verdrahtet in pre-commit/pre-push
 - [ ] AK2.5b – CI-Job `factory-integrity` fängt auch Datei + Hash gemeinsam geändert
@@ -46,13 +46,37 @@ Spec: [`docs/specs/spec-23-factory-sync-lock-integritaets-gate.md`](../docs/spec
 - [ ] F-23.3 – Manifest-Pfad absolut oder mit `..` → Abbruch
 
 ## Technische Notizen
-<!-- Von /architecture befüllt oder eigene Notizen -->
+Entscheidung: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9). Kurzfassung für `/implement`:
+
+- **Neue Dateien:** `scripts/lib/factory-lock.sh` (Hash, Lock-/Manifest-Prüfung, Manifest-Abruf,
+  Projektbereiche) und `scripts/checks/factory-integrity-check.sh`, je eine Zeile `factory` in
+  `docs/factory/OWNERSHIP.md`. Lib relativ zum Skript sourcen (Lesson nothra/tch-gastro-services#431),
+  in alle Test-Scaffoldings mitkopieren (Lesson nothra/tch-gastro-services#197).
+- **Geändert:** `scripts/factory-sync.sh` (Modus `<version> [--adopt]`, `--compose [--check]` unverändert),
+  `pre-commit.sh` + `pre-push.sh` (fester Check), `.github/workflows/factory-ci.yml` (Job `factory-integrity`
+  mit `--ci`, `yq` über `install-yq.sh`), `factory.defaults.yml` (`upstream.repo: nothra/dev-factory`),
+  beide Test-Suiten, ADR-064 D6 (AK-28c).
+- **Transport (E1):** `git clone --depth 1 --branch <tag>`; Manifest `curl -fsSL
+  <base>/<tag>/factory-release.json`. Test-Seams `FACTORY_UPSTREAM_GIT_URL`, `FACTORY_RELEASE_BASE_URL`
+  (`file://`).
+- **Quell-Repo (E2):** `upstream.repo` per `factory_cfg`; `lock.repo` muss gleich sein (F-23.1).
+- **Abholung (E4):** Phase 1 prüft ohne Schreiben (zuerst offline Vorbedingung F2/AK2.2e, dann Manifest,
+  Klon, Hashes, Zusammensetzen im Temp-Baum); Phase 2 mit Backup + `trap`-Rückbau, `factory.lock` zuletzt.
+  Version-Muster `^v[0-9]+\.[0-9]+\.[0-9]+$` vor jedem Netzzugriff.
+- **Gate (E8):** Moduswahl `-e || -L`; lokal = Hashes + reguläre Datei + `--compose --check`; `--ci` =
+  zusätzlich `jq -S .`-Vergleich Lock ↔ Manifest. Exit 0/1/2 wie `ownership-check.sh`. Hashen in **einem**
+  `shasum`-Aufruf (gemessen 0,05 s statt 1,8 s je Datei).
+- **Projektbereiche (E6):** `scripts/project/`, `docs/project/`, `docs/adr/`, `docs/specs/`, `tasks/` als Liste
+  in der Lib; `customization-points.txt` bleibt wörtlich (ADR-064 D4).
+- **Tests (E9):** Fixture-Upstream mit zwei Tags; Stubs für `curl`/`git`/Hash-Werkzeug im `PATH`; Compose-Tests
+  der ausgelieferten Suite mit eigenen Fragmenten, Prüfungen am echten Repo → Projekt-Suite (Vorher/Nachher-Liste).
+  Guard in der Projekt-Suite: Factory-Repo trackt kein `factory.lock`.
 
 ## Offene Fragen
-- [ ] Q-23.1 Transport und Aufruf – `/architecture`
-- [ ] Q-23.2 Schutz der Anpassungsverzeichnisse – `/architecture`
-- [ ] Q-23.3 zusammengesetzte Dateien im Lock (ADR-063 D3 vs. ADR-064 D1) – `/architecture`
-- [ ] Q-23.6 Größe prüfen nach `/architecture`
+- [x] Q-23.1 Transport und Aufruf → ADR-063 Nachtrag E1–E3
+- [x] Q-23.2 Schutz der Anpassungsverzeichnisse → E6 (eigene Liste, ADR-064 D4 bleibt)
+- [x] Q-23.3 zusammengesetzte Dateien im Lock → E7 (ADR-064 D1 gilt)
+- [x] Q-23.6 Größe → ein PR (~20 Dateien)
 - [x] Q-23.4 Release → nach #24 (`v0.7.0`), Issue-Text von #23 anpassen
 - [x] Q-23.5 Erstabholung → nur mit Schalter
 

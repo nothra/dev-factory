@@ -95,10 +95,13 @@ der Factory.
   Inhalt liegen WHEN ohne Schalter abgeholt wird THEN bricht die Abholung ab, nennt jede abweichende Datei
   und ändert nichts; WHEN mit dem ausdrücklichen Schalter abgeholt wird THEN übernimmt sie die Version und
   gibt die Liste der überschriebenen Dateien aus. Ohne abweichende Dateien braucht es keinen Schalter.
-  *Beleg: drei Tests (ohne Schalter, mit Schalter, ohne Abweichung).*
+  In einem Repo **mit** `factory.lock` wird der Schalter abgelehnt (F2 bleibt unumgehbar,
+  ADR-063 Nachtrag E3). *Beleg: vier Tests (ohne Schalter, mit Schalter, ohne Abweichung, Schalter mit
+  Lock).*
 - [ ] **AK2.3** GIVEN eine Abholung WHEN man die geänderten Dateien ansieht THEN ist keine Anpassungsstelle
-  darunter (`scripts/checks/customization-points.txt` und die Verzeichnisse der Anpassungsstellen laut
-  Factory-ADR-063 D3, Abgrenzung Q-23.2). *Beleg: Fixture mit allen Stellen, Hashes vor/nach gleich.
+  darunter (`scripts/checks/customization-points.txt`) und kein Pfad in einem Projektbereich
+  (`scripts/project/`, `docs/project/`, `docs/adr/`, `docs/specs/`, `tasks/` – Factory-ADR-063
+  Nachtrag E6). *Beleg: Fixture mit allen Stellen, Hashes vor/nach gleich.
   Gegenprobe: ein Manifest, das eine Anpassungsstelle liefern würde, wird **abgelehnt**, nichts
   geändert.*
 - [ ] **AK2.3b** GIVEN die zusammengesetzten Dateien (`.claude/settings.json`, `.gitignore`) WHEN abgeholt
@@ -174,30 +177,24 @@ der Factory.
 
 ## Offene Fragen
 
-> Q-23.1 bis Q-23.3 klärt `/architecture` als Nachtrag zu Factory-ADR-063 (Entscheidung 2026-10-25), bevor
-> `/implement` startet.
+> Q-23.1 bis Q-23.3 sind in `/architecture` entschieden: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9).
 
-- [ ] **Q-23.1 · Transport und Aufruf:** Wie holt `factory-sync.sh` Dateien und Manifest? Vorschlag:
-  `git clone --depth 1 --branch <tag>` des öffentlichen Repos, Manifest per `curl` vom Release-Asset
-  (beides ohne Token, siehe v0.6.1). Seams für Tests (Quell-URL, Manifest-Quelle) und Aufrufform
-  (`factory-sync.sh <version>` laut ADR-063 D1, Name des Schalters aus AK2.2e). Woher kommt das Quell-Repo –
-  Feld `repo` im vorhandenen Lock, sonst Default `nothra/dev-factory`?
-- [ ] **Q-23.2 · Schutz der Anpassungsstellen:** `customization-points.txt` nennt nur Dateien, wörtlich
-  (Factory-ADR-064 D4). ADR-063 D3 zählt auch Verzeichnisse auf (`scripts/project/**`, `docs/project/**`,
-  `docs/adr/**`, `docs/specs/**`, `tasks/**`). Wo steht diese Liste – in `customization-points.txt` (dann
-  mit Mustern, Änderung an D4) oder als feste Präfixe im Abhol-Werkzeug?
-- [ ] **Q-23.3 · Zusammengesetzte Dateien im Lock:** ADR-063 D3 sieht sie im Manifest als `composed` mit
-  Fragment-Hashes vor; ADR-064 D1 legt fest, dass der Lock das Manifest unverändert ist (Schema 1, ohne
-  `composed`). Vorschlag: ADR-064 D1 gilt, die Integrität der zusammengesetzten Dateien prüft das Gate über
-  `--compose --check` (AK-28b); ADR-063 D3 bekommt einen Nachtrag.
+- [x] **Q-23.1 · Transport und Aufruf:** → `git clone --depth 1 --branch <tag>` + Manifest per `curl` vom
+  Release-Asset, Test-Seams `FACTORY_UPSTREAM_GIT_URL`/`FACTORY_RELEASE_BASE_URL` (E1); Quell-Repo aus
+  `upstream.repo` (Default `nothra/dev-factory`), das Feld `repo` im Lock muss ihm gleichen (E2); Aufruf
+  `factory-sync.sh <version> [--adopt]` (E3).
+- [x] **Q-23.2 · Schutz der Anpassungsstellen:** → feste Liste der Projektbereiche in
+  `scripts/lib/factory-lock.sh`, getrennt von `customization-points.txt`; ADR-064 D4 bleibt (E6).
+- [x] **Q-23.3 · Zusammengesetzte Dateien im Lock:** → ADR-064 D1 gilt (Lock ohne `composed`); die lokale
+  Gate-Stufe prüft sie über `--compose --check` (E7, AK-28b).
 - [x] **Q-23.4 · Release:** → in #23 kein Release; `v0.7.0` erscheint nach #24 für beide Tasks
   (entschieden 2026-10-25). Der Issue-Text von #23 („Je Factory-Task ein Release", „Voraussetzung: A ist
   released") wird angepasst.
 - [x] **Q-23.5 · Erstabholung ohne Lock:** → nur mit ausdrücklichem Schalter, sonst Abbruch mit Liste der
   abweichenden Dateien (entschieden 2026-10-25, AK2.2e).
-- [ ] **Q-23.6 · Größe:** 23 Kriterien, knapp unter der Turn-Limit-Schwelle (> 25 AK, Lesson
-  `nothra/tch-gastro-services#369`). Falls `/architecture` neue Dateien in größerer Zahl ergibt (> 40),
-  vor `/implement` prüfen, ob AK-28a–c als eigener PR vorgezogen werden.
+- [x] **Q-23.6 · Größe:** → bleibt ein PR. 19 Kriterien + 6 Fehlerszenarien; laut ADR-063 Nachtrag E1–E9
+  rund 20 betroffene Dateien (2 neu), deutlich unter der Schwelle von 40 Dateien (Lesson
+  `nothra/tch-gastro-services#369`).
 
 ## Zuordnung zu spec-428
 
