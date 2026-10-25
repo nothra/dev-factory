@@ -5,7 +5,7 @@
 - [ ] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -107,6 +107,12 @@ Dateien“; drei Kleinfunde in `docs/factory/kleinfunde.md` (Hook-Fortschrittsan
 
 **/test (`tasks/coverage-22.md`):** Zeilenabdeckung von `ownership-check.sh` per xtrace gemessen (70/90 ausführbare Zeilen, 7 echte Lücken in 4 fail-closed-Pfaden);
 10 Tests ergänzt (unbekannter Parameter, unlesbare Dateiliste in beiden Modi, `git ls-files` scheitert, `comm` scheitert), jeder per Mutation belegt. Konsumenten-Fixture: **1672 grün, 0 rot**.
+
+**/refactor (kein neues Verhalten; vorher/nachher identisch: 1672 / 133 / Fixture 1672 grün, Assertion-Zahl unverändert):** in der Projekt-Suite drei einelementige Schleifen
+(`for … in "<ein Wert>"`) zu Zuweisungen aufgelöst und eine redundante Banner-Zeile (C1) entfernt; im Lock-Testblock der ausgelieferten Suite der dreifach wiederholte
+Tabellen-Fixture-Aufruf zum Helfer `write_all_project_table_22`; in `ownership-check.sh` Temp-Verzeichnis und EXIT-Trap in `lock_open_workspace` (gleiche Reihenfolge wie vorher:
+fehlendes `jq` greift vor `mktemp`). Bewusst nicht angefasst (Verhaltensänderung oder Mehrfach-Technik): `|| bad=0` in `lock_report_problems`, Pfade mit Zeilenumbruch,
+Leerzeilen in `OWNERSHIP_FILE_LIST`, Env-Konvention von `lock_check_22`.
 
 **Offen / Folgearbeit**
 - `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, Issue #26).

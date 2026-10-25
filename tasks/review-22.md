@@ -48,7 +48,7 @@ Keine.
 - [ ] [scripts/checks/ownership-check.sh:12 und Meldung] „✓ Zuordnung vollständig und eindeutig" im Lock-Modus behauptet mehr als geprüft wird (Eindeutigkeit gilt per Konstruktion; geprüft werden Lock-Pfade gegen getrackte Dateien und Anpassungsstellen). Kopfkommentar ehrlicher fassen. *(Runde 2)*
 - [x] [scripts/checks/tests/run-tests.sh, AK2.15c] Die Tabellen-Tests sind funktional unverändert, haben aber `FACTORY_LOCK_FILE=/nicht/vorhanden/…` als Zusatz bekommen (steht im PR-Text). ADR-Hinweis 1 („Tabellenmodus-Code unverändert, Diff klein") ist ungenau: der Tabellenzweig wurde in `load_tracked_files` umgebaut, die Prüfreihenfolge der Fehlerklassen blieb gleich. *(Runde 1/3)*
 - [x] [scripts/project/tests/run-tests.sh:31 und :133] `PCI_431` und `PROJECT_CI_FILE` zeigen auf dieselbe Datei. *(Runde 2)*
-- [ ] [scripts/project/tests/run-tests.sh:186, :206, :374] Einelementige Schleifen aus dem Verschieben (`for doc_file in …`, `for phrase in …`, `for chk_431 in lint`). *(Runde 2)*
+- [x] [scripts/project/tests/run-tests.sh:186, :206, :374] Einelementige Schleifen aus dem Verschieben (`for doc_file in …`, `for phrase in …`, `for chk_431 in lint`). *(Runde 2)*
 - [x] [scripts/project/tests/run-tests.sh:87, :93] Inversion per `echo $(( $? == 0 ))` – im Repo gilt `$(! grep -q …; echo $?)`. *(Runde 2)*
 - [ ] [scripts/project/tests/run-tests.sh, Kopfzeilen der verschobenen Gruppen] Doppelte Kopfzeilen und überall „verschoben aus der ausgelieferten Suite". *(Runde 2)*
 - [x] [scripts/checks/tests/run-tests.sh, „kein jq"-Block] Werkzeugliste im PATH-Stub ist ein Magic Set; benennen oder kommentieren. *(Runde 2)*

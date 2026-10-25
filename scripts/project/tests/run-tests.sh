@@ -181,14 +181,13 @@ assert_true "$?" "#264: Index-Zeile in PROJECT-CONTEXT.md nennt den Erledigt-Sta
 # ── verschoben aus der ausgelieferten Suite: #262: CONTRIBUTING.md nennt die Hook-Installation (Einstieg für Menschen in diesem Repo) ──
 # Die Schleife der ausgelieferten Suite prüft FACTORY.md, git-workflow.md und OPERATING.md; CONTRIBUTING.md gehört dem Projekt.
 CONTRIBUTING_MD="$FACTORY_ROOT/CONTRIBUTING.md"
-for doc_file in "$CONTRIBUTING_MD"; do
-  [ -r "$doc_file" ]
-  assert_true "$?" "#262: $(basename "$doc_file") ist lesbar (Vorbedingung der Doku-Checks)"
-  grep -qF 'scripts/install-hooks.sh' "$doc_file"
-  assert_true "$?" "#262: $(basename "$doc_file") nennt scripts/install-hooks.sh als Installationsweg"
-  grep -qF '`commit-msg`-Hook' "$doc_file"
-  assert_true "$?" "#262: $(basename "$doc_file") nennt den commit-msg-Hook als Hook"
-done
+doc_file="$CONTRIBUTING_MD"
+[ -r "$doc_file" ]
+assert_true "$?" "#262: $(basename "$doc_file") ist lesbar (Vorbedingung der Doku-Checks)"
+grep -qF 'scripts/install-hooks.sh' "$doc_file"
+assert_true "$?" "#262: $(basename "$doc_file") nennt scripts/install-hooks.sh als Installationsweg"
+grep -qF '`commit-msg`-Hook' "$doc_file"
+assert_true "$?" "#262: $(basename "$doc_file") nennt den commit-msg-Hook als Hook"
 
 # ── verschoben aus der ausgelieferten Suite: #262: README.md nennt die Hook-Installation (Setup-Anleitung dieses Repos) ──
 # Setup-Anleitung für einen frischen Clone: die Hook-Installation gehört in den Ablauf, sonst
@@ -201,10 +200,9 @@ assert_true "$?" "#262: README.md nennt 'bash scripts/install-hooks.sh' im lokal
 
 # ── verschoben aus der ausgelieferten Suite: #319: Index-Zeile „Coverage-Ausgabe nur in" in PROJECT-CONTEXT.md ──
 PC_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
-for phrase in "Coverage-Ausgabe nur in"; do
-  assert_contains_286 "$PC_FLAT_319" "$phrase" \
-    "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
-done
+phrase="Coverage-Ausgabe nur in"
+assert_contains_286 "$PC_FLAT_319" "$phrase" \
+  "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
 
 # ── verschoben aus der ausgelieferten Suite: #319 AC4: PROJECT-CONTEXT.md ist Teil des gedeckelten @import-Sets (CLAUDE.md dieses Repos) ──
 # AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (der
@@ -370,9 +368,8 @@ fi
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-F3: Required Check lint wird von der ci.yml dieses Repos gemeldet ──
 all_jobs_431="$(jobs_of_431 "$FCI_431") $(jobs_of_431 "$PCI_431")"
-for chk_431 in lint; do
-  assert_contains_286 "$all_jobs_431" "$chk_431 " "#431 AK-F3: Required Check '$chk_431' wird von einem Workflow gemeldet"
-done
+chk_431=lint
+assert_contains_286 "$all_jobs_431" "$chk_431 " "#431 AK-F3: Required Check '$chk_431' wird von einem Workflow gemeldet"
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-F4: Workflows sind in OWNERSHIP.md geführt ──
 # AK-F4: Workflows in OWNERSHIP.md zugeordnet, Skriptpfade existieren.
@@ -473,7 +470,6 @@ if [ -f "$RELEASE_YML_10" ]; then
 fi
 
 # ── verschoben aus der ausgelieferten Suite: C1: Herkunftsbegriffe nur an dokumentierten erlaubten Stellen (alle getrackten Dateien dieses Repos) ──
-# ─── C1: Herkunftsbegriffe nur an dokumentierten erlaubten Stellen ───────────────────────────
 echo ""
 echo "C1 Herkunftsbegriffe (PROJECT-CONTEXT.md → Konventionen → erlaubte Stellen):"
 # Die Begriffe werden zur Laufzeit zusammengesetzt: als Literal stünden sie in dieser Datei selbst, und der

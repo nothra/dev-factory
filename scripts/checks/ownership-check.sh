@@ -30,7 +30,7 @@ OWNERSHIP_FILE="${OWNERSHIP_FILE:-$FACTORY_DIR/docs/factory/OWNERSHIP.md}"
 LOCK_FILE="${FACTORY_LOCK_FILE:-$FACTORY_DIR/factory.lock}"
 CUSTOMIZATION_POINTS_FILE="${CUSTOMIZATION_POINTS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/customization-points.txt}"
 LIST_SIDE=""
-WORK_DIR=""   # Temp-Verzeichnis des Lock-Modus; bewusst global, weil die EXIT-Trap es nach dem Funktionsende liest
+WORK_DIR=""   # Temp-Verzeichnis des Lock-Modus, gesetzt in lock_open_workspace
 
 case "${1:-}" in
   "") ;;
@@ -141,11 +141,17 @@ lock_print_result() {
   esac
 }
 
+# Legt das Temp-Verzeichnis für die Pfadmengen an und räumt es beim Beenden des Skripts auf. WORK_DIR ist global, weil die EXIT-Trap
+# nach dem Ende von lock_mode läuft; angelegt wird es erst NACH den Voraussetzungen, damit fehlendes jq vor jedem anderen Werkzeug greift.
+lock_open_workspace() {
+  WORK_DIR="$(mktemp -d)"
+  trap 'rm -rf "$WORK_DIR"' EXIT
+}
+
 lock_mode() {
   lock_require_inputs
   load_tracked_files
-  WORK_DIR="$(mktemp -d)"
-  trap 'rm -rf "$WORK_DIR"' EXIT
+  lock_open_workspace
   lock_load_points
   lock_collect_sets
   lock_report_problems || exit 1

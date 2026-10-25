@@ -7573,6 +7573,11 @@ lock_check_22() {
     OWNERSHIP_FILE="${TABLE_22:-/nicht/vorhanden/OWNERSHIP.md}" OWNERSHIP_FILE_LIST="$dir/files.txt" \
     "${BASH_22:-bash}" "$OWN_CHECK_22" "$@" 2>&1
 }
+# write_all_project_table_22 <Datei> – Zuordnungstabelle, die ALLES der Seite `project` zuordnet: ein Rückfall in den Tabellenmodus
+# ergäbe damit Exit 0 und fiele in den Negativtests (kaputter Lock) sofort auf.
+write_all_project_table_22() {
+  printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$1"
+}
 # lock_run_22 <Lock-Pfade> <getrackte Dateien> <Anpassungsstellen> [Argumente…] – Fixture bauen, laufen lassen, aufräumen
 lock_run_22() {
   local dir rc; dir="$(mk_lock_fixture_22 "$(lock_json_22 "$1")" "$2" "$3")"
@@ -7582,7 +7587,7 @@ lock_run_22() {
 # lock_bad_22 <Lock-Inhalt roh> – gültige Tabelle liegt daneben: ein Rückfall in den Tabellenmodus ergäbe Exit 0
 lock_bad_22() {
   local dir rc; dir="$(mk_lock_fixture_22 "$1" 'a.md\n' 'CLAUDE.md\n')"
-  printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$dir/OWNERSHIP.md"
+  write_all_project_table_22 "$dir/OWNERSHIP.md"
   TABLE_22="$dir/OWNERSHIP.md" lock_check_22 "$dir"; rc=$?
   rm -rf "$dir"; return $rc
 }
@@ -7687,7 +7692,7 @@ fi
 chmod 600 "$dir_22/factory.lock"; rm -rf "$dir_22"
 # F-22.1 (Review-Fund): ein hängender Symlink `factory.lock` ist auch ein Lock – nicht „kein Lock“ (sonst stiller Rückfall in die Tabelle)
 dir_22="$(mk_lock_fixture_22 '' 'a.md\n' 'CLAUDE.md\n')"; rm -f "$dir_22/factory.lock"; ln -s /nicht/vorhanden/ziel "$dir_22/factory.lock"
-printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$dir_22/OWNERSHIP.md"
+write_all_project_table_22 "$dir_22/OWNERSHIP.md"
 out_22="$(TABLE_22="$dir_22/OWNERSHIP.md" lock_check_22 "$dir_22")"
 assert_exit 2 $? "#22 F-22.1: hängender Symlink als factory.lock → Exit 2, kein Rückfall in den Tabellenmodus"
 assert_contains_286 "$out_22" 'factory.lock' "#22 F-22.1: die Meldung zum hängenden Symlink nennt factory.lock"
@@ -7724,7 +7729,7 @@ dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' '
 out_22="$(lock_check_22 "$dir_22")"
 assert_exit 2 $? "#22 /test: Lock-Modus mit nicht lesbarer Dateiliste → Exit 2"
 assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Lock-Modus)"
-printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$dir_22/OWNERSHIP.md"
+write_all_project_table_22 "$dir_22/OWNERSHIP.md"
 out_22="$(FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE="$dir_22/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" 2>&1)"
 assert_exit 2 $? "#22 /test: Tabellenmodus mit nicht lesbarer Dateiliste → Exit 2"
 assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Tabellenmodus)"
