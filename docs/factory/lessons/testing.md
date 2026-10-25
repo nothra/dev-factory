@@ -720,3 +720,14 @@ entspricht (hier nur durch Disziplin vermieden, kein beobachteter Schaden).
 
 **Regel:** Solange ein Hintergrund-Lauf von `run-tests.sh` (oder einem anderen langen Bash-Skript) läuft, wird die
 Datei **nicht** verändert; neue Tests in dieser Zeit in einer Scratch-Datei vorbereiten und nach dem Lauf einfügen.
+
+### Zeilenabdeckung für ein Bash-Skript ohne Coverage-Werkzeug: `bash -x` in einem Wrapper (bash 3.2: kein `BASH_XTRACEFD`) (aus Factory-Task #22, `/test`)
+
+Das Repo hat kein `kcov`/`bashcov`, `commands.coverage` ist nur die Suite. Trotzdem lässt sich die Zeilenabdeckung des **einen** Produktionsskripts messen: ein Wrapper (`ownership-check.sh`) ruft das echte Skript mit `PS4='+X ${BASH_SOURCE##*/}:${LINENO}:'
+bash -x …` auf, schreibt den Trace in eine Temp-Datei und trennt danach **Trace-Zeilen** (→ Log) von **echter stderr-Ausgabe** (→ stderr) – die Tests lesen stderr und dürfen nichts davon verlieren. Auf macOS (bash 3.2.57) gibt es **kein** `BASH_XTRACEFD`
+(erst ab bash 4.1); `SHELLOPTS=xtrace` und ein `BASH_ENV`-Prelude mit `exec 9>>log` greifen deshalb nicht (Trace landete weiter auf stderr, 17 Tests wurden rot). Ausführbare Zeilen = nicht leer, kein Kommentar, keine Klammerzeile; Funktionsköpfe und
+`case`-Muster zeigt `xtrace` nie – das sind Messartefakte, keine Lücken.
+
+Der Lauf fand vier fail-closed-Pfade ohne Test (unbekannter Parameter, unlesbare Dateiliste, `git ls-files` scheitert, interner Fehler eines Vergleichs). **Regel:** Vor dem Abschluss einer Gate-/Check-Skript-Task die Zeilenabdeckung per xtrace messen, jede nicht
+ausgeführte `exit 2`/`return`-Zeile einzeln bewerten und je Pfad einen Test **mit Mutationsbeleg** schreiben (Skript-Kopie mit zerstörter Zeile, nur der zuständige Test wird rot). Den internen Fehler einer Pipeline erzwingt man mit einem PATH-Stub, dessen Werkzeug mit Exit ≠ 0
+endet (Messung brechen, Lesson nothra/tch-gastro-services#319).

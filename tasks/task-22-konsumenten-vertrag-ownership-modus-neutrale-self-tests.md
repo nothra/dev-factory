@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -128,7 +128,7 @@ Offen als Hinweise: Pfade mit Zeilenumbruch im Lock (Kleinfund), `jq`-Prüfschri
 <!-- Wird durch /review befüllt -->
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Siehe `tasks/codify-22.md`: fünf neue Gotchas (`echo` mit Fremdwert, Exit-Code-Zähler modulo 256, `git ls-files`-Quoting, `-e` vs. Symlink, Backticks im Heredoc) in `bash-gotchas.md` #14–#18; drei neue Lessons und ein Rezidiv in `lessons/factory-workflow.md`, eine Lesson in `lessons/testing.md`; vier Index-Zeilen in `PROJECT-CONTEXT.md`.
 
 ---
 Branch: `feature/22-konsumenten-vertrag-ownership-modus-neutrale-self-tests`
