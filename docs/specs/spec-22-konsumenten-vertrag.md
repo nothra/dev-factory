@@ -4,7 +4,7 @@
 > Kriterien-Quelle ist `spec-428-factory-versioniert-per-factory-lock-einbinden.md` im Ursprungs-Repo
 > (Branch `feature/428-factory-split-t2-factory-lock-einbinden`, bis zum Merge dort). Hier stehen die
 > Kriterien AK2.15a–c und AK2.16a–b, verfeinert auf den Ist-Stand von v0.6.1. Entscheidung:
-> Factory-ADR-063 (Nachtrag 2026-10-24, Q7/Q8). Reihenfolge strikt A → B → C → Erst-Einbindung im ersten Konsumenten (`nothra/tch-gastro-services`);
+> Factory-ADR-064 (mit Verweis-Nachtrag in Factory-ADR-063 vom 2026-10-24). Reihenfolge strikt A → B → C → Erst-Einbindung im ersten Konsumenten (`nothra/tch-gastro-services`);
 > diese Task ist **A**.
 
 ## Kontext

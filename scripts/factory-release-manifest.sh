@@ -36,7 +36,9 @@ git -C "$FACTORY_DIR" show "$COMMIT:docs/factory/OWNERSHIP.md" > "$WORK/OWNERSHI
   || die "docs/factory/OWNERSHIP.md fehlt am Stand $REF"
 git -C "$FACTORY_DIR" ls-tree -r --name-only "$COMMIT" > "$WORK/tracked.txt" || die "Dateiliste am Stand $REF nicht ermittelbar"
 
-FILES="$(OWNERSHIP_FILE="$WORK/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$WORK/tracked.txt" FACTORY_DIR="$FACTORY_DIR" \
+# Die Tabelle AM <ref> gilt, nicht ein factory.lock im Arbeitsbaum (ownership-check.sh wählt den Modus nach dem Arbeitsbaum):
+# FACTORY_LOCK_FILE zeigt deshalb auf einen Pfad, den es nicht gibt, und erzwingt den Tabellenmodus.
+FILES="$(FACTORY_LOCK_FILE="$WORK/kein-lock" OWNERSHIP_FILE="$WORK/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$WORK/tracked.txt" FACTORY_DIR="$FACTORY_DIR" \
   bash "$FACTORY_DIR/scripts/checks/ownership-check.sh" --list factory | LC_ALL=C sort)" \
   || die "Zuordnung am Stand $REF nicht auswertbar"
 [ -n "$FILES" ] || die "keine Dateien der Seite factory am Stand $REF (fail-closed)"

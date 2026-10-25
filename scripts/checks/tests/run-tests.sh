@@ -7554,7 +7554,7 @@ OWN_CHECK_22="$CHECKS_DIR/ownership-check.sh"
 # mk_lock_fixture_22 <lock-json> <getrackte Dateien (\n-getrennt)> <Anpassungsstellen-Liste (roh)> → Verzeichnis mit
 # factory.lock, files.txt, points.txt. `%b` in <getrackte Dateien>/<Liste> deutet \n und \r; <lock-json> ist roh.
 mk_lock_fixture_22() {
-  local dir; dir="$(mktemp -d)"
+  local dir; dir="$(mktemp -d)" || return 1
   printf '%s' "$1" > "$dir/factory.lock"
   printf '%b' "$2" > "$dir/files.txt"
   printf '%b' "$3" > "$dir/points.txt"
@@ -7631,6 +7631,11 @@ out_22="$(lock_run_22 'scripts/a.sh\n' 'scripts/a.sh\n' '# nur Kommentar\n\n')"
 assert_exit 2 $? "#22 F-22.2: Anpassungsstellen-Liste ohne Eintrag → Exit 2 (nicht „keine Anpassungsstelle verletzt“)"
 assert_contains_286 "$out_22" 'Anpassungsstellen' "#22 F-22.2: die Meldung zur leeren Liste nennt die Anpassungsstellen"
 
+# Review-Fund (Iteration 2): die Fundzahl in der Schlusszeile ist die echte Zahl, auch jenseits von 255 (ein Exit-Code-Zähler wäre bei 255 gekappt)
+out_22="$(lock_run_22 "$(seq -f 'x%g.txt' 1 300)\n" 'a.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: 300 fehlende Lock-Pfade → Exit 1"
+assert_contains_286 "$out_22" '300 Fund(e)' "#22 AK2.15b: die Schlusszeile nennt die echte Fundzahl (300, nicht auf 255 gekappt)"
+
 # F-22.4: doppelter Lock-Pfad → Exit 1 mit Pfad, nicht still zusammengefasst
 out_22="$(lock_run_22 'scripts/a.sh\nscripts/a.sh\n' 'scripts/a.sh\n' 'CLAUDE.md\n')"
 assert_exit 1 $? "#22 F-22.4: doppelter Lock-Pfad → Exit 1"
@@ -7650,6 +7655,8 @@ assert_exit 1 $? "#22 F-22.3: '*' im Lock-Pfad ist kein Glob"
 # nicht gegen eine Dateiliste – sonst bliebe der Quoting-Fehler unsichtbar.
 dir_22="$(mktemp -d)"
 git -C "$dir_22" init -q; git -C "$dir_22" config user.email t@t.t; git -C "$dir_22" config user.name t
+# Die Quoting-Regel gilt es zu belegen: nicht von einer globalen Git-Konfiguration abhängig machen (sonst wäre der Test zufällig grün).
+git -C "$dir_22" config core.quotepath true; git -C "$dir_22" config commit.gpgsign false
 mkdir -p "$dir_22/docs"; : > "$dir_22/docs/für.md"; : > "$dir_22/übung.md"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
 printf '{"schema":1,"files":[{"path":"docs/für.md","sha256":"0"}]}' > "$dir_22/factory.lock"
 git -C "$dir_22" add -A; git -C "$dir_22" commit -q -m init
@@ -7687,7 +7694,8 @@ assert_contains_286 "$out_22" 'factory.lock' "#22 F-22.1: die Meldung zum hänge
 rm -rf "$dir_22"
 
 # F-22.1 (Messung): ohne jq im PATH → Exit 2 mit klarer Meldung, nicht Exit 0 (Stub bricht die Messung, nicht nur den Input).
-# Der Stub enthält genau die Werkzeuge, die ownership-check.sh sonst braucht; fehlt eines, bräche der Test mit Exit 127 statt 2.
+# Der Stub enthält die üblichen Werkzeuge ohne jq (eine Obermenge dessen, was ownership-check.sh braucht). Der Test belegt, dass die
+# jq-Prüfung vor allen anderen Werkzeugen greift – er hängt nicht an der Vollständigkeit dieser Liste.
 NOJQ_TOOLS_22="bash dirname cat sort uniq comm grep awk sed mktemp rm tr git head"
 nojq_22="$(mktemp -d)"
 for t_22 in $NOJQ_TOOLS_22; do
@@ -8394,6 +8402,14 @@ EOT
   assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files[] | select(.path == "zz/a.txt") | .sha256')" != "$(shasum -a 256 < "$TMP_RM_10/zz/a.txt" | cut -d' ' -f1)" ]; echo $?)" \
     "Release-Manifest (Diskriminierung): der Hash weicht vom veränderten Arbeitsbaum ab"
   assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files | map(.sha256) | map(test("^[0-9a-f]{64}$")) | all')" = true ]; echo $?)" "Release-Manifest: jeder Hash hat 64 Hex-Zeichen"
+  # Der Modus von ownership-check.sh hängt am Arbeitsbaum (factory.lock im FACTORY_DIR); das Manifest liest aber die Tabelle AM TAG.
+  # Ein Lock im Arbeitsbaum darf die Dateiliste des Tags nicht verändern (Review-Fund Iteration 1/2).
+  printf '{"schema":1,"files":[{"path":"zz/b.txt","sha256":"0"}]}' > "$TMP_RM_10/factory.lock"
+  out_lock_rm_10="$(cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v9.9.9 2>&1)"; rc_lock_rm_10=$?
+  assert_exit 0 "$rc_lock_rm_10" "Release-Manifest: Lauf mit factory.lock im Arbeitsbaum endet mit Exit 0"
+  assert_true "$([ "$(printf '%s' "$out_lock_rm_10" | jq -r '.files | map(.path) | join(",")')" = "scripts/checks/ownership-check.sh,scripts/factory-release-manifest.sh,zz/a.txt,zz/b.txt" ]; echo $?)" \
+    "Release-Manifest: ein factory.lock im Arbeitsbaum ändert die Dateiliste des Tags nicht (Tabellenmodus erzwungen)"
+  rm -f "$TMP_RM_10/factory.lock"
   # Fail-closed
   (cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v0.0.0-gibt-es-nicht >/dev/null 2>&1)
   assert_exit 2 "$?" "Release-Manifest: unbekannte Referenz → Exit 2 (fail-closed)"

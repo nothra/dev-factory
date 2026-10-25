@@ -18,7 +18,7 @@
 #
 # Fail-closed: nicht lesbare Tabelle, leere Tabelle oder nicht ermittelbare Dateiliste → Exit 2.
 # Fehlende oder doppelte Zuordnung → Exit 1, jede Datei namentlich.
-# Lock-Modus: unlesbarer/ungültiger Lock, fehlendes `jq` oder fehlende Anpassungsstellen-Liste → Exit 2
+# Lock-Modus: unlesbarer/ungültiger Lock, fehlendes `jq`, fehlende oder leere Anpassungsstellen-Liste → Exit 2
 # (nie Rückfall in den Tabellenmodus); fehlender, doppelter oder als Anpassungsstelle geführter Lock-Pfad → Exit 1.
 # Unterschied zum Tabellenmodus: Im Lock-Modus gehen alle Fehlermeldungen nach stderr, bei `--list` bleibt stdout dann leer
 # (der Tabellenmodus druckt seine `✗`-Zeilen nach stdout).
@@ -69,7 +69,7 @@ load_tracked_files() {
 # keine Globs). Alle Funde einer Klasse werden gesammelt, nicht nur der erste. Eindeutigkeit der Zuordnung gilt hier per
 # Konstruktion (es gibt nur einen Zweig); geprüft wird, dass Lock, Repo-Inhalt und Anpassungsstellen zusammenpassen.
 
-# Fail-closed (Exit 2): jq, lesbarer und gültiger Lock, lesbare Liste der Anpassungsstellen mit mindestens einem Eintrag.
+# Fail-closed (Exit 2): jq, lesbarer und gültiger Lock, lesbare Liste der Anpassungsstellen.
 lock_require_inputs() {
   command -v jq >/dev/null 2>&1 || { echo "ownership-check: Lock-Modus braucht jq (nicht gefunden)" >&2; exit 2; }
   [ -r "$LOCK_FILE" ] || { echo "ownership-check: factory.lock nicht lesbar: $LOCK_FILE" >&2; exit 2; }
@@ -82,47 +82,60 @@ lock_require_inputs() {
   fi
 }
 
-# Legt die sortierten Pfadmengen in $WORK_DIR ab: lock.txt (mit Duplikaten), tracked.txt, points.txt.
-# Die Liste der Anpassungsstellen wird normalisiert (CR, Randleerraum): sonst liefe die Prüfung bei CRLF-Zeilenenden still ins Leere.
-lock_collect_sets() {
-  jq -r '.files[].path' "$LOCK_FILE" | LC_ALL=C sort > "$WORK_DIR/lock.txt"
-  printf '%s\n' "$TRACKED_FILES" | LC_ALL=C sort -u > "$WORK_DIR/tracked.txt"
+# Legt die normalisierte Liste der Anpassungsstellen in $WORK_DIR/points.txt ab und bricht mit Exit 2 ab, wenn sie keinen Eintrag hat.
+# Normalisiert wird (CR, Randleerraum): sonst liefe die Prüfung bei CRLF-Zeilenenden still ins Leere.
+lock_load_points() {
   tr -d '\r' < "$CUSTOMIZATION_POINTS_FILE" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
     | grep -vE '^(#|$)' | LC_ALL=C sort -u > "$WORK_DIR/points.txt" || true
   [ -s "$WORK_DIR/points.txt" ] || {
     echo "ownership-check: Liste der Anpassungsstellen ohne Eintrag (fail-closed): $CUSTOMIZATION_POINTS_FILE" >&2; exit 2; }
 }
 
-# report_each <meldung>: je Pfad auf stdin eine Zeile `✗ <pfad>: <meldung>` auf stderr; Rückgabe = Anzahl der Funde (max. 255).
-report_each() {
-  local path n=0
-  while IFS= read -r path; do echo "✗ $path: $1" >&2; n=$((n + 1)); done
-  return $((n > 255 ? 255 : n))
+# Legt die sortierten Pfadmengen in $WORK_DIR ab: lock.txt (mit Duplikaten), lock-unique.txt, tracked.txt.
+lock_collect_sets() {
+  jq -r '.files[].path' "$LOCK_FILE" | LC_ALL=C sort > "$WORK_DIR/lock.txt"
+  LC_ALL=C sort -u "$WORK_DIR/lock.txt" > "$WORK_DIR/lock-unique.txt"
+  printf '%s\n' "$TRACKED_FILES" | LC_ALL=C sort -u > "$WORK_DIR/tracked.txt"
 }
 
-# Gibt die Zahl der Funde über alle drei Klassen als Exit-Code-Summe zurück: 0 = Lock und Repo passen zusammen.
+# lock_report_class <meldung>: je Pfad auf stdin eine Zeile `✗ <pfad>: <meldung>` auf stderr; jeder Fund wird in
+# $WORK_DIR/findings.txt vermerkt (gezählt wird dort, nicht über Exit-Codes: die wären bei 255 gekappt).
+lock_report_class() {
+  local path
+  while IFS= read -r path; do
+    echo "✗ $path: $1" >&2
+    echo "$path" >> "$WORK_DIR/findings.txt"
+  done
+}
+
+# Scheitert eine der Vergleichs-Pipelines selbst (z. B. `comm`), ist das ein interner Fehler: Exit 2, nicht „ein Fund“.
+lock_internal_error() {
+  echo "ownership-check: interner Fehler beim Vergleich der Pfadmengen (fail-closed)" >&2
+  exit 2
+}
+
+# Meldet alle Funde der drei Klassen; Rückgabe 0 = Lock und Repo passen zusammen, 1 = mindestens ein Fund.
 lock_report_problems() {
-  local bad=0 n=0
-  LC_ALL=C uniq -d "$WORK_DIR/lock.txt" | report_each "mehrfach im Lock" || n=$?; bad=$((bad + n)); n=0
-  LC_ALL=C sort -u "$WORK_DIR/lock.txt" | LC_ALL=C comm -23 - "$WORK_DIR/tracked.txt" \
-    | report_each "nicht getrackt (Lock-Pfad ohne Datei im Repo)" || n=$?; bad=$((bad + n)); n=0
-  LC_ALL=C sort -u "$WORK_DIR/lock.txt" | LC_ALL=C comm -12 - "$WORK_DIR/points.txt" \
-    | report_each "Anpassungsstelle steht im Lock (gehört dem Projekt, wird nie geliefert)" || n=$?; bad=$((bad + n))
-  if [ "$bad" -gt 0 ]; then
-    echo "ownership-check: $bad Fund(e) im Lock-Modus – factory.lock und Repo-Inhalt passen nicht zusammen." >&2
-  fi
-  return $((bad > 255 ? 255 : bad))
+  : > "$WORK_DIR/findings.txt"
+  LC_ALL=C uniq -d "$WORK_DIR/lock.txt" | lock_report_class "mehrfach im Lock" || lock_internal_error
+  LC_ALL=C comm -23 "$WORK_DIR/lock-unique.txt" "$WORK_DIR/tracked.txt" \
+    | lock_report_class "nicht getrackt (Lock-Pfad ohne Datei im Repo)" || lock_internal_error
+  LC_ALL=C comm -12 "$WORK_DIR/lock-unique.txt" "$WORK_DIR/points.txt" \
+    | lock_report_class "Anpassungsstelle steht im Lock (gehört dem Projekt, wird nie geliefert)" || lock_internal_error
+  local bad; bad="$(grep -c '' "$WORK_DIR/findings.txt")" || bad=0
+  [ "$bad" -eq 0 ] && return 0
+  echo "ownership-check: $bad Fund(e) im Lock-Modus – factory.lock und Repo-Inhalt passen nicht zusammen." >&2
+  return 1
 }
 
 # Ausgabe je nach Aufruf: --list factory|project gibt die Pfade aus, sonst Modus- und Ergebniszeile.
 lock_print_result() {
-  local factory_set="$WORK_DIR/factory-set.txt" nf np
-  LC_ALL=C sort -u "$WORK_DIR/lock.txt" > "$factory_set"
+  local nf np
   case "$LIST_SIDE" in
-    factory) cat "$factory_set" ;;
-    project) LC_ALL=C comm -23 "$WORK_DIR/tracked.txt" "$factory_set" ;;
-    *) nf="$(grep -c '' "$factory_set")"
-       np="$(LC_ALL=C comm -23 "$WORK_DIR/tracked.txt" "$factory_set" | grep -c '')" || np=0
+    factory) cat "$WORK_DIR/lock-unique.txt" ;;
+    project) LC_ALL=C comm -23 "$WORK_DIR/tracked.txt" "$WORK_DIR/lock-unique.txt" ;;
+    *) nf="$(grep -c '' "$WORK_DIR/lock-unique.txt")"
+       np="$(LC_ALL=C comm -23 "$WORK_DIR/tracked.txt" "$WORK_DIR/lock-unique.txt" | grep -c '')" || np=0
        echo "ownership-check: Modus: Lock ($LOCK_FILE)"
        echo "✓ Zuordnung vollständig und eindeutig: $((nf + np)) Dateien (factory: $nf, project: $np)" ;;
   esac
@@ -133,6 +146,7 @@ lock_mode() {
   load_tracked_files
   WORK_DIR="$(mktemp -d)"
   trap 'rm -rf "$WORK_DIR"' EXIT
+  lock_load_points
   lock_collect_sets
   lock_report_problems || exit 1
   lock_print_result

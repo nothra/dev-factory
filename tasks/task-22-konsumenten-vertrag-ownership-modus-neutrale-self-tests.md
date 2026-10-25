@@ -56,7 +56,7 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
   `factory.lock` im Konsumenten sie nicht in den Lock-Modus zieht.
 - AK2.15d-0 (Manifest vorher `3557ae1` / nachher `HEAD`, je 114 Pfade): `- docs/factory/OWNERSHIP.md`, `+ scripts/checks/customization-points.txt`, sonst identisch.
 - AK2.16a: Konsumenten-Fixture (Dateien der Seite `factory` + eigene Anpassungsstellen + `factory.lock` aus dem Manifest, Hooks installiert):
-  ausgelieferte Suite **1658 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
+  ausgelieferte Suite **1662 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
 - AK2.16b/b-3, F-22.5: Zählvergleich unten, beide Suiten brechen ohne `assert-helpers.sh` mit Exit 2 ab (vorher: `command not found` und Weiterlauf); `ownership-check.sh` grün (132 Dateien: factory 114, project 18).
 - AK2.16b-2: `scripts/project/checks/pre-push.d/10-project-tests.sh` + Job `project-self-test` in `ci.yml`; Wiring an den echten Aufrufzeilen, Verhalten des Hooks
   (grün/rot) und je eine Mutation (ohne `run:`-Zeile, ohne yq-Schritt).
@@ -66,10 +66,10 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
 | | ausgelieferte Suite | Projekt-Suite | Summe |
 |---|---|---|---|
 | vorher (Commit b) | 1737 | 25 (Drift-Guard) | 1762 |
-| nachher | 1658 | 133 | 1791 |
-| davon neu durch diese Task | 13 (3 × F-22.5: Lib/Fixtures sind `factory`; 10 × Review-Nacharbeit: CRLF/Randleerraum, leere Liste, Umlaute, hängender Symlink) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) + 1 (hook_22 isoliert die Umgebung) | 29 |
+| nachher | 1662 | 133 | 1795 |
+| davon neu durch diese Task | 17 (3 × F-22.5: Lib/Fixtures sind `factory`; 10 × Review-Nacharbeit Iteration 1: CRLF/Randleerraum, leere Liste, Umlaute, hängender Symlink; 4 × Iteration 2: Fundzahl über 255, Manifest-Skript erzwingt Tabellenmodus) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) + 1 (hook_22 isoliert die Umgebung) | 33 |
 
-1762 + 29 = 1791 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
+1762 + 33 = 1795 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
 ausgelieferten Suite: …` in `scripts/project/tests/run-tests.sh`): Prüfungen, die `ci.yml`, `release.yml`, `OWNERSHIP.md`, `CLAUDE.md`,
 `CONTRIBUTING.md`, `README.md`, `PROJECT-CONTEXT.md`, `factory.config.yml`, die zusammengesetzte `.gitignore` oder die Git-Historie dieses Repos lesen.
 Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) wanderten dafür nach `scripts/checks/tests/lib/assert-helpers.sh`.
@@ -95,10 +95,16 @@ zusammengesetzte Dateien, Bezug zu ADR-063/029/041; ADR-063 bekommt einen Nachtr
 Hinweis: Die Spec nennt in ihrem Kopf „Factory-ADR-063 (Nachtrag 2026-10-24, Q7/Q8)“; einen solchen Nachtrag mit Q7/Q8 gibt es in ADR-063 nicht (nur T1a Q1–Q6 und T1b).
 Der neue Nachtrag enthält bewusst nur den Verweis, keine erfundenen Q7/Q8.
 
+**Review-Nacharbeit Iteration 2 (`tasks/review-22.md`):** Fundzähler über `findings.txt` statt Exit-Code (Schlusszeile nennt die echte Zahl auch über 255),
+`lock_load_points` trennt Laden/Normalisieren der Anpassungsstellen von `lock_collect_sets`, `lock_report_class`/`lock_internal_error` (ein Fehler der Vergleichs-Pipeline
+ist Exit 2, nicht „ein Fund“); `factory-release-manifest.sh` erzwingt den Tabellenmodus (ein `factory.lock` im Arbeitsbaum ändert die Dateiliste des Tags nicht); ADR-064
+nennt Issue #26, korrigierte Commit-Reihenfolge, die Ausnahme für Nicht-ASCII-Pfade und den „nicht leer“-Test der Markierung; ADR-063-Nachtrag mit Halbsatz zu `project-self-test`;
+Spec-Kopf ohne das nicht vorhandene „Q7/Q8“. Angelegt: Issue #26 (Ruleset) und Issue #27 (tote `OWNERSHIP.md`-Verweise, T2a-4). Konsumenten-Fixture: **1662 grün, 0 rot**.
+
 **Offen / Folgearbeit**
-- `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, nicht in dieser Task).
+- `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, Issue #26).
 - Skills und Doku (`/codify`, `/review`, `/security-review`) nennen `docs/factory/OWNERSHIP.md` als Zuordnungstabelle; im Lock-Modus eines Konsumenten gibt es sie nicht.
-  Doku-Anpassung gehört zur Erst-Einbindung (T2a-4), die Tests (AK-C5/AK-L1) prüfen den heutigen Wortlaut.
+  Verfolgt in Issue #27 (T2a-4); die Tests (AK-C5/AK-L1) prüfen den heutigen Wortlaut.
 - Q-22.5 (#23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten) und die Anpassung des Issue-Body #22 („je Task ein Release") bleiben offen.
 
 ## Review-Findings

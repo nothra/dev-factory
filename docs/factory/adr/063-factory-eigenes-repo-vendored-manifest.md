@@ -456,5 +456,4 @@ D6-Versionsangabe, D9-Lint).
 
 Die Zuordnungstabelle `docs/factory/OWNERSHIP.md` (Nachtrag zu T1a) gehört seit ADR-064 D5 dem Repo (Seite `project`) und ist nicht mehr
 Teil des Release-Manifests. Ein einbindendes Projekt bestimmt die Seite `factory` über seinen `factory.lock` (Pfadmenge des Release-Manifests);
-die Tabelle gilt nur im Factory-Repo selbst. Details und Konsequenzen: ADR-064.
-
+die Tabelle gilt nur im Factory-Repo selbst. Die Prüfungen gegen die Tabelle (Aussage zu `factory-self-test` im Nachtrag zu T1a) laufen seit ADR-064 D6 zum Teil in `project-self-test`; dessen Eintrag in die Required-Check-Listen (ADR-029, T1b Q5) verfolgt Issue #26. Details und Konsequenzen: ADR-064.
