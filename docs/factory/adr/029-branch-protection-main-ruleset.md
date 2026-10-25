@@ -217,3 +217,6 @@ gh api repos/nothra/tch-gastro-services/rulesets/19162920 --jq \
 - **ADR-041** (`config-validation` als eigener CI-Required-Check, Task 255): erweitert
   `required_status_checks` um `config-validation` (s. o.) – Nachtrag gemäß der oben
   dokumentierten Gegenmaßnahme „Änderungen am Ruleset laufen über einen neuen ADR".
+- **ADR-064** (Konsumenten-Vertrag, Factory-Repo): erweitert das Ruleset `protect-main` des Factory-Repos (`nothra/dev-factory`) um den
+  Required Check `project-self-test` (Job in `ci.yml`, führt die Projekt-Suite aus). Das hier dokumentierte JSON und die Check-Liste oben beschreiben das
+  Ruleset des Ursprungs-Projekts; im Factory-Repo gilt die Liste `lint`, `factory-self-test`, `pr-closes-issue`, `config-validation`, `project-self-test`.

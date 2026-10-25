@@ -40,7 +40,7 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
 ## Offene Fragen
 - [x] Q-22.4 Lock-Format: JSON wie `factory-release.json` (ADR 064 D1)
 - [ ] Q-22.5 #23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten
-- [ ] Issue-Body #22 nennt „je Factory-Task ein Release", die Spec entscheidet „kein Release in #22" – Issue anpassen
+- [x] Issue-Body #22 nennt „je Factory-Task ein Release", die Spec entscheidet „kein Release in #22" – Issue angepasst (2026-10-25)
 
 ## Umsetzungs-Notizen (/implement, 2026-10-24)
 
@@ -119,10 +119,10 @@ Leerzeilen in `OWNERSHIP_FILE_LIST`, Env-Konvention von `lock_check_22`.
 Offen als Hinweise: Pfade mit Zeilenumbruch im Lock (Kleinfund), `jq`-Prüfschritt im CI-Job, SHA-Pinning der Actions (Querschnitt). Konsumenten-Fixture: **1678 grün, 0 rot**.
 
 **Offen / Folgearbeit**
-- `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, Issue #26).
+- Erledigt am 2026-10-25 (Issue #26): `project-self-test` ist im Ruleset `protect-main` als Required Check eingetragen (`lint`, `factory-self-test`, `pr-closes-issue`, `config-validation`, `project-self-test`; alle übrigen Regeln unverändert, per `gh api` verifiziert); ADR-029/063/064 nennen den Eintrag.
 - Skills und Doku (`/codify`, `/review`, `/security-review`) nennen `docs/factory/OWNERSHIP.md` als Zuordnungstabelle; im Lock-Modus eines Konsumenten gibt es sie nicht.
   Verfolgt in Issue #27 (T2a-4); die Tests (AK-C5/AK-L1) prüfen den heutigen Wortlaut.
-- Q-22.5 (#23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten) und die Anpassung des Issue-Body #22 („je Task ein Release") bleiben offen.
+- Q-22.5 (#23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten) bleibt offen (Hinweis an #23). Der Issue-Body #22 („je Task ein Release“) ist am 2026-10-25 angepasst.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

@@ -111,9 +111,7 @@ an `tasks/**`/`docs/specs/**` gescheitert. Der Drift-Guard prüft deshalb beide 
   (`scripts/project/**` hat bislang keine).
 - Die Suite ist **aufgeteilt**, nicht verdoppelt: Gruppen, die das Factory-Repo voraussetzen, laufen nur noch in
   `scripts/project/tests/` (lokal über `pre-push.d/`, in CI als Job `project-self-test`). Vorher gehörten sie zum Required Check
-  `factory-self-test`. **Das Gate-Niveau sinkt, bis `project-self-test` im Ruleset `protect-main` als Required Check geführt wird**
-  (ADR-029; ADR-041 hat „Job, aber nicht required“ aus genau diesem Grund verworfen). Der Ruleset-Eintrag ist ein Admin-Schritt und
-  wird in Issue #26 verfolgt.
+  `factory-self-test`. Das Gate-Niveau sank vorübergehend, bis `project-self-test` im Ruleset `protect-main` als Required Check geführt wurde (ADR-029; ADR-041 hat „Job, aber nicht required“ aus genau diesem Grund verworfen). **Der Eintrag ist am 2026-10-25 erfolgt** (Issue #26): das Ruleset verlangt jetzt `lint`, `factory-self-test`, `pr-closes-issue`, `config-validation` und `project-self-test`; verifiziert per `gh api repos/nothra/dev-factory/rulesets/<id>`, alle übrigen Regeln unverändert.
 - Kopplung ausgelieferte Suite ↔ Projekt-Hook: Die ausgelieferte Suite ruft `pre-push.sh` echt gegen das Repo auf. Sie exportiert
   daher `FACTORY_SELF_TEST_RUN=1`; der Hook `10-project-tests.sh` (prüft „nicht leer“, nicht „=1“) startet die Projekt-Suite dann nicht (sonst läuft sie verschachtelt
   mehrfach, und ihr Rot färbte unbeteiligte Gate-Tests falsch rot). Im echten Push und im CI-Job ist die Variable nicht gesetzt.
@@ -152,4 +150,4 @@ an `tasks/**`/`docs/specs/**` gescheitert. Der Drift-Guard prüft deshalb beide 
 - **ADR-063:** D5 kehrt eine Aussage aus dem Nachtrag zu T1a um – `docs/factory/OWNERSHIP.md` ist nicht mehr ausgelieferte
   Factory-Datei, sondern gehört dem Repo; ein Konsument bestimmt die Zuordnung über `factory.lock`. Das Manifest (ADR-063 T1b Q1) und
   der lokale Gate-Lauf lesen weiter dieselbe Tabelle, aber nur im Factory-Repo.
-- **ADR-029/ADR-041:** Der neue Job `project-self-test` ist erst mit dem Ruleset-Eintrag ein erzwungenes Gate (siehe Konsequenzen; Issue #26).
+- **ADR-029/ADR-041:** Der neue Job `project-self-test` ist erst mit dem Ruleset-Eintrag ein erzwungenes Gate (siehe Konsequenzen; Eintrag am 2026-10-25, Issue #26).
