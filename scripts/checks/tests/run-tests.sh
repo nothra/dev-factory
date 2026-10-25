@@ -7714,6 +7714,39 @@ assert_exit 2 $? "#22 F-22.2: fehlende Anpassungsstellen-Liste → Exit 2"
 assert_contains_286 "$out_22" 'Anpassungsstellen' "#22 F-22.2: die Meldung nennt die Liste der Anpassungsstellen"
 rm -rf "$dir_22"
 
+# /test-Ergänzung (Zeilenabdeckung von ownership-check.sh per xtrace): fail-closed-Pfade ohne eigenen Test.
+# Aufruffehler: unbekannter Parameter → Exit 2 mit Meldung (beide Modi teilen die Argument-Auswertung vor der Moduswahl)
+out_22="$(lock_run_22 'a.md\n' 'a.md\n' 'CLAUDE.md\n' --unbekannt)"
+assert_exit 2 $? "#22 /test: unbekannter Parameter → Exit 2 (auch mit Lock)"
+assert_contains_286 "$out_22" 'unbekannter Parameter: --unbekannt' "#22 /test: die Meldung nennt den unbekannten Parameter"
+# Dateiliste (Override für Tests) nicht lesbar → Exit 2 – im Lock-Modus und im Tabellenmodus, je mit der Meldung
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' 'CLAUDE.md\n')"; rm -f "$dir_22/files.txt"
+out_22="$(lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 /test: Lock-Modus mit nicht lesbarer Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Lock-Modus)"
+printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$dir_22/OWNERSHIP.md"
+out_22="$(FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE="$dir_22/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 /test: Tabellenmodus mit nicht lesbarer Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Tabellenmodus)"
+rm -rf "$dir_22"
+# Kein git-Repo und keine Dateiliste → `git ls-files` scheitert → Exit 2 (nie „keine Dateien, alles grün“)
+dir_22="$(mktemp -d)"; printf '{"schema":1,"files":[{"path":"a.md"}]}' > "$dir_22/factory.lock"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
+out_22="$(GIT_CEILING_DIRECTORIES="$(dirname "$dir_22")" FACTORY_DIR="$dir_22" FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 /test: Lock-Modus ohne git-Repo und ohne Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'git ls-files fehlgeschlagen' "#22 /test: die Meldung nennt das fehlgeschlagene git ls-files"
+rm -rf "$dir_22"
+# Interner Fehler: scheitert `comm` selbst (Messung gebrochen per PATH-Stub), ist das Exit 2 – nicht „ein Fund“ und nicht grün
+brkcomm_22="$(mktemp -d)"
+for t_22 in $NOJQ_TOOLS_22 jq; do
+  p_22="$(command -v "$t_22" 2>/dev/null)" && ln -s "$p_22" "$brkcomm_22/$t_22"
+done
+rm -f "$brkcomm_22/comm"; printf '#!/bin/sh\nexit 3\n' > "$brkcomm_22/comm"; chmod +x "$brkcomm_22/comm"
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\nb.md\n' 'CLAUDE.md\n')"
+out_22="$(PATH_22="$brkcomm_22" BASH_22="$brkcomm_22/bash" lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 /test: scheitert comm selbst → Exit 2 (interner Fehler, fail-closed)"
+assert_contains_286 "$out_22" 'interner Fehler' "#22 /test: die Meldung nennt den internen Fehler"
+rm -rf "$brkcomm_22" "$dir_22"
+
 # AK2.15c: ohne Lock bleibt der Tabellenmodus – keine Moduszeile, Meldungen unverändert (Kontrolle zu den Tests oben)
 out_22="$(own_run_426 '| project | `**` | alles |\n' 'a.md\n')"
 assert_exit 0 $? "#22 AK2.15c: ohne Lock gilt die Tabelle (Exit 0)"

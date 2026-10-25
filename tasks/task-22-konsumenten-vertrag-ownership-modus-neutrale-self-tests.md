@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [ ] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -56,7 +56,7 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
   `factory.lock` im Konsumenten sie nicht in den Lock-Modus zieht.
 - AK2.15d-0 (Manifest vorher `3557ae1` / nachher `HEAD`, je 114 Pfade): `- docs/factory/OWNERSHIP.md`, `+ scripts/checks/customization-points.txt`, sonst identisch.
 - AK2.16a: Konsumenten-Fixture (Dateien der Seite `factory` + eigene Anpassungsstellen + `factory.lock` aus dem Manifest, Hooks installiert):
-  ausgelieferte Suite **1662 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
+  ausgelieferte Suite **1672 grün, 0 rot**. Vor dem Schnitt waren es 44 rot.
 - AK2.16b/b-3, F-22.5: Zählvergleich unten, beide Suiten brechen ohne `assert-helpers.sh` mit Exit 2 ab (vorher: `command not found` und Weiterlauf); `ownership-check.sh` grün (132 Dateien: factory 114, project 18).
 - AK2.16b-2: `scripts/project/checks/pre-push.d/10-project-tests.sh` + Job `project-self-test` in `ci.yml`; Wiring an den echten Aufrufzeilen, Verhalten des Hooks
   (grün/rot) und je eine Mutation (ohne `run:`-Zeile, ohne yq-Schritt).
@@ -66,10 +66,10 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
 | | ausgelieferte Suite | Projekt-Suite | Summe |
 |---|---|---|---|
 | vorher (Commit b) | 1737 | 25 (Drift-Guard) | 1762 |
-| nachher | 1662 | 133 | 1795 |
-| davon neu durch diese Task | 17 (3 × F-22.5: Lib/Fixtures sind `factory`; 10 × Review-Nacharbeit Iteration 1: CRLF/Randleerraum, leere Liste, Umlaute, hängender Symlink; 4 × Iteration 2: Fundzahl über 255, Manifest-Skript erzwingt Tabellenmodus) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) + 1 (hook_22 isoliert die Umgebung) | 33 |
+| nachher | 1672 | 133 | 1805 |
+| davon neu durch diese Task | 27 (10 × /test: fail-closed-Pfade; 3 × F-22.5: Lib/Fixtures sind `factory`; 10 × Review-Nacharbeit Iteration 1: CRLF/Randleerraum, leere Liste, Umlaute, hängender Symlink; 4 × Iteration 2: Fundzahl über 255, Manifest-Skript erzwingt Tabellenmodus) | 7 Wiring + 2 Kopplungsschutz des Hooks + 1 Aufteilung AK-F4 (Skriptpfade je Workflow-Satz) + 5 (F-22.5: Suite ohne Lib bricht hart ab) + 1 (hook_22 isoliert die Umgebung) | 43 |
 
-1762 + 33 = 1795 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
+1762 + 43 = 1805 → keine Prüfung entfallen. Verschoben wurden 92 Assertions in 29 Gruppen (Gruppen siehe Kopfzeilen `# ── verschoben aus der
 ausgelieferten Suite: …` in `scripts/project/tests/run-tests.sh`): Prüfungen, die `ci.yml`, `release.yml`, `OWNERSHIP.md`, `CLAUDE.md`,
 `CONTRIBUTING.md`, `README.md`, `PROJECT-CONTEXT.md`, `factory.config.yml`, die zusammengesetzte `.gitignore` oder die Git-Historie dieses Repos lesen.
 Geteilte Helfer (`cp_pipeline_libs`, `bare_factory_adr_426`) wanderten dafür nach `scripts/checks/tests/lib/assert-helpers.sh`.
@@ -104,6 +104,9 @@ Spec-Kopf ohne das nicht vorhandene „Q7/Q8“. Angelegt: Issue #26 (Ruleset) u
 **Review-Nacharbeit Iteration 3 (ohne vierten Review, Entscheidung des Menschen):** ADR-064 D2/D5 beschreiben, dass das Manifest-Skript den Tabellenmodus am Tag-Stand
 erzwingt; Hinweis 3/5 ehrlicher (Zählvergleich als Beleg, Endstand statt „jeder Commit grün“); Issue #28 für den Zweifel „ausgelieferte Suite liest projekteigene
 Dateien“; drei Kleinfunde in `docs/factory/kleinfunde.md` (Hook-Fortschrittsanzeige, zusammengesetzte Ziele, `jq`-Vorabprüfung für #23).
+
+**/test (`tasks/coverage-22.md`):** Zeilenabdeckung von `ownership-check.sh` per xtrace gemessen (70/90 ausführbare Zeilen, 7 echte Lücken in 4 fail-closed-Pfaden);
+10 Tests ergänzt (unbekannter Parameter, unlesbare Dateiliste in beiden Modi, `git ls-files` scheitert, `comm` scheitert), jeder per Mutation belegt. Konsumenten-Fixture: **1672 grün, 0 rot**.
 
 **Offen / Folgearbeit**
 - `ci.yml` hat jetzt den Job `project-self-test`. Der Ruleset `protect-main` verlangt ihn erst, wenn er dort als Required Check eingetragen ist (GitHub-Setting, Issue #26).
