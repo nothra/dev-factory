@@ -2,12 +2,12 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden (Iteration 3: Runde 1 und 2 APPROVED, Runde 3 nur Doku/Verfolgung; Circuit Breaker, die Punkte wurden auf Entscheidung des Menschen ohne vierten Review behoben – siehe `tasks/review-22.md`)
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt (PR #25)
 
 ## Beschreibung
 Konsumenten-Vertrag der Factory (T2a-1): `ownership-check.sh` mit zwei Modi (Lock / `OWNERSHIP.md`),
@@ -39,7 +39,7 @@ ADR 064 (`docs/factory/adr/064-konsumenten-vertrag-lock-als-ownership-quelle.md`
 
 ## Offene Fragen
 - [x] Q-22.4 Lock-Format: JSON wie `factory-release.json` (ADR 064 D1)
-- [ ] Q-22.5 #23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten
+- [x] Q-22.5 #23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten – geprüft am 2026-10-25: Issue #23 erwähnt `OWNERSHIP.md` nirgends als zu lieferndes Artefakt; ADR-064 (D1, D5, Konsequenzen) hält fest, dass #23 den Lock als Kopie von `factory-release.json` schreibt und `OWNERSHIP.md` nicht mehr geliefert wird. Ein Kommentar auf #23 wurde nicht geschrieben.
 - [x] Issue-Body #22 nennt „je Factory-Task ein Release", die Spec entscheidet „kein Release in #22" – Issue angepasst (2026-10-25)
 
 ## Umsetzungs-Notizen (/implement, 2026-10-24)
@@ -122,7 +122,7 @@ Offen als Hinweise: Pfade mit Zeilenumbruch im Lock (Kleinfund), `jq`-Prüfschri
 - Erledigt am 2026-10-25 (Issue #26): `project-self-test` ist im Ruleset `protect-main` als Required Check eingetragen (`lint`, `factory-self-test`, `pr-closes-issue`, `config-validation`, `project-self-test`; alle übrigen Regeln unverändert, per `gh api` verifiziert); ADR-029/063/064 nennen den Eintrag.
 - Skills und Doku (`/codify`, `/review`, `/security-review`) nennen `docs/factory/OWNERSHIP.md` als Zuordnungstabelle; im Lock-Modus eines Konsumenten gibt es sie nicht.
   Verfolgt in Issue #27 (T2a-4); die Tests (AK-C5/AK-L1) prüfen den heutigen Wortlaut.
-- Q-22.5 (#23 darf `OWNERSHIP.md` nicht als zu liefernde Datei erwarten) bleibt offen (Hinweis an #23). Der Issue-Body #22 („je Task ein Release“) ist am 2026-10-25 angepasst.
+- Q-22.5 ist geprüft (siehe oben). Der Issue-Body #22 („je Task ein Release“) ist am 2026-10-25 angepasst.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
@@ -133,3 +133,5 @@ Siehe `tasks/codify-22.md`: fünf neue Gotchas (`echo` mit Fremdwert, Exit-Code-
 ---
 Branch: `feature/22-konsumenten-vertrag-ownership-modus-neutrale-self-tests`
 Erstellt: 2026-10-24 17:01
+
+PR-Shepherd 2026-10-25: Merge freigegeben – alle Gates grün (CI: lint, factory-self-test, pr-closes-issue, config-validation, project-self-test, issue-sync; keine Review-Kommentare; Branch aktuell auf main; Ruleset-Pflicht inkl. `project-self-test`).
