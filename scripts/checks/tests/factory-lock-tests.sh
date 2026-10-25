@@ -89,7 +89,6 @@ mut_manifest_23() { jq "$2" "$R23/$1/factory-release.json" > "$R23/$1/x" && mv "
 
 # ── AK2.2a/AK2.1a: Erstabholung ohne abweichende Dateien braucht keinen Schalter ───────────────────────────────────────
 world_23 w1
-before_23="$(snap_23 "$C0_23")"
 out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
 assert_exit 0 "$rc_23" "#23 AK2.2a: Abholung von v1.0.0 ohne Lock und ohne Abweichung → Exit 0 (kein Schalter nötig)"
 cmp -s "$C0_23/factory.lock" "$R23/v1.0.0/factory-release.json"
@@ -218,7 +217,7 @@ FACTORY_RELEASE_BASE_URL="file:///nicht/vorhanden" FACTORY_DIR="$C1_23" bash "$G
 assert_exit 2 "$?" "#23 AK2.5d: Factory-Repo nicht erreichbar → CI-Stufe Exit 2"
 mut_json_23() { printf '%s' "$1" > "$R23/v1.0.0/factory-release.json"; }
 mkdir -p "$R23/v1.0.0"; mut_json_23 'kein json'
-out_23="$(gate_23 "$C1_23" --ci)"; rc_23=$?
+gate_23 "$C1_23" --ci >/dev/null; rc_23=$?
 assert_exit 2 "$rc_23" "#23 FS-T2.1: Manifest kein gültiges JSON → CI-Stufe Exit 2"
 
 # ── AK2.6 / AK2.2c / F2: Hebung N → N+1 ──────────────────────────────────────────────────────────────────────────────
@@ -295,9 +294,22 @@ else
 fi
 chmod 755 "$C1_23/scripts"
 
+# Ziele außerhalb der Manifest-Pfade (zusammengesetzte Dateien, Lock) dürfen kein Symlink sein: sonst schriebe die Abholung aus dem Repo hinaus
+for tgt_23 in .gitignore .claude/settings.json; do
+  world_23 "s_${tgt_23//[^a-z]/_}"
+  cp "$C1_23/$tgt_23" "$T23/outside.txt"   # gleicher Inhalt: die lokale Stufe des Gates lässt den Symlink passieren
+  orig_outside_23="$(cat "$T23/outside.txt")"
+  rm "$C1_23/$tgt_23"; ln -s "$T23/outside.txt" "$C1_23/$tgt_23"
+  before_23="$(snap_23 "$C1_23")"
+  out_23="$(sync_23 "$C1_23" v2.0.0)"; rc_23=$?
+  assert_true "$([ "$rc_23" -ne 0 ]; echo $?)" "#23 E4: $tgt_23 ist ein Symlink → Abholung bricht ab"
+  assert_true "$([ "$(cat "$T23/outside.txt")" = "$orig_outside_23" ]; echo $?)" "#23 E4: $tgt_23 als Symlink → die Datei außerhalb des Repos bleibt unberührt"
+  assert_true "$([ "$before_23" = "$(snap_23 "$C1_23")" ]; echo $?)" "#23 E4: $tgt_23 als Symlink → nichts verändert"
+done
+
 # ── AK2.3 / FS-T2.x / F-23.x: ungültige Manifeste → Abbruch, nichts verändert ─────────────────────────────────────────
 reject_23() { # $1 = Beschreibung, $2 = erwartete Meldung, Manifest ist bereits verändert; Wurzel C0_23
-  local desc="$1" needle="$2" b a
+  local desc="$1" needle="$2" b
   b="$(snap_23 "$C0_23")"
   out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
   assert_exit 1 "$rc_23" "#23 $desc → Abbruch"
@@ -351,10 +363,16 @@ assert_contains_286 "$hash_out_23" "$(printf '%s\t%s' "$(printf 'a\n' | shasum -
 rm -rf "$H23"
 
 # ── Verdrahtung: pre-commit, pre-push, CI-Job ────────────────────────────────────────────────────────────────────────
+# wired_23 <datei-inhalt> – beide Anker (Zielpfad + echte Aufrufzeile) stehen im Inhalt; derselbe Ausdruck prüft Original und Mutante
+wired_23() {
+  printf '%s\n' "$1" | grep -qF 'INTEGRITY_CHECK="$FACTORY_DIR/scripts/checks/factory-integrity-check.sh"' \
+    && printf '%s\n' "$1" | grep -qF 'bash "$INTEGRITY_CHECK"'
+}
 for hook_23 in pre-commit pre-push; do
-  assert_true "$(grep -qF 'bash "$INTEGRITY_CHECK"' "$FACTORY_ROOT/scripts/checks/$hook_23.sh"; echo $?)" "#23 AK2.5a: $hook_23.sh ruft das Integritäts-Gate auf (echte Aufrufzeile)"
-  assert_true "$(grep -qF 'INTEGRITY_CHECK="$FACTORY_DIR/scripts/checks/factory-integrity-check.sh"' "$FACTORY_ROOT/scripts/checks/$hook_23.sh"; echo $?)" "#23 AK2.5a: $hook_23.sh zeigt auf scripts/checks/factory-integrity-check.sh"
-  assert_true "$(grep -vF 'bash "$INTEGRITY_CHECK"' "$FACTORY_ROOT/scripts/checks/$hook_23.sh" | grep -qF 'bash "$INTEGRITY_CHECK"'; [ $? -ne 0 ]; echo $?)" "#23 AK2.5a (Mutation): ohne die Aufrufzeile findet derselbe Guard nichts"
+  hook_src_23="$(cat "$FACTORY_ROOT/scripts/checks/$hook_23.sh")"
+  wired_23 "$hook_src_23"; assert_exit 0 "$?" "#23 AK2.5a: $hook_23.sh zeigt auf das Integritäts-Gate und ruft es auf (echte Aufrufzeile)"
+  wired_23 "$(printf '%s\n' "$hook_src_23" | grep -vF 'bash "$INTEGRITY_CHECK"')"
+  assert_exit 1 "$?" "#23 AK2.5a (Mutation): ohne die Aufrufzeile in $hook_23.sh wird derselbe Guard rot"
 done
 world_23 h1
 mkdir -p "$C1_23/scripts/checks" "$C1_23/scripts/lib"
@@ -369,11 +387,32 @@ assert_exit 1 "$rc_23" "#23 AK2.5a: pre-commit.sh blockiert bei geänderter übe
 assert_contains_286 "$out_23" 'scripts/tool.sh' "#23 AK2.5a: pre-commit.sh nennt die Datei"
 assert_contains_286 "$out_23" 'Änderung gehört nach' "#23 AK2.5a: pre-commit.sh nennt den Hinweis"
 
+# pre-push.sh: eigener Verhaltenstest (je Konsument des Gates ein Test, Lesson nothra/tch-gastro-services#431)
+world_23 h2
+mkdir -p "$C1_23/scripts/checks" "$C1_23/scripts/lib"
+cp "$FACTORY_ROOT/scripts/checks/pre-push.sh" "$FACTORY_ROOT/scripts/checks/factory-integrity-check.sh" "$FACTORY_ROOT/scripts/checks/customization-points.txt" "$C1_23/scripts/checks/"
+cp "$FACTORY_ROOT/scripts/lib/gate-config.sh" "$FACTORY_ROOT/scripts/lib/factory-lock.sh" "$C1_23/scripts/lib/"
+cp "$FACTORY_ROOT/scripts/factory-sync.sh" "$C1_23/scripts/"
+git -C "$C1_23" checkout -q -b feature/23-gate-test
+push_23() { (cd "$C1_23" && env FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_TYPECHECK_COMMAND=true FACTORY_FORMAT_COMMAND=true bash scripts/checks/pre-push.sh 2>&1); }
+out_23="$(push_23)"; rc_23=$?
+assert_exit 0 "$rc_23" "#23 AK2.5a: pre-push.sh ist mit unverändertem Lock grün"
+printf 'echo x\n' >> "$C1_23/scripts/tool.sh"
+out_23="$(push_23)"; rc_23=$?
+assert_exit 1 "$rc_23" "#23 AK2.5a: pre-push.sh blockiert bei geänderter übernommener Datei"
+assert_contains_286 "$out_23" 'scripts/tool.sh' "#23 AK2.5a: pre-push.sh nennt die Datei"
+assert_contains_286 "$out_23" 'Änderung gehört nach' "#23 AK2.5a: pre-push.sh nennt den Hinweis"
+
 JOB_23="$(ci_job_block factory-integrity "$FACTORY_ROOT/.github/workflows/factory-ci.yml")"
-yq_ln_23="$(printf '%s\n' "$JOB_23" | grep -nF 'run: sudo bash scripts/install-yq.sh' | head -1 | cut -d: -f1)"
-run_ln_23="$(printf '%s\n' "$JOB_23" | grep -nxF '        run: bash scripts/checks/factory-integrity-check.sh --ci' | head -1 | cut -d: -f1)"
-assert_true "$([ -n "$yq_ln_23" ] && [ -n "$run_ln_23" ] && [ "$yq_ln_23" -lt "$run_ln_23" ]; echo $?)" "#23 AK2.5b: factory-ci.yml Job factory-integrity: yq bereitstellen, dann der Check mit --ci (echte run:-Zeilen)"
-assert_true "$(printf '%s\n' "$JOB_23" | grep -vxF '        run: bash scripts/checks/factory-integrity-check.sh --ci' | grep -qxF '        run: bash scripts/checks/factory-integrity-check.sh --ci'; [ $? -ne 0 ]; echo $?)" "#23 AK2.5b (Mutation): ohne die run:-Zeile findet der Guard nichts"
+ci_wired_23() { # $1 = Job-Block: yq bereitstellen steht vor der echten run:-Zeile des Checks mit --ci
+  local y r
+  y="$(printf '%s\n' "$1" | grep -nF 'run: sudo bash scripts/install-yq.sh' | head -1 | cut -d: -f1)"
+  r="$(printf '%s\n' "$1" | grep -nxF '        run: bash scripts/checks/factory-integrity-check.sh --ci' | head -1 | cut -d: -f1)"
+  [ -n "$y" ] && [ -n "$r" ] && [ "$y" -lt "$r" ]
+}
+ci_wired_23 "$JOB_23"; assert_exit 0 "$?" "#23 AK2.5b: factory-ci.yml Job factory-integrity: yq bereitstellen, dann der Check mit --ci (echte run:-Zeilen)"
+ci_wired_23 "$(printf '%s\n' "$JOB_23" | grep -vxF '        run: bash scripts/checks/factory-integrity-check.sh --ci')"
+assert_exit 1 "$?" "#23 AK2.5b (Mutation): ohne die run:-Zeile wird derselbe Guard rot"
 
 rm -rf "$T23"
 fi

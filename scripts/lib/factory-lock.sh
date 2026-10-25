@@ -10,6 +10,8 @@
 #                                    keine Duplikate; mit Argumenten zusätzlich repo/version); Funde auf stderr
 #   fl_protected_findings <datei>    Pfade des Manifests in einem Projektbereich oder an einer Anpassungsstelle
 #                                    (`<pfad><TAB><grund>`); Rückgabe 2, wenn die Liste der Anpassungsstellen fehlt
+#   fl_manifest_tsv <datei>          Soll-Tabelle `<sha256><TAB><pfad>` (sortiert) aus Manifest/Lock
+#   fl_diff_hashes <soll> <ist>      Pfade der Ist-Tabelle, deren Hash nicht der Soll-Tabelle entspricht (je Zeile ein Pfad)
 #   fl_upstream_repo                 Quell-Repo aus `upstream.repo` der Config (Slug-geprüft)
 #   fl_fetch_manifest <repo> <tag> <ziel>   Manifest des Release-Assets holen (ohne Token)
 #   fl_git_url <repo>                Klon-URL des Quell-Repos
@@ -83,6 +85,10 @@ fl_validate_manifest() {
   fi
   return "$rc"
 }
+
+fl_manifest_tsv() { jq -r '.files[] | "\(.sha256)\t\(.path)"' "$1" | LC_ALL=C sort; }
+
+fl_diff_hashes() { awk -F'\t' 'NR == FNR { want[$2] = $1; next } want[$2] != $1 { print $2 }' "$1" "$2"; }
 
 fl_protected_findings() {
   local file="$1" points

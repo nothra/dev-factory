@@ -57,7 +57,7 @@ report() { echo "✗ $1: $2"; FINDINGS=$((FINDINGS + 1)); }
 # Lokale Stufe, Teil 1: Existenz, Dateityp, Hash. Ergebnis je Datei namentlich.
 check_files() {
   local path
-  jq -r '.files[] | "\(.sha256)\t\(.path)"' "$LOCK_FILE" | LC_ALL=C sort > "$WORK_DIR/lock.tsv"
+  fl_manifest_tsv "$LOCK_FILE" > "$WORK_DIR/lock.tsv"
   : > "$WORK_DIR/existing.txt"
   while IFS= read -r path; do
     if [ -L "$FACTORY_DIR/$path" ] || { [ -e "$FACTORY_DIR/$path" ] && [ ! -f "$FACTORY_DIR/$path" ]; }; then
@@ -72,7 +72,7 @@ check_files() {
     || fail_env "Hashen der Dateien fehlgeschlagen (Hash-Werkzeug fehlt oder scheitert, fail-closed)"
   while IFS= read -r path; do
     report "$path" "geändert (Hash weicht vom Lock ab)"
-  done < <(awk -F'\t' 'NR == FNR { want[$2] = $1; next } want[$2] != $1 { print $2 }' "$WORK_DIR/lock.tsv" "$WORK_DIR/actual.tsv")
+  done < <(fl_diff_hashes "$WORK_DIR/lock.tsv" "$WORK_DIR/actual.tsv")
 }
 
 # Lokale Stufe, Teil 2: zusammengesetzte Dateien == Zusammensetzung der Fragmente (AK-28b).

@@ -170,14 +170,15 @@ collect_diverging() {
     [ ! -e "$ROOT/$path" ] || printf '%s\n' "$path" >> "$WORK/existing.txt"
   done < "$WORK/manifest-paths.txt"
   fl_hash_paths "$ROOT" < "$WORK/existing.txt" > "$WORK/local.tsv" || die "Hashen der vorhandenen Dateien fehlgeschlagen (fail-closed)"
-  jq -r '.files[] | "\(.sha256)\t\(.path)"' "$WORK/manifest.json" | LC_ALL=C sort > "$WORK/want.tsv"
-  awk -F'\t' 'NR == FNR { want[$2] = $1; next } want[$2] != $1 { print $2 }' "$WORK/want.tsv" "$WORK/local.tsv" > "$WORK/diverging.txt"
+  fl_manifest_tsv "$WORK/manifest.json" > "$WORK/want.tsv"
+  fl_diff_hashes "$WORK/want.tsv" "$WORK/local.tsv" > "$WORK/diverging.txt"
 }
 
 # Phase 1a: Vorbedingung im Arbeitsbaum (F2 bzw. AK2.2e) – offline, vor jedem Netzzugriff soweit möglich.
 precheck_local_state() {
   local out
   if [ -e "$ROOT/$LOCK_TARGET" ] || [ -L "$ROOT/$LOCK_TARGET" ]; then
+    [ -f "$INTEGRITY_CHECK" ] || die "scripts/checks/factory-integrity-check.sh fehlt (fail-closed) – Abholung abgebrochen, nichts geändert"
     if ! out="$(FACTORY_DIR="$ROOT" bash "$INTEGRITY_CHECK" 2>&1)"; then
       printf '%s\n' "$out" >&2
       die "übernommene Dateien lokal geändert oder Lock ungültig – Abholung abgebrochen, nichts geändert. Änderungen gehören nach dem Factory-Repo."
@@ -222,8 +223,8 @@ clone_and_verify() {
     { [ -f "$WORK/clone/$path" ] && [ ! -L "$WORK/clone/$path" ]; } || die "Datei aus dem Manifest fehlt im Tag oder ist kein regulärer Eintrag: $path"
   done < "$WORK/manifest-paths.txt"
   fl_hash_paths "$WORK/clone" < "$WORK/manifest-paths.txt" > "$WORK/clone.tsv" || die "Hashen der heruntergeladenen Dateien fehlgeschlagen (fail-closed)"
-  jq -r '.files[] | "\(.sha256)\t\(.path)"' "$WORK/manifest.json" | LC_ALL=C sort > "$WORK/want.tsv"
-  mism="$(awk -F'\t' 'NR == FNR { want[$2] = $1; next } want[$2] != $1 { print $2 }' "$WORK/want.tsv" "$WORK/clone.tsv")"
+  fl_manifest_tsv "$WORK/manifest.json" > "$WORK/want.tsv"
+  mism="$(fl_diff_hashes "$WORK/want.tsv" "$WORK/clone.tsv")"
   if [ -n "$mism" ]; then
     printf '%s\n' "$mism" | sed 's/^/✗ Hash weicht vom Manifest ab: /' >&2
     die "heruntergeladene Dateien stimmen nicht mit dem Release-Manifest überein – Abbruch, nichts geändert"
@@ -276,7 +277,8 @@ apply_version() {
   while IFS= read -r path; do check_target_path "$path"; done < "$WORK/removed.txt"
   while IFS= read -r path; do backup_target "$path"; done < "$WORK/manifest-paths.txt"
   while IFS= read -r path; do backup_target "$path"; done < "$WORK/removed.txt"
-  for path in "$SETTINGS_TARGET" "$GITIGNORE_TARGET" "$LOCK_TARGET"; do backup_target "$path"; done
+  # Die Ziele außerhalb des Manifests (zusammengesetzte Dateien, Lock) werden geschrieben, also gilt dieselbe Pfadprüfung.
+  for path in "$SETTINGS_TARGET" "$GITIGNORE_TARGET" "$LOCK_TARGET"; do check_target_path "$path"; backup_target "$path"; done
 
   APPLYING=1
   while IFS= read -r path; do install_file "$WORK/clone/$path" "$path"; done < "$WORK/manifest-paths.txt"
@@ -290,7 +292,7 @@ apply_version() {
 }
 
 run_pull() {
-  local version="$1" repo
+  local version="$1" repo path
   [ "$ADOPT" -eq 0 ] || { [ ! -e "$ROOT/$LOCK_TARGET" ] && [ ! -L "$ROOT/$LOCK_TARGET" ]; } \
     || die "--adopt ist nur für die Erstabholung ohne factory.lock zulässig (lokale Änderungen werden nie überschrieben)"
   require_pull_tools
