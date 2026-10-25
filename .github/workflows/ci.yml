@@ -1,5 +1,5 @@
-# CI des Factory-Repos selbst (Factory-ADR-063 D9): der Job `lint` ergänzt die Factory-Jobs aus
-# factory-ci.yml (`factory-self-test`, `config-validation`, `pr-closes-issue`, …).
+# CI des Factory-Repos selbst (Factory-ADR-063 D9): die Jobs `lint` und `project-self-test` ergänzen die Factory-Jobs
+# aus factory-ci.yml (`factory-self-test`, `config-validation`, `pr-closes-issue`, …).
 # Lint = Syntaxprüfung `bash -n` über alle getrackten Shell-Skripte (gleicher Wortlaut wie
 # commands.lint in factory.config.yml; ShellCheck folgt als Issue).
 
@@ -20,3 +20,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntaxprüfung aller Shell-Skripte
         run: git ls-files -z '*.sh' | xargs -0 -n1 bash -n
+
+  # Projekt-Suite: Prüfungen, die dieses Repo voraussetzen (ci.yml, release.yml, OWNERSHIP.md, Release-Stand) und
+  # darum nicht in der ausgelieferten Suite laufen (Factory-ADR-064 D6). yq kommt wie in factory-ci.yml aus dem
+  # gepinnten Seam; ohne yq würden die Config-Prüfungen nur überspringen.
+  project-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - name: Projekt-Suite
+        run: bash scripts/project/tests/run-tests.sh

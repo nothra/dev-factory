@@ -1374,6 +1374,11 @@ Beleg zitieren. Bei mehreren Review-Runden zur selben Codebasis: eine zweite, un
 die dieselbe Methode (eigener Test statt Vertrauen) anwendet, ist ein wirksames Gegenkontrolle –
 zwei unabhängige Widerlegungen sind stärker als eine.
 
+**Rezidiv als False-Negative (Factory-Task #22, `/security-review`):** Derselbe Mechanismus in Gegenrichtung – der Security-Agent schrieb unter „Geprüft und nicht
+betroffen“, Pfade mit führendem `-` liefen sauber durch. Ein Standalone-Repro des Koordinators (`-n` als Lock-Pfad, Exit 0 statt 1) zeigte ein reproduzierbares Fail-open.
+Auch „nicht betroffen“-Aussagen über Sprachverhalten sind Tatsachenbehauptungen: für die **eine** Angriffsfläche des Tasks (hier: Fremdwerte in `echo`/Zählern) die Gegenprobe
+selbst fahren, nicht nur die gemeldeten Funde prüfen; drei Review-Runden und der Security-Lauf hatten den Fehler vorher nicht gesehen.
+
 ### AK mit Pflichtinhalt in der PR-Beschreibung wird vom Standard-Draft-Body nicht erfüllt (aus nothra/tch-gastro-services#233)
 
 Ein Akzeptanzkriterium der Form „WHEN der PR zum Merge freigegeben wird THEN ist der manuelle
@@ -1706,3 +1711,43 @@ Skriptnamen) in ADRs, Lessons und Doku im selben PR nachziehen. (2) Ein Patch-Te
 Direktcheck der Live-Datei; den Patch-Zweig im selben Rework entfernen, in dem die Patch-Datei gelöscht wird.
 (3) Anker gegen den **ursprünglichen** Wortlaut der übernommenen Quelle (`git show origin/main:<datei>`) setzen, nicht
 gegen neu hinzugefügte Zusammenfassungen.
+
+### Konsumenten-Neutralität einer ausgelieferten Test-Suite per Fixture-Lauf messen, nicht per Lesen (aus Factory-Task #22)
+
+Die ausgelieferte Self-Test-Suite sollte in einem Repo grün sein, das die Factory nur einbindet. Durchlesen von 8 500 Zeilen findet die repo-spezifischen Gruppen nicht
+zuverlässig; ein **Fixture-Lauf** schon: Verzeichnis nur mit den Dateien der Seite `factory` (`ownership-check.sh --list factory`), eigenen Anpassungsstellen (stub-`CLAUDE.md`,
+`README.md`, `factory.config.yml` mit eigenen `commands`, per `factory-sync.sh --compose` erzeugte `.gitignore`/`settings.json`), `factory.lock` aus dem Release-Manifest, Hooks installiert. Der erste Lauf
+hatte 44 rote Tests – das **sind** die Gruppen, die den Zustand des Factory-Repos voraussetzen (liest `ci.yml`/`release.yml`/`OWNERSHIP.md`/`CLAUDE.md`/`CONTRIBUTING.md`, `git log --follow`, die
+`.gitignore.project`). Nach jedem Eingriff erneut laufen lassen: ein späterer Lauf fand eine weitere Gruppe (`.gitignore`-Muster stehen im Projekt-Fragment, nicht im Factory-Fragment).
+
+Weitere Befunde beim Schnitt: (1) **Tabellen-Tests** der ausgelieferten Suite geraten im Konsumenten in den Lock-Modus, weil dort ein `factory.lock` liegt – sie setzen `FACTORY_LOCK_FILE`
+auf einen nie vorhandenen Pfad (`NO_LOCK_FILE`). (2) Die Suite ruft `pre-push.sh` **echt** gegen das Repo auf; ein neuer Projekt-Hook startet dann die Projekt-Suite verschachtelt
+(3 ×) und färbt unbeteiligte Gate-Tests falsch rot – die ausgelieferte Suite exportiert deshalb `FACTORY_SELF_TEST_RUN=1`, der Hook überspringt sich. (3) Der **Zählvergleich** (Summe vorher = Summe nachher + neue)
+gelingt nur mit einem Aufrufzeilen-Trace je Assertion (temporär `__trace_assert` in `assert_exit`/`assert_true`, Aufrufzeile aus `BASH_LINENO`), nicht mit dem Zählen von `assert_*`-Zeilen (Schleifen).
+(4) Eine fehlende gesourcte Lib darf die Suite nicht mit „command not found“ weiterlaufen lassen: `source … || { …; exit 2; }`, mit Test (Suite in Baum ohne Lib kopieren).
+
+**Regel:** Bei einem Test-Schnitt „ausgeliefert vs. repo-spezifisch“ zuerst das Konsumenten-Fixture bauen und die ausgelieferte Suite darin laufen lassen; jede rote Gruppe wandert in die Projekt-Suite oder wird
+neutralisiert. Aufruf-Trace für den Zählvergleich, Marker-Variable gegen verschachtelte Läufe, `NO_LOCK_FILE` für die Tabellen-Tests.
+
+→ `/implement`, `/test`, `/review` – bei Schnitt/Umzug einer Test-Suite zwischen „ausgeliefert“ und „repo-spezifisch“
+
+### Eine Verfolgungs-Aussage in ADR/Report braucht die Issue-Nummer, bevor der Satz steht (aus Factory-Task #22, Review-Iteration 2/3)
+
+ADR-064 schrieb „der Ruleset-Eintrag wird als Folge-Issue verfolgt“ – ein Issue existierte nicht (`gh issue list`: nichts); derselbe Fehlertyp in der Review-Klassifizierung („noch nichts angelegt“, „bis #23/#24 klären“): eine Absicht
+steht in einer Datei, nichts ist verfolgt. Zwei Review-Runden fanden es, beide Male erst nach der Nacharbeit der Vorrunde (Lesson nothra/tch-gastro-services#211: Text beschreibt etwas, das der Code/der Tracker nicht hat).
+
+**Regel:** Steht in einem ADR, Report oder Kommentar „wird in Issue … verfolgt“/„Folge-Issue“, wird das Issue **zuerst** angelegt (Seam `create_issue_idempotent`) und seine Nummer in den Satz geschrieben; sonst „ist noch anzulegen“.
+Die Klassifizierung eines Fundes als A (Issue) ist erst erledigt, wenn die Nummer existiert. Kleinfunde (B) stehen in `kleinfunde.md`, nicht nur im Review-Report.
+
+→ `/architecture`, `/implement`, `/review`, `/codify` – bei jedem Satz „Folge-Issue“/„wird verfolgt“ in ADR, Report oder Task-Datei
+
+### Ein Gate, das per Dateiexistenz den Modus wechselt, braucht Guard-Test und `-L` (aus Factory-Task #22, `/review` + `/security-review`)
+
+`ownership-check.sh` wählt den Lock-Modus, sobald `factory.lock` existiert. Zwei Folgen: (1) Ein im **Factory-Repo** committetes `factory.lock` würde die Vollständigkeitsprüfung der Tabelle still abschalten (Repro: nicht
+zugeordnete Datei → ohne Lock Exit 1, mit Lock Exit 0). (2) Ein hängender Symlink `factory.lock` fiel mit `-e` in den Tabellenmodus zurück (siehe `docs/factory/guidelines/bash-gotchas.md` #17). Ebenso musste das **Release-Manifest-Skript**
+den Tabellenmodus erzwingen (`FACTORY_LOCK_FILE` auf einen nie vorhandenen Pfad), weil es die Tabelle am Tag liest, die Moduswahl aber am Arbeitsbaum hängt.
+
+**Regel:** Hängt ein Verhalten an der Existenz einer Datei, (a) `-e` **und** `-L` prüfen, (b) im Repo, in dem die Datei nicht liegen darf, einen Guard-Test ergänzen, (c) jeden Konsumenten, der einen **anderen** Stand als den
+Arbeitsbaum liest (Tag, Commit), den Modus explizit erzwingen lassen, und (d) im ADR festhalten, dass die Moduswahl am Arbeitsbaum hängt.
+
+→ `/architecture`, `/implement`, `/security-review` – bei einem Gate/Skript, das seinen Modus aus der Existenz einer Datei ableitet

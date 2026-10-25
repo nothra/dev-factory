@@ -21,7 +21,14 @@ set -uo pipefail
 CHECKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Gemeinsame Prüf-Helfer (Zähler, assert_*, Fixtures) – geteilt mit der Projekt-Suite (nothra/tch-gastro-services#432, Q10)
-source "$CHECKS_DIR/tests/lib/assert-helpers.sh"
+source "$CHECKS_DIR/tests/lib/assert-helpers.sh" || {
+  echo "run-tests: geteilte Helfer-Lib nicht ladbar: $CHECKS_DIR/tests/lib/assert-helpers.sh (fail-closed, Factory-Issue #22 F-22.5)" >&2
+  exit 2
+}
+
+# Markierung für den Projekt-Hook scripts/project/checks/pre-push.d/10-project-tests.sh: Diese Suite ruft pre-push.sh echt gegen das
+# Repo auf (#149, #265 …); dort soll der Hook die Projekt-Suite nicht verschachtelt noch einmal starten (Factory-Issue #22).
+export FACTORY_SELF_TEST_RUN=1
 
 # ─── branch-name-check.sh: direkter Aufruf mit Befehls-String ────────────────
 echo "branch-name-check.sh (Befehls-String als \$1):"
@@ -76,21 +83,6 @@ SCRIPTS_DIR="$(cd "$CHECKS_DIR/.." && pwd)"
 # nothra/tch-gastro-services#431-Gruppen G/H wird sie wieder entfernt, damit deren Fehlend-Tests nichts erben.
 export FACTORY_LINT_COMMAND=true FACTORY_TEST_COMMAND=true FACTORY_COVERAGE_COMMAND=true
 
-# cp_pipeline_libs <repo-root> – legt ALLE von run-pipeline.sh gesourcten scripts/lib/-Dateien
-# in eine Temp-Repo-Kopie. Einziger Ort, an dem eine neu gesourcte Lib nachzutragen ist: fehlt
-# sie, bricht run-pipeline.sh unter `set -euo pipefail` schon am `source` ab und der Test wird
-# rot aus dem falschen Grund (bash-gotchas.md §5; Vorfälle nothra/tch-gastro-services#91, nothra/tch-gastro-services#197). Vor nothra/tch-gastro-services#334 stand dieselbe
-# cp-Gruppe achtmal kopiert in der Suite – jede Kopie eine Stelle, die man beim nächsten Seam
-# vergessen kann.
-cp_pipeline_libs() {
-  mkdir -p "$1/scripts/lib"
-  cp "$SCRIPTS_DIR/lib/report-verdict.sh" \
-     "$SCRIPTS_DIR/lib/tier-select.sh" \
-     "$SCRIPTS_DIR/lib/verify-final-state.sh" \
-     "$SCRIPTS_DIR/lib/telemetry-harvest.sh" \
-     "$SCRIPTS_DIR/lib/gate-config.sh" \
-     "$1/scripts/lib/"
-}
 
 TMP_FACTORY="$(mktemp -d)"
 mkdir -p "$TMP_FACTORY/tasks"
@@ -205,16 +197,6 @@ assert_true "$?" "bug-fix eskaliert nicht-reproduzierbare Bugs via raise-interru
 grep -q 'gh pr update-branch' "$SHEPHERD"
 assert_true "$?" "pr-shepherd nutzt server-seitiges 'gh pr update-branch'"
 
-# CI-Lint des Factory-Repos: der Job `lint` in ci.yml führt exakt commands.lint aus factory.config.yml aus
-# (eine Quelle – ändert eine Seite ihren Wortlaut allein, schlägt dieser Guard an).
-PROJECT_CI_FILE="$FACTORY_ROOT/.github/workflows/ci.yml"
-if [ "$HAS_YQ" = 1 ]; then
-  ci_lint_cmd="$(yq '.commands.lint' "$FACTORY_ROOT/factory.config.yml")"
-  { [ -n "$ci_lint_cmd" ] && grep -qF -- "run: $ci_lint_cmd" "$PROJECT_CI_FILE"; }
-  assert_true "$?" "CI-Lint-Job führt commands.lint aus factory.config.yml aus (eine Quelle)"
-else
-  skip_yq "CI-Lint-Job führt commands.lint aus factory.config.yml aus"
-fi
 
 # ─── Stufe-2: OTEL-ready Bauchladen (nothra/tch-gastro-services#17) ────────────────────────────────────
 echo ""
@@ -1370,15 +1352,6 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
 
-  # Der REALE Team-Override des Factory-Repos setzt keine skills.*-Knöpfe: die effektive Config löst
-  # /implement end-to-end auf den Default aus factory.defaults.yml auf (kein stiller Fallback, kein
-  # fremder Wert aus einem adoptierenden Projekt).
-  cp "$FACTORY_ROOT/factory.config.yml" "$TMP_CFG/factory.config.yml"
-  git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m real-override
-  real_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  def_turns_348="$(yq '.skills.implement.max_turns' "$DEFAULTS")"
-  printf '%s' "$real_out" | grep -qE "Starte: /implement 1 \(model: [^,]+, max ${def_turns_348} turns\)"
-  assert_true "$?" "#348: realer Repo-Override löst implement end-to-end auf den Default (max ${def_turns_348} turns) auf"
   rm -rf "$TMP_CFG"
 
   # nothra/tch-gastro-services#91 Turn-Budget-Dry-Run: review + security-review zeigen max 30 turns im Output (AC Lücke 2).
@@ -3433,11 +3406,6 @@ if [ "$HAS_YQ" = 1 ]; then
   done
   assert_true "$ph1_ok" "#201 AK1/AK2: requirements/architecture/release-notes ohne eigenen Eintrag → effektiv default-light, max_turns 10"
 
-  # AK12: der provisorische implement-Tier-Override ist aufgelöst (kein .skills.implement.tier mehr).
-  if [ -f "$FACTORY_ROOT/factory.config.yml" ]; then
-    [ "$(yq '.skills.implement | has("tier")' "$FACTORY_ROOT/factory.config.yml")" = "false" ]
-    assert_true "$?" "#197 AK12: factory.config.yml führt kein statisches implement.tier mehr (Override aufgelöst)"
-  fi
 else
   skip_yq "#197 End-to-End (run-pipeline get_model) + Config-Gate Regel 4c + AK7/AK12"
 fi
@@ -3888,26 +3856,9 @@ assert_true "$(! grep -qF 'ist als eigenes Issue getrackt, nicht Teil der Task' 
   "#264: stale 'Follow-up offen'-Aussage aus der PR_SHEPHERD-Lesson entfernt"
 grep -qF 'Die Härtung ist in nothra/tch-gastro-services#264 umgesetzt' "$WORKFLOW_LESSON"
 assert_true "$?" "#264: Lesson nennt den Erledigt-Stand der Härtung"
-PC264="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$PC264"; echo $?)" \
-  "#264: Index-Zeile in PROJECT-CONTEXT.md nennt die Härtung nicht mehr als ausgelagert"
-grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$PC264"
-assert_true "$?" "#264: Index-Zeile in PROJECT-CONTEXT.md nennt den Erledigt-Stand"
 
 echo ""
-echo "#212 AK9: .gitignore deckt Coverage-Temp generisch ab:"
-GI212="$FACTORY_ROOT/.gitignore"
-grep -qF '.coverage-tmp*/' "$GI212"
-assert_true "$?" "#212 AK9: .gitignore enthält generisches Muster .coverage-tmp*/"
-TMP_GI="$(mktemp -d)"; git -C "$TMP_GI" init -q; cp "$GI212" "$TMP_GI/.gitignore"
-git -C "$TMP_GI" check-ignore -q ".coverage-tmp209/coverage-summary.json"
-assert_true "$?" "#212 AK9: .coverage-tmp209/ (Vorfall-id) ist ignoriert"
-git -C "$TMP_GI" check-ignore -q ".coverage-tmp999/x.json"
-assert_true "$?" "#212 AK9: .coverage-tmp999/ (beliebige id) ist ignoriert"
-# AK10: Vitest-Default-Coverage-Verzeichnis coverage/ ist ebenfalls ignoriert (getrackt-frei)
-git -C "$TMP_GI" check-ignore -q "coverage/index.html"
-assert_true "$?" "#212 AK10: Vitest-Default coverage/ ist ignoriert"
-rm -rf "$TMP_GI"
+echo "#212 AK10: Coverage-Temp-Konvention ist dokumentiert (die .gitignore-Muster prüft die Projekt-Suite):"
 # AK10: die dokumentierte Konvention benennt den ignorierten Temp-Pfad-Präfix
 grep -qF '.coverage-tmp' "$FACTORY_ROOT/docs/factory/guidelines/testing-standards.md"
 assert_true "$?" "#212 AK10: testing-standards.md dokumentiert den ignorierten Coverage-Temp-Präfix"
@@ -4568,8 +4519,8 @@ echo "#262 Doku nennt den kanonischen Installationsweg (Lesson #211/#176):"
 # allein wäre Teilstring von 'commit-msg-check.sh' und damit nicht diskriminierend.
 CLAUDE_MD="$FACTORY_ROOT/docs/factory/FACTORY.md"
 OPERATING_MD="$FACTORY_ROOT/docs/factory/OPERATING.md"
-CONTRIBUTING_MD="$FACTORY_ROOT/CONTRIBUTING.md"
-for doc_file in "$CLAUDE_MD" "$GITWF" "$OPERATING_MD" "$CONTRIBUTING_MD"; do
+# (CONTRIBUTING.md und README.md gehören dem Projekt: ihre Prüfung steht in scripts/project/tests/run-tests.sh.)
+for doc_file in "$CLAUDE_MD" "$GITWF" "$OPERATING_MD"; do
   [ -r "$doc_file" ]
   assert_true "$?" "#262: $(basename "$doc_file") ist lesbar (Vorbedingung der Doku-Checks)"
   grep -qF 'scripts/install-hooks.sh' "$doc_file"
@@ -4578,13 +4529,6 @@ for doc_file in "$CLAUDE_MD" "$GITWF" "$OPERATING_MD" "$CONTRIBUTING_MD"; do
   assert_true "$?" "#262: $(basename "$doc_file") nennt den commit-msg-Hook als Hook"
 done
 
-# Setup-Anleitung für einen frischen Clone: die Hook-Installation gehört in den Ablauf, sonst
-# folgt ihr jemand vollständig und hat danach keinen einzigen lokalen Hook.
-README_MD="$FACTORY_ROOT/README.md"
-[ -r "$README_MD" ]
-assert_true "$?" "#262: README.md ist lesbar (Vorbedingung des Setup-Checks)"
-grep -qF 'bash scripts/install-hooks.sh' "$README_MD"
-assert_true "$?" "#262: README.md nennt 'bash scripts/install-hooks.sh' im lokalen Setup"
 
 echo ""
 echo "#258 yq-Bereitstellung: Versions-Pin + Checksum-Verifikation:"
@@ -6717,14 +6661,9 @@ assert_absent "$IC_CLAUDE_MUT_319" "$IC_TRIGGER_AP_319" \
 # Im Factory-Repo liegt nur der ADR-040-Abschnitt (Coverage-Ausgabe); Exhaustiveness-Guards und Mock-Default
 # sind App-Lessons des adoptierenden Projekts.
 TESTING_LESSON_319="$(flat_286 "$FACTORY_ROOT/docs/factory/lessons/testing.md")"
-PC_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
 for phrase in "Coverage-Ausgabe nur in ignorierte Pfade"; do
   assert_contains_286 "$TESTING_LESSON_319" "$phrase" \
     "#319: „$phrase\" steht in lessons/testing.md"
-done
-for phrase in "Coverage-Ausgabe nur in"; do
-  assert_contains_286 "$PC_FLAT_319" "$phrase" \
-    "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
 done
 # Umfang statt nur Präsenz: die drei Abschnitte wurden byte-identisch migriert (1.197 + 1.531 +
 # 920 = 3.648 Bytes Rumpf). Eine spätere versehentliche Kürzung würde die Präsenz-Checks oben
@@ -6877,18 +6816,6 @@ rm -rf "$TMP_SEC319"
 echo ""
 echo "#319 AK-Abdeckung (/test):"
 
-# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (der
-# Lessons-Index, der nach ADR-037 von ~80 auf 341 Zeilen gewachsen ist) Teil der gedeckelten
-# Summe IST. Verschwände die @import-Zeile, liefe der Index wieder unbegrenzt – und alle
-# übrigen Deckel-Tests blieben grün, weil sie nur die Guidelines betrachten.
-grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md"
-assert_true "$?" "#319 AC4: PROJECT-CONTEXT.md ist Teil des gedeckelten @import-Sets"
-# Mutationsbeleg mit demselben Assert-Ausdruck: ohne die Zeile wird der Guard rot.
-IC_AC4_MUT_319="$(mktemp)"
-grep -vE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md" > "$IC_AC4_MUT_319"
-grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$IC_AC4_MUT_319"
-assert_true "$([ $? -ne 0 ]; echo $?)" "#319 AC4 (Mutation): ohne die Import-Zeile wird derselbe Guard rot"
-rm -f "$IC_AC4_MUT_319"
 
 # AC5 – „jede geltende Regel bleibt gültig und auffindbar". Die zwei verdichteten Guidelines
 # behalten ihre Regel-Abschnitte; eine spätere, zu eifrige Verdichtung würde sonst unbemerkt
@@ -6923,38 +6850,6 @@ assert_true "$([ -n "$(ic_missing_sections_319 "$IC_TDD_319" 'Ein Abschnitt, den
 # ÜBER Links spricht (z. B. `](../adr/` in einem Backtick-Span, wie in lessons/factory-workflow.md),
 # wird als Link gelesen und wäre ein Fehlalarm. Deshalb prüft der Guard eine feste Dateiliste –
 # Dateien mit solcher Meta-Prosa gehören nicht hinein, bevor der Ausdruck Code-Spans ausnimmt.
-ic_dead_links_319() {  # $1 = Markdown-Datei → gibt "datei → ziel" je totem relativen Link aus
-  local f="$1" d ziel
-  d="$(dirname "$f")"
-  grep -oE '\]\([^)#][^)]*\)' "$f" 2>/dev/null | sed 's/^](//; s/)$//; s/#.*//' | while read -r ziel; do
-    case "$ziel" in http*|"") continue ;; esac
-    [ -e "$d/$ziel" ] || printf '%s → %s\n' "$f" "$ziel"
-  done
-}
-# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (clean-code.md: ein
-# Gate-Regex braucht beide Richtungen) – unabhängig vom Repo-Inhalt.
-TMP_LNK_319="$(mktemp -d)"
-printf 'Ziel\n' > "$TMP_LNK_319/ziel.md"
-printf 'Ein [guter Link](ziel.md) und sonst nichts.\n' > "$TMP_LNK_319/doc.md"
-assert_true "$([ -z "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
-  "#319 AC8 (Kontrolle): ein auflösender Link wird nicht gemeldet"
-printf 'Ein [toter Link](gibt-es-nicht.md).\n' >> "$TMP_LNK_319/doc.md"
-assert_true "$([ -n "$(ic_dead_links_319 "$TMP_LNK_319/doc.md")" ]; echo $?)" \
-  "#319 AC8 (Kontrolle): ein toter Link wird gemeldet"
-rm -rf "$TMP_LNK_319"
-# Der eigentliche Guard über die Dateien dieses Tasks.
-ic_dead_links_found_319=""
-for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md docs/factory/OPERATING.md \
-         docs/factory/kleinfunde.md docs/factory/lessons/testing.md docs/factory/lessons/code-style.md \
-         docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md \
-         docs/factory/guidelines/tdd-principles.md docs/factory/guidelines/testing-standards.md \
-         docs/factory/guidelines/token-efficiency.md \
-         docs/factory/adr/037-lessons-auslagern-aus-import-kontext.md; do
-  ic_dead_links_found_319="$ic_dead_links_found_319$(ic_dead_links_319 "$FACTORY_ROOT/$f")"
-done
-assert_true "$([ -z "$ic_dead_links_found_319" ]; echo $?)" \
-  "#319 AC8: kein toter relativer Link in den Dateien dieses Tasks"
-[ -z "$ic_dead_links_found_319" ] || printf '%s\n' "$ic_dead_links_found_319" | sed 's/^/      /'
 
 # ─── nothra/tch-gastro-services#334: Telemetrie-Persistenz je Pipeline-Lauf (ADR-049) ──────────────────
 echo ""
@@ -7567,14 +7462,13 @@ assert_absent "$operating_flat_334" '`source config/otel.env.example` aktiviert'
 # Jede getrackte Datei gehört genau einer Seite (factory | project). ownership-check.sh ist der
 # einzige Parser des Zeilenformats; T1b leitet die filter-repo-Allowlist daraus ab (--list).
 OWN_CHECK_426="$CHECKS_DIR/ownership-check.sh"
-OWN_TABLE_426="$FACTORY_ROOT/docs/factory/OWNERSHIP.md"
 
 # Fixture-Tabelle + Dateiliste in einem Wegwerf-Verzeichnis; $1 = Tabellen-Zeilen, $2 = Dateien
 own_run_426() {
   local dir; dir="$(mktemp -d)"
   printf '| Seite | Muster | Begründung |\n|---|---|---|\n%b' "$1" > "$dir/OWNERSHIP.md"
   printf '%b' "$2" > "$dir/files.txt"
-  OWNERSHIP_FILE="$dir/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$dir/files.txt" \
+  FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE="$dir/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$dir/files.txt" \
     bash "$OWN_CHECK_426" "${@:3}" 2>&1
   local rc=$?
   rm -rf "$dir"
@@ -7616,7 +7510,7 @@ assert_exit 1 $? "#426 Glob: '.' im Muster ist ein wörtlicher Punkt"
 # Fail-closed: leere Tabelle, fehlende Tabelle, leere Dateiliste
 own_run_426 '' 'a.md\n' > /dev/null
 assert_exit 2 $? "#426 fail-closed: Tabelle ohne Zeilen → Exit 2 (nicht still grün)"
-OWNERSHIP_FILE=/nicht/vorhanden/OWNERSHIP.md OWNERSHIP_FILE_LIST=/dev/null bash "$OWN_CHECK_426" > /dev/null 2>&1
+FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE=/nicht/vorhanden/OWNERSHIP.md OWNERSHIP_FILE_LIST=/dev/null bash "$OWN_CHECK_426" > /dev/null 2>&1
 assert_exit 2 $? "#426 fail-closed: nicht lesbare Tabelle → Exit 2"
 own_run_426 '| project | `**` | alles |\n' '' > /dev/null
 assert_exit 2 $? "#426 fail-closed: leere Dateiliste → Exit 2"
@@ -7632,18 +7526,14 @@ assert_exit 2 $? "#426 AK-A5: --list mit unbekannter Seite → Exit 2"
 # AK-A1/A3/A4 gegen die ECHTE Tabelle und `git ls-files` (kein Fixture)
 own_real_out="$(bash "$OWN_CHECK_426" 2>&1)"
 own_real_rc=$?
-assert_exit 0 "$own_real_rc" "#426 AK-A1/A6: jede getrackte Datei hat genau eine Seite (echte Tabelle + git ls-files)"
+assert_exit 0 "$own_real_rc" "#426 AK-A1/A6: jede getrackte Datei hat genau eine Seite (Modus des Repos – Tabelle oder Lock – + git ls-files)"
 [ "$own_real_rc" -eq 0 ] || echo "$own_real_out" | head -20 | sed 's/^/      /'
 
 # Ausgabe erst einsammeln, dann per Here-String greppen (nie `printf | grep -q`): bei einer Liste über dem
 # Pipe-Puffer (~64 KB, die Projekt-Liste wächst mit jeder Datei) beendet `grep -q` früh, und `pipefail` macht
 # aus dem SIGPIPE des Schreibers ein falsches Rot (Exit 141) – nur auf dem CI-Runner sichtbar (bash-gotchas #3).
+# Bewusst OHNE Lock-Override: hier gilt der Modus des Repos (Tabelle im Factory-Repo, Lock im Konsumenten).
 own_side_426() { local l; l="$(bash "$OWN_CHECK_426" --list "$1" 2>/dev/null)"; grep -qxF -- "$2" <<< "$l"; }
-for f_426 in CLAUDE.md factory.config.yml docs/factory/PROJECT-CONTEXT.md .gitignore \
-    .claude/settings.json README.md CONTRIBUTING.md CHANGELOG.md; do
-  own_side_426 project "$f_426"
-  assert_exit 0 $? "#426 AK-A4: $f_426 ist 'project' zugeordnet"
-done
 # Gegenprobe: ein Factory-Kern ist NICHT 'project' (sonst wäre jede Zeile trivial 'project')
 own_side_426 factory scripts/run-pipeline.sh
 assert_exit 0 $? "#426 AK-A4 (Kontrolle): scripts/run-pipeline.sh ist 'factory' zugeordnet"
@@ -7656,6 +7546,231 @@ assert_true "$(grep -q 'ownership-check.sh' "$CHECKS_DIR/pre-push.sh"; echo $?)"
   "#426 AK-A6: pre-push.sh ruft ownership-check.sh auf (lokales Gate)"
 assert_true "$(grep -q 'bash scripts/checks/tests/run-tests.sh' "$FACTORY_ROOT/.github/workflows/factory-ci.yml"; echo $?)" \
   "#426 AK-A6: factory-self-test (CI) führt diese Suite aus – damit auch den Check oben"
+# ── Factory-Issue #22 · Konsumenten-Vertrag: ownership-check.sh im Lock-Modus (AK2.15a/b, F-22.1/3/4) ─────────────────
+# Mit `factory.lock` im Repo-Wurzelverzeichnis gilt allein der Lock (ADR 064 D2/D3); ohne Lock bleibt der Tabellenmodus
+# oben unverändert. Der Lock ist das Release-Manifest (JSON); gelesen wird nur die Pfadmenge.
+OWN_CHECK_22="$CHECKS_DIR/ownership-check.sh"
+
+# mk_lock_fixture_22 <lock-json> <getrackte Dateien (\n-getrennt)> <Anpassungsstellen-Liste (roh)> → Verzeichnis mit
+# factory.lock, files.txt, points.txt. `%b` in <getrackte Dateien>/<Liste> deutet \n und \r; <lock-json> ist roh.
+mk_lock_fixture_22() {
+  local dir; dir="$(mktemp -d)" || return 1
+  printf '%s' "$1" > "$dir/factory.lock"
+  printf '%b' "$2" > "$dir/files.txt"
+  printf '%b' "$3" > "$dir/points.txt"
+  printf '%s' "$dir"
+}
+# lock_json_22 <Lock-Pfade (\n-getrennt)> → Lock im Schema des Release-Manifests
+lock_json_22() {
+  printf '%b' "$1" | jq -R . | jq -s -c '{schema: 1, repo: "x/y", version: "v0", commit: "0", files: map({path: ., sha256: "0"})}'
+}
+# lock_check_22 <Fixture-Verzeichnis> [Argumente…] – ownership-check.sh im Fixture (stdout+stderr).
+# Die Zuordnungstabelle fehlt absichtlich (TABLE_22 leer): der Lock-Modus darf sie nicht brauchen. PATH_22/BASH_22 ersetzen
+# PATH und die Shell (Stub ohne jq); TABLE_22 setzt eine Tabelle daneben.
+lock_check_22() {
+  local dir="$1"; shift
+  env PATH="${PATH_22:-$PATH}" FACTORY_LOCK_FILE="$dir/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir/points.txt" \
+    OWNERSHIP_FILE="${TABLE_22:-/nicht/vorhanden/OWNERSHIP.md}" OWNERSHIP_FILE_LIST="$dir/files.txt" \
+    "${BASH_22:-bash}" "$OWN_CHECK_22" "$@" 2>&1
+}
+# write_all_project_table_22 <Datei> – Zuordnungstabelle, die ALLES der Seite `project` zuordnet: ein Rückfall in den Tabellenmodus
+# ergäbe damit Exit 0 und fiele in den Negativtests (kaputter Lock) sofort auf.
+write_all_project_table_22() {
+  printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `**` | alles |\n' > "$1"
+}
+# lock_run_22 <Lock-Pfade> <getrackte Dateien> <Anpassungsstellen> [Argumente…] – Fixture bauen, laufen lassen, aufräumen
+lock_run_22() {
+  local dir rc; dir="$(mk_lock_fixture_22 "$(lock_json_22 "$1")" "$2" "$3")"
+  lock_check_22 "$dir" "${@:4}"; rc=$?
+  rm -rf "$dir"; return $rc
+}
+# lock_bad_22 <Lock-Inhalt roh> – gültige Tabelle liegt daneben: ein Rückfall in den Tabellenmodus ergäbe Exit 0
+lock_bad_22() {
+  local dir rc; dir="$(mk_lock_fixture_22 "$1" 'a.md\n' 'CLAUDE.md\n')"
+  write_all_project_table_22 "$dir/OWNERSHIP.md"
+  TABLE_22="$dir/OWNERSHIP.md" lock_check_22 "$dir"; rc=$?
+  rm -rf "$dir"; return $rc
+}
+
+# AK2.15a: Lock ohne OWNERSHIP.md → grün, Seite `factory` = Lock-Pfadmenge, Rest `project`
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nscripts/b.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 0 $? "#22 AK2.15a: Lock ohne OWNERSHIP.md → Exit 0"
+assert_contains_286 "$out_22" 'factory: 2, project: 1' "#22 AK2.15a: Verteilung = Lock-Pfadmenge gegen den Rest"
+assert_contains_286 "$out_22" 'Modus: Lock' "#22 AK2.15a-3: die Ausgabe nennt den Modus"
+
+# AK2.15a-2: --list je Seite, jede Datei genau einer Seite
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nCLAUDE.md\nscripts/b.sh\ndocs/x.md\n' 'CLAUDE.md\n' --list factory)"
+assert_exit 0 $? "#22 AK2.15a-2: --list factory im Lock-Modus"
+assert_true "$([ "$out_22" = "$(printf 'scripts/a.sh\nscripts/b.sh')" ]; echo $?)" "#22 AK2.15a-2: --list factory nennt genau die Lock-Pfade"
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/b.sh\n' 'scripts/a.sh\nCLAUDE.md\nscripts/b.sh\ndocs/x.md\n' 'CLAUDE.md\n' --list project)"
+assert_exit 0 $? "#22 AK2.15a-2: --list project im Lock-Modus"
+assert_true "$([ "$out_22" = "$(printf 'CLAUDE.md\ndocs/x.md')" ]; echo $?)" "#22 AK2.15a-2: --list project nennt genau das Komplement"
+
+# AK2.15a-3: Lock UND widersprüchliche Tabelle → allein der Lock entscheidet (kein Mischmodus)
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"scripts/a.sh","sha256":"0"}]}' 'scripts/a.sh\nREADME.md\n' 'README.md\n')"
+printf '| Seite | Muster | Begründung |\n|---|---|---|\n| project | `scripts/**` | widerspricht dem Lock |\n' > "$dir_22/OWNERSHIP.md"
+out_22="$(TABLE_22="$dir_22/OWNERSHIP.md" lock_check_22 "$dir_22")"
+assert_exit 0 $? "#22 AK2.15a-3: widersprüchliche Tabelle neben dem Lock stört nicht (README.md ist in der Tabelle unzugeordnet)"
+assert_contains_286 "$out_22" 'factory: 1, project: 1' "#22 AK2.15a-3: Ergebnis folgt dem Lock, nicht der Tabelle"
+rm -rf "$dir_22"
+
+# AK2.15b (Fall 1): Lock-Pfad nicht getrackt → Exit 1, Pfad + Signal „nicht getrackt“
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/weg.sh\n' 'scripts/a.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: Lock-Pfad ohne Datei → Exit 1"
+assert_contains_286 "$out_22" 'scripts/weg.sh: nicht getrackt' "#22 AK2.15b: der fehlende Lock-Pfad wird namentlich genannt"
+assert_absent "$out_22" 'Anpassungsstelle' "#22 AK2.15b: Fall 1 löst nicht das Signal von Fall 2 aus"
+# AK2.15b (Fall 2): Anpassungsstelle im Lock → Exit 1, Pfad + Signal „Anpassungsstelle“
+out_22="$(lock_run_22 'scripts/a.sh\nCLAUDE.md\n' 'scripts/a.sh\nCLAUDE.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: Anpassungsstelle im Lock → Exit 1"
+assert_contains_286 "$out_22" 'CLAUDE.md: Anpassungsstelle steht im Lock' "#22 AK2.15b: die Anpassungsstelle wird namentlich genannt"
+assert_absent "$out_22" 'nicht getrackt' "#22 AK2.15b: Fall 2 löst nicht das Signal von Fall 1 aus"
+
+# AK2.15b (Review-Fund): die Liste darf nicht still ins Leere laufen, wenn sie CRLF/Randleerraum trägt oder keinen Eintrag hat –
+# sonst wäre die Prüfung „Anpassungsstelle im Lock“ fail-open (F-22.2).
+out_22="$(lock_run_22 'scripts/a.sh\nCLAUDE.md\n' 'scripts/a.sh\nCLAUDE.md\n' '# Kommentar\r\nCLAUDE.md\r\n')"
+assert_exit 1 $? "#22 AK2.15b: Anpassungsstellen-Liste mit CRLF-Zeilenenden greift trotzdem → Exit 1"
+assert_contains_286 "$out_22" 'CLAUDE.md: Anpassungsstelle steht im Lock' "#22 AK2.15b: CRLF-Liste: die Anpassungsstelle wird namentlich genannt"
+out_22="$(lock_run_22 'scripts/a.sh\nCLAUDE.md\n' 'scripts/a.sh\nCLAUDE.md\n' '   CLAUDE.md  \n')"
+assert_exit 1 $? "#22 AK2.15b: Anpassungsstelle mit Leerzeichen am Rand greift trotzdem → Exit 1"
+out_22="$(lock_run_22 'scripts/a.sh\n' 'scripts/a.sh\n' '# nur Kommentar\n\n')"
+assert_exit 2 $? "#22 F-22.2: Anpassungsstellen-Liste ohne Eintrag → Exit 2 (nicht „keine Anpassungsstelle verletzt“)"
+assert_contains_286 "$out_22" 'Anpassungsstellen' "#22 F-22.2: die Meldung zur leeren Liste nennt die Anpassungsstellen"
+
+# Review-Fund (Iteration 2): die Fundzahl in der Schlusszeile ist die echte Zahl, auch jenseits von 255 (ein Exit-Code-Zähler wäre bei 255 gekappt)
+out_22="$(lock_run_22 "$(seq -f 'x%g.txt' 1 300)\n" 'a.md\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 AK2.15b: 300 fehlende Lock-Pfade → Exit 1"
+assert_contains_286 "$out_22" '300 Fund(e)' "#22 AK2.15b: die Schlusszeile nennt die echte Fundzahl (300, nicht auf 255 gekappt)"
+
+# Security-Review (Task 22): ein Lock-Pfad, der wie eine echo-Option aussieht (`-n`, `-e`, `-E`), darf den Fundzähler nicht verschlucken –
+# sonst endet ein Lock mit nicht getracktem Pfad „-n“ mit Exit 0 (fail-open im Ownership-Gate).
+for opt_22 in -n -e -E; do
+  out_22="$(lock_run_22 "$opt_22\n" 'a.md\n' 'CLAUDE.md\n')"
+  assert_exit 1 $? "#22 Security: nicht getrackter Lock-Pfad '$opt_22' → Exit 1 (kein Fail-open durch echo-Option)"
+  assert_contains_286 "$out_22" '1 Fund(e)' "#22 Security: Lock-Pfad '$opt_22' wird als Fund gezählt"
+done
+
+# F-22.4: doppelter Lock-Pfad → Exit 1 mit Pfad, nicht still zusammengefasst
+out_22="$(lock_run_22 'scripts/a.sh\nscripts/a.sh\n' 'scripts/a.sh\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.4: doppelter Lock-Pfad → Exit 1"
+assert_contains_286 "$out_22" 'scripts/a.sh: mehrfach im Lock' "#22 F-22.4: der doppelte Pfad wird namentlich genannt"
+
+# F-22.3: Sonderzeichen und Leerzeichen wörtlich, keine Muster-Auswertung
+out_22="$(lock_run_22 'a+b.sh\nx[1].md\ndir/mit leerzeichen.txt\n' 'a+b.sh\nx[1].md\ndir/mit leerzeichen.txt\nrest.md\n' 'CLAUDE.md\n' --list factory)"
+assert_exit 0 $? "#22 F-22.3: Pfade mit '+', '[', Leerzeichen sind gültige Lock-Pfade"
+assert_true "$([ "$out_22" = "$(printf 'a+b.sh\ndir/mit leerzeichen.txt\nx[1].md')" ]; echo $?)" "#22 F-22.3: genau diese Pfade stehen auf Seite factory"
+out_22="$(lock_run_22 'a.b\n' 'aXb\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.3: '.' im Lock-Pfad ist kein Joker (aXb ≠ a.b)"
+assert_contains_286 "$out_22" 'a.b: nicht getrackt' "#22 F-22.3: der Joker-Kandidat bleibt ein fehlender Pfad"
+out_22="$(lock_run_22 'x*\n' 'xyz\n' 'CLAUDE.md\n')"
+assert_exit 1 $? "#22 F-22.3: '*' im Lock-Pfad ist kein Glob"
+
+# F-22.3 (Review-Fund): Nicht-ASCII-Pfade. `git ls-files` quotet sie standardmäßig ("docs/f\303\274r.md"); gegen echtes git prüfen,
+# nicht gegen eine Dateiliste – sonst bliebe der Quoting-Fehler unsichtbar.
+dir_22="$(mktemp -d)"
+git -C "$dir_22" init -q; git -C "$dir_22" config user.email t@t.t; git -C "$dir_22" config user.name t
+# Die Quoting-Regel gilt es zu belegen: nicht von einer globalen Git-Konfiguration abhängig machen (sonst wäre der Test zufällig grün).
+git -C "$dir_22" config core.quotepath true; git -C "$dir_22" config commit.gpgsign false
+mkdir -p "$dir_22/docs"; : > "$dir_22/docs/für.md"; : > "$dir_22/übung.md"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
+printf '{"schema":1,"files":[{"path":"docs/für.md","sha256":"0"}]}' > "$dir_22/factory.lock"
+git -C "$dir_22" add -A; git -C "$dir_22" commit -q -m init
+umlaut_22() { FACTORY_DIR="$dir_22" FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" bash "$OWN_CHECK_22" "$@" 2>&1; }
+out_22="$(umlaut_22)"
+assert_exit 0 $? "#22 F-22.3: Lock-Pfad mit Umlaut gegen echtes git ls-files → Exit 0 (kein Falsch-Rot durch Quoting)"
+out_22="$(umlaut_22 --list factory)"
+assert_true "$([ "$out_22" = 'docs/für.md' ]; echo $?)" "#22 F-22.3: --list factory nennt den Umlaut-Pfad unquotet"
+out_22="$(umlaut_22 --list project | LC_ALL=C sort)"
+assert_true "$([ "$out_22" = "$(printf 'factory.lock\npoints.txt\nübung.md')" ]; echo $?)" "#22 F-22.3: --list project nennt Umlaut-Dateien unquotet"
+rm -rf "$dir_22"
+
+# F-22.1: unlesbarer / leerer / ungültiger Lock → Exit 2 (fail-closed), kein Rückfall in den Tabellenmodus
+lock_bad_22 '' > /dev/null;                                          assert_exit 2 $? "#22 F-22.1: leerer Lock → Exit 2, kein Tabellenmodus"
+lock_bad_22 'das ist kein json' > /dev/null;                         assert_exit 2 $? "#22 F-22.1: Lock ohne gültiges JSON → Exit 2"
+lock_bad_22 '{"schema":1,"files":[]}' > /dev/null;                   assert_exit 2 $? "#22 F-22.1: Lock ohne Pfadeintrag → Exit 2"
+lock_bad_22 '{"schema":2,"files":[{"path":"a.md"}]}' > /dev/null;    assert_exit 2 $? "#22 F-22.1: unbekanntes Schema → Exit 2"
+lock_bad_22 '{"schema":1,"files":[{"sha256":"0"}]}' > /dev/null;     assert_exit 2 $? "#22 F-22.1: Eintrag ohne Pfad → Exit 2"
+out_22="$(lock_bad_22 '{"schema":2,"files":[{"path":"a.md"}]}')"
+assert_contains_286 "$out_22" 'schema' "#22 F-22.1: die Meldung nennt das Schema als Ursache"
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' 'CLAUDE.md\n')"; chmod 000 "$dir_22/factory.lock"
+if [ -r "$dir_22/factory.lock" ]; then
+  echo "  (übersprungen: Lock trotz chmod 000 lesbar – Lauf als Superuser)"
+else
+  lock_check_22 "$dir_22" > /dev/null
+  assert_exit 2 $? "#22 F-22.1: nicht lesbarer Lock → Exit 2"
+fi
+chmod 600 "$dir_22/factory.lock"; rm -rf "$dir_22"
+# F-22.1 (Review-Fund): ein hängender Symlink `factory.lock` ist auch ein Lock – nicht „kein Lock“ (sonst stiller Rückfall in die Tabelle)
+dir_22="$(mk_lock_fixture_22 '' 'a.md\n' 'CLAUDE.md\n')"; rm -f "$dir_22/factory.lock"; ln -s /nicht/vorhanden/ziel "$dir_22/factory.lock"
+write_all_project_table_22 "$dir_22/OWNERSHIP.md"
+out_22="$(TABLE_22="$dir_22/OWNERSHIP.md" lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 F-22.1: hängender Symlink als factory.lock → Exit 2, kein Rückfall in den Tabellenmodus"
+assert_contains_286 "$out_22" 'factory.lock' "#22 F-22.1: die Meldung zum hängenden Symlink nennt factory.lock"
+rm -rf "$dir_22"
+
+# F-22.1 (Messung): ohne jq im PATH → Exit 2 mit klarer Meldung, nicht Exit 0 (Stub bricht die Messung, nicht nur den Input).
+# Der Stub enthält die üblichen Werkzeuge ohne jq (eine Obermenge dessen, was ownership-check.sh braucht). Der Test belegt, dass die
+# jq-Prüfung vor allen anderen Werkzeugen greift – er hängt nicht an der Vollständigkeit dieser Liste.
+NOJQ_TOOLS_22="bash dirname cat sort uniq comm grep awk sed mktemp rm tr git head"
+nojq_22="$(mktemp -d)"
+for t_22 in $NOJQ_TOOLS_22; do
+  p_22="$(command -v "$t_22" 2>/dev/null)" && ln -s "$p_22" "$nojq_22/$t_22"
+done
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' 'CLAUDE.md\n')"
+out_22="$(PATH_22="$nojq_22" BASH_22="$nojq_22/bash" lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 F-22.1: Lock-Modus ohne jq → Exit 2"
+assert_contains_286 "$out_22" 'jq' "#22 F-22.1: die Meldung nennt jq"
+rm -rf "$nojq_22" "$dir_22"
+
+# F-22.2: Liste der Anpassungsstellen fehlt → Exit 2 (nicht „keine Anpassungsstelle verletzt“)
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' '')"; rm -f "$dir_22/points.txt"
+out_22="$(lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 F-22.2: fehlende Anpassungsstellen-Liste → Exit 2"
+assert_contains_286 "$out_22" 'Anpassungsstellen' "#22 F-22.2: die Meldung nennt die Liste der Anpassungsstellen"
+rm -rf "$dir_22"
+
+# /test-Ergänzung (Zeilenabdeckung von ownership-check.sh per xtrace): fail-closed-Pfade ohne eigenen Test.
+# Aufruffehler: unbekannter Parameter → Exit 2 mit Meldung (beide Modi teilen die Argument-Auswertung vor der Moduswahl)
+out_22="$(lock_run_22 'a.md\n' 'a.md\n' 'CLAUDE.md\n' --unbekannt)"
+assert_exit 2 $? "#22 /test: unbekannter Parameter → Exit 2 (auch mit Lock)"
+assert_contains_286 "$out_22" 'unbekannter Parameter: --unbekannt' "#22 /test: die Meldung nennt den unbekannten Parameter"
+# Dateiliste (Override für Tests) nicht lesbar → Exit 2 – im Lock-Modus und im Tabellenmodus, je mit der Meldung
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\n' 'CLAUDE.md\n')"; rm -f "$dir_22/files.txt"
+out_22="$(lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 /test: Lock-Modus mit nicht lesbarer Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Lock-Modus)"
+write_all_project_table_22 "$dir_22/OWNERSHIP.md"
+out_22="$(FACTORY_LOCK_FILE="$NO_LOCK_FILE" OWNERSHIP_FILE="$dir_22/OWNERSHIP.md" OWNERSHIP_FILE_LIST="$dir_22/files.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 /test: Tabellenmodus mit nicht lesbarer Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'Dateiliste nicht lesbar' "#22 /test: die Meldung nennt die nicht lesbare Dateiliste (Tabellenmodus)"
+rm -rf "$dir_22"
+# Kein git-Repo und keine Dateiliste → `git ls-files` scheitert → Exit 2 (nie „keine Dateien, alles grün“)
+dir_22="$(mktemp -d)"; printf '{"schema":1,"files":[{"path":"a.md"}]}' > "$dir_22/factory.lock"; printf 'CLAUDE.md\n' > "$dir_22/points.txt"
+out_22="$(GIT_CEILING_DIRECTORIES="$(dirname "$dir_22")" FACTORY_DIR="$dir_22" FACTORY_LOCK_FILE="$dir_22/factory.lock" CUSTOMIZATION_POINTS_FILE="$dir_22/points.txt" bash "$OWN_CHECK_22" 2>&1)"
+assert_exit 2 $? "#22 /test: Lock-Modus ohne git-Repo und ohne Dateiliste → Exit 2"
+assert_contains_286 "$out_22" 'git ls-files fehlgeschlagen' "#22 /test: die Meldung nennt das fehlgeschlagene git ls-files"
+rm -rf "$dir_22"
+# Interner Fehler: scheitert `comm` selbst (Messung gebrochen per PATH-Stub), ist das Exit 2 – nicht „ein Fund“ und nicht grün
+brkcomm_22="$(mktemp -d)"
+for t_22 in $NOJQ_TOOLS_22 jq; do
+  p_22="$(command -v "$t_22" 2>/dev/null)" && ln -s "$p_22" "$brkcomm_22/$t_22"
+done
+rm -f "$brkcomm_22/comm"; printf '#!/bin/sh\nexit 3\n' > "$brkcomm_22/comm"; chmod +x "$brkcomm_22/comm"
+dir_22="$(mk_lock_fixture_22 '{"schema":1,"files":[{"path":"a.md"}]}' 'a.md\nb.md\n' 'CLAUDE.md\n')"
+out_22="$(PATH_22="$brkcomm_22" BASH_22="$brkcomm_22/bash" lock_check_22 "$dir_22")"
+assert_exit 2 $? "#22 /test: scheitert comm selbst → Exit 2 (interner Fehler, fail-closed)"
+assert_contains_286 "$out_22" 'interner Fehler' "#22 /test: die Meldung nennt den internen Fehler"
+rm -rf "$brkcomm_22" "$dir_22"
+
+# AK2.15c: ohne Lock bleibt der Tabellenmodus – keine Moduszeile, Meldungen unverändert (Kontrolle zu den Tests oben)
+out_22="$(own_run_426 '| project | `**` | alles |\n' 'a.md\n')"
+assert_exit 0 $? "#22 AK2.15c: ohne Lock gilt die Tabelle (Exit 0)"
+assert_absent "$out_22" 'Modus:' "#22 AK2.15c: der Tabellenmodus trägt keine Moduszeile (Ausgabe unverändert)"
+# F-22.5: Alles, was die ausgelieferte Suite sourct oder als Fixture liest (tests/lib, tests/fixtures), liegt auf Seite `factory` –
+# sonst fehlte es im Konsumenten, und die Suite bräche dort beim `source` ab (die Dateien selbst stehen auf Seite factory, ADR-064 D6).
+for f_22 in "$CHECKS_DIR"/tests/lib/* "$CHECKS_DIR"/tests/fixtures/*; do
+  own_side_426 factory "${f_22#"$FACTORY_ROOT"/}"
+  assert_exit 0 $? "#22 F-22.5: ${f_22#"$FACTORY_ROOT"/} wird mit der Suite ausgeliefert (Seite factory)"
+done
+
 # ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
@@ -7706,7 +7821,7 @@ assert_exit 0 "$adr_links_rc_426" "#426 AK-B3: im ganzen Repo zeigt kein ADR-Lin
 [ "$adr_links_rc_426" -eq 0 ] || echo "$out_426" | grep '^✗' | head -20 | sed 's/^/      /'
 
 # AK-B1/B2: Zuordnung der ADR-Dateien (Anhang 1 der Spec, final in ADR-063 Nachtrag Q3)
-FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063"
+FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063 064"
 adr_nums_426() { # $1 = Verzeichnis → Nummern der ADR-Dateien, eindeutig sortiert
   local f; for f in "$1"/[0-9][0-9][0-9]-*.md; do [ -e "$f" ] && basename "$f" | cut -c1-3; done | sort -u
 }
@@ -7719,15 +7834,6 @@ done
 assert_true "$([ -z "$leaked_426" ]; echo $?)" \
   "#426 AK-B2: keine Factory-ADR liegt noch in docs/adr/ (Reste:${leaked_426:- keine})"
 # (Die App-ADRs liegen im adoptierenden Projekt, nicht in der Factory-Auslieferung.)
-# `git mv` statt Kopie: die Historie vor dem Umzug ist über --follow erreichbar. Ein flacher
-# Klon (CI) hat nur einen Commit – dort bleibt der Beleg lokal, der Rest oben gilt überall.
-if [ "$(git -C "$FACTORY_ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
-  follow_n_426="$(git -C "$FACTORY_ROOT" log --follow --oneline -- docs/factory/adr/018-central-issue-seam.md | wc -l | tr -d ' ')"
-  assert_true "$([ "$follow_n_426" -ge 2 ]; echo $?)" \
-    "#426 AK-B1: git log --follow zeigt die Historie vor dem Umzug (ADR-018: $follow_n_426 Commits)"
-else
-  echo "  • #426 AK-B1: --follow-Beleg übersprungen (flacher Klon)"
-fi
 
 # AK-B4: jedes ADR-README listet GENAU die ADRs seines Verzeichnisses
 adr_readme_matches_426() { # $1 = Verzeichnis
@@ -7747,11 +7853,7 @@ adr_readme_matches_426 "$TMP_RM_426"
 assert_exit 1 $? "#426 AK-B4 (Kontrolle): ein gelisteter Geisterverweis macht den Vergleich rot"
 rm -rf "$TMP_RM_426"
 
-# AK-B5: aktive Projekt-Dateien nennen Factory-ADRs als `Factory-ADR-NNN`
-bare_factory_adr_426() { # $1 = Datei, $2 = Nummernliste (Leerzeichen) → Treffer `ADR-NNN` ohne Präfix
-  local alt; alt="$(printf '%s' "$2" | tr ' ' '|')"
-  grep -noE "(^|[^A-Za-z-])ADR-($alt)([^0-9]|$)" "$1"
-}
+# AK-B5: aktive Projekt-Dateien nennen Factory-ADRs als `Factory-ADR-NNN` (Helfer `bare_factory_adr_426` in lib/assert-helpers.sh)
 TMP_B5_426="$(mktemp -d)"
 printf 'siehe ADR-018 und Factory-ADR-043 sowie ADR-014\n' > "$TMP_B5_426/probe.md"
 out_426="$(bare_factory_adr_426 "$TMP_B5_426/probe.md" "$FACTORY_ADR_NUMS_426")"
@@ -7759,15 +7861,6 @@ assert_contains_286 "$out_426" 'ADR-018' "#426 AK-B5 (Kontrolle): ein bloßes AD
 assert_absent "$out_426" 'ADR-043' "#426 AK-B5 (Kontrolle): Factory-ADR-043 ist korrekt präfixiert, kein Treffer"
 assert_absent "$out_426" 'ADR-014' "#426 AK-B5 (Kontrolle): eine App-ADR (014) ist kein Treffer"
 rm -rf "$TMP_B5_426"
-bare_426=""
-for f_426 in CLAUDE.md docs/factory/PROJECT-CONTEXT.md README.md CONTRIBUTING.md; do
-  hits_426="$(bare_factory_adr_426 "$FACTORY_ROOT/$f_426" "$FACTORY_ADR_NUMS_426" | head -3)"
-  [ -z "$hits_426" ] || bare_426="$bare_426
-$f_426: $hits_426"
-done
-assert_true "$([ -z "$bare_426" ]; echo $?)" \
-  "#426 AK-B5: aktive Projekt-Dateien schreiben Factory-ADR-NNN statt ADR-NNN für Factory-ADRs"
-[ -z "$bare_426" ] || echo "$bare_426" | head -12 | sed 's/^/      /'
 
 # AK-B6: ADR-063 ist Accepted und trägt den Nachtrag mit den Detailentscheidungen Q1–Q6
 ADR063_426="$FACTORY_ROOT/docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md"
@@ -7837,23 +7930,6 @@ assert_exit 0 "$lessons_rc_426" "#426 AK-C2: jeder Lesson-Eintrag steht genau ei
 assert_true "$([ "$(grep -vc '^#' "$LESSONS_TSV_426")" -eq 175 ]; echo $?)" \
   "#426 AK-C2: die Rekonstruktions-Liste deckt alle 175 Einträge der sieben Ausgangs-Lessons ab"
 
-# AK-C3: Index in PROJECT-CONTEXT.md – getrennte Gruppen, gültige Links, „Laden bei" je Gruppe
-CTX_426="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-ctx_flat_426="$(flat_286 "$CTX_426")"
-assert_contains_286 "$ctx_flat_426" '#### Factory-Lessons (`docs/factory/lessons/`)' "#426 AK-C3: der Index hat eine Gruppe „Factory-Lessons“"
-ctx_dead_426=""; ctx_noload_426=""
-while IFS= read -r hdr_426; do
-  tgt_426="$(printf '%s' "$hdr_426" | sed -E 's/^\*\*\[`[^`]*`\]\(([^)]*)\).*/\1/')"
-  [ -f "$FACTORY_ROOT/docs/factory/$tgt_426" ] || ctx_dead_426="$ctx_dead_426 $tgt_426"
-  printf '%s' "$hdr_426" | grep -qF -- '**Laden bei:**' || ctx_noload_426="$ctx_noload_426 $tgt_426"
-done <<< "$(grep -E '^\*\*\[`[^`]*lessons/[a-z-]+\.md`\]' "$CTX_426")"
-assert_true "$([ -z "$ctx_dead_426" ]; echo $?)" "#426 AK-C3: jeder Gruppen-Link des Index zeigt auf eine existierende Datei (tot:${ctx_dead_426:- keine})"
-assert_true "$([ -z "$ctx_noload_426" ]; echo $?)" "#426 AK-C3: jede Index-Gruppe behält ihren „Laden bei“-Trigger (ohne:${ctx_noload_426:- keine})"
-# Datei-grep statt assert_contains_286: dessen `printf | grep -q` ist bei Haystacks ab wenigen KB ein Race (SIGPIPE + pipefail, nur in CI sichtbar; bash-gotchas #3).
-for f_426 in "$FACTORY_ROOT"/docs/factory/lessons/*.md; do
-  assert_true "$(grep -qF -- "](lessons/$(basename "$f_426"))" "$CTX_426"; echo $?)" \
-    "#426 AK-C3: Factory-Lesson $(basename "$f_426") steht im Index"
-done
 
 # (AK-C4 – Kern-Kurzregeln mit Verweis auf die App-Lessons – entfällt: der Index des Factory-Repos hat keine.)
 
@@ -7887,7 +7963,6 @@ done
 echo ""
 echo "#431 AK-D: generischer Teil in FACTORY.md, CLAUDE.md dünn:"
 FACTORY_MD_431="$FACTORY_ROOT/docs/factory/FACTORY.md"
-CLAUDE_MD_431="$FACTORY_ROOT/CLAUDE.md"
 
 # AK-D1/AK-D2: Datei-Anteile
 assert_true "$([[ -f "$FACTORY_MD_431" ]]; echo $?)" "#431 AK-D1: docs/factory/FACTORY.md existiert"
@@ -7899,40 +7974,13 @@ for sec_431 in '## Kernprinzip' '## Nicht verhandelbare Prinzipien' '## Pipeline
 done
 grep -qE '^# Development Factory · v[0-9]+\.[0-9]+\.[0-9]+$' "$FACTORY_MD_431"
 assert_exit 0 "$?" "#431 AK-D1: FACTORY.md trägt die Versionsangabe"
-imports_431="$(grep -E '^@' "$CLAUDE_MD_431" | sort | tr '\n' ' ')"
-assert_true "$([ "$imports_431" = "@docs/factory/FACTORY.md @docs/factory/PROJECT-CONTEXT.md " ]; echo $?)" \
-  "#431 AK-D2: CLAUDE.md importiert genau FACTORY.md und PROJECT-CONTEXT.md (Ist: $imports_431)"
-claude_flat_431="$(flat_286 "$CLAUDE_MD_431")"
-assert_contains_286 "$claude_flat_431" 'Ownership pflegen' "#431 AK-D2: CLAUDE.md trägt die Projekt-Regel des Factory-Repos (Ownership pflegen)"
-for gen_431 in '## Kernprinzip' '## Guardrails' '## Pipeline-Übersicht' '## Agent-Rollen'; do
-  assert_absent "$claude_flat_431" "$gen_431" "#431 AK-D2: CLAUDE.md enthält den generischen Abschnitt '$gen_431' nicht mehr"
-done
-assert_true "$([ "$(awk 'END{print NR}' "$CLAUDE_MD_431")" -le 60 ]; echo $?)" "#431 AK-D2: CLAUDE.md bleibt dünn (≤ 60 Zeilen)"
 
-# AK-D4: verschachtelte Imports (CLAUDE.md → FACTORY.md → Guideline) zählen vollständig.
-# Fixture nutzt die ECHTEN Dateien; nur eine nur über FACTORY.md eingebundene Guideline wird aufgebläht.
-TMP_D4_431="$(mktemp -d)"
-mkdir -p "$TMP_D4_431/docs/factory/guidelines"
-cp "$CLAUDE_MD_431" "$TMP_D4_431/CLAUDE.md"
-cp "$FACTORY_MD_431" "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md" "$TMP_D4_431/docs/factory/"
-cp "$FACTORY_ROOT"/docs/factory/guidelines/{clean-code,tdd-principles,testing-standards}.md "$TMP_D4_431/docs/factory/guidelines/"
-FACTORY_DIR="$TMP_D4_431" bash "$IMPORT_CHECK" >/dev/null 2>&1
-assert_exit 0 "$?" "#431 AK-D4 (Kontrolle): die kopierte echte Import-Kette ist unter der Grenze"
-seq 1 "$IC_LIMIT_319" >> "$TMP_D4_431/docs/factory/guidelines/tdd-principles.md"
-d4_out_431="$(FACTORY_DIR="$TMP_D4_431" bash "$IMPORT_CHECK" 2>&1)"; d4_rc_431=$?
-assert_exit 1 "$d4_rc_431" "#431 AK-D4: Import nur über FACTORY.md reißt die Grenze → exit 1"
-assert_contains_286 "$d4_out_431" 'tdd-principles.md' "#431 AK-D4: die Beitragsliste nennt die nur über FACTORY.md eingebundene Datei"
-rm -rf "$TMP_D4_431"
 
 # AK-D5: dieselben Dateien im Dauerkontext wie vor der Änderung (Baseline in der Task-Datei).
-ctx_431="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"
-assert_exit 0 "$?" "#431 AK-D5: Dauerkontext liegt unter dem Deckel ($ctx_431)"
 for g_431 in clean-code tdd-principles testing-standards; do
   grep -qxF "@docs/factory/guidelines/$g_431.md" "$FACTORY_MD_431"
   assert_exit 0 "$?" "#431 AK-D5: $g_431.md bleibt im Dauerkontext (Import in FACTORY.md)"
 done
-grep -qxF '@docs/factory/PROJECT-CONTEXT.md' "$CLAUDE_MD_431"
-assert_exit 0 "$?" "#431 AK-D5: PROJECT-CONTEXT.md bleibt im Dauerkontext (Import in CLAUDE.md)"
 
 # ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe E: zusammengesetzte Dateien (AK-E1…E4, F-4) ────────────────────────
 echo ""
@@ -8002,19 +8050,6 @@ rm -rf "$FX_431"
 jq -e '.permissions.allow | index("Edit(app/**)")' "$FACTORY_ROOT/.claude/settings.factory.json" >/dev/null 2>&1
 assert_exit 1 "$?" "#431 AK-E1: Edit(app/**) steht nicht im Factory-Fragment"
 
-# AK-E2: ignorierte Pfade unverändert – feste Probenliste gegen die committete .gitignore (Temp-Repo, --no-index).
-TMP_GI_431="$(mktemp -d)"; git -C "$TMP_GI_431" init -q; cp "$FACTORY_ROOT/.gitignore" "$TMP_GI_431/"
-ign_431="coverage/x .coverage-tmp431/x .env.local .DS_Store logs/a.log tasks/metrics-1.md tasks/pipeline-stuck-1.md foo.tmp.sh foo.tmp.config.ts .verify-x/a"
-keep_431=".env.example tasks/interrupt-log.jsonl scripts/start-work.sh README.md"
-for pr_431 in $ign_431; do
-  git -C "$TMP_GI_431" check-ignore -q --no-index -- "$pr_431"
-  assert_exit 0 "$?" "#431 AK-E2: $pr_431 bleibt ignoriert"
-done
-for pr_431 in $keep_431; do
-  git -C "$TMP_GI_431" check-ignore -q --no-index -- "$pr_431"
-  assert_exit 1 "$?" "#431 AK-E2: $pr_431 bleibt nicht ignoriert"
-done
-rm -rf "$TMP_GI_431"
 # AK-E4: Doku nennt den Änderungsweg.
 own_doc_431="$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")"
 assert_contains_286 "$own_doc_431" 'Projekt-Fragment ändern' "#431 AK-E4: OPERATING.md: Projekt-Fragment ändern"
@@ -8025,40 +8060,21 @@ assert_contains_286 "$own_doc_431" 'beide committen' "#431 AK-E4: OPERATING.md: 
 echo ""
 echo "#431 AK-F: factory-ci.yml nur Factory, ci.yml projekteigen:"
 FCI_431="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
-PCI_431="$FACTORY_ROOT/.github/workflows/ci.yml"
 jobs_of_431() { awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^  /,"");sub(/:.*/,"");print}' "$1" | sort | tr '\n' ' '; }
 
-assert_true "$([[ -f "$PCI_431" ]]; echo $?)" "#431 AK-F2: .github/workflows/ci.yml existiert"
 assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-self-test issue-sync post-merge-verify pr-closes-issue " ]; echo $?)" \
   "#431 AK-F1: factory-ci.yml enthält genau die fünf Factory-Jobs (Ist: $(jobs_of_431 "$FCI_431"))"
 grep -q 'pnpm' "$FCI_431"
 assert_exit 1 "$?" "#431 AK-F1: factory-ci.yml enthält keinen pnpm-Aufruf"
-assert_true "$([ "$(jobs_of_431 "$PCI_431")" = "lint " ]; echo $?)" \
-  "#431 AK-F2: ci.yml enthält genau den Job lint (Ist: $(jobs_of_431 "$PCI_431"))"
-{ grep -q '^  push:' "$PCI_431" && grep -q 'branches: \[main\]' "$PCI_431" && grep -q '^  pull_request:' "$PCI_431"; }
-assert_exit 0 "$?" "#431 AK-F2: ci.yml hat denselben Trigger wie vorher (push main + pull_request)"
-# (Die Quelle des Lint-Kommandos prüft der Guard „CI-Lint-Job führt commands.lint aus" weiter oben.)
-if command -v yq >/dev/null 2>&1; then
-  yq '.' "$PCI_431" >/dev/null 2>&1
-  assert_exit 0 "$?" "#431 AK-F2: ci.yml ist valides YAML"
-else
-  skip_yq "#431 AK-F2: ci.yml ist valides YAML"
-fi
 
 # AK-F3/F-7: Required-Check-Namen (protect-main) = Menge der Job-Namen beider Factory-/Projekt-CI.
-all_jobs_431="$(jobs_of_431 "$FCI_431") $(jobs_of_431 "$PCI_431")"
-for chk_431 in lint issue-sync factory-self-test pr-closes-issue config-validation; do
+all_jobs_431="$(jobs_of_431 "$FCI_431")"
+for chk_431 in issue-sync factory-self-test pr-closes-issue config-validation; do
   assert_contains_286 "$all_jobs_431" "$chk_431 " "#431 AK-F3: Required Check '$chk_431' wird von einem Workflow gemeldet"
 done
 
-# AK-F4: Workflows in OWNERSHIP.md zugeordnet, Skriptpfade existieren.
-own_f_431="$FACTORY_ROOT/docs/factory/OWNERSHIP.md"
-for wf_431 in "project|.github/workflows/ci.yml" "factory|.github/workflows/factory-poll.yml" "factory|.github/workflows/factory-ci.yml"; do
-  grep -qF "| ${wf_431%%|*} | \`${wf_431#*|}\`" "$own_f_431"
-  assert_exit 0 "$?" "#431 AK-F4: ${wf_431#*|} ist als ${wf_431%%|*} in OWNERSHIP.md geführt"
-done
 miss_431=""
-for wfp_431 in "$FACTORY_ROOT"/.github/workflows/*.yml; do
+for wfp_431 in "$FCI_431" "$FACTORY_ROOT/.github/workflows/factory-poll.yml"; do
   for sp_431 in $(grep -oE 'scripts/[A-Za-z0-9_./-]+\.sh' "$wfp_431" | sort -u); do
     [[ -f "$FACTORY_ROOT/$sp_431" ]] || miss_431="$miss_431 $(basename "$wfp_431"):$sp_431"
   done
@@ -8167,20 +8183,9 @@ echo ""
 echo "#431 AK-H: commands.* in factory.config.yml:"
 if [ "$HAS_YQ" = 1 ]; then
   for k_431 in lint test typecheck format coverage; do
-    v_431="$(yq ".commands.$k_431" "$FACTORY_ROOT/factory.config.yml")"
-    # format ist im Factory-Repo bewusst leer (Format-Gate deaktiviert); alle anderen tragen ein Kommando.
-    if [ "$k_431" = format ]; then
-      assert_true "$([ -z "$(yq '.commands.format // ""' "$FACTORY_ROOT/factory.config.yml")" ]; echo $?)" "#431 AK-H1: factory.config.yml hält commands.format bewusst leer"
-    else
-      assert_true "$([ -n "$v_431" ] && [ "$v_431" != null ]; echo $?)" "#431 AK-H1: factory.config.yml trägt commands.$k_431 (Ist: $v_431)"
-    fi
     d_431="$(yq ".commands.$k_431 // \"\"" "$FACTORY_ROOT/factory.defaults.yml")"
     assert_true "$([ -z "$d_431" ]; echo $?)" "#431 AK-H2: factory.defaults.yml hat keinen Default für commands.$k_431 (Ist: '$d_431')"
   done
-  # Die Werte des Factory-Repos (ADR-063 D9): Syntaxprüfung per `bash -n`, Self-Test-Suite, kein install, kein pnpm.
-  cfg_431="$FACTORY_ROOT/factory.config.yml"
-  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/checks/tests/run-tests.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep -v '^[[:space:]]*#' "$cfg_431" | grep -q pnpm; echo $?)" \
-    "#431 AK-H1: commands.* tragen die Werte des Factory-Repos (bash -n, Self-Test-Suite, kein install, kein pnpm)"
   assert_true "$(! yq '.commands' "$FACTORY_ROOT/factory.defaults.yml" | grep -q pnpm; echo $?)" "#431 AK-H2: kein pnpm im commands-Block der Defaults"
 
   # AK-H3: die Gates lesen aus der Konfiguration; Env hat Vorrang.
@@ -8286,7 +8291,6 @@ if [ "$HAS_YQ" = 1 ]; then
   assert_true "$([ "$(yq -o=json -I=0 '.labels.kinds' "$DEF_431")" = '["bug","enhancement","documentation"]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.kinds (bug, enhancement, documentation)"
   assert_true "$([ "$(yq -o=json -I=0 '.labels.aspects' "$DEF_431")" = '["security","tech-debt","test"]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.aspects (security, tech-debt, test)"
   assert_true "$([ "$(yq -o=json -I=0 '.labels.aspects_extra' "$DEF_431")" = '[]' ]; echo $?)" "#431 AK-I1: defaults tragen labels.aspects_extra als leere Liste (keine projekteigenen Labels)"
-  assert_true "$([ "$(yq '.labels.aspects_extra // []' -o=json -I=0 "$CFG_431")" = '[]' ]; echo $?)" "#431 AK-I1: das Factory-Repo trägt keine projekteigenen Aspekt-Labels (labels.aspects_extra leer)"
 
   # Validierung (Regel 2 für Listen + Regel 8).
   TMP_I1="$(mktemp -d)"; CVC_I_431="$CHECKS_DIR/config-validation-check.sh"
@@ -8319,8 +8323,6 @@ if [ "$HAS_YQ" = 1 ]; then
     printf '%s' "$out"
   }
   GW_431="$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"; PCX_431="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-  drift_431="$(label_drift_431 "$DEF_431" "$CFG_431" "$GW_431" "$PCX_431")"
-  assert_true "$([ -z "$drift_431" ]; echo $?)" "#431 AK-I2: Label-Doku und Konfiguration stimmen überein (Abweichung:${drift_431:- keine})"
   # Mutationen: je Seite eine eigene Assertion mit demselben Ausdruck.
   TMP_I2="$(mktemp -d)"
   printf 'labels:\n  aspects_extra: [zzz-neu]\n' > "$TMP_I2/cfg.yml"
@@ -8446,6 +8448,14 @@ EOT
   assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files[] | select(.path == "zz/a.txt") | .sha256')" != "$(shasum -a 256 < "$TMP_RM_10/zz/a.txt" | cut -d' ' -f1)" ]; echo $?)" \
     "Release-Manifest (Diskriminierung): der Hash weicht vom veränderten Arbeitsbaum ab"
   assert_true "$([ "$(printf '%s' "$out_rm_10" | jq -r '.files | map(.sha256) | map(test("^[0-9a-f]{64}$")) | all')" = true ]; echo $?)" "Release-Manifest: jeder Hash hat 64 Hex-Zeichen"
+  # Der Modus von ownership-check.sh hängt am Arbeitsbaum (factory.lock im FACTORY_DIR); das Manifest liest aber die Tabelle AM TAG.
+  # Ein Lock im Arbeitsbaum darf die Dateiliste des Tags nicht verändern (Review-Fund Iteration 1/2).
+  printf '{"schema":1,"files":[{"path":"zz/b.txt","sha256":"0"}]}' > "$TMP_RM_10/factory.lock"
+  out_lock_rm_10="$(cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v9.9.9 2>&1)"; rc_lock_rm_10=$?
+  assert_exit 0 "$rc_lock_rm_10" "Release-Manifest: Lauf mit factory.lock im Arbeitsbaum endet mit Exit 0"
+  assert_true "$([ "$(printf '%s' "$out_lock_rm_10" | jq -r '.files | map(.path) | join(",")')" = "scripts/checks/ownership-check.sh,scripts/factory-release-manifest.sh,zz/a.txt,zz/b.txt" ]; echo $?)" \
+    "Release-Manifest: ein factory.lock im Arbeitsbaum ändert die Dateiliste des Tags nicht (Tabellenmodus erzwungen)"
+  rm -f "$TMP_RM_10/factory.lock"
   # Fail-closed
   (cd "$TMP_RM_10" && bash scripts/factory-release-manifest.sh v0.0.0-gibt-es-nicht >/dev/null 2>&1)
   assert_exit 2 "$?" "Release-Manifest: unbekannte Referenz → Exit 2 (fail-closed)"
@@ -8499,28 +8509,6 @@ if [ -f "$RC_SCRIPT_10" ]; then
   rm -rf "$TMP_RC_10"
 fi
 
-RELEASE_YML_10="$FACTORY_ROOT/.github/workflows/release.yml"
-assert_true "$([ -f "$RELEASE_YML_10" ]; echo $?)" "release.yml vorhanden"
-if [ -f "$RELEASE_YML_10" ]; then
-  grep -qE "^\s+tags: \['v\*'\]|^\s+- 'v\*'|^\s+tags:\s*$" "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: läuft auf Tag-Push (v*)"
-  grep -q '^  push:' "$RELEASE_YML_10" && ! grep -q 'pull_request' "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: nur push, kein pull_request"
-  grep -qE 'contents: write' "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: contents: write für das Release"
-  grep -qF 'bash scripts/factory-release-check.sh' "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: ruft die Release-Prüfung auf"
-  grep -qF 'bash scripts/factory-release-manifest.sh' "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: erzeugt das Manifest"
-  grep -qF 'gh release create' "$RELEASE_YML_10" && grep -qF 'factory-release.json' "$RELEASE_YML_10"
-  assert_exit 0 "$?" "release.yml: legt das Release mit dem Manifest als Asset an"
-  # Anker ist die exakte `run:`-Zeile, nie ein Fragment: der Kopfkommentar nennt beide Schritte ebenfalls.
-  ln_check_10="$(grep -nF 'run: bash scripts/factory-release-check.sh "$TAG"' "$RELEASE_YML_10" | head -1 | cut -d: -f1)"
-  ln_create_10="$(grep -nF 'run: gh release create' "$RELEASE_YML_10" | head -1 | cut -d: -f1)"
-  { [ -n "$ln_check_10" ] && [ -n "$ln_create_10" ] && [ "$ln_check_10" -lt "$ln_create_10" ]; }
-  assert_true "$?" "release.yml: die Prüfung läuft vor dem Anlegen des Release (kein Release bei Abweichung)"
-  if [ "$HAS_YQ" = 1 ]; then yq '.' "$RELEASE_YML_10" >/dev/null 2>&1; assert_exit 0 "$?" "release.yml ist valides YAML"; else skip_yq "release.yml ist valides YAML"; fi
-fi
 
 # ─── Hook-Umgebung: GIT_DIR & Co. schlagen nicht in Wegwerf-Repos durch (Factory-Issue #6) ───────
 # Läuft die Suite als commands.test aus dem pre-push-Hook eines Worktrees, exportiert Git GIT_DIR/GIT_WORK_TREE/
@@ -8539,27 +8527,6 @@ for var_env_6 in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX 
   assert_true "$([ "$left_env_6" = unset ]; echo $?)" "Hook-Umgebung: $var_env_6 ist nach dem Sourcen der Helfer nicht mehr gesetzt"
 done
 rm -rf "$TMP_ENV_6"
-
-# ─── C1: Herkunftsbegriffe nur an dokumentierten erlaubten Stellen ───────────────────────────
-echo ""
-echo "C1 Herkunftsbegriffe (PROJECT-CONTEXT.md → Konventionen → erlaubte Stellen):"
-# Die Begriffe werden zur Laufzeit zusammengesetzt: als Literal stünden sie in dieser Datei selbst, und der
-# Guard wäre immer rot (Content-Scan-Guard, dessen Phrase in der gescannten Datei steht – Lesson nothra/tch-gastro-services#319).
-C1_TERMS="Veranstal""tung|Montags""runde|Theken""wart|Heuchel""heim|T""CH|tc""h-gastro|Ne""on|Ver""cel"
-# Positivkontrolle: derselbe Ausdruck findet ein Wort und ignoriert den qualifizierten Herkunftsverweis.
-assert_true "$(printf '%s\n' 'Die Ver''cel-Regel' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): der Suchausdruck findet einen Herkunftsbegriff"
-assert_true "$(! printf '%s\n' 'siehe nothra/tch-gastro-services#12' | sed 's#nothra/tch-gastro-services##g' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): ein qualifizierter Herkunftsverweis ist kein Treffer"
-c1_files=0; c1_hits=""
-while IFS= read -r -d '' f_c1; do
-  case "$f_c1" in README.md|CHANGELOG.md|docs/factory/PROJECT-CONTEXT.md|scripts/checks/tests/fixtures/lessons-split-426.tsv) continue ;; esac
-  [ -f "$FACTORY_ROOT/$f_c1" ] || continue
-  c1_files=$((c1_files + 1))
-  hit_c1="$(sed 's#nothra/tch-gastro-services##g' "$FACTORY_ROOT/$f_c1" | grep -nIiwE "$C1_TERMS" | head -3)"
-  [ -z "$hit_c1" ] || c1_hits="$c1_hits$f_c1: $hit_c1"$'\n'
-done < <(git -C "$FACTORY_ROOT" ls-files -z)
-assert_true "$([ "$c1_files" -gt 50 ]; echo $?)" "C1 (fail-closed): der Scan liest wirklich die getrackten Dateien (Ist: $c1_files)"
-assert_true "$([ -z "$c1_hits" ]; echo $?)" "C1: Herkunftsbegriffe stehen nur an den dokumentierten erlaubten Stellen"
-[ -z "$c1_hits" ] || printf '%s' "$c1_hits" | head -10 | sed 's/^/      /'
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

@@ -30,13 +30,15 @@
 ## Build, Test, Lint
 
 ```bash
-bash scripts/checks/tests/run-tests.sh                 # Self-Test-Suite (commands.test)
+bash scripts/checks/tests/run-tests.sh                 # ausgelieferte Self-Test-Suite (commands.test)
+bash scripts/project/tests/run-tests.sh                # Projekt-Suite: Prüfungen, die dieses Repo voraussetzen
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n          # Syntaxprüfung (commands.lint)
 bash scripts/install-hooks.sh                          # Git-Hooks einmalig installieren
 ```
 
-- **Test-Framework:** eigene Bash-Suite `scripts/checks/tests/run-tests.sh` mit Helfern in
-  `scripts/checks/tests/lib/`; Konventionen in `docs/factory/guidelines/testing-standards.md`.
+- **Test-Framework:** eigene Bash-Suiten – die ausgelieferte `scripts/checks/tests/run-tests.sh` und die Projekt-Suite
+  `scripts/project/tests/run-tests.sh` – mit gemeinsamen Helfern in `scripts/checks/tests/lib/`; Konventionen in
+  `docs/factory/guidelines/testing-standards.md`.
 - **Lint:** `bash -n` über alle getrackten `*.sh` (CI-Job `lint`); ShellCheck folgt als Issue.
 - **Gates lokal:** `scripts/checks/pre-commit.sh`, `scripts/checks/pre-push.sh` (laufen ohne Node/DB).
 
@@ -46,8 +48,11 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 
 - **Aufbau:** `scripts/` (Pipeline, Gates, Hooks), `.claude/commands/` (Skills),
   `docs/factory/` (Agenten-Regeln, Guidelines, ADRs, Lessons, Betriebshandbuch), `.github/workflows/`.
-- **Eigene Anpassungsstellen** (Seite `project`): `CLAUDE.md`, `factory.config.yml`, diese Datei,
-  `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`, `.gitignore.project`, `ci.yml`, `release.yml`.
+- **Eigene Anpassungsstellen** (Seite `project`): `CLAUDE.md`, `factory.config.yml`,
+  `docs/factory/PROJECT-CONTEXT.md` (diese Datei), `README.md`, `CHANGELOG.md`, `.claude/settings.project.json`,
+  `.gitignore.project`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`.
+- **Anpassungsstellen-Liste:** Die Factory liefert sie als `scripts/checks/customization-points.txt` mit; ein Drift-Guard in
+  `scripts/project/tests/run-tests.sh` hält sie und diese Aufzählung deckungsgleich.
 - **Zuordnung** jeder Datei zu `factory` (wird ausgeliefert) oder `project` (gehört dem Repo):
   [`OWNERSHIP.md`](OWNERSHIP.md); Quelle des Release-Manifests ist die Seite `factory`.
 - **Releases:** SemVer-Tags `vX.Y.Z` auf `main`, Release-PR setzt Versionszeile in `FACTORY.md` und
@@ -65,7 +70,9 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
   (Rekonstruktions-Daten der Lesson-Aufteilung, unverändert), (4) dieser Datei.
 - **`#<nr>` in Shell-Strings** (Testnamen und Meldungen in `scripts/checks/tests/run-tests.sh`) bezeichnet das Issue
   des Ursprungs-Repos, aus dem der jeweilige Test stammt; in Kommentaren und Dokumenten steht der Verweis qualifiziert.
-- **Self-Tests prüfen das Factory-Repo**, nicht den Zustand eines adoptierenden Projekts.
+- **Zwei Suiten (Factory-ADR-064 D6):** die ausgelieferte Suite `scripts/checks/tests/run-tests.sh` ist konsumenten-neutral und
+  setzt weder `ci.yml`, `release.yml` noch `OWNERSHIP.md` dieses Repos voraus; was dieses Repo voraussetzt, steht in
+  `scripts/project/tests/run-tests.sh` (lokal über `pre-push.d/`, in CI als Job `project-self-test`).
 
 ---
 
@@ -128,6 +135,7 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - Laufende `run-tests.sh` (Hintergrund-Lauf) nicht editieren – Bash liest Skripte inkrementell; neue Tests in Scratch-Datei vorbereiten (aus nothra/tch-gastro-services#431, /implement-Selbstfund)
 - Test, der die Git-Historie liest (`git log --follow`): in CI flacher Klon → Test dort rot, lokal grün – hinter `--is-shallow-repository`-Skip legen, Skip sichtbar ausgeben, Verhalten zusätzlich historienfrei belegen (aus nothra/tch-gastro-services#426, /implement-Selbstfund)
 - `assert_contains_286`/`printf | grep -q` auf Datei-/Listen-Haystacks (ab wenigen KB): SIGPIPE-Race + `pipefail` → in CI Falsch-Rot, lokal grün – Datei direkt `grep -qF -- … <datei>`, Variable per Here-String; nach Test-Refactor CI abwarten (aus nothra/tch-gastro-services#426, CI-Befund nach `/refactor`)
+- Zeilenabdeckung für ein Bash-Skript ohne Coverage-Werkzeug per `bash -x` in einem Wrapper messen (bash 3.2 kennt kein `BASH_XTRACEFD`: Trace von echter stderr trennen); jede nicht ausgeführte fail-closed-Zeile einzeln bewerten und mit Mutationsbeleg testen (aus Factory-Task #22, `/test`)
 
 **[`lessons/build-tooling.md`](lessons/build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 
@@ -195,7 +203,7 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - `kleinfunde.md`-Eintrag mit `Datei:Zeile`-Ankern, im selben PR angelegt, braucht denselben Drift-Check wie ADR/Lesson/Spec (nothra/tch-gastro-services#211/#176/#253) – auch wenn die Drift-Quelle die eigenen Folge-Commits derselben Task sind (aus nothra/tch-gastro-services#291, Review-Finding); zweites Vorkommnis bereits bei der Erstverifikation (zitierte Zeilenspanne deckt nicht die volle Was-Behauptung), nicht erst durch spätere Drift (aus nothra/tch-gastro-services#351, Review-Runde-2-Finding) → `/review`, `/security-review` – vor Merge-Freigabe, wenn dieser PR selbst einen `kleinfunde.md`-Eintrag angelegt hat
 - Fork-Subagent für eine Review-Runde: eigene Turns (z. B. `ScheduleWakeup`-Wartetexte) nach dem Spawn können in seinen Kontext bluten – lieferte hier statt echter Findings nur eine Paraphrase des eigenen Wartetexts zurück; Ergebnis bei Verdacht per `TaskOutput` gegenprüfen, nicht nur der kurzen `<result>`-Zusammenfassung vertrauen (aus nothra/tch-gastro-services#298, Selbstfund während `/review`) → `/review`, `/security-review` – bei Nutzung von Fork-Subagenten für Review-/Analyse-Runden
 - Rezidiv des nothra/tch-gastro-services#298-Fork-Kontamination-Learnings: der empfohlene Resume-mit-Korrektur verschlimmerte die Konfusion statt sie zu beheben – der Fork erklärte die Korrektur zum Prompt-Injection-Versuch, hielt an einer falschen Selbstwahrnehmung (er sei die Haupt-Session) fest und fabrizierte einen falschen Fortschrittsstatus für nie beauftragte Runden. Regel verschärft: Resume ist ein einmaliger Versuch, kein zweiter Retry – danach die Runde ohne Fork-Delegation direkt im Orchestrator-Kontext durchführen (aus nothra/tch-gastro-services#267, Selbstfund während `/review`) → `/review`, `/security-review` – wenn ein per `TaskOutput` verifizierter Fork nach einem Korrektur-Resume weiterhin keine echten Findings liefert
-- Review-Sub-Agent kann eine falsche Bash-/Shell-Verhaltensbehauptung selbstsicher als „empirisch geprüft" ausgeben (anders als nothra/tch-gastro-services#298/#267: hier lieferte der Agent echte, aber inhaltlich falsche Findings) – jede technische Tatsachenbehauptung über Sprach-/Shell-Semantik in einem Kritisch-/Wichtig-Finding selbst mit einem Standalone-Repro nachvollziehen, bevor sie in den Report übernommen wird (aus nothra/tch-gastro-services#314, Selbstfund während `/review`; Bash-Detail in `docs/factory/guidelines/bash-gotchas.md` #12) → `/review`, `/security-review` – bei einer Kritisch-/Wichtig-Einstufung, deren Begründung eine überprüfbare Verhaltensbehauptung ist
+- Review-Sub-Agent kann eine falsche Bash-/Shell-Verhaltensbehauptung selbstsicher als „empirisch geprüft" ausgeben (anders als nothra/tch-gastro-services#298/#267: hier lieferte der Agent echte, aber inhaltlich falsche Findings) – jede technische Tatsachenbehauptung über Sprach-/Shell-Semantik in einem Kritisch-/Wichtig-Finding selbst mit einem Standalone-Repro nachvollziehen, bevor sie in den Report übernommen wird (aus nothra/tch-gastro-services#314, Selbstfund während `/review`; Bash-Detail in `docs/factory/guidelines/bash-gotchas.md` #12; Rezidiv als False-Negative im `/security-review` – „nicht betroffen“ für Fremdwerte in `echo` war falsch, ein Repro des Koordinators fand ein Fail-open – aus Factory-Task #22) → `/review`, `/security-review` – bei einer Kritisch-/Wichtig-Einstufung, deren Begründung eine überprüfbare Verhaltensbehauptung ist
 - Anker-Liste einer Fail-safe-Klassifizierungsregel (z. B. das `factory-pipeline`-Aspekt-Label) drei Runden lang nur auf Vollständigkeit/Nicht-Überlappung geprüft, nie auf Vorhersagekraft gegen den echten Repo-Inhalt – ein Anker (`docs/specs/`) erwies sich erst in Runde 4 als nahe 50/50-Münzwurf statt Trennlinie, weil er eine Ablagekonvention statt eine Subsystem-Grenze kodierte (aus nothra/tch-gastro-services#315, Review-Runde-4-Finding) → `/implement`, `/review` – bei neuem oder geprüftem Pfad-Anker in einer Fail-safe-Klassifizierungs-/Tie-Break-Regel
 - AK mit Pflichtinhalt in der PR-Beschreibung selbst (nicht in einer Repo-Datei) wird vom Standard-Draft-Body aus `start-work.sh` nicht automatisch erfüllt – kein Commit-Schritt zieht ihn nach, erst `/review` deckt die Lücke per `gh pr view --json body` auf; Inhalt per `gh pr edit <nr> --body "..."` explizit nachziehen, spätestens vor `/review` (aus nothra/tch-gastro-services#233, Review-Runde-1-Finding) → `/implement`, `/review` – bei einem Spec-AK, das Inhalt in der PR-Beschreibung selbst fordert
 - Content-scannender Anti-Regressions-Guard (`grep -r` über ein ganzes Verzeichnis, nicht nur Wiring-Anker) ist blind für Tracked-Status – ein gitignoretes `*.tmp.*`-Scratch-Artefakt aus einer vorherigen Session kann das verbotene Muster rein textuell enthalten (auch als Log-Zeile einer bestandenen Assertion); bei unerwartetem Rot zuerst `git status --ignored` prüfen, nicht den Guard abschwächen (aus nothra/tch-gastro-services#312, zweimal in derselben Task; drittes Vorkommnis aus nothra/tch-gastro-services#339 – „Artefakte entfernt" ist eine Momentaufnahme, vor jedem Suite-Lauf erneut prüfen) → `/review`, `/test`, `/refactor`, `/security-review` – bei unerwartetem Rot eines verzeichnisweiten Content-Scan-Guards in `run-tests.sh` trotz sauberem `git status`
@@ -209,3 +217,6 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - Repo-weiter Referenz-Scanner (`git grep`/`git ls-files`) nimmt `tasks/patch-*.diff` per Pathspec aus – der Patch trägt den künftigen Stand, seine Ziele existieren erst nach `git apply` (aus nothra/tch-gastro-services#426, /implement-Selbstfund) → `/implement`, `/review` – bei neuem Check über alle getrackten Dateien
 - Libs relativ zum Skript sourcen statt zu `FACTORY_DIR` (Tests überschreiben es → ~60 Falsch-Rot am `source`); vor dem Entfernen eines impliziten Defaults alle Fixtures zählen; `env -u`-Reihenfolge des nothra/tch-gastro-services#264-Guards (aus nothra/tch-gastro-services#431, /implement-Selbstfund) → `/implement`, `/refactor` – bei neuer gesourcter Lib in einem Skript mit überschreibbarem `FACTORY_DIR` bzw. beim Entfernen eines Defaults, den Test-Wegwerf-Repos implizit nutzen
 - Tests zwischen Suiten umgezogen: Prosa-Verweise auf den alten Testort (ADR, Lesson) im selben PR nachziehen, toten Patch-Zweig nach dem Anwenden entfernen, Anker gegen den Wortlaut der übernommenen Quelle statt gegen neue Zusammenfassungen setzen (aus nothra/tch-gastro-services#432, Review-Iteration 1/`/refactor`) → `/implement`, `/review`, `/refactor` – bei Umzug/Split von Tests oder Test zu einer `.claude/**`-Patch-Lieferung
+- Konsumenten-Neutralität einer ausgelieferten Test-Suite per **Fixture-Lauf** messen (Dateien der Seite `factory` + Anpassungsstellen + `factory.lock`, Hooks installiert): jede rote Gruppe ist repo-spezifisch; `NO_LOCK_FILE` für Tabellen-Tests, `FACTORY_SELF_TEST_RUN` gegen verschachtelte Hook-Läufe, Aufruf-Trace für den Zählvergleich (aus Factory-Task #22) → `/implement`, `/test`, `/review` – bei Schnitt/Umzug einer Test-Suite zwischen „ausgeliefert“ und „repo-spezifisch“
+- Verfolgungs-Aussage („Folge-Issue“, „wird verfolgt“) in ADR/Report: Issue zuerst anlegen, Nummer in den Satz – sonst „noch anzulegen“ (aus Factory-Task #22, Review-Iteration 2/3) → `/architecture`, `/implement`, `/review`, `/codify` – bei jedem Satz „Folge-Issue“/„wird verfolgt“ in ADR, Report oder Task-Datei
+- Gate mit Moduswahl per Dateiexistenz: `-e` **und** `-L`, Guard-Test im Repo, in dem die Datei nicht liegen darf, Modus für Konsumenten eines Tag-Standes erzwingen (aus Factory-Task #22, `/review` + `/security-review`) → `/architecture`, `/implement`, `/security-review` – bei einem Gate/Skript, das seinen Modus aus der Existenz einer Datei ableitet

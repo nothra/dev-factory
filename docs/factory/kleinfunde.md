@@ -241,3 +241,31 @@
 - **Was:** `mktemp` legt die Temp-Datei mit 0600 an, `mv` übernimmt den Modus. Nach `--compose` sind `.claude/settings.json` und `.gitignore` im Arbeitsbaum nur für den Besitzer lesbar (vorher 0644). Git trackt nur das Ausführbar-Bit, es entsteht also kein Diff und keine Lücke – aber ein anderer Benutzer oder ein Container-Mount liest die Dateien lokal nicht mehr.
 - **Fix:** vor dem `mv` ein `chmod 644 "$tmp"` (bzw. den Modus des bestehenden Ziels übernehmen), dazu ein Test auf den Modus nach `--compose`. Etwa drei Zeilen.
 - **Herkunft:** `/security-review` zu nothra/tch-gastro-services#431 (Befund beim Prüfen der Datei-Schreibwege von `factory-sync.sh`).
+
+### Projekt-Hook läuft lokal ohne Fortschrittsanzeige
+
+- **Wo:** `scripts/lib/gate-config.sh:60` (`if out="$(FACTORY_DIR="$FACTORY_DIR" "$f" 2>&1)"`), verifiziert am 2026-10-25.
+- **Was:** `run_project_checks` fängt die Ausgabe jedes Hooks ab und zeigt sie nur bei Fehler. Der Hook `scripts/project/checks/pre-push.d/10-project-tests.sh` (Projekt-Suite, rund 130 Assertions) läuft damit beim Push eine Weile ohne jede Ausgabe.
+- **Fix:** eine Zeile „läuft, dauert etwa N Sekunden“ im Hook auf stderr, die bei Erfolg nicht angezeigt wird, oder `run_project_checks` meldet vor dem Start des Hooks. Etwa zwei Zeilen.
+- **Herkunft:** `/review` zu Task 22 (Iteration 1, Runde 3), PR #25.
+
+### customization-points.txt nennt die zusammengesetzten Ziele nicht
+
+- **Wo:** `scripts/checks/customization-points.txt:11-12` (nur `.claude/settings.project.json` und `.gitignore.project`), verifiziert am 2026-10-25.
+- **Was:** Die Liste enthält die Fragmente, nicht die zusammengesetzten Ziele `.claude/settings.json` und `.gitignore`. Ein Lock, der sie fälschlich enthielte, würde von `ownership-check.sh` nicht als „Anpassungsstelle im Lock“ erkannt. ADR-063 D3 verbietet Mischdateien im Release, das Risiko ist gering.
+- **Fix:** beide Ziele in die Liste aufnehmen (und die Drift-Guard-Regel in `scripts/project/tests/run-tests.sh` bzw. `PROJECT-CONTEXT.md` mitziehen: die Aufzählung „Eigene Anpassungsstellen“ nennt sie dann auch). Etwa vier Zeilen.
+- **Herkunft:** `/review` zu Task 22 (Iteration 1, Runde 3), PR #25.
+
+### jq-Vorabprüfung bei der Erst-Einbindung fehlt
+
+- **Wo:** `scripts/checks/ownership-check.sh:74` (`command -v jq … exit 2` in `lock_require_inputs`), verifiziert am 2026-10-25.
+- **Was:** Ein Konsument ohne `jq` bekommt im Lock-Modus erst beim ersten Push Exit 2 („Lock-Modus braucht jq“). Der Lock selbst und das Gate aus T2a-2 (Issue #23) brauchen `jq` ebenfalls.
+- **Fix:** `jq` bei der Erst-Einbindung vorab prüfen (Init-Schritt bzw. `hooks-installed-check.sh`) und mit klarer Meldung abbrechen. Etwa fünf Zeilen; gehört als Anforderung zu Issue #23.
+- **Herkunft:** `/review` zu Task 22 (Iteration 1, Runde 3), PR #25.
+
+### Lock-Pfade mit Zeilenumbruch werden zerlegt statt abgelehnt
+
+- **Wo:** `scripts/checks/ownership-check.sh:96` (`jq -r '.files[].path'` in `lock_collect_sets`), verifiziert am 2026-10-25.
+- **Was:** Ein Lock-Pfad mit Zeilenumbruch (`\n`) wird zu mehreren Pfaden (Repro: Pfad `evil.sh\nREADME.md` ergibt `README.md: Anpassungsstelle steht im Lock`, Exit 1). Kein Rechtegewinn, fail-closed bleibt erhalten; der Pfad ist aber ungültig und sollte als ungültiger Lock gelten (Exit 2).
+- **Fix:** im `jq`-Gate von `lock_require_inputs` `(.path | test("[\\n\\r]") | not)` ergänzen, dazu ein Test mit Zeilenumbruch-Pfad (Exit 2). Etwa vier Zeilen.
+- **Herkunft:** `/review` (Iteration 1, Runde 1) und `/security-review` zu Task 22, PR #25.

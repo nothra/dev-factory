@@ -451,3 +451,9 @@ D6-Versionsangabe, D9-Lint).
   qualifiziert, Farbcode, `#!`, String-Fixture); `verify`/`scan`-Entscheidungslogik gegen
   präparierte Fixture-Repos mit `gitleaks`-Stub im `PATH` (Messung brechen, nicht nur Input – Lesson
   aus nothra/tch-gastro-services#319). `git filter-repo` selbst läuft in keinem Test und in keiner CI.
+
+## Nachtrag 2026-10-24 · Konsumenten-Vertrag (Verweis auf ADR-064)
+
+Die Zuordnungstabelle `docs/factory/OWNERSHIP.md` (Nachtrag zu T1a) gehört seit ADR-064 D5 dem Repo (Seite `project`) und ist nicht mehr
+Teil des Release-Manifests. Ein einbindendes Projekt bestimmt die Seite `factory` über seinen `factory.lock` (Pfadmenge des Release-Manifests);
+die Tabelle gilt nur im Factory-Repo selbst. Die Prüfungen gegen die Tabelle (Aussage zu `factory-self-test` im Nachtrag zu T1a) laufen seit ADR-064 D6 zum Teil in `project-self-test`; dessen Eintrag in das Ruleset `protect-main` ist am 2026-10-25 erfolgt (Issue #26); die Required-Check-Liste in T1b Q5 nennt den Stand vom Bootstrap (`pr-closes-issue`, `config-validation`, `factory-self-test`, `lint`) und ist um `project-self-test` zu lesen. Details und Konsequenzen: ADR-064.

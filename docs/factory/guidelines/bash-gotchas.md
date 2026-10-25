@@ -439,6 +439,69 @@ total=$((total + lines))
 
 ---
 
+## 14. `echo "$wert"` mit fremdem Wert: ein führendes `-n`/`-e`/`-E` ist eine Option, der Wert geht verloren
+
+Steht ein von außen bezogener Wert (Pfad aus einem Manifest, Dateiname, Eingabezeile) als **erstes** Argument von `echo`, behandelt der
+Builtin `-n`, `-e` und `-E` als Optionen und gibt den Wert **nicht** aus (bash 3.2 und 5.x gleich):
+
+```bash
+echo "-n" >> findings.txt          # schreibt NICHTS (kein Zeilenumbruch, kein Text)
+echo "-e" | od -c                  # nur "\n" – der Text „-e“ fehlt
+```
+
+Besonders tückisch, wenn die Zeilen **gezählt** werden: In `ownership-check.sh` ging so ein nicht getrackter Lock-Pfad `-n` aus dem Fundzähler
+verloren – die `✗`-Meldung kam noch (sie beginnt mit einem Literal), der Zähler blieb 0, das Gate endete mit **Exit 0**. Ein fail-closed-Gate wurde damit
+durch einen Dateinamen fail-open (Factory-Task #22, bei der Gegenprüfung des `/security-review`; weder der Sicherheitsagent noch eine der drei Review-Runden hatte es gesehen).
+
+**Regel:** Fremde Werte nie als erstes `echo`-Argument – `printf '%s\n' "$wert"` (oder `echo -- …` ist **nicht** portabel: manche `echo` geben `--` mit aus).
+Ein Test mit `-n`, `-e`, `-E` als Wert gehört zu jedem Zähler/jeder Sammelschleife über fremde Zeilen.
+
+---
+
+## 15. Rückgabewerte als Zähler: Exit-Codes laufen modulo 256 um – es gibt keinen Deckel bei 255
+
+`return "$n"` / `exit "$n"` liefern `n mod 256`: `return 300` ergibt `44`, `return 256` ergibt `0` (verifiziert, bash 3.2). Wer die Zahl der Funde als
+Funktionsrückgabe weiterreicht und zusätzlich auf 255 „kappt“, meldet bei mehr Funden eine falsche Zahl („255 Fund(e)“ bei 300 `✗`-Zeilen); ohne Kappung
+wäre bei genau 256 Funden das Ergebnis `0` = „alles gut“.
+
+**Regel:** Mengen zählen **nicht** über Exit-Codes, sondern über Daten: Funde in eine Datei/Variable schreiben und dort zählen (`grep -c ''`, `wc -l`),
+den Exit-Code nur als Wahrheitswert (0/≠0) verwenden. Der Kommentar nennt dann „modulo 256“, nicht „gekappt“. Ein Test mit mehr als 255 Funden
+(hier: 300) sichert es ab.
+
+---
+
+## 16. `git ls-files` quotet Nicht-ASCII-Pfade – Vergleiche gegen Klartext-Pfade schlagen falsch-rot an
+
+Mit der Git-Voreinstellung `core.quotepath=true` liefert `git ls-files` `"docs/f\303\274r.md"` statt `docs/für.md`. Ein Check, der getrackte Dateien mit Pfaden aus
+einem Manifest vergleicht, meldet dann „nicht getrackt“, obwohl die Datei da ist.
+
+**Regel:** Skripte, die Pfade aus Git mit Klartext vergleichen, rufen `git -c core.quotepath=false ls-files` auf (oder `-z`). Der zugehörige Test läuft gegen **echtes**
+`git` (nicht gegen eine Dateiliste, die das Quoting nie zeigt) und isoliert sein Fixture-Repo von der globalen Konfiguration
+(`git -C <repo> config core.quotepath true`), sonst ist er auf Rechnern mit `core.quotepath=false` zufällig grün.
+
+---
+
+## 17. `[ -e datei ]` folgt Symlinks: ein hängender Symlink gilt als „nicht vorhanden“
+
+Hängt die **Moduswahl** eines Skripts an der Existenz einer Datei (`[ -e factory.lock ]` → Lock-Modus, sonst Tabellenmodus), fällt ein hängender Symlink
+(`factory.lock -> /nicht/vorhanden`) still in den anderen Modus zurück – genau das Rückfallverhalten, das ein fail-closed-Gate verhindern soll. `-L` erkennt den Link selbst.
+
+**Regel:** `[ -e "$f" ] || [ -L "$f" ]`, wenn „es gibt etwas unter diesem Namen“ gemeint ist; danach die eigentliche Prüfung (`[ -r … ]` mit Exit 2) entscheiden lassen.
+Zusätzlich gilt: Wo die bloße Existenz einer Datei ein Gate umschaltet, braucht das Repo, in dem diese Datei **nicht** liegen darf, einen Guard-Test (dort: kein
+`factory.lock` im Factory-Repo).
+
+---
+
+## 18. Ungequotetes Heredoc und Doppelquotes führen Backticks und `$(…)` aus
+
+Markdown-Text mit Inline-Code (Backticks) in `<<EOF` oder in einem `"…"`-String wird von der Shell als Kommando-Ersetzung ausgewertet: Aus `` `factory` `` wurde
+`command not found: factory`, aus `` `tasks/review-22.md` `` ein Ausführungsversuch (`permission denied`) – harmlos nur, weil das Ziel nichts tat.
+
+**Regel:** Text mit Backticks oder `$` immer über ein **gequotetes** Heredoc (`<<'EOF'`) oder eine Datei schreiben (Editor-/Write-Werkzeug), nie über
+`<<EOF` oder einen Doppelquote-String. Das gilt auch für `python3 - <<EOF`-Aufrufe, die Markdown in Dateien schreiben.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

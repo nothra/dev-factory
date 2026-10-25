@@ -1,0 +1,14 @@
+# customization-points.txt – Anpassungsstellen der Factory (ADR 064 D4)
+#
+# Dateien, die ein Projekt nach der Einbindung selbst besitzt und die die Factory nie überschreibt.
+# Ein Pfad je Zeile, wörtlich (keine Muster); Zeilen mit `#` und Leerzeilen zählen nicht.
+# ownership-check.sh meldet im Lock-Modus (factory.lock), wenn ein Lock-Pfad hier steht.
+CLAUDE.md
+factory.config.yml
+docs/factory/PROJECT-CONTEXT.md
+README.md
+CHANGELOG.md
+.claude/settings.project.json
+.gitignore.project
+.github/workflows/ci.yml
+.github/workflows/release.yml
