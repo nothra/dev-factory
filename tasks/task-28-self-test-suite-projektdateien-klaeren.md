@@ -10,11 +10,19 @@
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
-<!-- Was soll implementiert werden? -->
+Die ausgelieferte Self-Test-Suite soll keine projekteigenen Dateien des echten Repos lesen. Offen ist nur der
+Label-Drift-Guard (`#431 AK-I2`), der `docs/factory/PROJECT-CONTEXT.md` liest; er bekommt eine eigene Fixture.
+Fundstelle (2) und die ADR-064-D6-Ergänzung sind durch AK-28a/28c (spec-23, PR #29) erledigt; die
+Config-Validierung (3) bleibt (Entscheidung Q1). Spec: `docs/specs/spec-28-self-test-suite-projektdateien.md`.
 
 ## Akzeptanzkriterien
-<!-- Von /requirements befüllt oder manuell eingeben -->
-- [ ] GIVEN ... WHEN ... THEN ...
+- [ ] AK1: Label-Drift-Block grün bei verändertem/fehlendem `PROJECT-CONTEXT.md` des Repos (Fixture statt echter Datei)
+- [ ] AK2: die drei Mutationsfälle schlagen unverändert an (Assertions erhalten, Vorher/Nachher-Zählung)
+- [ ] AK3: Positivkontrolle – Fixture mit beschriebenem Label meldet keine Abweichung
+- [ ] AK4: Konsument mit eigenem `aspects_extra` ohne Beschreibung → Suite bleibt grün
+- [ ] AK5: Zustand des echten `PROJECT-CONTEXT.md`-Labelbereichs weiter geprüft (Projekt-Suite); kein Guard entfällt ersatzlos
+- [ ] AK6: Guard gegen Rückfall – kein Lesezugriff auf projekteigene Dateien außer `factory.config.yml` (Negativfall + fail-closed)
+- [ ] AK7: Task-Datei verweist auf AK-28a/28c als Beleg der Erledigung; ADR-064 D6 nicht doppelt ändern
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
