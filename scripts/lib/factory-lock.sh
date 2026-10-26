@@ -106,6 +106,8 @@ fl_protected_findings() {
 fl_upstream_repo() {
   local repo
   repo="$(factory_cfg upstream.repo)" || return 1
+  # Die Segmente `.` und `..` passen auf das Zeichenmuster, sind aber kein Repo-Name (die URL liefe aus dem Owner-Pfad hinaus).
+  case "/$repo/" in */./*|*/../*) repo="" ;; esac
   printf '%s' "$repo" | grep -qE "$FL_SLUG_RE" || { echo "upstream.repo fehlt oder ist kein <owner>/<repo>-Slug: '$repo'" >&2; return 1; }
   printf '%s' "$repo"
 }

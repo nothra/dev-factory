@@ -124,11 +124,11 @@ source "$(dirname "$SELF")/lib/factory-lock.sh" || die "scripts/lib/factory-lock
 rollback() {
   local p
   while IFS= read -r p; do
-    mkdir -p "$ROOT/$(dirname "$p")" && cp -p "$WORK/backup/$p" "$ROOT/$p"
+    mkdir -p "$ROOT/$(dirname -- "$p")" && cp -p "$WORK/backup/$p" "$ROOT/$p"
   done < "$WORK/backed.txt"
   while IFS= read -r p; do
     rm -f "$ROOT/$p"
-    (cd "$ROOT" && rmdir -p "$(dirname "$p")" 2>/dev/null)
+    (cd "$ROOT" && rmdir -p -- "$(dirname -- "$p")" 2>/dev/null)
   done < "$WORK/created.txt"
 }
 
@@ -154,13 +154,15 @@ for_each_line() {
   while IFS= read -r line; do "$2" "$line"; done < "$1"
 }
 
+# Alle `dirname`-Aufrufe auf Manifest-Pfaden stehen mit `--`: ein Pfad `-d/x.sh` wäre sonst eine Option, `dirname` lieferte leer
+# und die Symlink-Prüfung der Elternverzeichnisse liefe ins Leere (Security-Review #23).
 # Ein Pfad im Repo darf nicht über einen Symlink aus dem Repo hinaus schreiben und muss, wenn er existiert, eine reguläre Datei sein.
 check_target_path() {
   local p="$1" dir
-  dir="$(dirname "$p")"
+  dir="$(dirname -- "$p")"
   while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
     [ ! -L "$ROOT/$dir" ] || die "Zielverzeichnis ist ein Symlink: $dir (Pfad $p) – Abbruch, nichts geändert"
-    dir="$(dirname "$dir")"
+    dir="$(dirname -- "$dir")"
   done
   if [ -L "$ROOT/$p" ] || { [ -e "$ROOT/$p" ] && [ ! -f "$ROOT/$p" ]; }; then
     die "Ziel ist keine reguläre Datei: $p – Abbruch, nichts geändert"
@@ -261,7 +263,7 @@ compose_in_stage() {
 backup_target() {
   local p="$1"
   if [ -e "$ROOT/$p" ] || [ -L "$ROOT/$p" ]; then
-    mkdir -p "$WORK/backup/$(dirname "$p")" && cp -p "$ROOT/$p" "$WORK/backup/$p" || die "Sicherung von $p fehlgeschlagen – Abbruch, nichts geändert"
+    mkdir -p "$WORK/backup/$(dirname -- "$p")" && cp -p "$ROOT/$p" "$WORK/backup/$p" || die "Sicherung von $p fehlgeschlagen – Abbruch, nichts geändert"
     printf '%s\n' "$p" >> "$WORK/backed.txt"
   else
     printf '%s\n' "$p" >> "$WORK/created.txt"
@@ -269,7 +271,7 @@ backup_target() {
 }
 
 install_file() { # $1 = Quelldatei, $2 = Pfad im Repo
-  mkdir -p "$ROOT/$(dirname "$2")" && cp -p "$1" "$ROOT/$2" || die "Schreiben von $2 fehlgeschlagen"
+  mkdir -p "$ROOT/$(dirname -- "$2")" && cp -p "$1" "$ROOT/$2" || die "Schreiben von $2 fehlgeschlagen"
 }
 
 # Entfallene Pfade des alten Locks gehen durch dieselbe Schutzprüfung wie das neue Manifest: Projektbesitz wird nie gelöscht.

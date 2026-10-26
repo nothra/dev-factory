@@ -9,7 +9,7 @@ Katalogs entfallen (Shell-Werkzeug, keine neuen Dependencies, keine Secrets, kei
 _keine_
 
 ## Wichtige Findings
-- [ ] **Pfad-Injection / Symlink-Guard umgehbar** – `scripts/factory-sync.sh` (`check_target_path`, `backup_target`, `install_file`,
+- [x] **Pfad-Injection / Symlink-Guard umgehbar** – `scripts/factory-sync.sh` (`check_target_path`, `backup_target`, `install_file`,
   `rollback`): `dirname "$p"` ohne `--`. Beginnt ein Manifest-Pfad mit `-` (z. B. `-d/x.sh`), liest `dirname` ihn als Option,
   scheitert (`illegal option`) und liefert leer; die Symlink-Prüfung der Elternverzeichnisse (`check_target_path`) läuft dann
   ins Leere. **Repro (verifiziert):** Manifest mit `-d/x.sh`, im Konsumenten `-d` als Symlink auf ein Verzeichnis außerhalb →
@@ -28,7 +28,7 @@ _keine_
 - [ ] **Kein unabhängiger Vertrauensanker für das Manifest** – Manifest (Release-Asset) und Tag stammen vom selben Repo; wer dort
   schreiben darf, kann beides konsistent ändern. Erstabholung pinnt keinen Commit (TOFU). Akzeptiertes Restrisiko laut
   ADR-063 D1 (öffentliches Repo, GitHub-Zugriffskontrolle); eine Signatur wäre eine eigene Entscheidung.
-- [ ] **`upstream.repo`-Slugmuster erlaubt `..`** – `fl_upstream_repo` akzeptiert `../x` (Segmente aus `[A-Za-z0-9._-]`), die URL
+- [x] **`upstream.repo`-Slugmuster erlaubt `..`** – `fl_upstream_repo` akzeptiert `../x` (Segmente aus `[A-Za-z0-9._-]`), die URL
   `https://github.com/../x.git` normalisiert GitHub zu `github.com/x`. Der Wert kommt aus der projekteigenen Config (vertraut),
   daher nur Hinweis; Härtung: Segmente `.`/`..` ablehnen (Zweizeiler).
 - [ ] Positiv geprüft: Versionsmuster vor jedem Netzzugriff; `git clone … --branch <tag> -- <url>`; kein `eval`; `curl -L` folgt
@@ -39,3 +39,5 @@ _keine_
 
 ## Ergebnis
 NEEDS_FIXES
+
+_Fix umgesetzt (Iteration nach Security-Review): `dirname --`/`rmdir -p --` an allen Stellen, Slug-Segmente `.`/`..` abgelehnt; Tests erst rot, dann grün (1887 + 143). Erneuter `/security-review` bestätigt._

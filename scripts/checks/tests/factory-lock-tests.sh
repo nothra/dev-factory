@@ -421,6 +421,33 @@ world_23 x8
 out_23="$(PATH="$(stubs_23 git):$PATH" sync_23 "$C1_23" v2.0.0)"
 assert_contains_286 "$out_23" 'nicht klonbar' "/test AK2.2b: git-Stub → die Meldung nennt den gescheiterten Klon"
 
+# Security-Review: Pfade mit führendem „-“ erreichen dirname nie als Option (Symlink-Prüfung darf nicht ins Leere laufen)
+world_23 d1; mkdir -p "$U23/-d" "$T23/d1/out"
+printf 'echo ok\n' > "$U23/-d/x.sh"; printf '# Development Factory · v4.0.0\n' > "$U23/docs/factory/FACTORY.md"
+git -C "$U23" add -A && git_23 -C "$U23" commit -q -m dash && git -C "$U23" tag v4.0.0
+mk_manifest_23 "$U23" v4.0.0 "$R23/v4.0.0/factory-release.json"
+ln -s "$T23/d1/out" "$C1_23/-d"
+b_23="$(snap_23 "$C1_23")"
+out_23="$(sync_23 "$C1_23" v4.0.0)"; rc_23=$?
+assert_true "$([ "$rc_23" -ne 0 ]; echo $?)" "#23 Security: Manifest-Pfad -d/x.sh mit Symlink -d nach außerhalb → Abholung bricht ab"
+assert_true "$([ -z "$(ls -A "$T23/d1/out")" ]; echo $?)" "#23 Security: nichts außerhalb des Repos geschrieben"
+assert_contains_286 "$out_23" 'Zielverzeichnis ist ein Symlink' "#23 Security: die Meldung nennt das Symlink-Verzeichnis (Prüfung greift, läuft nicht ins Leere)"
+assert_absent "$out_23" 'illegal option' "#23 Security: dirname bekommt den Pfad nie als Option"
+world_23 d2; mkdir -p "$U23/-d"; printf 'echo ok\n' > "$U23/-d/x.sh"; printf '# Development Factory · v4.0.0\n' > "$U23/docs/factory/FACTORY.md"
+git -C "$U23" add -A && git_23 -C "$U23" commit -q -m dash && git -C "$U23" tag v4.0.0
+mk_manifest_23 "$U23" v4.0.0 "$R23/v4.0.0/factory-release.json"
+out_23="$(sync_23 "$C1_23" v4.0.0)"; rc_23=$?
+assert_exit 0 "$rc_23" "#23 Security: ein legitimer Pfad -d/x.sh ohne Symlink wird übernommen"
+assert_true "$([ -f "$C1_23/-d/x.sh" ]; echo $?)" "#23 Security: -d/x.sh liegt im Repo"
+# upstream.repo: Segmente „.“ und „..“ sind kein Repo-Slug
+world_23 d3
+for slug_23 in '../evil' 'owner/..' './x'; do
+  printf 'upstream:\n  repo: "%s"\n' "$slug_23" > "$C0_23/factory.defaults.yml"
+  out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
+  assert_exit 1 "$rc_23" "#23 Security: upstream.repo „${slug_23}“ → Abholung bricht ab"
+  assert_contains_286 "$out_23" 'Quell-Repo nicht ermittelbar' "#23 Security: upstream.repo „${slug_23}“ → Meldung nennt das Quell-Repo"
+done
+
 # Versionsangabe wird vor jedem Netzzugriff geprüft (kein Wert, der git als Option erreicht)
 world_23 v1
 for bad_23 in "1.0.0" "v1" "v1.0.0;x" "--upload-pack=touch /tmp/pwn" "v1.0.0 "; do
