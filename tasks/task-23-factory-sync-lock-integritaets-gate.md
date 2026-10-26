@@ -108,3 +108,5 @@ bash-gotchas #19 (Pfade mit `--`); Folge-Issue #30.
 ---
 Branch: `feature/23-factory-sync-lock-integritaets-gate`
 Erstellt: 2026-10-25 18:13
+
+PR-Shepherd 2026-10-26: Merge freigegeben – alle Gates grün (PR #29, CI inkl. factory-integrity grün, keine offenen Kommentare, Branch aktuell auf main).
