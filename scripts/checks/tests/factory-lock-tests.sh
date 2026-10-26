@@ -54,6 +54,10 @@ build_template_23() {
   printf '{"permissions":{"allow":["Bash(a)","Bash(b)"]}}\n' > "$u/.claude/settings.factory.json"
   git -C "$u" add -A && git_23 -C "$u" commit -q -m v2 && git -C "$u" tag v2.0.0
   mk_manifest_23 "$u" v2.0.0 "$r/v2.0.0/factory-release.json"
+  # v3.0.0: Versionszeile in FACTORY.md nennt weiter v2.0.0 (Tag und Datei widersprechen sich)
+  printf 'echo tool v3\n' >> "$u/scripts/tool.sh"
+  git -C "$u" add -A && git_23 -C "$u" commit -q -m v3 && git -C "$u" tag v3.0.0
+  mk_manifest_23 "$u" v3.0.0 "$r/v3.0.0/factory-release.json"
 
   c="$t/C0"; mkdir -p "$c/.claude" "$c/tasks"
   git -C "$c" init -q -b main
@@ -290,6 +294,7 @@ else
   out_23="$(sync_23 "$C1_23" v2.0.0)"; rc_23=$?
   assert_exit 1 "$rc_23" "#23 AK2.2b: Schreibfehler in Phase 2 → Abbruch"
   assert_contains_286 "$out_23" 'stelle den vorherigen Stand wieder her' "#23 AK2.2b: der Rückbau läuft (Meldung)"
+  assert_contains_286 "$out_23" 'Schreiben von' "#23 AK2.2b: die Meldung nennt den gescheiterten Schreibvorgang"
   assert_true "$([ "$before_23" = "$(snap_23 "$C1_23")" ]; echo $?)" "#23 AK2.2b: Schreibfehler in Phase 2 → alles zurückgebaut, nichts verändert (inkl. Lock, zusammengesetzte Dateien)"
 fi
 chmod 755 "$C1_23/scripts"
@@ -346,14 +351,75 @@ world_23 m9; mut_manifest_23 v1.0.0 '.files += [{"path":"/etc/passwd","sha256":"
 reject_23 "F-23.3: absoluter Pfad" '/etc/passwd'
 world_23 m10; mut_manifest_23 v1.0.0 '.files += [{"path":"docs/../../escape","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
 reject_23 "F-23.3: Pfad mit .." 'escape'
-world_23 m11; mut_manifest_23 v1.0.0 '.files += [{"path":"README.md","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
-reject_23 "AK2.3: Manifest liefert eine Anpassungsstelle (README.md)" 'README.md'
-world_23 m12; mut_manifest_23 v1.0.0 '.files += [{"path":"tasks/t.md","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
-reject_23 "AK2.3: Manifest liefert einen Pfad im Projektbereich (tasks/)" 'tasks/t.md'
+world_23 m11; rm "$C0_23/README.md"   # Datei fehlt im Repo: ohne Schutzprüfung käme erst der Klon-Schritt ("fehlt im Tag")
+mut_manifest_23 v1.0.0 '.files += [{"path":"README.md","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
+reject_23 "AK2.3: Manifest liefert eine Anpassungsstelle (README.md)" 'geschützte Stelle (Anpassungsstelle)'
+assert_absent "$out_23" 'fehlt im Tag' "#23 AK2.3: der Abbruch kommt an der Schutzprüfung, nicht erst in einer späteren Stufe (Klon/Hash)"
+world_23 m12; rm "$C0_23/tasks/t.md"
+mut_manifest_23 v1.0.0 '.files += [{"path":"tasks/t.md","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
+reject_23 "AK2.3: Manifest liefert einen Pfad im Projektbereich (tasks/)" 'geschützte Stelle (Projektbereich)'
+assert_absent "$out_23" 'fehlt im Tag' "#23 AK2.3: der Abbruch kommt an der Schutzprüfung, nicht erst in einer späteren Stufe (Klon/Hash)"
 world_23 m13; mut_manifest_23 v1.0.0 '.files += [.files[0]]'
 reject_23 "F-23.3: doppelter Pfad" 'doppelt'
 world_23 m14; mut_manifest_23 v1.0.0 '.files = []'
 reject_23 "FS-T2.1: Manifest ohne Dateien" 'Pflichtfelder'
+
+# ── /test-Ergänzungen: Fail-closed-Zweige, die Mutationsläufe als ungetestet gezeigt haben ───────────────────────────────
+# Datei im Manifest, aber nicht im Tag
+world_23 x1; mut_manifest_23 v1.0.0 '.files += [{"path":"scripts/ghost.sh","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]'
+reject_23 "/test: Manifest nennt eine Datei, die im Tag fehlt" 'fehlt im Tag'
+# Tag und Versionszeile in FACTORY.md widersprechen sich
+world_23 x2; b_23="$(snap_23 "$C1_23")"
+out_23="$(sync_23 "$C1_23" v3.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test AK2.1a: Versionszeile in FACTORY.md ≠ Tag → Abholung bricht ab"
+assert_contains_286 "$out_23" 'Versionszeile' "/test AK2.1a: die Meldung nennt die Versionszeile"
+assert_true "$([ "$b_23" = "$(snap_23 "$C1_23")" ]; echo $?)" "/test AK2.1a: Versionszeile ≠ Tag → nichts verändert"
+# Zielverzeichnis als Symlink (nicht nur die Zieldatei)
+world_23 x3; mkdir -p "$T23/outdir"; cp "$C1_23/.claude/"* "$T23/outdir/"
+rm -rf "$C1_23/.claude"; ln -s "$T23/outdir" "$C1_23/.claude"
+b_23="$(snap_23 "$C1_23")"; o_23="$(snap_23 "$T23/outdir")"
+out_23="$(sync_23 "$C1_23" v2.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test E4: .claude ist ein Symlink auf ein Verzeichnis außerhalb → Abholung bricht ab"
+assert_contains_286 "$out_23" 'Zielverzeichnis ist ein Symlink' "/test E4: die Meldung nennt das Symlink-Verzeichnis"
+assert_true "$([ "$o_23" = "$(snap_23 "$T23/outdir")" ]; echo $?)" "/test E4: das Verzeichnis außerhalb des Repos bleibt unberührt"
+# Zusammensetzen im Temp-Baum scheitert (Projekt-Fragment kein JSON), Erstabholung
+world_23 x4; printf 'kein json' > "$C0_23/.claude/settings.project.json"; git -C "$C0_23" add -A
+b_23="$(snap_23 "$C0_23")"
+out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test AK2.3b: Projekt-Fragment ungültig → Abholung bricht ab"
+assert_contains_286 "$out_23" 'Zusammensetzen im Temp-Baum fehlgeschlagen' "/test AK2.3b: die Meldung nennt das gescheiterte Zusammensetzen"
+assert_true "$([ "$b_23" = "$(snap_23 "$C0_23")" ]; echo $?)" "/test AK2.3b: ungültiges Projekt-Fragment → nichts verändert"
+rm "$C0_23/.gitignore.project"
+out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test AK2.3b: Projekt-Fragment fehlt → Abholung bricht ab"
+assert_contains_286 "$out_23" 'Projekt-Fragment fehlt' "/test AK2.3b: die Meldung nennt das fehlende Projekt-Fragment"
+# upstream.repo fehlt in der Config
+world_23 x5; printf 'upstream:\n  repo: ""\n' > "$C0_23/factory.defaults.yml"; printf 'upstream:\n  repo: ""\n' > "$C1_23/factory.defaults.yml"
+out_23="$(sync_23 "$C0_23" v1.0.0)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test E2: upstream.repo leer → Abholung bricht ab"
+assert_contains_286 "$out_23" 'Quell-Repo nicht ermittelbar' "/test E2: die Meldung nennt das fehlende Quell-Repo"
+out_23="$(gate_23 "$C1_23" --ci)"; rc_23=$?
+assert_exit 2 "$rc_23" "/test E2: CI-Stufe ohne upstream.repo → Exit 2 (fail-closed)"
+assert_contains_286 "$out_23" 'upstream.repo nicht ermittelbar' "/test E2: die Meldung der CI-Stufe nennt upstream.repo"
+# Hash-Werkzeug scheitert bei vorhandener abweichender Datei (Erstabholung) und im Gate
+world_23 x6; mkdir -p "$C0_23/scripts"; printf 'echo fremd\n' > "$C0_23/scripts/tool.sh"
+out_23="$(PATH="$(stubs_23 shasum sha256sum):$PATH" sync_23 "$C0_23" v1.0.0 --adopt)"; rc_23=$?
+assert_exit 1 "$rc_23" "/test AK2.2b: Hash-Werkzeug scheitert beim Vergleich vorhandener Dateien → Abbruch"
+assert_contains_286 "$out_23" 'Hashen der vorhandenen Dateien' "/test AK2.2b: die Meldung nennt das Hashen der vorhandenen Dateien"
+out_23="$(PATH="$(stubs_23 shasum sha256sum):$PATH" gate_23 "$C1_23")"; rc_23=$?
+assert_exit 2 "$rc_23" "/test AK2.5a: Hash-Werkzeug scheitert im Gate → Exit 2, nicht still grün"
+assert_contains_286 "$out_23" 'Hashen der Dateien fehlgeschlagen' "/test AK2.5a: die Meldung nennt das gescheiterte Hashen"
+# Gate ohne factory-sync.sh daneben
+world_23 x7; NOSYNC_23="$T23/nosync"; mkdir -p "$NOSYNC_23/scripts/checks" "$NOSYNC_23/scripts/lib"
+cp "$FACTORY_ROOT/scripts/checks/factory-integrity-check.sh" "$FACTORY_ROOT/scripts/checks/customization-points.txt" "$NOSYNC_23/scripts/checks/"
+cp "$FACTORY_ROOT/scripts/lib/factory-lock.sh" "$FACTORY_ROOT/scripts/lib/gate-config.sh" "$NOSYNC_23/scripts/lib/"
+out_23="$(env_23 "$C1_23" bash "$NOSYNC_23/scripts/checks/factory-integrity-check.sh")"; rc_23=$?
+assert_exit 2 "$rc_23" "/test E8: Gate ohne scripts/factory-sync.sh → Exit 2 (fail-closed)"
+assert_contains_286 "$out_23" 'factory-sync.sh fehlt' "/test E8: die Meldung nennt die fehlende factory-sync.sh"
+# Meldungen der bestehenden Abbruch-Tests schärfen (Mutationslauf: ohne die Meldung blieb der Abbruch trotzdem grün)
+world_23 x8
+out_23="$(PATH="$(stubs_23 git):$PATH" sync_23 "$C1_23" v2.0.0)"
+assert_contains_286 "$out_23" 'nicht klonbar' "/test AK2.2b: git-Stub → die Meldung nennt den gescheiterten Klon"
 
 # Versionsangabe wird vor jedem Netzzugriff geprüft (kein Wert, der git als Option erreicht)
 world_23 v1
