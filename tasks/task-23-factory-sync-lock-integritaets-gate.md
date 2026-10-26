@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -93,7 +93,12 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9). Kurzfassung für `
   Fail-closed-Fälle F-4, fehlendes Fragment erhalten); der Abgleich beim Konsumenten läuft im Gate (AK-28b).
 - Kein Release (`v0.7.0` nach #24).
 
-## Review-Findings
+## Refactoring-Notizen (/refactor)
+- `factory-sync.sh`: `apply_version` (25 Zeilen, vier Aufgaben) in `plan_removals`, `backup_all_targets`, `write_all_targets`
+  zerlegt; Hilfsfunktionen `for_each_line`, `has_lock`, `install_from_clone`, `remove_file` ersetzen sechs wiederholte
+  `while read`-Schleifen und drei Lock-Existenzprüfungen; der Zähler `removed-count.txt` entfällt (die Zahl steht in `removed.txt`).
+- Kein neues Verhalten: Suiten vorher/nachher identisch (1875 + 143 grün), Lint grün.
+
 <!-- Wird durch /review befüllt -->
 
 ## Codify-Notizen

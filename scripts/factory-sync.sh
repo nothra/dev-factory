@@ -148,6 +148,12 @@ require_pull_tools() {
   fl_pick_hash_tool 2>/dev/null || die "weder shasum noch sha256sum gefunden (fail-closed)"
 }
 
+# for_each_line <datei> <funktion> – ruft die Funktion mit jeder Zeile der Datei auf (Pfade enthalten keine Zeilenumbrüche, Manifest-Prüfung).
+for_each_line() {
+  local line
+  while IFS= read -r line; do "$2" "$line"; done < "$1"
+}
+
 # Ein Pfad im Repo darf nicht über einen Symlink aus dem Repo hinaus schreiben und muss, wenn er existiert, eine reguläre Datei sein.
 check_target_path() {
   local p="$1" dir
@@ -160,6 +166,8 @@ check_target_path() {
     die "Ziel ist keine reguläre Datei: $p – Abbruch, nichts geändert"
   fi
 }
+
+has_lock() { [ -e "$ROOT/$LOCK_TARGET" ] || [ -L "$ROOT/$LOCK_TARGET" ]; }
 
 # Phase 1a, ohne Lock: Dateien an Manifest-Pfaden mit abweichendem Inhalt sammeln → Liste in $WORK/diverging.txt.
 collect_diverging() {
@@ -177,7 +185,7 @@ collect_diverging() {
 # Phase 1a: Vorbedingung im Arbeitsbaum (F2 bzw. AK2.2e) – offline, vor jedem Netzzugriff soweit möglich.
 precheck_local_state() {
   local out
-  if [ -e "$ROOT/$LOCK_TARGET" ] || [ -L "$ROOT/$LOCK_TARGET" ]; then
+  if has_lock; then
     [ -f "$INTEGRITY_CHECK" ] || die "scripts/checks/factory-integrity-check.sh fehlt (fail-closed) – Abholung abgebrochen, nichts geändert"
     if ! out="$(FACTORY_DIR="$ROOT" bash "$INTEGRITY_CHECK" 2>&1)"; then
       printf '%s\n' "$out" >&2
@@ -276,9 +284,8 @@ reject_protected_removals() {
   fi
 }
 
-apply_version() {
-  local path removed=0
-  : > "$WORK/backed.txt"; : > "$WORK/created.txt"
+# Pfade des alten Locks, die das neue Manifest nicht mehr nennt → $WORK/removed.txt (ohne Lock: leer).
+plan_removals() {
   if [ -e "$ROOT/$LOCK_TARGET" ]; then
     jq -r '.files[].path' "$ROOT/$LOCK_TARGET" | LC_ALL=C sort > "$WORK/old-paths.txt"
   else
@@ -287,26 +294,44 @@ apply_version() {
   LC_ALL=C sort "$WORK/manifest-paths.txt" > "$WORK/new-sorted.txt"
   LC_ALL=C comm -23 "$WORK/old-paths.txt" "$WORK/new-sorted.txt" > "$WORK/removed.txt"
   reject_protected_removals
-  while IFS= read -r path; do check_target_path "$path"; done < "$WORK/removed.txt"
-  while IFS= read -r path; do backup_target "$path"; done < "$WORK/manifest-paths.txt"
-  while IFS= read -r path; do backup_target "$path"; done < "$WORK/removed.txt"
-  # Die Ziele außerhalb des Manifests (zusammengesetzte Dateien, Lock) werden geschrieben, also gilt dieselbe Pfadprüfung.
-  for path in "$SETTINGS_TARGET" "$GITIGNORE_TARGET" "$LOCK_TARGET"; do check_target_path "$path"; backup_target "$path"; done
+  for_each_line "$WORK/removed.txt" check_target_path
+}
 
-  APPLYING=1
-  while IFS= read -r path; do install_file "$WORK/clone/$path" "$path"; done < "$WORK/manifest-paths.txt"
-  while IFS= read -r path; do rm -f "$ROOT/$path" || die "Löschen von $path fehlgeschlagen"; removed=$((removed + 1)); done < "$WORK/removed.txt"
+# Sichert alles, was Phase 2 überschreibt oder löscht. Die Ziele außerhalb des Manifests (zusammengesetzte Dateien, Lock)
+# werden geschrieben, also gilt für sie dieselbe Pfadprüfung.
+backup_all_targets() {
+  local path
+  : > "$WORK/backed.txt"; : > "$WORK/created.txt"
+  for_each_line "$WORK/manifest-paths.txt" backup_target
+  for_each_line "$WORK/removed.txt" backup_target
+  for path in "$SETTINGS_TARGET" "$GITIGNORE_TARGET" "$LOCK_TARGET"; do check_target_path "$path"; backup_target "$path"; done
+}
+
+install_from_clone() { install_file "$WORK/clone/$1" "$1"; }
+
+remove_file() { rm -f "$ROOT/$1" || die "Löschen von $1 fehlgeschlagen"; }
+
+# Phase 2 nach der Sicherung: Dateien schreiben, entfallene löschen, zusammengesetzte Dateien, zuletzt der Lock.
+write_all_targets() {
+  for_each_line "$WORK/manifest-paths.txt" install_from_clone
+  for_each_line "$WORK/removed.txt" remove_file
   install_file "$WORK/stage/$SETTINGS_TARGET" "$SETTINGS_TARGET"
   install_file "$WORK/stage/$GITIGNORE_TARGET" "$GITIGNORE_TARGET"
   FACTORY_DIR="$ROOT" bash "$SELF" --compose --check >/dev/null || die "zusammengesetzte Dateien entsprechen nach der Übernahme nicht den Fragmenten"
   install_file "$WORK/manifest.json" "$LOCK_TARGET"
+}
+
+apply_version() {
+  plan_removals
+  backup_all_targets
+  APPLYING=1
+  write_all_targets
   APPLIED=1
-  printf '%s' "$removed" > "$WORK/removed-count.txt"
 }
 
 run_pull() {
-  local version="$1" repo path
-  [ "$ADOPT" -eq 0 ] || { [ ! -e "$ROOT/$LOCK_TARGET" ] && [ ! -L "$ROOT/$LOCK_TARGET" ]; } \
+  local version="$1" repo
+  [ "$ADOPT" -eq 0 ] || ! has_lock \
     || die "--adopt ist nur für die Erstabholung ohne factory.lock zulässig (lokale Änderungen werden nie überschrieben)"
   require_pull_tools
   repo="$(fl_upstream_repo)" || die "Quell-Repo nicht ermittelbar (upstream.repo, fail-closed)"
@@ -316,16 +341,16 @@ run_pull() {
 
   precheck_local_state
   fetch_and_check_manifest "$repo" "$version"
-  if [ ! -e "$ROOT/$LOCK_TARGET" ] && [ ! -L "$ROOT/$LOCK_TARGET" ]; then
+  if ! has_lock; then
     collect_diverging
     [ ! -s "$WORK/diverging.txt" ] || report_diverging
   else
-    while IFS= read -r path; do check_target_path "$path"; done < "$WORK/manifest-paths.txt"
+    for_each_line "$WORK/manifest-paths.txt" check_target_path
   fi
   clone_and_verify "$repo" "$version"
   compose_in_stage
   apply_version
-  echo "✓ Factory $version abgeholt: $(grep -c '' "$WORK/manifest-paths.txt") Dateien übernommen, $(cat "$WORK/removed-count.txt") entfallene gelöscht, factory.lock geschrieben"
+  echo "✓ Factory $version abgeholt: $(grep -c '' "$WORK/manifest-paths.txt") Dateien übernommen, $(grep -c '' "$WORK/removed.txt") entfallene gelöscht, factory.lock geschrieben"
 }
 
 # ─── Aufruf ──────────────────────────────────────────────────────────────────────────────────────────────────────────
