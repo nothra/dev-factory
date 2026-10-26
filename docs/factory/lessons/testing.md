@@ -731,3 +731,17 @@ bash -x …` auf, schreibt den Trace in eine Temp-Datei und trennt danach **Trac
 Der Lauf fand vier fail-closed-Pfade ohne Test (unbekannter Parameter, unlesbare Dateiliste, `git ls-files` scheitert, interner Fehler eines Vergleichs). **Regel:** Vor dem Abschluss einer Gate-/Check-Skript-Task die Zeilenabdeckung per xtrace messen, jede nicht
 ausgeführte `exit 2`/`return`-Zeile einzeln bewerten und je Pfad einen Test **mit Mutationsbeleg** schreiben (Skript-Kopie mit zerstörter Zeile, nur der zuständige Test wird rot). Den internen Fehler einer Pipeline erzwingt man mit einem PATH-Stub, dessen Werkzeug mit Exit ≠ 0
 endet (Messung brechen, Lesson nothra/tch-gastro-services#319).
+
+### Fail-closed-Zweig „getestet“, weil ein späterer Schritt zufällig auch scheitert – Mutationslauf je `die` (aus Factory-Task #23, `/test`)
+
+Der Test für `factory-sync.sh` hatte für jeden Abbruchpfad eine Assertion „Exit ≠ 0 + nichts geändert“ – und 12 von 26 Fehlerzweigen blieben beim
+Mutationslauf (`die "…"` wird zum No-op) trotzdem **grün**: Ohne den Abbruch scheiterte ein späterer Schritt aus anderem Grund (Hash-Prüfung, „fehlt im Tag“,
+Folgefehler), mit demselben Exit-Code und unverändertem Baum. Ein Test, der nur Exit-Code und Zustand prüft, belegt den **Ausgang**, nicht den **Zweig**.
+Der Symlink-Test war so gebaut, dass eine frühere Stufe (Gate: Inhalt weicht ab) den Fall abfing, bevor der Zweig erreicht wurde.
+
+**Regel:** Für jeden fail-closed-Zweig (a) die **zweigspezifische Meldung** assertieren, (b) die Meldung der **nächsten Stufe** als abwesend
+assertieren (`assert_absent`) und (c) die Fixture so bauen, dass nur dieser Zweig den Fall abfängt (gleicher Inhalt beim Symlink-Test, Datei fehlt im Repo statt
+mit Nullhash). Vor `/test`-Abschluss je Zweig einen Mutanten laufen lassen: `die "` → `: "` in einer Kopie des Repos (ein Prozess je Mutant, `xargs -0 -P4`),
+nur der zuständige Test darf rot werden; Mutanten, die sich nicht auslösen lassen (Fehlerinjektion in `cp`/`rm`, Verteidigung in der Tiefe), im Coverage-Report
+begründen. Der `bash -x`-Wrapper aus der Lesson oben versagte hier (Kind-Prozesse: Zeilennummern fehlten im Trace) – der Mutationslauf ist die
+belastbarere Messung für Skripte, die andere Skripte aufrufen.

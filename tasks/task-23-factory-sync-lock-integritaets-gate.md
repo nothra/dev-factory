@@ -6,8 +6,8 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 T2a-2 (B) des Epics `nothra/tch-gastro-services#424`: `factory-sync.sh` holt eine Factory-Version
@@ -102,7 +102,8 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-10-25 (E1–E9). Kurzfassung für `
 <!-- Wird durch /review befüllt -->
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Siehe `tasks/codify-23.md`: Lesson „Fail-closed-Zweig per Mutationslauf belegen“ (testing.md), Rezidiv Mutationsbeleg-Tautologie,
+bash-gotchas #19 (Pfade mit `--`); Folge-Issue #30.
 
 ---
 Branch: `feature/23-factory-sync-lock-integritaets-gate`
