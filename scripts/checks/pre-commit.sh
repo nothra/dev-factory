@@ -73,6 +73,22 @@ else
   FAILED=1
 fi
 
+# ─── Check 5a: Übernommene Factory-Dateien unverändert ───────────────────────
+# Lokale Stufe des Integritäts-Gates (offline, Factory-ADR-063 E8): Hashes aus factory.lock + zusammengesetzte
+# Dateien == Fragmente. Im Factory-Repo (kein factory.lock) ein No-op; die CI-Stufe prüft zusätzlich das Manifest.
+INTEGRITY_CHECK="$FACTORY_DIR/scripts/checks/factory-integrity-check.sh"
+if [ -f "$INTEGRITY_CHECK" ]; then
+  if INTEGRITY_OUTPUT="$(FACTORY_DIR="$FACTORY_DIR" bash "$INTEGRITY_CHECK" 2>&1)"; then
+    echo -e "  ${GREEN}✓${NC} Factory-Integrität (übernommene Dateien)"
+  else
+    echo -e "  ${RED}✗${NC} Übernommene Factory-Dateien geändert – commit blockiert"
+    echo "$INTEGRITY_OUTPUT" | sed 's/^/     /'
+    FAILED=1
+  fi
+else
+  echo -e "  ${YELLOW}⚠${NC}  Integritäts-Check fehlt ($INTEGRITY_CHECK) – übersprungen"
+fi
+
 # ─── Check 6: Projekt-Erweiterungspunkt ──────────────────────────────────────
 # Ausführbare Skripte aus scripts/project/checks/pre-commit.d/ (lexikalisch). Fehlendes
 # oder leeres Verzeichnis ist kein Fehler; Fehlschlag oder fehlendes Ausführbar-Bit blockiert.

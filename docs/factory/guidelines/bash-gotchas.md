@@ -502,6 +502,19 @@ Markdown-Text mit Inline-Code (Backticks) in `<<EOF` oder in einem `"…"`-Strin
 
 ---
 
+## 19. Pfade aus fremden Quellen: `dirname`, `rmdir`, `cp` & Co. lesen ein führendes `-` als Option
+
+`dirname "-d/x.sh"` bricht mit `illegal option` ab und liefert **leer** – kein Exit-Code-Check im `$(…)`, und eine nachfolgende Schleife
+„bis `.` erreicht ist“ läuft ins Leere. In `factory-sync.sh` hieß das: Die Symlink-Prüfung der Elternverzeichnisse wurde übersprungen, eine
+Abholung schrieb über einen Symlink `-d` **außerhalb des Repos** (Repro im Security-Bericht von Factory-Task #23). Das Hashen war schon mit `./`-Präfix
+gehärtet, `dirname` und `rmdir -p` desselben Pfads nicht.
+
+**Regel:** Jeder Befehl, der einen Pfad aus Manifest/Lock/Fremdinhalt bekommt, steht mit `--` (`dirname -- "$p"`, `rmdir -p -- "$d"`) oder mit absolutem
+Ziel (`"$ROOT/$p"`). Wird eine Fehlerklasse an **einer** Stelle gehärtet, per `grep -n` alle Aufrufe desselben Befehlsfamilien-Musters im Skript prüfen – nicht
+nur die gemeldete Zeile. Ein Test braucht einen Pfad mit führendem `-` **und** die Gegenprobe, dass ein legitimer solcher Pfad weiter funktioniert.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

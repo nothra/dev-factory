@@ -457,3 +457,94 @@ D6-Versionsangabe, D9-Lint).
 Die Zuordnungstabelle `docs/factory/OWNERSHIP.md` (Nachtrag zu T1a) gehört seit ADR-064 D5 dem Repo (Seite `project`) und ist nicht mehr
 Teil des Release-Manifests. Ein einbindendes Projekt bestimmt die Seite `factory` über seinen `factory.lock` (Pfadmenge des Release-Manifests);
 die Tabelle gilt nur im Factory-Repo selbst. Die Prüfungen gegen die Tabelle (Aussage zu `factory-self-test` im Nachtrag zu T1a) laufen seit ADR-064 D6 zum Teil in `project-self-test`; dessen Eintrag in das Ruleset `protect-main` ist am 2026-10-25 erfolgt (Issue #26); die Required-Check-Liste in T1b Q5 nennt den Stand vom Bootstrap (`pr-closes-issue`, `config-validation`, `factory-self-test`, `lint`) und ist um `project-self-test` zu lesen. Details und Konsequenzen: ADR-064.
+
+## Nachtrag 2026-10-25 · Abholen und Integritäts-Gate (Spec #23, Q-23.1–Q-23.3)
+
+Aus `/architecture` zu #23 (T2a-2); gilt als angenommen mit der Umsetzung in #23. Verfeinert D1, D3 und D4.
+**E7 ersetzt** den Satz in D3, das Manifest führe die zusammengesetzten Dateien als `composed` mit
+Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
+
+- **E1 · Transport (Q-23.1):** Dateien per `git clone --depth 1 --branch <tag>` des öffentlichen
+  Factory-Repos in ein Temp-Verzeichnis, das Manifest per `curl -fsSL` vom Release-Asset
+  (`…/releases/download/<tag>/factory-release.json`). Beides ohne Token. Für Tests umlenkbar über
+  `FACTORY_UPSTREAM_GIT_URL` und `FACTORY_RELEASE_BASE_URL` (ein lokales Fixture-Repo mit Tags,
+  Manifeste per `file://`); sonst aus `upstream.repo` gebildet (E2).
+  *Alternativen:* Tarball per `curl` (kein Abgleich mit dem Commit-SHA des Manifests möglich, F-23.1);
+  `gh release download`/`gh api` (braucht eine `gh`-Anmeldung, D1 verlangt „ohne Token"); einzelne
+  Dateien über `raw.githubusercontent.com` (über 100 Abrufe je Version, kein konsistenter Stand eines
+  Tags). Mit `git` prüft die Abholung zusätzlich, dass der Tag auf `commit` aus dem Manifest zeigt.
+- **E2 · Quell-Repo:** Schlüssel `upstream.repo` in `factory.defaults.yml` (Default
+  `nothra/dev-factory`), überschreibbar in `factory.config.yml` – derselbe Schlüssel, den D7 für die
+  Fund-Ablage vorsieht; er entsteht schon jetzt. Das Feld `repo` im Lock ist **nie** die Quelle, es
+  muss `upstream.repo` gleichen (sonst Abbruch, F-23.1). Grund: Der Lock ist Repo-Inhalt; ein PR, der
+  ihn auf ein anderes Repo mit passendem Manifest zeigen ließe, würde sonst die CI-Stufe bestehen.
+- **E3 · Aufruf:** `factory-sync.sh <version> [--adopt]`; `--compose [--check]` bleibt unverändert.
+  `<version>` muss `^v[0-9]+\.[0-9]+\.[0-9]+$` erfüllen, geprüft vor jedem Netzzugriff (kein Wert, der
+  `git` als Option erreicht). `--adopt` ist der Schalter der Erstabholung (Spec #23 AK2.2e) und nur
+  ohne `factory.lock` zulässig; mit Lock wird er abgelehnt, damit F2 nicht umgehbar ist.
+- **E4 · Ablauf der Abholung in zwei Phasen** (F4, Spec #23 AK2.2b):
+  1. *Prüfen, nichts im Repo geschrieben:* (a) Vorbedingung im Arbeitsbaum, offline und zuerst: mit
+     Lock muss die lokale Gate-Stufe (E8) grün sein, sonst Abbruch mit Dateiliste (F2); ohne Lock
+     werden Dateien an Manifest-Pfaden mit abweichendem Inhalt gesammelt, ohne `--adopt` Abbruch mit
+     Liste. (b) Manifest holen und prüfen: gültiges JSON, `schema` 1, `version` = Tag, `repo` =
+     `upstream.repo`, jeder Pfad relativ, ohne `..`, nicht doppelt, keine Anpassungsstelle und kein
+     Projektbereich (E6). (c) Tag klonen, `HEAD` = `commit`, jede Datei hat den Manifest-Hash.
+     (d) Zusammensetzen in einem Temp-Baum aus dem neuen Factory-Fragment und den aktuellen
+     Projekt-Fragmenten (bestehendes `--compose` mit `FACTORY_DIR` auf den Temp-Baum).
+  2. *Übernehmen:* Jede Zieldatei, die überschrieben oder gelöscht wird (übernommene Dateien,
+     zusammengesetzte Dateien, `factory.lock`), wird vorher in ein Backup kopiert. Dann neue Dateien
+     schreiben, entfallene löschen (Pfade des alten Locks, die das Manifest nicht mehr nennt),
+     zusammengesetzte Dateien schreiben, **zuletzt** `factory.lock` als Byte-Kopie des Manifests.
+     Scheitert ein Schritt, stellt ein `trap` das Backup wieder her und entfernt neu angelegte Dateien.
+     Ein harter Abbruch des Prozesses (`SIGKILL`, Stromausfall) während Phase 2 ist nicht abgedeckt;
+     Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Leere Verzeichnisse nach dem Löschen bleiben
+     (Git führt sie nicht).
+- **E5 · Gemeinsame Bibliothek `scripts/lib/factory-lock.sh`** (übernommen, gesourct relativ zum
+  Skript): Hash per `shasum -a 256` bzw. `sha256sum`, Prüfung von Lock/Manifest (E4 1b), Abruf des
+  Manifests (E1), Liste der Projektbereiche (E6). Abholung und Gate nutzen sie; `ownership-check.sh`
+  behält seinen Lock-Leser (#22), um dessen Verhalten nicht anzufassen.
+- **E6 · Projektbereiche (Q-23.2):** Die Verzeichnisse, in die die Factory nie liefert –
+  `scripts/project/`, `docs/project/`, `docs/adr/`, `docs/specs/`, `tasks/` –, stehen als feste Liste
+  in `factory-lock.sh`, **nicht** in `customization-points.txt`. Die Abholung lehnt ein Manifest ab, das
+  einen Pfad darin oder eine Anpassungsstelle liefern würde. Begriffe: *Anpassungsstelle* = Datei, die
+  das Projekt selbst pflegt (ADR-064 D4, wörtliche Liste); *Projektbereich* = Verzeichnis, das nur das
+  Projekt füllt. Weitere projekteigene Workflows und App-Code sind dadurch geschützt, dass die Abholung
+  nur Pfade aus Manifest und altem Lock berührt.
+  *Alternativen:* Präfixe in `customization-points.txt` (kehrt ADR-064 D4 um, dort sind `tasks/**` und
+  `docs/specs/**` bewusst keine Anpassungsstellen, und die Teilmengen-Kontrolle der Projekt-Suite prüft
+  das); kein Schutz der Verzeichnisse (verlässt sich allein auf die Tabelle im Factory-Repo, ein
+  Zuordnungsfehler dort würde in jedem Konsumenten schreiben).
+- **E7 · Zusammengesetzte Dateien (Q-23.3):** ADR-064 D1 gilt, der Lock ist das Manifest unverändert
+  (Schema 1, ohne `composed`). Die Integrität von `.claude/settings.json` und `.gitignore` prüft die
+  lokale Gate-Stufe über `factory-sync.sh --compose --check`. Fragment-Hashes braucht es nicht: Das
+  Factory-Fragment ist eine übernommene Datei mit Hash im Lock, das Projekt-Fragment gehört dem
+  Projekt.
+- **E8 · Gate `scripts/checks/factory-integrity-check.sh`** (übernommen):
+  - *Moduswahl:* `factory.lock` vorhanden (`-e` **oder** `-L`) → prüfen; sonst No-op mit Hinweis,
+    Exit 0 (Factory-Repo). Ein Lock, der ein toter Symlink ist, gilt als vorhanden und unlesbar
+    (Exit 2). Guard in der Projekt-Suite: Das Factory-Repo trackt kein `factory.lock`.
+  - *Lokal (Standard, offline):* Lock gültig (E5); jede Lock-Datei existiert, ist eine reguläre Datei
+    und hat den eingetragenen Hash; `--compose --check` grün. Abweichung → Exit 1 mit Dateiname und
+    Hinweis „Änderung gehört nach `nothra/dev-factory`"; fehlendes `jq`/Hash-Werkzeug, ungültiger Lock →
+    Exit 2.
+  - *`--ci`:* lokal, dazu das Manifest von `lock.version` aus `upstream.repo` holen und mit dem Lock
+    vergleichen (beide mit `jq -S .` normalisiert, ganzes Dokument). Nicht erreichbar, Tag oder Asset
+    fehlt → Exit 2 (fail-closed, D4).
+  - *Verdrahtung:* fester Check in `pre-commit.sh` und `pre-push.sh` (Factory-Datei, nicht über
+    `*.d/`); CI-Job `factory-integrity` in `factory-ci.yml` mit `--ci` (`yq` über
+    `scripts/install-yq.sh`, weil `upstream.repo` aus der Config kommt). Im Factory-Repo läuft der Job
+    als No-op grün und ist kein Required Check; im Konsumenten trägt ihn T2a-4 ins Ruleset ein.
+- **E9 · Tests (offline):** Fixture-Upstream = lokales Git-Repo mit zwei Tags, Manifeste als Dateien
+  per `file://`; Stubs für `curl`, `git` und das Hash-Werkzeug im `PATH` brechen die Messung (Lesson aus
+  nothra/tch-gastro-services#319). Die neue Bibliothek kommt in alle Test-Scaffoldings (Lesson aus
+  nothra/tch-gastro-services#197). Die Compose-Tests der ausgelieferten Suite bauen ihre
+  Projekt-Fragmente selbst (Spec #23 AK-28a); die Prüfungen am echten Repo (Fragmente vorhanden,
+  committet == Zusammensetzung) wandern in die Projekt-Suite.
+
+**Konsequenzen:** neue Factory-Dateien `scripts/lib/factory-lock.sh` und
+`scripts/checks/factory-integrity-check.sh` (je eine Zeile `factory` in `OWNERSHIP.md`); neuer
+Config-Schlüssel `upstream.repo`; `curl` und `git` sind für Abholung und CI-Stufe Voraussetzung (lokale
+Stufe braucht nur `jq` und ein Hash-Werkzeug). Jeder Commit und Push im Konsumenten hasht alle
+Lock-Dateien (heute 114). Gemessen am 2026-10-25 auf macOS: ein `shasum`-Aufruf über alle Dateien
+≈ 0,05 s, ein Aufruf je Datei ≈ 1,8 s – E5 hasht deshalb in **einem** Aufruf (Dateiliste per
+`xargs -0`), nicht in einer Schleife je Datei.

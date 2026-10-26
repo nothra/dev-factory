@@ -130,3 +130,12 @@ labels:
   kinds: [bug, enhancement, documentation]
   aspects: [security, tech-debt, test]
   aspects_extra: []
+
+# Quell-Repo der Factory: von hier holt `factory-sync.sh <version>` den Tag, und das Integritäts-Gate
+# (`factory-integrity-check.sh --ci`) das Release-Manifest (Factory-ADR-063 E2). Das Feld `repo` in
+# factory.lock muss diesem Wert gleichen – der Lock selbst ist nie die Quelle.
+# @reason: Der Lock ist Repo-Inhalt; ohne festen Wert aus der Config könnte ein PR ihn auf ein anderes
+#   Repo mit passendem Manifest zeigen lassen und die CI-Stufe bestehen.
+# @tradeoff: Ein Fork der Factory muss den Wert im Override setzen; sonst holt er vom Original.
+upstream:
+  repo: nothra/dev-factory

@@ -556,6 +556,35 @@ assert_exit 1 $? "#22 AK2.16b-2 (Mutation): ohne die run:-Zeile wird derselbe Gu
 ci_ok_22 "$(printf '%s\n' "$JOB_22" | grep -vF 'run: sudo bash scripts/install-yq.sh')"
 assert_exit 1 $? "#22 AK2.16b-2 (Mutation): ohne die yq-Bereitstellung wird derselbe Guard rot"
 
+# ─── Factory-Issue #23 · AK-28b: Zustand der Projekt-Fragmente und zusammengesetzten Dateien des echten Repos ─────────
+# Aus der ausgelieferten Suite hierher verschoben (Factory-ADR-064 D6, AK-28c): Die Compose-Tests dort bauen ihre Fragmente
+# selbst; was den Zustand der projekteigenen Dateien DIESES Repos prüft, gehört in die Projekt-Suite. Im Konsumenten
+# übernimmt das Integritäts-Gate (`factory-integrity-check.sh`, lokale Stufe) den Abgleich „committet == Zusammensetzung“.
+echo ""
+echo "#23 AK-28b: Projekt-Fragmente und zusammengesetzte Dateien dieses Repos:"
+for f_23 in .claude/settings.project.json .gitignore.project; do
+  assert_true "$([[ -f "$FACTORY_ROOT/$f_23" ]]; echo $?)" "#431 AK-E1/E2 (verschoben): Projekt-Fragment $f_23 existiert"
+done
+jq -e . "$FACTORY_ROOT/.claude/settings.project.json" >/dev/null 2>&1
+assert_exit 0 "$?" "#431 AK-E1 (verschoben): .claude/settings.project.json ist gültiges JSON"
+FACTORY_DIR="$FACTORY_ROOT" bash "$FACTORY_ROOT/scripts/factory-sync.sh" --compose --check >/dev/null 2>&1
+assert_exit 0 "$?" "#431 AK-E3 (verschoben): committete settings.json/.gitignore == Zusammensetzung der Fragmente (--check)"
+FX_23="$(mktemp -d)"; mkdir -p "$FX_23/.claude" "$FX_23/docs/factory"
+cp "$FACTORY_ROOT/.claude/settings.factory.json" "$FACTORY_ROOT/.claude/settings.project.json" "$FX_23/.claude/"
+cp "$FACTORY_ROOT/docs/factory/gitignore.factory" "$FX_23/docs/factory/"
+cp "$FACTORY_ROOT/.gitignore.project" "$FX_23/"
+FACTORY_DIR="$FX_23" bash "$FACTORY_ROOT/scripts/factory-sync.sh" --compose >/dev/null 2>&1
+cmp -s "$FX_23/.claude/settings.json" "$FACTORY_ROOT/.claude/settings.json"
+assert_exit 0 "$?" "#431 AK-E3 (verschoben): settings.json byte-identisch zur Zusammensetzung der echten Fragmente"
+cmp -s "$FX_23/.gitignore" "$FACTORY_ROOT/.gitignore"
+assert_exit 0 "$?" "#431 AK-E3 (verschoben): .gitignore byte-identisch zur Zusammensetzung der echten Fragmente"
+rm -rf "$FX_23"
+# Guard (E8): das Factory-Repo trackt kein factory.lock – sonst wäre das Integritäts-Gate hier kein No-op mehr
+git -C "$FACTORY_ROOT" ls-files --error-unmatch factory.lock >/dev/null 2>&1
+assert_exit 1 "$?" "#23 E8: das Factory-Repo trackt kein factory.lock (Integritäts-Gate bleibt hier ein No-op)"
+[ ! -e "$FACTORY_ROOT/factory.lock" ] && [ ! -L "$FACTORY_ROOT/factory.lock" ]
+assert_exit 0 "$?" "#23 E8: im Arbeitsbaum des Factory-Repos liegt kein factory.lock"
+
 # ─── Factory-Issue #22 · F-22.5: fehlende gesourcte Lib → rot und laut, nie still ─────────────────────────────────────
 # Hängt eine Suite von einer Datei ab, die im Konsumenten fehlt, darf sie nicht mit „command not found" weiterlaufen und
 # dabei womöglich grün enden. Beide Suiten werden dazu in einen Baum OHNE die geteilte Lib kopiert und müssen hart

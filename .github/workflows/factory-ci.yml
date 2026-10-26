@@ -70,6 +70,20 @@ jobs:
             "$GITHUB_WORKSPACE/factory.defaults.yml" \
             "$GITHUB_WORKSPACE/factory.config.yml"
 
+  # ─── Integritäts-Gate (Factory-ADR-063 E8) ──────────────────────────────────
+  # Übernommene Factory-Dateien sind unverändert: Hashes gegen factory.lock und der Lock gegen das
+  # Release-Manifest des Tags aus upstream.repo (fängt auch Datei + Hash gemeinsam geändert). Fail-closed,
+  # wenn Factory-Repo, Tag oder Manifest nicht erreichbar sind. Im Factory-Repo (kein factory.lock) ein
+  # No-op und kein Required Check; im Konsumenten trägt ihn das Ruleset ein.
+  factory-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - name: Integritäts-Gate (CI-Stufe)
+        run: bash scripts/checks/factory-integrity-check.sh --ci
+
   # ─── Factory-eigene Checks ──────────────────────────────────────────────────
   # Prüft die Integrität der Factory-Skripte selbst (Self-Test-Suite).
   # Läuft immer – auch in adoptierten Projekten, die das Template als Basis nutzen.

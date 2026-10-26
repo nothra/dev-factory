@@ -482,9 +482,25 @@ bearbeitet, sondern aus Fragmenten zusammengesetzt (Factory-ADR-063 D3):
 
 **Projekt-Permission oder Ignore-Eintrag ergänzen:** Projekt-Fragment ändern →
 `bash scripts/factory-sync.sh --compose` → Fragment **und** Ergebnis beide committen. Ein Eintrag im
-Ergebnis ohne Fragment geht beim nächsten Zusammensetzen verloren; `--compose --check` (und die
-Self-Test-Suite) schlagen bei jeder Abweichung fehl. `.claude/**` ist für Agenten gesperrt – dort
+Ergebnis ohne Fragment geht beim nächsten Zusammensetzen verloren; `--compose --check` (und
+die lokale Stufe des Integritäts-Gates, §5.5a) schlagen bei jeder Abweichung fehl. `.claude/**` ist für Agenten gesperrt – dort
 läuft die Änderung über den Patch-Workflow.
+
+### 5.5a Factory-Version abholen und Integritäts-Gate
+
+**Abholen** (Factory-ADR-063, Nachtrag E3/E4): `bash scripts/factory-sync.sh <version>` mit `<version>` der Form
+`vX.Y.Z`. Das Skript klont den Tag aus `upstream.repo` (Default `nothra/dev-factory`, ohne Token), prüft jede Datei gegen das
+Release-Manifest, übernimmt atomar (Backup + Rückbau bei Abbruch), löscht entfallene Dateien, setzt `settings.json`/`.gitignore`
+neu zusammen und schreibt `factory.lock` zuletzt. Mit `factory.lock` bricht die Abholung ab, sobald eine übernommene Datei lokal
+geändert ist (Dateiliste in der Meldung). Die **Erstabholung** ohne Lock bricht bei abweichenden Dateien ebenfalls ab; nur
+`--adopt` überschreibt sie und gibt die Liste aus (mit Lock wird `--adopt` abgelehnt). Ein Manifest, das eine Anpassungsstelle
+oder einen Projektbereich (`scripts/project/`, `docs/project/`, `docs/adr/`, `docs/specs/`, `tasks/`) liefern würde, wird abgelehnt.
+
+**Gate:** `bash scripts/checks/factory-integrity-check.sh` (lokale Stufe, offline; fester Check in `pre-commit.sh` und
+`pre-push.sh`) prüft Hashes gegen `factory.lock` und `--compose --check`; `--ci` (Job `factory-integrity`) vergleicht zusätzlich
+den Lock mit dem Release-Manifest des Tags und schlägt fail-closed fehl, wenn dieses nicht erreichbar ist. Exit 0 = ok bzw.
+No-op (kein `factory.lock`, z. B. im Factory-Repo), 1 = Abweichung (Datei + Hinweis „Änderung gehört nach `nothra/dev-factory`“),
+2 = Umgebungs-/Netzfehler oder ungültiger Lock.
 
 ### 5.6 Gate-Kommandos und Projekt-Erweiterungspunkte
 

@@ -42,7 +42,7 @@ Parser und liest nichts anderes:
 | Seite | Muster | Begründung |
 |---|---|---|
 | factory | `.claude/commands/**` | Skills der Pipeline |
-| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
+| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-integrity`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
 | factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, nothra/tch-gastro-services#431) |
@@ -61,6 +61,7 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/completion-check.sh` | Hook: Task-Abschluss |
 | factory | `scripts/checks/config-validation-check.sh` | Gate: `factory.config.yml` (ADR-010) |
 | factory | `scripts/checks/customization-points.txt` | Liste der Anpassungsstellen, die ein Projekt selbst besitzt (Factory-ADR-064 D4) |
+| factory | `scripts/checks/factory-integrity-check.sh` | Gate: übernommene Dateien unverändert, lokal und in CI (Factory-ADR-063 E8) |
 | factory | `scripts/checks/git-context-check.sh` | Hook: Git-Kontext |
 | factory | `scripts/checks/hooks-installed-check.sh` | Gate: Git-Hooks installiert (ADR-042) |
 | factory | `scripts/checks/import-context-limit-check.sh` | Gate: `@import`-Deckel (ADR-047) |
@@ -71,7 +72,7 @@ Parser und liest nichts anderes:
 | factory | `scripts/checks/pre-push.sh` | Git-Hook; Projekt-Checks über `scripts/project/checks/pre-push.d/` |
 | factory | `scripts/checks/tests/**` | Self-Test-Suite der Factory |
 | factory | `scripts/checks/tests/lib/**` | gemeinsame Prüf-Helfer der Test-Suiten; Factory- und Projekt-Suite sourcen sie (nothra/tch-gastro-services#432, Q10) |
-| factory | `scripts/factory-sync.sh` | Setzt `settings.json`/`.gitignore` aus Fragmenten zusammen (`--compose`, ADR-063 Q2) |
+| factory | `scripts/factory-sync.sh` | Holt eine Factory-Version ab (`<version>`, ADR-063 E3/E4) und setzt `settings.json`/`.gitignore` aus Fragmenten zusammen (`--compose`, ADR-063 Q2) |
 | factory | `.claude/settings.factory.json` | Factory-Anteil der Settings (Hooks, generische Permissions) |
 | factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |
 | factory | `scripts/factory-commit.sh` | Commit/Push-Seam (ADR-019) |
