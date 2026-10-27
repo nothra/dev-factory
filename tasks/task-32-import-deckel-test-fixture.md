@@ -10,17 +10,25 @@
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
-<!-- Was soll implementiert werden? -->
+Der @import-Deckel-Test der ausgelieferten Suite liest über `import-context-limit-check.sh` `CLAUDE.md` und
+`PROJECT-CONTEXT.md` des Konsumenten (indirekter Leser, vom AK6-Guard aus #28 nicht erfasst). Fix: Test aus der
+ausgelieferten Suite in die Projekt-Suite verschieben, AK6-Guard um indirekte Leser erweitern.
+Spec: `docs/specs/spec-32-import-deckel-test-fixture.md`.
 
 ## Akzeptanzkriterien
 <!-- Von /requirements befüllt oder manuell eingeben -->
-- [ ] GIVEN ... WHEN ... THEN ...
+- [ ] **AK1** Kein Falsch-Rot der ausgelieferten Suite durch fehlende/aufgeblähte Konsumenten-Dateien (Fixture-Lauf)
+- [ ] **AK2** Deckel-Verhaltenstests bleiben vollständig; nur der Aufruf gegen die echte Wurzel entfällt
+- [ ] **AK3** Projekt-Suite prüft den realen @import-Stand (Mutation belegt)
+- [ ] **AK4** AK6-Guard (#28) erkennt Check-Skript-Aufrufe gegen die echte Wurzel (Negativfall, Kontrolle, fail-closed)
+- [ ] **AK5** Erweiterter Guard im Ist-Stand grün oder weitere Treffer behoben/mit Issue dokumentiert
+- [ ] **AK6** Gates und beide Suiten grün
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
 
 ## Offene Fragen
-<!-- Fragen, die noch geklärt werden müssen -->
+- Lösungsort der Realstand-Assertion und Erkennungsmuster des Guards → `/architecture` bzw. `/implement` (siehe Spec)
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
