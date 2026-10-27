@@ -18,8 +18,9 @@ Spec: `docs/specs/spec-32-import-deckel-test-fixture.md`.
 ## Akzeptanzkriterien
 <!-- Von /requirements befüllt oder manuell eingeben -->
 - [ ] **AK1** Kein Falsch-Rot der ausgelieferten Suite durch fehlende/aufgeblähte Konsumenten-Dateien (Fixture-Lauf)
+- [ ] **AK1a** Ausgelieferte Suite prüft die Dauerkontext-Größe des echten Repos nicht (Projekt-QS, keine Factory-Funktionsprüfung – Entscheidung Mensch)
 - [ ] **AK2** Deckel-Verhaltenstests bleiben vollständig; nur der Aufruf gegen die echte Wurzel entfällt
-- [ ] **AK3** Projekt-Suite prüft den realen @import-Stand (Mutation belegt)
+- [ ] **AK3** Projekt-Suite (Projekt-QS) prüft den realen @import-Stand (Mutation belegt)
 - [ ] **AK4** AK6-Guard (#28) erkennt Check-Skript-Aufrufe gegen die echte Wurzel (Negativfall, Kontrolle, fail-closed)
 - [ ] **AK5** Erweiterter Guard im Ist-Stand grün oder weitere Treffer behoben/mit Issue dokumentiert
 - [ ] **AK6** Gates und beide Suiten grün

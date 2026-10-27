@@ -24,8 +24,10 @@ Factory-Suite.
 - Die ausgelieferte Suite führt den „realer Stand"-Test des @import-Deckels nicht mehr gegen die echte
   Repo-Wurzel aus; die Prüfung des Deckel-Verhaltens selbst (Grenzwerte, Referenz-Formen, Confinement,
   fail-closed) bleibt vollständig erhalten und läuft gegen Fixtures.
-- Die Kopplung „Deckel ist für den echten Repo-Stand grün" bleibt für dieses Repo (dev-factory)
-  erhalten, an einer Stelle, die Konsumenten nicht erreicht.
+- Entscheidung (Mensch, 2026-10-27): Die Größe des Dauerkontexts des echten Repos ist **keine
+  Funktionsprüfung der ausgelieferten Factory**, sondern eine Qualitätssicherung des Projekts, das die
+  Factory einsetzt. Der Realstand-Test gehört deshalb nicht in die ausgelieferte Suite. Er bleibt als
+  Projekt-QS erhalten, soweit dieses Repo (dev-factory) ihn als solcher Konsument nutzt.
 - Der AK6-Guard aus #28 erkennt künftig auch **indirekte** Leser: Aufrufe von Check-Skripten, die
   `FACTORY_DIR`/`FACTORY_ROOT` auf die echte Repo-Wurzel setzen.
 
@@ -43,13 +45,16 @@ Factory-Suite.
   Falsch-Rot durch Konsumenten-Dateien).
   *Beleg: Fixture-Lauf der Suite in einer Repo-Kopie ohne `PROJECT-CONTEXT.md` bzw. mit aufgeblähtem
   `CLAUDE.md` – gleiche Assertion-Ergebnisse wie im unveränderten Repo.*
+- [ ] **AK1a** GIVEN die ausgelieferte Suite WHEN man sie nach Prüfungen der Dauerkontext-Größe des echten
+  Repos durchsucht THEN gibt es keine (die Größe des Konsumenten-Kontexts ist Projekt-QS, keine
+  Factory-Funktionsprüfung).
 - [ ] **AK2** GIVEN die ausgelieferte Suite WHEN sie das Deckel-Verhalten prüft THEN laufen alle
   Verhaltensfälle (unter/über Grenze, Grenzwert ±1, Seite A/B, Referenz-Formen, Confinement,
   fail-closed, Konstanten-Herleitung) weiterhin und unverändert gegen Fixtures bzw. das Skript selbst;
   es entfällt ausschließlich der Aufruf gegen die echte Wurzel (Assertion-Anzahl sinkt um genau diesen
   Fall).
-- [ ] **AK3** GIVEN dieses Repo (dev-factory) WHEN `scripts/project/tests/run-tests.sh` läuft THEN
-  prüft sie, dass der reale @import-Stand unter dem Deckel liegt (Assertion mit demselben
+- [ ] **AK3** GIVEN dieses Repo (dev-factory) als Konsument seiner eigenen Factory WHEN
+  `scripts/project/tests/run-tests.sh` (Projekt-QS) läuft THEN prüft sie, dass der reale @import-Stand unter dem Deckel liegt (Assertion mit demselben
   Aussagegehalt wie der entfallene Test, inkl. Ausgabe der Breakdown-Liste bei Rot).
   *Beleg: Mutation – `CLAUDE.md` des Repos über den Deckel aufblasen → Projekt-Suite rot.*
 - [ ] **AK4** GIVEN der AK6-Guard aus #28 WHEN ein Test in einer ausgelieferten Test-Datei ein
