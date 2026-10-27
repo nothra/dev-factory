@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -39,6 +39,9 @@ Spec: `docs/specs/spec-32-import-deckel-test-fixture.md`.
 ## Test-Notizen
 - Kein Coverage-Werkzeug für Bash; Vollständigkeit je AK geprüft. Ergänzt: Guard-Test für die `env FACTORY_DIR=… bash`-Form (Suite jetzt 1905 grün).
 - Mutationsbeleg zeigte: `(env[[:space:]]+)?` im Guard-Muster ist redundant (kein Zeilenanfangs-Anker, `env`-Zeile trifft auch ohne) – Vereinfachung an `/refactor` übergeben.
+
+## Refactoring-Notizen
+- Redundantes `(env[[:space:]]+)?` aus dem Guard-Muster entfernt (Test für die `env`-Form bleibt grün); Blindstellen des Guards im Kommentar benannt (Review-Nitpick 1). Kein neues Verhalten, Suite 1905 grün.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

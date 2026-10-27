@@ -8355,7 +8355,9 @@ fi
 #
 # Zweite Klasse (Factory-Issue #32): INDIREKTE Leser – ein Check-Skript, dem die echte Repo-Wurzel als Wurzel-Variable
 # mitgegeben wird (`FACTORY_DIR=<echte Wurzel> bash <check>`), liest selbst CLAUDE.md/PROJECT-CONTEXT.md des Konsumenten.
-# Fixture-Wurzeln (`$TMP_…`) treffen das Muster nicht; nur `$FACTORY_ROOT`/`$REPO_ROOT` als Wert zählt.
+# Fixture-Wurzeln (`$TMP_…`) treffen das Muster nicht; nur `$FACTORY_ROOT`/`$REPO_ROOT` als Wert zählt. Ein `env`-Präfix
+# erfasst das Muster mit (kein Zeilenanfangs-Anker). Blind ist der Guard für den Direktaufruf eines Gates/Check-Skripts aus
+# dem echten `$CHECKS_DIR` ohne Wurzel-Variable (Fund `#149`, per Fixture-Lauf gefunden) und für getrennte `export`-Zeilen.
 project_reads_28() {
   local f out="" hits names="PROJECT-CONTEXT\\.md|gitignore\\.project|settings\\.project\\.json|CLAUDE\\.md|README\\.md|CHANGELOG\\.md"
   local real_root="[$]\\{?(FACTORY_ROOT|REPO_ROOT)\\}?" root_var="(FACTORY_DIR|FACTORY_ROOT|REPO_ROOT)"
@@ -8363,7 +8365,7 @@ project_reads_28() {
     [ -r "$f" ] || { out="$out UNLESBAR:$f"; continue; }
     hits="$(grep -nE "[$]\{?(FACTORY_ROOT|REPO_ROOT|FACTORY_DIR)\}?/[^ \"']*($names)" "$f")"
     [ -z "$hits" ] || out="$out $f:$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
-    hits="$(grep -nE "${root_var}=[\"']?${real_root}[\"']?[[:space:]]+(env[[:space:]]+)?(bash|sh)[[:space:]]" "$f")"
+    hits="$(grep -nE "${root_var}=[\"']?${real_root}[\"']?[[:space:]]+(bash|sh)[[:space:]]" "$f")"
     [ -z "$hits" ] || out="$out $f:$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
   done
   printf '%s' "$out"
