@@ -8361,17 +8361,16 @@ project_reads_28() {
 }
 SHIPPED_TESTS_28=("$SCRIPTS_DIR/checks/tests/run-tests.sh" "$SCRIPTS_DIR/checks/tests/factory-lock-tests.sh" "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh")
 assert_true "$([ -z "$(project_reads_28 "${SHIPPED_TESTS_28[@]}")" ]; echo $?)" "#28 AK6: die ausgelieferten Test-Dateien lesen keine projekteigene Datei des echten Repos (Ausnahme: factory.config.yml)"
-TMP_28="$(mktemp -d)"
+TMP_28="$(mktemp -d)"; HELPERS_28="$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"
+# mutant_28 <Pfad-nach-Variable> → Kopie der Helfer-Lib mit einem ergänzten Lesezugriff nach $TMP_28/mut.sh (Pfad auf stdout)
+mutant_28() { { cat "$HELPERS_28"; printf 'x="$(cat "%s")"\n' "$1"; } > "$TMP_28/mut.sh"; printf '%s' "$TMP_28/mut.sh"; }
 for name_28 in docs/factory/PROJECT-CONTEXT.md .gitignore.project .claude/settings.project.json CLAUDE.md README.md CHANGELOG.md; do
-  { cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "$FACTORY_ROOT/%s")"\n' "$name_28"; } > "$TMP_28/mut.sh"
-  assert_contains_286 "$(project_reads_28 "$TMP_28/mut.sh")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff auf $name_28 ergänzt → Guard rot"
+  assert_contains_286 "$(project_reads_28 "$(mutant_28 "\$FACTORY_ROOT/$name_28")")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff auf $name_28 ergänzt → Guard rot"
 done
 for var_28 in REPO_ROOT FACTORY_DIR; do
-  { cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "${%s}/CLAUDE.md")"\n' "$var_28"; } > "$TMP_28/mut.sh"
-  assert_contains_286 "$(project_reads_28 "$TMP_28/mut.sh")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff über \$$var_28 statt \$FACTORY_ROOT → Guard rot"
+  assert_contains_286 "$(project_reads_28 "$(mutant_28 "\${$var_28}/CLAUDE.md")")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff über \$$var_28 statt \$FACTORY_ROOT → Guard rot"
 done
-{ cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "$FACTORY_ROOT/factory.config.yml")"\n'; } > "$TMP_28/ok.sh"
-assert_true "$([ -z "$(project_reads_28 "$TMP_28/ok.sh")" ]; echo $?)" "#28 AK6 (Kontrolle): factory.config.yml ist die erlaubte Ausnahme"
+assert_true "$([ -z "$(project_reads_28 "$(mutant_28 "\$FACTORY_ROOT/factory.config.yml")")" ]; echo $?)" "#28 AK6 (Kontrolle): factory.config.yml ist die erlaubte Ausnahme"
 assert_contains_286 "$(project_reads_28 "$TMP_28/gibt-es-nicht.sh")" "UNLESBAR:$TMP_28/gibt-es-nicht.sh" "#28 AK6 (fail-closed): unlesbare Quelle → Guard rot statt still grün"
 rm -rf "$TMP_28"
 

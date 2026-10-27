@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -37,6 +37,8 @@ Config-Validierung (3) bleibt (Entscheidung Q1). Spec: `docs/specs/spec-28-self-
 - **AK7:** Fundstelle (2) (`.gitignore.project`, `.claude/settings.project.json` als Compose-Fixture) und die D6-Ergänzung in
   Factory-ADR-064 sind durch AK-28a/AK-28c aus `docs/specs/spec-23-factory-sync-lock-integritaets-gate.md` (PR #29) erledigt;
   ADR-064 D6 wird hier nicht erneut geändert. Fundstelle (3) bleibt bewusst (Entscheidung Q1).
+- **Refactoring:** Die dreifach duplizierte Mutanten-Erzeugung im AK6-Block ist durch `mutant_28` ersetzt (Labels der Assertions
+  unverändert, 1901 grün vorher/nachher). Review-Finding Issue #32 (indirekter Lesezugriff) bleibt außerhalb des Scopes.
 - **Nicht mehr offen:** Q2 und Q3 sind damit beantwortet.
 
 ## Offene Fragen
