@@ -53,3 +53,5 @@ Config-Validierung (3) bleibt (Entscheidung Q1). Spec: `docs/specs/spec-28-self-
 ---
 Branch: `test/28-self-test-suite-projektdateien-klaeren`
 Erstellt: 2026-10-27 00:32
+
+PR-Shepherd 2026-10-27: Merge freigegeben – alle Gates grün.
