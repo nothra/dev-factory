@@ -8326,6 +8326,9 @@ if [ "$HAS_YQ" = 1 ]; then
   # AK4: eigenes aspects_extra ohne Beschreibung in der Fixture betrifft nur den Guard-Aufruf mit dieser Config, nicht die Suite
   printf '# Fixture ohne Labelzeilen\n' > "$TMP_I2/pcx-leer.md"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$GW_431" "$TMP_I2/pcx-leer.md")" 'projekt-fehlt-in-PROJECT-CONTEXT:fixture-label' "#28 AK1/AK4: Fixture ohne Labelbeschreibung → Guard meldet es (die Suite selbst liest keine echte PROJECT-CONTEXT.md)"
+  # FS2: weicht die Fixture vom gelesenen Tabellenformat ab (`| \`label\` |`), wird die Positivkontrolle rot statt der Mutationen
+  printf '# Fixture\n\n| Label | Aspekt |\n| fixture-label | beschrieben |\n' > "$TMP_I2/pcx-format.md"
+  assert_true "$([ -n "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$GW_431" "$TMP_I2/pcx-format.md")" ]; echo $?)" "#28 FS2: Fixture ohne Backtick-Tabellenzeile → Drift-Guard meldet eine Abweichung (Positivkontrolle würde rot)"
   # Mutationen: je Seite eine eigene Assertion mit demselben Ausdruck.
   printf 'labels:\n  aspects_extra: [zzz-neu]\n' > "$TMP_I2/cfg.yml"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg.yml" "$GW_431" "$PCX_431")" 'projekt-fehlt-in-PROJECT-CONTEXT:zzz-neu' "#431 AK-I2 (Mutation): ein Config-Label ohne Beschreibung in PROJECT-CONTEXT.md macht den Guard rot"
@@ -8362,6 +8365,10 @@ TMP_28="$(mktemp -d)"
 for name_28 in docs/factory/PROJECT-CONTEXT.md .gitignore.project .claude/settings.project.json CLAUDE.md README.md CHANGELOG.md; do
   { cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "$FACTORY_ROOT/%s")"\n' "$name_28"; } > "$TMP_28/mut.sh"
   assert_contains_286 "$(project_reads_28 "$TMP_28/mut.sh")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff auf $name_28 ergänzt → Guard rot"
+done
+for var_28 in REPO_ROOT FACTORY_DIR; do
+  { cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "${%s}/CLAUDE.md")"\n' "$var_28"; } > "$TMP_28/mut.sh"
+  assert_contains_286 "$(project_reads_28 "$TMP_28/mut.sh")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff über \$$var_28 statt \$FACTORY_ROOT → Guard rot"
 done
 { cat "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"; printf 'x="$(cat "$FACTORY_ROOT/factory.config.yml")"\n'; } > "$TMP_28/ok.sh"
 assert_true "$([ -z "$(project_reads_28 "$TMP_28/ok.sh")" ]; echo $?)" "#28 AK6 (Kontrolle): factory.config.yml ist die erlaubte Ausnahme"
