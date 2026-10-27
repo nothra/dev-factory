@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -35,6 +35,10 @@ Spec: `docs/specs/spec-32-import-deckel-test-fixture.md`.
 
 ## Offene Fragen
 - Lösungsort der Realstand-Assertion und Erkennungsmuster des Guards → `/architecture` bzw. `/implement` (siehe Spec)
+
+## Test-Notizen
+- Kein Coverage-Werkzeug für Bash; Vollständigkeit je AK geprüft. Ergänzt: Guard-Test für die `env FACTORY_DIR=… bash`-Form (Suite jetzt 1905 grün).
+- Mutationsbeleg zeigte: `(env[[:space:]]+)?` im Guard-Muster ist redundant (kein Zeilenanfangs-Anker, `env`-Zeile trifft auch ohne) – Vereinfachung an `/refactor` übergeben.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

@@ -8386,6 +8386,7 @@ for root_28 in FACTORY_ROOT REPO_ROOT; do
   assert_contains_286 "$(project_reads_28 "$(indirect_28 "x=\"\$(FACTORY_DIR=\"\$$root_28\" bash \"\$CHK\" 2>&1)\"")")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Check-Skript mit FACTORY_DIR=\$$root_28 aufgerufen → Guard rot"
 done
 assert_contains_286 "$(project_reads_28 "$(indirect_28 "FACTORY_DIR=\$FACTORY_ROOT"' bash "$CHK"')")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Aufruf ohne Anführungszeichen um die Wurzel → Guard rot"
+assert_contains_286 "$(project_reads_28 "$(indirect_28 "env FACTORY_DIR=\"\$FACTORY_ROOT\" bash \"\$CHK\"")")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Aufruf über env-Präfix mit der echten Wurzel → Guard rot"
 assert_true "$([ -z "$(project_reads_28 "$(indirect_28 'FACTORY_DIR="$TMP_FX" bash "$CHK" 2>&1')")" ]; echo $?)" "#32 AK4 (Kontrolle): Check-Skript gegen Fixture-Wurzel bleibt grün"
 assert_contains_286 "$(project_reads_28 "$TMP_28/gibt-es-nicht.sh")" "UNLESBAR:$TMP_28/gibt-es-nicht.sh" "#28 AK6 (fail-closed): unlesbare Quelle → Guard rot statt still grün"
 rm -rf "$TMP_28"
