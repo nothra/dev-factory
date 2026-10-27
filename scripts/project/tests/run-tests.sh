@@ -339,8 +339,10 @@ assert_contains_286 "$d4_out_431" 'tdd-principles.md' "#431 AK-D4: die Beitragsl
 rm -rf "$TMP_D4_431"
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-D5: Dauerkontext dieses Repos liegt unter dem Deckel; PROJECT-CONTEXT.md bleibt im Import ──
-ctx_431="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"
-assert_exit 0 "$?" "#431 AK-D5: Dauerkontext liegt unter dem Deckel ($ctx_431)"
+ctx_431="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"; ctx_rc_431=$?
+assert_exit 0 "$ctx_rc_431" "#431 AK-D5: Dauerkontext liegt unter dem Deckel ($ctx_431)"
+# Factory-Issue #32: der Realstand-Test lebt nur hier (Projekt-QS); bei Rot ist die Breakdown-Liste die einzige Information.
+[ "$ctx_rc_431" -eq 0 ] || printf '%s\n' "$ctx_431" | sed 's/^/      /'
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-D5: PROJECT-CONTEXT.md bleibt im Dauerkontext (Import in CLAUDE.md) ──
 grep -qxF '@docs/factory/PROJECT-CONTEXT.md' "$CLAUDE_MD_431"
