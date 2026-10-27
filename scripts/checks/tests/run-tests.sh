@@ -8312,29 +8312,28 @@ if [ "$HAS_YQ" = 1 ]; then
   done
   rm -rf "$TMP_I1"
 
-  # AK-I2: Drift-Guard gegen die neue Quelle. Generische Labels stehen als Tabellenzeile in git-workflow.md,
-  # projekteigene als Tabellenzeile in PROJECT-CONTEXT.md – und nicht umgekehrt.
-  # label_drift_431 <defaults> <config> <git-workflow.md> <PROJECT-CONTEXT.md> → Liste der Abweichungen (leer = ok).
-  label_drift_431() {
-    local eff g l out="" gw pc
-    eff="$(yq eval-all '. as $i ireduce ({}; . * $i)' "$1" "$2")"
-    gw="$(flat_286 "$3")"; pc="$(flat_286 "$4")"
-    for g in $(printf '%s' "$eff" | yq '.labels.kinds[], .labels.aspects[]' -); do
-      grep -qF -- "| \`$g\` |" <<< "$gw" || out="$out generisch-fehlt-in-git-workflow:$g"
-    done
-    for l in $(printf '%s' "$eff" | yq '.labels.aspects_extra[]' -); do
-      grep -qF -- "| \`$l\` |" <<< "$pc" || out="$out projekt-fehlt-in-PROJECT-CONTEXT:$l"
-      grep -qF -- "| \`$l\` |" <<< "$gw" && out="$out projekt-steht-in-git-workflow:$l"
-    done
-    printf '%s' "$out"
-  }
-  GW_431="$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"; PCX_431="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-  # Mutationen: je Seite eine eigene Assertion mit demselben Ausdruck.
+  # AK-I2: Drift-Guard gegen die neue Quelle (Funktion label_drift_431: assert-helpers.sh). Die PROJECT-CONTEXT.md ist eine
+  # Anpassungsstelle des Konsumenten – die Suite baut ihre eigene Fixture und liest die des echten Repos nicht (Factory-Issue #28);
+  # der Zustand der echten Datei im Factory-Repo steht in der Projekt-Suite.
+  GW_431="$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md"
   TMP_I2="$(mktemp -d)"
+  printf 'labels:\n  aspects_extra: [fixture-label]\n' > "$TMP_I2/cfg-fx.yml"
+  printf '# Fixture\n\n| Label | Aspekt |\n|-------|--------|\n| `fixture-label` | beschrieben |\n' > "$TMP_I2/pcx.md" \
+    || { echo "run-tests: Fixture-PROJECT-CONTEXT.md nicht schreibbar (fail-closed, Factory-Issue #28 FS1)" >&2; exit 2; }
+  PCX_431="$TMP_I2/pcx.md"
+  # Positivkontrolle (AK3/FS2): beschriebenes Label + Tabellenformat der Fixture → keine Abweichung; sonst bewiesen die Mutationen nichts.
+  assert_true "$([ -z "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$GW_431" "$PCX_431")" ]; echo $?)" "#28 AK3: Fixture mit beschriebenem Label → Drift-Guard meldet keine Abweichung (Positivkontrolle)"
+  # AK4: eigenes aspects_extra ohne Beschreibung in der Fixture betrifft nur den Guard-Aufruf mit dieser Config, nicht die Suite
+  printf '# Fixture ohne Labelzeilen\n' > "$TMP_I2/pcx-leer.md"
+  assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$GW_431" "$TMP_I2/pcx-leer.md")" 'projekt-fehlt-in-PROJECT-CONTEXT:fixture-label' "#28 AK1/AK4: Fixture ohne Labelbeschreibung → Guard meldet es (die Suite selbst liest keine echte PROJECT-CONTEXT.md)"
+  # FS2: weicht die Fixture vom gelesenen Tabellenformat ab (`| \`label\` |`), wird die Positivkontrolle rot statt der Mutationen
+  printf '# Fixture\n\n| Label | Aspekt |\n| fixture-label | beschrieben |\n' > "$TMP_I2/pcx-format.md"
+  assert_true "$([ -n "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$GW_431" "$TMP_I2/pcx-format.md")" ]; echo $?)" "#28 FS2: Fixture ohne Backtick-Tabellenzeile → Drift-Guard meldet eine Abweichung (Positivkontrolle würde rot)"
+  # Mutationen: je Seite eine eigene Assertion mit demselben Ausdruck.
   printf 'labels:\n  aspects_extra: [zzz-neu]\n' > "$TMP_I2/cfg.yml"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg.yml" "$GW_431" "$PCX_431")" 'projekt-fehlt-in-PROJECT-CONTEXT:zzz-neu' "#431 AK-I2 (Mutation): ein Config-Label ohne Beschreibung in PROJECT-CONTEXT.md macht den Guard rot"
   grep -vF -- '| `security` |' "$GW_431" > "$TMP_I2/gw.md"
-  assert_contains_286 "$(label_drift_431 "$DEF_431" "$CFG_431" "$TMP_I2/gw.md" "$PCX_431")" 'generisch-fehlt-in-git-workflow:security' "#431 AK-I2 (Mutation): ein generisches Label ohne Tabellenzeile in git-workflow.md macht den Guard rot"
+  assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg-fx.yml" "$TMP_I2/gw.md" "$PCX_431")" 'generisch-fehlt-in-git-workflow:security' "#431 AK-I2 (Mutation): ein generisches Label ohne Tabellenzeile in git-workflow.md macht den Guard rot"
   { cat "$GW_431"; printf '| `zzz-neu` | doppelt |\n'; } > "$TMP_I2/gw2.md"
   { cat "$PCX_431"; printf '| `zzz-neu` | beschrieben |\n'; } > "$TMP_I2/pc2.md"
   assert_contains_286 "$(label_drift_431 "$DEF_431" "$TMP_I2/cfg.yml" "$TMP_I2/gw2.md" "$TMP_I2/pc2.md")" 'projekt-steht-in-git-workflow:zzz-neu' "#431 AK-I2 (Mutation): ein projekteigenes Label in der generischen Tabelle macht den Guard rot"
@@ -8346,6 +8345,34 @@ if [ "$HAS_YQ" = 1 ]; then
 else
   skip_yq "#431 AK-I1/I2: labels.* (Config, Validierung, Drift-Guard)"
 fi
+
+# ─── Factory-Issue #28 AK6: die ausgelieferte Suite liest keine projekteigenen Dateien des echten Repos ───────────────
+# Einzige begründete Ausnahme: factory.config.yml (der Konsument prüft seine eigene Config, Entscheidung Q1 in spec-28).
+# Der Guard sucht Pfade der Form <Repo-Wurzel-Variable>/…<projekteigene Datei> und baut sein Muster zur Laufzeit zusammen,
+# sonst träfe er sich in dieser Datei selbst (Lesson testing.md: Content-Scan-Guard mit Literal ist immer rot).
+project_reads_28() {
+  local f out="" hits names="PROJECT-CONTEXT\\.md|gitignore\\.project|settings\\.project\\.json|CLAUDE\\.md|README\\.md|CHANGELOG\\.md"
+  for f in "$@"; do
+    [ -r "$f" ] || { out="$out UNLESBAR:$f"; continue; }
+    hits="$(grep -nE "[$]\{?(FACTORY_ROOT|REPO_ROOT|FACTORY_DIR)\}?/[^ \"']*($names)" "$f")"
+    [ -z "$hits" ] || out="$out $f:$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
+  done
+  printf '%s' "$out"
+}
+SHIPPED_TESTS_28=("$SCRIPTS_DIR/checks/tests/run-tests.sh" "$SCRIPTS_DIR/checks/tests/factory-lock-tests.sh" "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh")
+assert_true "$([ -z "$(project_reads_28 "${SHIPPED_TESTS_28[@]}")" ]; echo $?)" "#28 AK6: die ausgelieferten Test-Dateien lesen keine projekteigene Datei des echten Repos (Ausnahme: factory.config.yml)"
+TMP_28="$(mktemp -d)"; HELPERS_28="$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"
+# mutant_28 <Pfad-nach-Variable> → Kopie der Helfer-Lib mit einem ergänzten Lesezugriff nach $TMP_28/mut.sh (Pfad auf stdout)
+mutant_28() { { cat "$HELPERS_28"; printf 'x="$(cat "%s")"\n' "$1"; } > "$TMP_28/mut.sh"; printf '%s' "$TMP_28/mut.sh"; }
+for name_28 in docs/factory/PROJECT-CONTEXT.md .gitignore.project .claude/settings.project.json CLAUDE.md README.md CHANGELOG.md; do
+  assert_contains_286 "$(project_reads_28 "$(mutant_28 "\$FACTORY_ROOT/$name_28")")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff auf $name_28 ergänzt → Guard rot"
+done
+for var_28 in REPO_ROOT FACTORY_DIR; do
+  assert_contains_286 "$(project_reads_28 "$(mutant_28 "\${$var_28}/CLAUDE.md")")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff über \$$var_28 statt \$FACTORY_ROOT → Guard rot"
+done
+assert_true "$([ -z "$(project_reads_28 "$(mutant_28 "\$FACTORY_ROOT/factory.config.yml")")" ]; echo $?)" "#28 AK6 (Kontrolle): factory.config.yml ist die erlaubte Ausnahme"
+assert_contains_286 "$(project_reads_28 "$TMP_28/gibt-es-nicht.sh")" "UNLESBAR:$TMP_28/gibt-es-nicht.sh" "#28 AK6 (fail-closed): unlesbare Quelle → Guard rot statt still grün"
+rm -rf "$TMP_28"
 
 # AK-I3: Verhalten unverändert (Q5) – weder start-work.sh noch der Seam lesen die Label-Listen oder lehnen ab;
 # die fail-open-Verhaltenstests ('Seam: fehlendes Aspekt-Label → Issue trotzdem angelegt') laufen oben unverändert.

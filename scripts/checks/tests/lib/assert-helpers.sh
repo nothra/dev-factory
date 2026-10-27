@@ -6,7 +6,7 @@
 # die Helfer gehören der Factory und kommen ab T2 mit Factory-Updates.
 #
 # Stellt bereit: die Zähler PASS/FAIL, die Farben, assert_exit/assert_true/assert_contains_286/
-# assert_absent, flat_286, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426 und
+# assert_absent, flat_286, label_drift_431, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426 und
 # print_summary (Ergebnis-Fußzeile samt Exit-Code).
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -64,6 +64,24 @@ assert_true() {
 # eingerückten Fortsetzungen wieder wirkungslos. Preis: Phrasen mit MEHREREN aufeinander
 # folgenden Leerzeichen sind über diesen Lesepfad nicht ankerbar.
 flat_286() { tr '\n' ' ' < "$1" | tr -s ' '; }
+
+# label_drift_431 <defaults> <config> <git-workflow.md> <PROJECT-CONTEXT.md> → Liste der Abweichungen (leer = ok); braucht yq.
+# Generische Labels stehen als Tabellenzeile in git-workflow.md, projekteigene (labels.aspects_extra) als Tabellenzeile in
+# PROJECT-CONTEXT.md – und nicht umgekehrt. Hier statt in einer Suite, weil die ausgelieferte Suite den Guard gegen eine
+# Fixture-PROJECT-CONTEXT.md fährt und die Projekt-Suite gegen die echte (Factory-Issue #28).
+label_drift_431() {
+  local eff g l out="" gw pc
+  eff="$(yq eval-all '. as $i ireduce ({}; . * $i)' "$1" "$2")"
+  gw="$(flat_286 "$3")"; pc="$(flat_286 "$4")"
+  for g in $(printf '%s' "$eff" | yq '.labels.kinds[], .labels.aspects[]' -); do
+    grep -qF -- "| \`$g\` |" <<< "$gw" || out="$out generisch-fehlt-in-git-workflow:$g"
+  done
+  for l in $(printf '%s' "$eff" | yq '.labels.aspects_extra[]' -); do
+    grep -qF -- "| \`$l\` |" <<< "$pc" || out="$out projekt-fehlt-in-PROJECT-CONTEXT:$l"
+    grep -qF -- "| \`$l\` |" <<< "$gw" && out="$out projekt-steht-in-git-workflow:$l"
+  done
+  printf '%s' "$out"
+}
 
 # assert_contains_286 <geflachter-inhalt> <phrase> <beschreibung>
 #

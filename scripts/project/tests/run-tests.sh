@@ -605,5 +605,17 @@ out_22="$(nolib_22 scripts/project/tests/run-tests.sh)"
 assert_exit 2 $? "#22 F-22.5: Projekt-Suite ohne assert-helpers.sh → Exit 2"
 assert_contains_286 "$out_22" 'assert-helpers.sh' "#22 F-22.5: die Meldung der Projekt-Suite nennt die fehlende Lib"
 
+# ─── Factory-Issue #28 AK5: Label-Drift-Guard gegen die echte PROJECT-CONTEXT.md (aus der ausgelieferten Suite herausgelöst) ───
+# Vorher prüfte #431 AK-I2 die echten Dateien dieses Repos; die ausgelieferte Suite nutzt jetzt eine Fixture. Der Zustand der
+# echten Datei (jedes Label aus labels.aspects_extra beschrieben, keines in der generischen Tabelle) steht hier.
+if [ "$HAS_YQ" = 1 ]; then
+  drift_28="$(label_drift_431 "$FACTORY_ROOT/factory.defaults.yml" "$FACTORY_ROOT/factory.config.yml" \
+    "$FACTORY_ROOT/docs/factory/guidelines/git-workflow.md" "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
+  assert_true "$([ -z "$drift_28" ]; echo $?)" "#28 AK5: Labels aus Defaults + factory.config.yml sind in git-workflow.md bzw. PROJECT-CONTEXT.md beschrieben ${drift_28:+($drift_28)}"
+  assert_true "$(grep -qF -- '| Label | Aspekt |' "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"; echo $?)" "#28 AK5: PROJECT-CONTEXT.md trägt die Label-Tabelle (Projekt-Labels)"
+else
+  skip_yq "#28 AK5: Label-Drift-Guard gegen die echte PROJECT-CONTEXT.md"
+fi
+
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

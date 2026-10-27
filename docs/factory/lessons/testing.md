@@ -745,3 +745,14 @@ mit Nullhash). Vor `/test`-Abschluss je Zweig einen Mutanten laufen lassen: `die
 nur der zuständige Test darf rot werden; Mutanten, die sich nicht auslösen lassen (Fehlerinjektion in `cp`/`rm`, Verteidigung in der Tiefe), im Coverage-Report
 begründen. Der `bash -x`-Wrapper aus der Lesson oben versagte hier (Kind-Prozesse: Zeilennummern fehlten im Trace) – der Mutationslauf ist die
 belastbarere Messung für Skripte, die andere Skripte aufrufen.
+
+## Neutralitäts-Guard „liest keine Konsumenten-Dateien“ sieht nur direkte Pfade – indirekte Leser per Fixture-Lauf finden (aus Factory-Task #28, `/review`)
+
+Der Guard gegen Lesezugriffe der ausgelieferten Suite auf projekteigene Dateien (`$FACTORY_ROOT/…PROJECT-CONTEXT.md` usw.) war grün und hatte pro Datei einen
+Mutationsbeleg – und doch las die Suite weiter eine Projektdatei: ein Test ruft `import-context-limit-check.sh` gegen den echten Repo-Stand auf, das Check-Skript
+liest `CLAUDE.md` und `PROJECT-CONTEXT.md`. Ein Pfad-Grep über die Testdatei findet das nie; erst der Suite-Lauf in einer Repo-Kopie ohne `PROJECT-CONTEXT.md`
+machte genau diesen Test rot (Issue #32).
+
+**Regel:** Ein statischer Pfad-Guard ersetzt den **Fixture-Lauf** nicht. Für jeden „liest nichts vom Konsumenten“-AK zusätzlich die Suite in Kopien laufen lassen
+(Datei fehlt / Datei verändert) und die roten Tests **zwischen den Varianten** vergleichen – Rot, das nur in einer Variante auftritt, ist ein indirekter Leser;
+Rot in allen Varianten kommt vom Kopier-Aufbau (kein Git-Verlauf, Pfad). Die Grenze des Pfad-Guards im Kommentar benennen.

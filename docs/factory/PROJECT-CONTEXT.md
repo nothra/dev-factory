@@ -137,6 +137,7 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - `assert_contains_286`/`printf | grep -q` auf Datei-/Listen-Haystacks (ab wenigen KB): SIGPIPE-Race + `pipefail` → in CI Falsch-Rot, lokal grün – Datei direkt `grep -qF -- … <datei>`, Variable per Here-String; nach Test-Refactor CI abwarten (aus nothra/tch-gastro-services#426, CI-Befund nach `/refactor`)
 - Zeilenabdeckung für ein Bash-Skript ohne Coverage-Werkzeug per `bash -x` in einem Wrapper messen (bash 3.2 kennt kein `BASH_XTRACEFD`: Trace von echter stderr trennen); jede nicht ausgeführte fail-closed-Zeile einzeln bewerten und mit Mutationsbeleg testen (aus Factory-Task #22, `/test`)
 - Fail-closed-Zweig mit „Exit ≠ 0 + nichts geändert“ belegt ist nicht belegt, wenn ein späterer Schritt zufällig auch scheitert: zweigspezifische Meldung + Abwesenheit der Folgestufen assertieren, Mutationslauf je `die` (12 von 26 Mutanten überlebten; aus Factory-Task #23, `/test`)
+- Neutralitäts-Guard „liest keine Konsumenten-Dateien“ (Pfad-Grep) sieht indirekte Leser nicht – ein Test rief ein Check-Skript gegen den echten Repo-Stand; erst der Suite-Lauf in Repo-Kopien (Datei fehlt/verändert, Rot je Variante vergleichen) fand ihn (aus Factory-Task #28, `/review`, Issue #32)
 
 **[`lessons/build-tooling.md`](lessons/build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 
