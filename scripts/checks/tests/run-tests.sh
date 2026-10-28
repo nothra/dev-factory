@@ -8057,23 +8057,27 @@ assert_exit 1 "$rc_27" "#27 AK5 (Mutation): alter Markdown-Link in git-workflow.
 assert_contains_286 "$out_27" "✗ docs/factory/guidelines/git-workflow.md:$line_27:" "#27 AK5 (Mutation): die Meldung nennt Datei und Zeile"
 cp "$TMP_27/gw.orig" "$TMP_27/fx/docs/factory/guidelines/git-workflow.md"
 
+# own_ref_scan_reports_27 <wurzel> <dateiliste> <fundpräfix> → Exit 0, wenn der Scan einen Fund mit diesem Präfix meldet
+# (Ausgabe vorher einfangen: der Scan endet bei einem Fund mit Exit 1, `| grep -q` würde unter pipefail rot)
+own_ref_scan_reports_27() {
+  local scan_out
+  scan_out="$(own_ref_scan_27 "$1" "$2")"
+  grep -qF -- "$3" <<< "$scan_out"
+}
 # F2: Link über zwei Zeilen, Pfad in Backticks, bloßer Name, andere Schreibweise – je eine Fundzeile
 printf 'Zuordnung laut [Tabelle](\n../%s)\n' "$OWN_TABLE_NAME_27" > "$TMP_27/fx/docs/factory/kleinfunde.md"
-scan_out_27="$(own_ref_scan_27 "$TMP_27/fx" "$TMP_27/list.txt")"
-grep -qF -- "✗ docs/factory/kleinfunde.md:2:" <<< "$scan_out_27"
+own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/kleinfunde.md:2:"
 assert_exit 0 $? "#27 F2: Link-Text und Ziel auf zwei Zeilen → Fund in der Zeile des Ziels"
 for form_27 in "\`docs/factory/$OWN_TABLE_NAME_27\`" "laut $OWN_TABLE_NAME_27" "laut ownership.md"; do
   printf 'Regel: %s\n' "$form_27" > "$TMP_27/fx/docs/factory/kleinfunde.md"
-  scan_out_27="$(own_ref_scan_27 "$TMP_27/fx" "$TMP_27/list.txt")"
-  grep -qF -- "✗ docs/factory/kleinfunde.md:1:" <<< "$scan_out_27"
+  own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/kleinfunde.md:1:"
   assert_exit 0 $? "#27 F2: Verweisform '$form_27' wird erkannt"
 done
 cp "$FACTORY_ROOT/docs/factory/kleinfunde.md" "$TMP_27/fx/docs/factory/kleinfunde.md"
 
 # AK6: die historische Erzählung ist nur als einzelne Stelle ausgenommen – ein neuer Verweis in derselben Datei → rot
 printf '\nZuordnungsregel: Datei laut `%s`\n' "$OWN_TABLE_NAME_27" >> "$TMP_27/fx/docs/factory/lessons/factory-workflow.md"
-scan_out_27="$(own_ref_scan_27 "$TMP_27/fx" "$TMP_27/list.txt")"
-grep -qF -- "✗ docs/factory/lessons/factory-workflow.md:" <<< "$scan_out_27"
+own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/lessons/factory-workflow.md:"
 assert_exit 0 $? "#27 AK6: neuer Verweis in factory-workflow.md außerhalb der ausgenommenen Stelle → Guard rot"
 printf 'hatte 44 rote Tests – das **sind** die Gruppen, die den Zustand des Factory-Repos voraussetzen (liest `%s`)\n' "$OWN_TABLE_NAME_27" > "$TMP_27/hist.md"
 own_ref_excepted_27 docs/factory/lessons/factory-workflow.md "$(cat "$TMP_27/hist.md")"

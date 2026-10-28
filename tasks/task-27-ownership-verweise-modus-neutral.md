@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -50,3 +50,7 @@ Erstellt: 2026-10-28 21:04
 - Kein Coverage-Werkzeug im Repo (Bash). Zeilenabdeckung des Guards bewertet über die fail-closed-Zweige einzeln.
 - Mutationsbelege (je ein Mutant, F1-Test wurde rot): leere Dateimenge → fail-open; Kommando-Exit ignoriert; unlesbare gelistete Datei ignoriert.
 - Beide Suiten grün (1956 / 145). Kein Produktionscode geändert.
+
+## Refactoring-Notizen (/refactor)
+- Dreifach duplizierter „Scan ausführen + Ausgabe greppen"-Block in `run-tests.sh` (F2/AK6) in den Helfer `own_ref_scan_reports_27` gezogen; die pipefail-Begründung steht dort einmal. Kein neues Verhalten, Suite weiter 1956 grün.
+- Review-Nitpicks (Zeilenumbruch in Lesson-Köpfen, Spec-Checkboxen) bewusst unverändert: kosmetisch, ohne Wirkung.
