@@ -17,17 +17,17 @@ Spec: `docs/specs/spec-27-ownership-verweise-modus-neutral.md`.
 
 ## Akzeptanzkriterien
 <!-- Volltext GIVEN/WHEN/THEN: docs/specs/spec-27-ownership-verweise-modus-neutral.md -->
-- [ ] AK1: die elf Scope-Dateien nennen das Kommando, kein Link/Pfad auf `OWNERSHIP.md`
-- [ ] AK2: Formulierung in Tabellen- und Lock-Modus ausführbar, ohne toten Link
-- [ ] AK3: Zuordnungsregel inhaltlich unverändert, nur die Bezugsquelle ist neu
-- [ ] AK4: Tests AK-C5/AK-L1 prüfen das Kommando (Mutationsbeleg)
-- [ ] AK5: Guard – `OWNERSHIP.md`-Verweis in einer Datei der Seite `factory` → rot mit Datei:Zeile
-- [ ] AK6: Ausnahmeliste nur für die Nicht-Scope-Klassen, begründet, keine ganze Scope-Datei ausgenommen
-- [ ] AK7: Guard konsumenten-neutral (Lock-Modus, liest keine Projektdatei)
-- [ ] AK8: pre-push und beide Suiten grün
-- [ ] F1: Guard fail-closed, wenn die Dateimenge nicht bestimmbar ist
-- [ ] F2: Guard erkennt alle heutigen Verweisformen, auch über Zeilenumbrüche
-- [ ] F3: kein Dauer-Rot durch die eigene Suchphrase
+- [x] AK1: die elf Scope-Dateien nennen das Kommando, kein Link/Pfad auf `OWNERSHIP.md`
+- [x] AK2: Formulierung in Tabellen- und Lock-Modus ausführbar, ohne toten Link
+- [x] AK3: Zuordnungsregel inhaltlich unverändert, nur die Bezugsquelle ist neu
+- [x] AK4: Tests AK-C5/AK-L1 prüfen das Kommando (Mutationsbeleg)
+- [x] AK5: Guard – `OWNERSHIP.md`-Verweis in einer Datei der Seite `factory` → rot mit Datei:Zeile
+- [x] AK6: Ausnahmeliste nur für die Nicht-Scope-Klassen, begründet, keine ganze Scope-Datei ausgenommen
+- [x] AK7: Guard konsumenten-neutral (Lock-Modus, liest keine Projektdatei)
+- [x] AK8: pre-push und beide Suiten grün
+- [x] F1: Guard fail-closed, wenn die Dateimenge nicht bestimmbar ist
+- [x] F2: Guard erkennt alle heutigen Verweisformen, auch über Zeilenumbrüche
+- [x] F3: kein Dauer-Rot durch die eigene Suchphrase
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->

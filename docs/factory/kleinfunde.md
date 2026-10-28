@@ -33,8 +33,9 @@
 >
 > **Geteilt nach Besitzer (Spec nothra/tch-gastro-services#426, ADR-063 Nachtrag Q6):** Diese Datei sammelt Funde an
 > **Factory-Dateien**; Funde an **Projekt-Dateien** (App-Code, Projekt-Skripte, App-Doku) stehen in
-> `docs/project/kleinfunde.md`. Maßgeblich ist die **betroffene Datei** laut
-> [`OWNERSHIP.md`](OWNERSHIP.md) (bei mehreren: die in **Wo** zuerst genannte). Schema und Regeln gelten
+> `docs/project/kleinfunde.md`. Maßgeblich ist die **betroffene Datei**: Seite `factory`, wenn
+> `bash scripts/checks/ownership-check.sh --list factory` sie listet, sonst Seite `project` (bei mehreren:
+> die in **Wo** zuerst genannte). Schema und Regeln gelten
 > für beide Dateien gleich.
 
 ---

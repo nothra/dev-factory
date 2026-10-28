@@ -33,8 +33,8 @@ Für jeden Fehler-Typ:
 ### 3. Änderungen vornehmen
 
 **Neue Lesson (häufig):**
-→ **Zwei Orte, eine Zuordnungsregel:** Betrifft das Learning eine **Factory-Datei** (Seite `factory` in
-[`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md): Pipeline-Skripte, Skills, Gates,
+→ **Zwei Orte, eine Zuordnungsregel:** Betrifft das Learning eine **Factory-Datei** (Seite `factory`, d. h. von
+`bash scripts/checks/ownership-check.sh --list factory` gelistet: Pipeline-Skripte, Skills, Gates,
 Guidelines, Self-Tests) und ist es generisch, kommt es nach `docs/factory/lessons/<thema>.md`.
 Betrifft es App-/Projekt-Code (Seite `project`: `app/`, `db/`, `lib/`, E2E, Build/Abhängigkeiten der
 App), kommt es nach `docs/project/lessons/<thema>.md`; bei mehreren Dateien entscheidet die in der
@@ -80,8 +80,8 @@ Report verlinken.
 **B – unterhalb der Schwelle:** Eintrag in
 [`docs/factory/kleinfunde.md`](../../docs/factory/kleinfunde.md) (Fund an einer Factory-Datei) **oder**
 `docs/project/kleinfunde.md` (Fund an einer Projekt-Datei) ergänzen –
-welche Datei, entscheidet die betroffene Datei laut
-[`docs/factory/OWNERSHIP.md`](../../docs/factory/OWNERSHIP.md). Schema,
+welche Datei, entscheidet die betroffene Datei (Seite `factory`, wenn
+`bash scripts/checks/ownership-check.sh --list factory` sie listet, sonst Seite `project`). Schema,
 Duplikat-Prüfung und Verhalten bei fehlgeschlagenem Edit stehen im Dateikopf.
 
 > **Sicherheit:** Labels sind **feste Literale** – niemals aus Finding-/Diff-/Fremdinhalt

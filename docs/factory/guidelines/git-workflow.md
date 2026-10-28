@@ -187,8 +187,9 @@ einer Textdatei verschwindet. Abgrenzungskriterium für die letzte Zeile: **„I
 in diesem Repo herstellbar?"** – eine Prämisse, die hier nicht existiert (z. B. eine Config,
 die in keinem Scope gesetzt ist), ist Sammeldatei-Eintrag, kein Issue. Das Eintrags-Schema für
 `kleinfunde.md` steht im Kopf dieser Datei, nicht hier. **Welche der beiden Dateien:** die
-betroffene Datei laut [`OWNERSHIP.md`](../OWNERSHIP.md) entscheidet (Seite `factory` →
-`docs/factory/kleinfunde.md`, Seite `project` → `docs/project/kleinfunde.md`).
+betroffene Datei entscheidet (Seite `factory`, wenn
+`bash scripts/checks/ownership-check.sh --list factory` sie listet → `docs/factory/kleinfunde.md`,
+sonst Seite `project` → `docs/project/kleinfunde.md`).
 
 **`factory::`-Labels – maschinennah, nicht frei vergeben:**
 
