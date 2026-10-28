@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Der @import-Deckel-Test der ausgelieferten Suite liest über `import-context-limit-check.sh` `CLAUDE.md` und
@@ -52,3 +52,5 @@ Spec: `docs/specs/spec-32-import-deckel-test-fixture.md`.
 ---
 Branch: `fix/32-import-deckel-test-fixture`
 Erstellt: 2026-10-27 10:28
+
+PR-Shepherd 2026-10-28: Merge freigegeben – alle Gates grün (PR #33, keine offenen Kommentare, Branch aktuell).
