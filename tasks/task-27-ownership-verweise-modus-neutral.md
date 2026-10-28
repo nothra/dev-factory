@@ -54,3 +54,5 @@ Erstellt: 2026-10-28 21:04
 ## Refactoring-Notizen (/refactor)
 - Dreifach duplizierter „Scan ausführen + Ausgabe greppen"-Block in `run-tests.sh` (F2/AK6) in den Helfer `own_ref_scan_reports_27` gezogen; die pipefail-Begründung steht dort einmal. Kein neues Verhalten, Suite weiter 1956 grün.
 - Review-Nitpicks (Zeilenumbruch in Lesson-Köpfen, Spec-Checkboxen) bewusst unverändert: kosmetisch, ohne Wirkung.
+
+PR-Shepherd 2026-10-28: Merge freigegeben – alle Gates grün (CI läuft, Auto-Merge wartet auf Checks).
