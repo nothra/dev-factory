@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -45,3 +45,8 @@ Keine offen – Umfang, Bezugsquelle und Guard am 2026-10-28 entschieden (siehe 
 ---
 Branch: `docs/27-ownership-verweise-modus-neutral`
 Erstellt: 2026-10-28 21:04
+
+## Test-Notizen (/test)
+- Kein Coverage-Werkzeug im Repo (Bash). Zeilenabdeckung des Guards bewertet über die fail-closed-Zweige einzeln.
+- Mutationsbelege (je ein Mutant, F1-Test wurde rot): leere Dateimenge → fail-open; Kommando-Exit ignoriert; unlesbare gelistete Datei ignoriert.
+- Beide Suiten grün (1956 / 145). Kein Produktionscode geändert.
