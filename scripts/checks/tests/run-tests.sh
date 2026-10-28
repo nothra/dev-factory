@@ -3224,10 +3224,16 @@ assert_true "$?" "#149: pre-push.sh verdrahtet das Format-Gate über gate_comman
 # neutralisieren (true), sodass allein das Format-Gate das Ergebnis bestimmt. Beweist,
 # dass das Gate den ECHTEN Befehl ausführt (rot → blockiert) und der Env-Override greift.
 TMP_G149="$(mktemp -d)"
+# Gate als Kopie in der Wegwerf-Wurzel (Factory-Issue #32): das Original würde über FACTORY_DIR die echte
+# CLAUDE.md/PROJECT-CONTEXT.md des Konsumenten lesen (Check 6, @import-Deckel) – ein indirekter Leser.
+mkdir -p "$TMP_G149/scripts/checks" "$TMP_G149/scripts/lib"
+cp "$CHECKS_DIR/pre-push.sh" "$TMP_G149/scripts/checks/"
+cp "$SCRIPTS_DIR/lib/gate-config.sh" "$TMP_G149/scripts/lib/"
+cp "$FACTORY_ROOT/factory.defaults.yml" "$TMP_G149/"
 mk_feature_repo "$TMP_G149" feature/149-format-gate-test
 run_prepush_149() { # $1 = FACTORY_FORMAT_COMMAND-Wert
   ( cd "$TMP_G149" && FACTORY_TEST_COMMAND=true FACTORY_TYPECHECK_COMMAND=true \
-      FACTORY_FORMAT_COMMAND="$1" bash "$CHECKS_DIR/pre-push.sh" >/dev/null 2>&1 )
+      FACTORY_FORMAT_COMMAND="$1" bash scripts/checks/pre-push.sh >/dev/null 2>&1 )
 }
 run_prepush_149 "false"
 assert_exit 1 "$?" "#149: Drift (Format-Befehl exit 1) blockiert den Push fail-closed"
@@ -6338,14 +6344,10 @@ echo "#319 @import-Kontext-Deckel (ADR-047):"
 IMPORT_CHECK="$CHECKS_DIR/import-context-limit-check.sh"
 assert_true "$([[ -f "$IMPORT_CHECK" ]]; echo $?)" "#319: import-context-limit-check.sh vorhanden"
 
-# Kopplung an die Wirklichkeit, nicht nur an Fixtures: der Deckel muss für den ECHTEN
-# Repo-Stand grün sein. Wäre er hier rot, wäre die Grenze falsch hergeleitet – oder ein
-# Prosa-Token (real: „@importiert" in CLAUDE.md) würde fälschlich als Import gezählt.
-# Ausgabe NICHT verwerfen: bei Fehlschlag ist die breakdown-Liste die einzige Information,
-# welche Datei zu groß geworden ist.
-ic_real_319="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"; ic_rc_319=$?
-assert_exit 0 "$ic_rc_319" "#319: realer @import-Stand des Repos liegt unter dem Deckel"
-[ "$ic_rc_319" -eq 0 ] || printf '%s\n' "$ic_real_319" | sed 's/^/      /'
+# Der Realstand-Test (Deckel gegen den ECHTEN Repo-Stand) lebt nicht hier: die Größe des
+# Konsumenten-Kontexts ist Projekt-QS, keine Factory-Funktionsprüfung (Factory-Issue #32,
+# Realstand in scripts/project/tests/run-tests.sh). Diese Suite prüft das Deckel-Verhalten
+# ausschließlich gegen Fixtures; der Guard „#28 AK6" bewacht, dass kein Aufruf gegen die echte Wurzel zurückkehrt.
 
 # Grenze UND Herleitungs-Basis aus dem Skript lesen, statt sie im Test zu duplizieren – sonst
 # driften beide, und ein Bump der Konstante bliebe unbemerkt grün.
@@ -8350,11 +8352,20 @@ fi
 # Einzige begründete Ausnahme: factory.config.yml (der Konsument prüft seine eigene Config, Entscheidung Q1 in spec-28).
 # Der Guard sucht Pfade der Form <Repo-Wurzel-Variable>/…<projekteigene Datei> und baut sein Muster zur Laufzeit zusammen,
 # sonst träfe er sich in dieser Datei selbst (Lesson testing.md: Content-Scan-Guard mit Literal ist immer rot).
+#
+# Zweite Klasse (Factory-Issue #32): INDIREKTE Leser – ein Check-Skript, dem die echte Repo-Wurzel als Wurzel-Variable
+# mitgegeben wird (`FACTORY_DIR=<echte Wurzel> bash <check>`), liest selbst CLAUDE.md/PROJECT-CONTEXT.md des Konsumenten.
+# Fixture-Wurzeln (`$TMP_…`) treffen das Muster nicht; nur `$FACTORY_ROOT`/`$REPO_ROOT` als Wert zählt. Ein `env`-Präfix
+# erfasst das Muster mit (kein Zeilenanfangs-Anker). Blind ist der Guard für den Direktaufruf eines Gates/Check-Skripts aus
+# dem echten `$CHECKS_DIR` ohne Wurzel-Variable (Fund `#149`, per Fixture-Lauf gefunden) und für getrennte `export`-Zeilen.
 project_reads_28() {
   local f out="" hits names="PROJECT-CONTEXT\\.md|gitignore\\.project|settings\\.project\\.json|CLAUDE\\.md|README\\.md|CHANGELOG\\.md"
+  local real_root="[$]\\{?(FACTORY_ROOT|REPO_ROOT)\\}?" root_var="(FACTORY_DIR|FACTORY_ROOT|REPO_ROOT)"
   for f in "$@"; do
     [ -r "$f" ] || { out="$out UNLESBAR:$f"; continue; }
     hits="$(grep -nE "[$]\{?(FACTORY_ROOT|REPO_ROOT|FACTORY_DIR)\}?/[^ \"']*($names)" "$f")"
+    [ -z "$hits" ] || out="$out $f:$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
+    hits="$(grep -nE "${root_var}=[\"']?${real_root}[\"']?[[:space:]]+(bash|sh)[[:space:]]" "$f")"
     [ -z "$hits" ] || out="$out $f:$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
   done
   printf '%s' "$out"
@@ -8371,6 +8382,14 @@ for var_28 in REPO_ROOT FACTORY_DIR; do
   assert_contains_286 "$(project_reads_28 "$(mutant_28 "\${$var_28}/CLAUDE.md")")" "$TMP_28/mut.sh:" "#28 AK6 (Mutation): Lesezugriff über \$$var_28 statt \$FACTORY_ROOT → Guard rot"
 done
 assert_true "$([ -z "$(project_reads_28 "$(mutant_28 "\$FACTORY_ROOT/factory.config.yml")")" ]; echo $?)" "#28 AK6 (Kontrolle): factory.config.yml ist die erlaubte Ausnahme"
+# Indirekter Leser (Factory-Issue #32): Check-Skript gegen die echte Wurzel. Mutant-Zeile zur Laufzeit gebaut (kein Literal im Quelltext).
+indirect_28() { { cat "$HELPERS_28"; printf '%s\n' "$1"; } > "$TMP_28/ind.sh"; printf '%s' "$TMP_28/ind.sh"; }
+for root_28 in FACTORY_ROOT REPO_ROOT; do
+  assert_contains_286 "$(project_reads_28 "$(indirect_28 "x=\"\$(FACTORY_DIR=\"\$$root_28\" bash \"\$CHK\" 2>&1)\"")")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Check-Skript mit FACTORY_DIR=\$$root_28 aufgerufen → Guard rot"
+done
+assert_contains_286 "$(project_reads_28 "$(indirect_28 "FACTORY_DIR=\$FACTORY_ROOT"' bash "$CHK"')")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Aufruf ohne Anführungszeichen um die Wurzel → Guard rot"
+assert_contains_286 "$(project_reads_28 "$(indirect_28 "env FACTORY_DIR=\"\$FACTORY_ROOT\" bash \"\$CHK\"")")" "$TMP_28/ind.sh:" "#32 AK4 (Mutation): Aufruf über env-Präfix mit der echten Wurzel → Guard rot"
+assert_true "$([ -z "$(project_reads_28 "$(indirect_28 'FACTORY_DIR="$TMP_FX" bash "$CHK" 2>&1')")" ]; echo $?)" "#32 AK4 (Kontrolle): Check-Skript gegen Fixture-Wurzel bleibt grün"
 assert_contains_286 "$(project_reads_28 "$TMP_28/gibt-es-nicht.sh")" "UNLESBAR:$TMP_28/gibt-es-nicht.sh" "#28 AK6 (fail-closed): unlesbare Quelle → Guard rot statt still grün"
 rm -rf "$TMP_28"
 
