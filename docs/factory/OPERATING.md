@@ -395,7 +395,8 @@ Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln au
 
 - **Stack-spezifisch** (Framework-, Datenbank-, Test-Stack des Projekts …) → Volltext nach
   `docs/project/lessons/<thema>.md` (generische Pipeline-/Skript-Learnings: `docs/factory/lessons/`;
-  Zuordnung nach der betroffenen Datei laut [`OWNERSHIP.md`](OWNERSHIP.md)) + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
+  Zuordnung nach der betroffenen Datei: Seite `factory`, wenn
+  `bash scripts/checks/ownership-check.sh --list factory` sie listet) + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
   die stack-agnostischen Guidelines.
 - **Kanonische Quelle referenzieren:** taucht eine Regel mehrfach auf (Skill + Persona + Spec),
   jede Kopie auf die Quelle verweisen und beim Update **alle** synchronisieren.

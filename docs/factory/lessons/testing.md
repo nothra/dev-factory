@@ -4,7 +4,8 @@
 > **Nicht** `@import`-geladen (ADR-037) – bei Bedarf gezielt lesen. Kanonische Quelle je
 > Regel ist der jeweilige Eintrag hier; im @import-Pfad (`PROJECT-CONTEXT.md`) steht nur eine Index-Zeile.
 > Neue Learnings kommen in die Lesson-Datei **ihrer Seite** (Zuordnungsregel: betrifft das Learning eine
-> Datei der Factory laut `docs/factory/OWNERSHIP.md` → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
+> Datei der Factory, d. h. eine von `bash scripts/checks/ownership-check.sh --list factory` gelistete,
+> → `docs/factory/lessons/`, sonst → `docs/project/lessons/`;
 > siehe `/codify` + ADR-037).
 > Projekt-Anteil dieses Themas: `docs/project/lessons/testing.md`.
 
@@ -764,3 +765,10 @@ Der erweiterte Guard (Check-Skript mit `FACTORY_DIR=<echte Wurzel> bash …`) fa
 **Fixture-Lauf sauber aufsetzen:** Die Varianten brauchen identischen Aufbau (Kopie → `git init` + Commit → `install-hooks.sh`), und die entfernte Datei muss **aus dem Baum** verschoben werden, nicht umbenannt im Baum – sonst entsteht eine Datei ohne Ownership-Zeile und ein Rot, das nur der Aufbau erzeugt. Suite-Lauf nicht in `| head` leiten (SIGPIPE bricht ihn ab, das Ergebnis täuscht).
 
 **Mutationsbeleg für optionale Regex-Gruppen:** Ohne Zeilenanfangs-Anker bleibt die Mutation „optionale Gruppe `(env )?` entfernen“ grün, weil der Rest der Zeile auch so trifft – die Gruppe ist dann redundant, nicht ungetestet. Beim Mutationsbeleg prüfen, ob die Mutation überhaupt etwas ändern kann.
+
+### Guard-Scan-Helfer in Tests: Rückgabewert und Fixture-Zustand (aus Factory-Task #27, `/implement` + `/test`)
+
+Zwei Fehler im Guard-Test eines Verweis-Scanners, beide erst im Suite-Lauf sichtbar:
+
+- **`scan … | grep -qF …` unter `set -o pipefail`:** Ein Scanner, der bei einem Fund mit Exit 1 endet, macht die Pipeline rot, obwohl `grep` den Fund sieht – der Test „erkennt den Fund“ schlägt genau dann fehl, wenn der Guard richtig arbeitet. Ausgabe zuerst in eine Variable fangen (`out="$(scan …)"`), dann `grep -qF -- … <<< "$out"`; bei mehr als einer Verwendung als kleiner Helfer.
+- **Mutation in einer geteilten Fixture nicht zurückgenommen:** Eine Mutationsprobe (Zeile an eine Fixture-Datei anhängen) wirkt auf jede spätere Probe derselben Fixture. Die AK6-Mutation färbte so den späteren Lock-Modus-Test rot. Jede Mutation direkt nach ihrer Assertion zurückkopieren (`cp` aus dem Original), nicht erst am Ende.

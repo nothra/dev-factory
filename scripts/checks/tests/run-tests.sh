@@ -7940,7 +7940,11 @@ codify_flat_426="$(flat_286 "$SKILLS_DIR_426/codify.md")"
 assert_contains_286 "$codify_flat_426" 'docs/factory/lessons/<thema>.md' "#426 AK-C5: /codify nennt den Factory-Ort der Lessons"
 assert_contains_286 "$codify_flat_426" 'docs/project/lessons/<thema>.md' "#426 AK-C5: /codify nennt den Projekt-Ort der Lessons"
 assert_contains_286 "$codify_flat_426" 'Zuordnungsregel' "#426 AK-C5: /codify beschreibt die Zuordnungsregel Factory vs. Projekt"
-assert_contains_286 "$codify_flat_426" 'docs/factory/OWNERSHIP.md' "#426 AK-C5: die Zuordnungsregel verweist auf die Zuordnungstabelle"
+# Factory-Issue #27: Bezugsquelle ist das Kommando (Tabellen- und Lock-Modus), nicht die projekteigene Tabelle.
+OWN_LIST_CMD_27='bash scripts/checks/ownership-check.sh --list factory'
+OWN_TABLE_NAME_27="OWNERSHIP"".md"   # zur Laufzeit zusammengesetzt: kein Literal, das der Guard unten in dieser Datei fände (F3)
+assert_contains_286 "$codify_flat_426" "$OWN_LIST_CMD_27" "#426 AK-C5 / #27 AK4: die Zuordnungsregel nennt das Kommando ownership-check.sh --list factory"
+assert_absent "$codify_flat_426" "$OWN_TABLE_NAME_27" "#27 AK4: /codify nennt die Zuordnungstabelle nicht mehr (im Konsumenten nicht vorhanden)"
 
 # AK-L1: Kleinfunde nach betroffener Datei geteilt; die Skills nennen beide Orte
 kf_side_426() { # $1 = Kleinfunde-Datei, $2 = erwartete Seite → Anzahl Einträge, deren erste Wo-Datei NICHT auf dieser Seite liegt
@@ -7958,8 +7962,158 @@ for sk_426 in review security-review codify; do
   sk_flat_426="$(flat_286 "$SKILLS_DIR_426/$sk_426.md")"
   assert_contains_286 "$sk_flat_426" 'docs/factory/kleinfunde.md' "#426 AK-L1: /$sk_426 nennt den Factory-Ort der Kleinfunde"
   assert_contains_286 "$sk_flat_426" 'docs/project/kleinfunde.md' "#426 AK-L1: /$sk_426 nennt den Projekt-Ort der Kleinfunde"
-  assert_contains_286 "$sk_flat_426" 'docs/factory/OWNERSHIP.md' "#426 AK-L1: /$sk_426 nennt die Zuordnungsregel (betroffene Datei laut Tabelle)"
+  assert_contains_286 "$sk_flat_426" "$OWN_LIST_CMD_27" "#426 AK-L1 / #27 AK4: /$sk_426 nennt die Zuordnungsregel über das Kommando ownership-check.sh --list factory"
+  assert_absent "$sk_flat_426" "$OWN_TABLE_NAME_27" "#27 AK4: /$sk_426 nennt die Zuordnungstabelle nicht mehr"
 done
+# AK4-Beleg (Mutation): dieselbe Assertion gegen /review ohne das Kommando → rot
+mut_27="$(flat_286 "$SKILLS_DIR_426/review.md" | sed "s#$OWN_LIST_CMD_27#entfernt#g")"
+assert_absent "$mut_27" "$OWN_LIST_CMD_27" "#27 AK4 (Mutation): /review ohne das Kommando → die Präsenz-Assertion (assert_contains_286) wäre rot"
+
+# ── Factory-Issue #27 · keine Zuordnungsregel über die Tabelle in ausgelieferten Dateien (AK5–AK7, F1–F3) ────────────
+# Die Tabelle gehört dem Repo (Factory-ADR-064 D5) und fehlt im Konsumenten. Die Dateimenge der Seite `factory` kommt aus
+# demselben Kommando, das die Dateien als Bezugsquelle nennen – modus-neutral (Tabelle hier, factory.lock im Konsumenten).
+# Gesucht wird der Dateiname allein: jede Verweisform (Markdown-Link, Pfad in Backticks, bloßer Name) enthält ihn auf
+# einer Zeile, auch wenn Link-Text und Ziel auf zwei Zeilen stehen (F2).
+#
+# Ausnahmen (AK6) – nur die Klassen aus „Nicht inbegriffen" der Spec. Form: Glob auf den Pfad, oder `Pfad|Anker` für
+# eine einzelne Stelle (der Anker steht auf der Fundzeile); nie eine ganze Datei aus dem Scope der Spec.
+OWN_REF_EXCEPTIONS_27=(
+  'docs/factory/adr/*'                    # ADRs halten historische Entscheidungen fest
+  'scripts/checks/ownership-check.sh'     # liest die Tabelle im Tabellenmodus tatsächlich
+  'scripts/checks/pre-push.sh'            # Kommentar am Aufruf von ownership-check.sh
+  'scripts/factory-release-manifest.sh'   # läuft nur im Factory-Repo und liest die Tabelle am Tag
+  'scripts/checks/tests/*'                # Test-Dateien der Suite: Fixtures, Testnamen, dieser Guard
+  'docs/factory/lessons/factory-workflow.md|die den Zustand des Factory-Repos voraussetzen (liest'   # historische Erzählung (Factory-Task #22)
+)
+# own_ref_excepted_27 <pfad> <fundzeile> → Exit 0, wenn eine Ausnahme greift
+own_ref_excepted_27() {
+  local entry
+  for entry in "${OWN_REF_EXCEPTIONS_27[@]}"; do
+    case "$entry" in
+      *'|'*) [ "$1" = "${entry%%|*}" ] && [[ "$2" == *"${entry#*|}"* ]] && return 0 ;;
+      *) [[ "$1" == $entry ]] && return 0 ;;
+    esac
+  done
+  return 1
+}
+# own_ref_scan_27 <wurzel> <dateiliste> → „✗ Datei:Zeile: Text" je Fund; Exit 0 = keiner, 1 = Fund, 2 = Liste leer (F1)
+own_ref_scan_27() {
+  local root="$1" list="$2" f hit found=0
+  grep -q . "$list" 2>/dev/null || { echo "✗ Dateimenge der Seite factory leer oder unlesbar: $list (fail-closed)"; return 2; }
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -r "$root/$f" ] || { echo "✗ $f: nicht lesbar (fail-closed)"; found=1; continue; }
+    while IFS= read -r hit; do
+      own_ref_excepted_27 "$f" "$hit" && continue
+      echo "✗ $f:$hit"; found=1
+    done < <(grep -nIiF -- "$OWN_TABLE_NAME_27" "$root/$f")
+  done < "$list"
+  return "$found"
+}
+# own_ref_guard_27 <wurzel> → Dateimenge über ownership-check.sh --list factory (Exit ≠ 0 → rot, F1), dann Scan
+own_ref_guard_27() {
+  local root="$1" list rc
+  list="$(mktemp)"
+  FACTORY_DIR="$root" bash "$CHECKS_DIR/ownership-check.sh" --list factory > "$list" 2>/dev/null; rc=$?
+  if [ "$rc" -ne 0 ]; then echo "✗ ownership-check.sh --list factory: Exit $rc (fail-closed)"; rm -f "$list"; return 2; fi
+  own_ref_scan_27 "$root" "$list"; rc=$?
+  rm -f "$list"; return "$rc"
+}
+out_27="$(own_ref_guard_27 "$FACTORY_ROOT")"
+assert_exit 0 $? "#27 AK5/AK7: keine Datei der Seite factory formuliert die Zuordnungsregel über die Tabelle (Positivkontrolle)"
+[ -z "$out_27" ] || echo "$out_27" | head -10 | sed 's/^/      /'
+
+# Fixture: die elf Scope-Dateien im aktuellen Stand, dazu Mutationen. Die Skills kommen aus SKILLS_DIR_426 (Patch-Vorprüfung).
+SCOPE_27=(docs/factory/FACTORY.md docs/factory/OPERATING.md docs/factory/guidelines/git-workflow.md docs/factory/kleinfunde.md
+  docs/factory/lessons/testing.md docs/factory/lessons/build-tooling.md docs/factory/lessons/code-style.md
+  docs/factory/lessons/factory-workflow.md)
+TMP_27="$(mktemp -d)"
+mkdir -p "$TMP_27/fx/.claude/commands" "$TMP_27/fx/docs/factory/guidelines" "$TMP_27/fx/docs/factory/lessons"
+for sk_27 in codify review security-review; do
+  cp "$SKILLS_DIR_426/$sk_27.md" "$TMP_27/fx/.claude/commands/"; printf '.claude/commands/%s.md\n' "$sk_27" >> "$TMP_27/list.txt"
+done
+for f_27 in "${SCOPE_27[@]}"; do cp "$FACTORY_ROOT/$f_27" "$TMP_27/fx/$f_27"; printf '%s\n' "$f_27" >> "$TMP_27/list.txt"; done
+assert_true "$([ "$(grep -c . "$TMP_27/list.txt")" -eq 11 ]; echo $?)" "#27 AK1: die Fixture umfasst die elf Scope-Dateien"
+own_ref_scan_27 "$TMP_27/fx" "$TMP_27/list.txt" > /dev/null
+assert_exit 0 $? "#27 AK1: keine der elf Scope-Dateien verweist auf die Tabelle (Kontrolle der Fixture)"
+for f_27 in "${SCOPE_27[@]}" .claude/commands/codify.md .claude/commands/review.md .claude/commands/security-review.md; do
+  assert_contains_286 "$(flat_286 "$TMP_27/fx/$f_27")" "$OWN_LIST_CMD_27" "#27 AK1/AK2: $f_27 nennt das Kommando als Bezugsquelle"
+  own_ref_excepted_27 "$f_27" ''
+  assert_exit 1 $? "#27 AK6: $f_27 ist nicht als ganze Datei ausgenommen"
+done
+# AK3: die Regel selbst bleibt – beide Orte und die Vorrangregel „zuerst genannt"
+assert_contains_286 "$(flat_286 "$TMP_27/fx/docs/factory/kleinfunde.md")" 'die in **Wo** zuerst genannte' "#27 AK3: kleinfunde.md behält die Vorrangregel bei mehreren Dateien"
+assert_contains_286 "$(flat_286 "$TMP_27/fx/.claude/commands/codify.md")" 'zuerst genannte' "#27 AK3: /codify behält die Vorrangregel bei mehreren Dateien"
+for f_27 in docs/factory/lessons/testing.md docs/factory/lessons/build-tooling.md docs/factory/lessons/code-style.md docs/factory/lessons/factory-workflow.md; do
+  assert_contains_286 "$(flat_286 "$TMP_27/fx/$f_27")" '→ `docs/factory/lessons/`, sonst → `docs/project/lessons/`' "#27 AK3: $f_27 behält beide Lesson-Orte"
+done
+
+# AK5 (Mutation): alter Verweis zurück in eine Scope-Datei → rot mit Datei:Zeile
+cp "$TMP_27/fx/docs/factory/guidelines/git-workflow.md" "$TMP_27/gw.orig"
+printf 'betroffene Datei laut [`%s`](../%s) entscheidet\n' "$OWN_TABLE_NAME_27" "$OWN_TABLE_NAME_27" >> "$TMP_27/fx/docs/factory/guidelines/git-workflow.md"
+line_27="$(grep -c '' "$TMP_27/fx/docs/factory/guidelines/git-workflow.md")"
+out_27="$(own_ref_scan_27 "$TMP_27/fx" "$TMP_27/list.txt")"; rc_27=$?
+assert_exit 1 "$rc_27" "#27 AK5 (Mutation): alter Markdown-Link in git-workflow.md → Guard rot"
+assert_contains_286 "$out_27" "✗ docs/factory/guidelines/git-workflow.md:$line_27:" "#27 AK5 (Mutation): die Meldung nennt Datei und Zeile"
+cp "$TMP_27/gw.orig" "$TMP_27/fx/docs/factory/guidelines/git-workflow.md"
+
+# own_ref_scan_reports_27 <wurzel> <dateiliste> <fundpräfix> → Exit 0, wenn der Scan einen Fund mit diesem Präfix meldet
+# (Ausgabe vorher einfangen: der Scan endet bei einem Fund mit Exit 1, `| grep -q` würde unter pipefail rot)
+own_ref_scan_reports_27() {
+  local scan_out
+  scan_out="$(own_ref_scan_27 "$1" "$2")"
+  grep -qF -- "$3" <<< "$scan_out"
+}
+# F2: Link über zwei Zeilen, Pfad in Backticks, bloßer Name, andere Schreibweise – je eine Fundzeile
+printf 'Zuordnung laut [Tabelle](\n../%s)\n' "$OWN_TABLE_NAME_27" > "$TMP_27/fx/docs/factory/kleinfunde.md"
+own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/kleinfunde.md:2:"
+assert_exit 0 $? "#27 F2: Link-Text und Ziel auf zwei Zeilen → Fund in der Zeile des Ziels"
+for form_27 in "\`docs/factory/$OWN_TABLE_NAME_27\`" "laut $OWN_TABLE_NAME_27" "laut ownership.md"; do
+  printf 'Regel: %s\n' "$form_27" > "$TMP_27/fx/docs/factory/kleinfunde.md"
+  own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/kleinfunde.md:1:"
+  assert_exit 0 $? "#27 F2: Verweisform '$form_27' wird erkannt"
+done
+cp "$FACTORY_ROOT/docs/factory/kleinfunde.md" "$TMP_27/fx/docs/factory/kleinfunde.md"
+
+# AK6: die historische Erzählung ist nur als einzelne Stelle ausgenommen – ein neuer Verweis in derselben Datei → rot
+printf '\nZuordnungsregel: Datei laut `%s`\n' "$OWN_TABLE_NAME_27" >> "$TMP_27/fx/docs/factory/lessons/factory-workflow.md"
+own_ref_scan_reports_27 "$TMP_27/fx" "$TMP_27/list.txt" "✗ docs/factory/lessons/factory-workflow.md:"
+assert_exit 0 $? "#27 AK6: neuer Verweis in factory-workflow.md außerhalb der ausgenommenen Stelle → Guard rot"
+printf 'hatte 44 rote Tests – das **sind** die Gruppen, die den Zustand des Factory-Repos voraussetzen (liest `%s`)\n' "$OWN_TABLE_NAME_27" > "$TMP_27/hist.md"
+own_ref_excepted_27 docs/factory/lessons/factory-workflow.md "$(cat "$TMP_27/hist.md")"
+assert_exit 0 $? "#27 AK6 (Kontrolle): die historische Stelle selbst bleibt ausgenommen"
+own_ref_excepted_27 docs/factory/lessons/testing.md "$(cat "$TMP_27/hist.md")"
+assert_exit 1 $? "#27 AK6: der Anker der Einzelstelle gilt nur in seiner Datei"
+cp "$FACTORY_ROOT/docs/factory/lessons/factory-workflow.md" "$TMP_27/fx/docs/factory/lessons/factory-workflow.md"   # Mutation zurücknehmen, bevor AK7 dieselbe Fixture nutzt
+
+# F1: Dateimenge nicht bestimmbar → rot statt still grün
+: > "$TMP_27/leer.txt"
+out_27="$(own_ref_scan_27 "$TMP_27/fx" "$TMP_27/leer.txt")"
+assert_exit 2 $? "#27 F1: leere Dateimenge → Exit 2 (fail-closed)"
+mkdir -p "$TMP_27/kein-repo"
+out_27="$(own_ref_guard_27 "$TMP_27/kein-repo")"
+assert_exit 2 $? "#27 F1: ownership-check.sh --list factory scheitert (kein Repo, weder Tabelle noch Lock) → Exit 2"
+assert_contains_286 "$out_27" 'ownership-check.sh --list factory: Exit' "#27 F1: die Meldung nennt das gescheiterte Kommando"
+printf 'gibt-es-nicht.md\n' > "$TMP_27/fehlt.txt"
+own_ref_scan_27 "$TMP_27/fx" "$TMP_27/fehlt.txt" > /dev/null
+assert_exit 1 $? "#27 F1: gelistete, aber unlesbare Datei → rot"
+
+# AK7: im Lock-Modus kommt die Dateimenge aus dem Lock – ohne Tabelle, ohne projekteigene Datei
+if command -v jq > /dev/null 2>&1; then
+  ( cd "$TMP_27/fx" && git init -q && git config user.email t@example.invalid && git config user.name t \
+    && mkdir -p scripts/checks && cp "$CHECKS_DIR/customization-points.txt" scripts/checks/ \
+    && jq -Rn '{schema: 1, files: [inputs | select(length > 0) | {path: .}]}' < "$TMP_27/list.txt" > factory.lock \
+    && git add -A && git commit -qm fixture )
+  out_27="$(own_ref_guard_27 "$TMP_27/fx")"
+  assert_exit 0 $? "#27 AK7: Lock-Modus ohne Tabelle → Dateimenge aus dem Lock, Guard grün"
+  [ -z "$out_27" ] || echo "$out_27" | head -5 | sed 's/^/      /'
+  printf 'laut `%s`\n' "$OWN_TABLE_NAME_27" >> "$TMP_27/fx/docs/factory/FACTORY.md"
+  out_27="$(own_ref_guard_27 "$TMP_27/fx")"
+  assert_contains_286 "$out_27" '✗ docs/factory/FACTORY.md:' "#27 AK7 (Mutation): Lock-Modus – Verweis in einer Lock-Datei → Guard rot"
+else
+  echo "  • #27 AK7: Lock-Modus-Fixture – übersprungen (jq fehlt)"
+fi
+rm -rf "$TMP_27"
 
 # ─── nothra/tch-gastro-services#431 T1a-2 · Gruppe D: CLAUDE.md und FACTORY.md (AK-D1…D5) ─────────────────────────────
 echo ""
