@@ -138,6 +138,7 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - Zeilenabdeckung für ein Bash-Skript ohne Coverage-Werkzeug per `bash -x` in einem Wrapper messen (bash 3.2 kennt kein `BASH_XTRACEFD`: Trace von echter stderr trennen); jede nicht ausgeführte fail-closed-Zeile einzeln bewerten und mit Mutationsbeleg testen (aus Factory-Task #22, `/test`)
 - Fail-closed-Zweig mit „Exit ≠ 0 + nichts geändert“ belegt ist nicht belegt, wenn ein späterer Schritt zufällig auch scheitert: zweigspezifische Meldung + Abwesenheit der Folgestufen assertieren, Mutationslauf je `die` (12 von 26 Mutanten überlebten; aus Factory-Task #23, `/test`)
 - Neutralitäts-Guard „liest keine Konsumenten-Dateien“ (Pfad-Grep) sieht indirekte Leser nicht – ein Test rief ein Check-Skript gegen den echten Repo-Stand; erst der Suite-Lauf in Repo-Kopien (Datei fehlt/verändert, Rot je Variante vergleichen) fand ihn (aus Factory-Task #28, `/review`, Issue #32)
+- Nachtrag: Guard um `FACTORY_DIR=<echte Wurzel> bash …` erweitert; Fixture-Lauf fand zusätzlich den Direktaufruf eines Gates aus dem echten `$CHECKS_DIR` (Check 6 liest `CLAUDE.md`) – Gates als Kopie in der Wegwerf-Wurzel; Fixture-Varianten identisch aufsetzen; Mutation einer optionalen Regex-Gruppe ohne Anker bleibt grün (aus Factory-Task #32, Umsetzung)
 
 **[`lessons/build-tooling.md`](lessons/build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 

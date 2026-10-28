@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung

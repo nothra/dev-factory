@@ -756,3 +756,11 @@ machte genau diesen Test rot (Issue #32).
 **Regel:** Ein statischer Pfad-Guard ersetzt den **Fixture-Lauf** nicht. Für jeden „liest nichts vom Konsumenten“-AK zusätzlich die Suite in Kopien laufen lassen
 (Datei fehlt / Datei verändert) und die roten Tests **zwischen den Varianten** vergleichen – Rot, das nur in einer Variante auftritt, ist ein indirekter Leser;
 Rot in allen Varianten kommt vom Kopier-Aufbau (kein Git-Verlauf, Pfad). Die Grenze des Pfad-Guards im Kommentar benennen.
+
+### Nachtrag zu Factory-Task #28 (aus Factory-Task #32, Umsetzung)
+
+Der erweiterte Guard (Check-Skript mit `FACTORY_DIR=<echte Wurzel> bash …`) fand den einen bekannten Treffer – und der Fixture-Lauf danach noch einen zweiten, den **kein** Muster sah: ein Test rief `pre-push.sh` direkt aus dem echten `$CHECKS_DIR` auf, dessen Check 6 selbst die echte `CLAUDE.md` liest. Gates/Check-Skripte, die über `FACTORY_DIR` aus ihrem Skriptpfad lesen, in der Test-Wegwerf-Wurzel als **Kopie** ausführen, nicht aus dem Repo.
+
+**Fixture-Lauf sauber aufsetzen:** Die Varianten brauchen identischen Aufbau (Kopie → `git init` + Commit → `install-hooks.sh`), und die entfernte Datei muss **aus dem Baum** verschoben werden, nicht umbenannt im Baum – sonst entsteht eine Datei ohne Ownership-Zeile und ein Rot, das nur der Aufbau erzeugt. Suite-Lauf nicht in `| head` leiten (SIGPIPE bricht ihn ab, das Ergebnis täuscht).
+
+**Mutationsbeleg für optionale Regex-Gruppen:** Ohne Zeilenanfangs-Anker bleibt die Mutation „optionale Gruppe `(env )?` entfernen“ grün, weil der Rest der Zeile auch so trifft – die Gruppe ist dann redundant, nicht ungetestet. Beim Mutationsbeleg prüfen, ob die Mutation überhaupt etwas ändern kann.
