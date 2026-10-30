@@ -26,6 +26,7 @@ Teil-Task T2a-3 von `nothra/tch-gastro-services#428`. Spec: `docs/specs/spec-24-
 - [ ] AK-24c – neuere Version ersetzt Fremd-Commits sichtbar (Hinweis im Body)
 - [ ] AK-24d – ohne Merge geschlossene Version wird nicht erneut angeboten
 - [ ] AK-24e – ohne `factory.lock` (Factory-Repo): No-op, grün, ohne Token
+- [ ] AK-24f – Update-PR besteht `pr-closes-issue` (Ausnahme nur für `chore/factory-update` im selben Repo, Fork bleibt geprüft)
 
 ### Fehlerszenarien
 - [ ] F1 – rote Gates im Update-PR: PR bleibt offen, `main` unverändert, Workflow schreibt nie auf `main`
@@ -39,12 +40,36 @@ Teil-Task T2a-3 von `nothra/tch-gastro-services#428`. Spec: `docs/specs/spec-24-
 - [ ] `OWNERSHIP.md`: je neue Datei eine Zeile
 
 ## Technische Notizen
-<!-- Von /architecture befüllt oder eigene Notizen -->
+Entscheidungen: Factory-ADR-063, Nachtrag 2026-10-30 (E10–E16). Kurzfassung für `/implement`:
+- **Neu (Seite `factory`, je eine Zeile in `OWNERSHIP.md`):** `scripts/factory-update.sh` (ganze Logik),
+  `.github/workflows/factory-update.yml` (nur Auslöser: `schedule` täglich + `workflow_dispatch`,
+  `concurrency` ohne Cancel, `permissions: contents: read`, Checkout `fetch-depth: 0` +
+  `persist-credentials: false`, `install-yq.sh`, Skript mit `FACTORY_SYNC_TOKEN` als Env).
+- **Ablauf des Skripts (E11), Reihenfolge fest:** kein Lock → No-op Exit 0 · Lock ungültig → Exit 1 ·
+  Token leer/abgelehnt (`gh api repos/$GITHUB_REPOSITORY --jq .permissions.push`) → Exit 1 · Release-Liste
+  (`gh api --paginate`, Filter: kein Draft/Pre-Release, SemVer-Tag, Asset `factory-release.json`; numerisch
+  vergleichen, kein `sort -V`) · ≤ N → Exit 0 · offener PR mit Lock-Version = V → Exit 0 · geschlossener,
+  nicht gemergter PR mit Body-Marke `<!-- factory-update-version: V -->` → Exit 0 · sonst Neuaufbau von
+  `origin/main`, `factory-sync.sh V`, Commit mit expliziter Identität, Push nur auf
+  `refs/heads/chore/factory-update` mit `--force-with-lease=…:<alter SHA>`, dann `gh pr edit` bzw.
+  `gh pr create --label enhancement` (kein Draft, nie `merge`/`--auto`).
+- **Push-Anmeldung (E12):** Credential-Helper per `-c`, der das Token aus der Umgebung liest – kein Token in
+  argv, URL oder `.git/config`; kein `gh auth setup-git`.
+- **PR-Body (E13):** Satz „hebt von N auf V", Marke, Hinweis zum Branch-Besitz, je Version in (N, V] neueste
+  zuerst `## <version>` + Release-Body; per `--body-file`.
+- **Gate-Ausnahme (E14):** `pr-closes-keyword-check.sh` grün ohne Keyword nur bei Head-Branch
+  `chore/factory-update` **und** Head-Repo = Basis-Repo; Env im Job `pr-closes-issue` in `factory-ci.yml`
+  durchreichen; `git-workflow.md` nennt die Ausnahme bei der Closes-Regel.
+- **Doku (E15):** `OPERATING.md` neuer Einmal-Setup-Abschnitt (Token: Contents/Pull requests/Workflows
+  read+write auf dem Konsumenten-Repo, ≤ 1 Jahr, Rotation, Symptom „Lauf rot: Token") + Verweis aus §5.5a.
+- **Tests (E16):** ausgelieferte Suite; Upstream-Fixture aus #23 + Bare-Repo als `origin` + `gh`-Stub im
+  `PATH` (Zustand aus Dateien, Aufruf-Protokoll). Mutationsbelege für Token-Prüfung und Fork-Bedingung.
+  Lessons: Scaffold-Helfer wiederverwenden statt parallel (#310), Stub im Scaffold (#314), Git-Identität
+  in Fixtures (#265).
 
 ## Offene Fragen
 - Q-24.1–Q-24.4 entschieden 2026-10-30 (siehe Spec).
-- Q-24.5 (Ort der Logik, Testbarkeit, Erkennung von Branch-/PR-Stand, Labels, Draft) → `/architecture`, Nachtrag zu Factory-ADR-063 D2.
-- Q-24.6 (Token-Rechte, ggf. *workflows:write*) → `/architecture`.
+- Q-24.5, Q-24.6 entschieden in `/architecture` (Factory-ADR-063 E10–E16); dabei neu AK-24f (Gate `pr-closes-issue`).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

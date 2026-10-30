@@ -4,7 +4,7 @@
 > Kriterien-Quelle ist `spec-428-factory-versioniert-per-factory-lock-einbinden.md` im Ursprungs-Repo
 > (Branch `feature/428-factory-split-t2-factory-lock-einbinden`, bis zum Merge dort). Hier stehen die
 > Kriterien AK2.2d, AK2.4, AK2.4b, F1, F3 und FS-T2.3, verfeinert auf den Ist-Stand nach #23, plus die
-> Fälle, die spec-428 offen lässt (AK-24a–e, F-24.1–F-24.3). Entscheidung: Factory-ADR-063 D2 und
+> Fälle, die spec-428 offen lässt (AK-24a–f, F-24.1–F-24.3). Entscheidung: Factory-ADR-063 D2 und
 > Nachtrag 2026-10-25 (E1–E9). Reihenfolge strikt A (#22) → B (#23) → **C (diese Task)** → Release
 > `v0.7.0` → Erst-Einbindung im ersten Konsumenten (`nothra/tch-gastro-services#428`).
 
@@ -107,6 +107,13 @@ Repos noch ein Register seiner Konsumenten (Pull statt Push, Factory-ADR-063 D2)
   kein neuer PR, kein Push, der Lauf ist grün mit Hinweis auf den geschlossenen PR. GIVEN danach
   erscheint eine Version > V THEN entsteht wieder ein PR (AK2.2d). *Beleg: zwei Tests.*
 
+- [ ] **AK-24f · Update-PR besteht `pr-closes-issue`** GIVEN ein Update-PR (Head-Branch
+  `chore/factory-update` im selben Repo) ohne Closing-Keyword WHEN der Required Check `pr-closes-issue`
+  läuft THEN ist er grün mit eigener Meldung; GIVEN ein PR aus einem **Fork** mit demselben Branch-Namen
+  oder ein PR von einem anderen Branch ohne Keyword THEN bleibt er rot wie bisher. *Beleg: drei Tests am
+  Gate + Mutationsbeleg (Fork-Bedingung entfernt → Test rot); Wiring-Test für das Env im Job
+  (Factory-ADR-063 E14, entschieden 2026-10-30).*
+
 ### Factory-Repo selbst
 
 - [ ] **AK-24e · No-op ohne Lock** GIVEN das Repo hat kein `factory.lock` (Factory-Repo selbst) WHEN der
@@ -148,13 +155,14 @@ Repos noch ein Register seiner Konsumenten (Pull statt Push, Factory-ADR-063 D2)
   Neuaufbau, Fremd-Commits entfallen sichtbar (entschieden 2026-10-30, AK-24b/c).
 - [x] **Q-24.4 · Abgelehnte Version** → wird nicht erneut angeboten, erst eine neuere (entschieden
   2026-10-30, AK-24d).
-- [ ] **Q-24.5 · Für `/architecture`:** Wo liegt die Logik (eigenes Skript vs. Inline-Schritte im
+- [x] **Q-24.5 · Für `/architecture`:** → Factory-ADR-063 Nachtrag 2026-10-30, E10–E14, E16. Wo liegt die Logik (eigenes Skript vs. Inline-Schritte im
   Workflow) und wie wird sie offline testbar (Seam für die Release-Liste, Stub für `gh`)? Woran erkennt
   der Lauf „PR für Version V geschlossen" und „Branch steht auf V" (Lock im Branch, PR-Titel,
   Label)? Welche Art-/Aspekt-Labels trägt der PR (kanonisch: `git-workflow.md` → „GitHub-Labels")?
   Draft oder bereit zum Review? Woraus kommen die Release Notes (Release-Body der Version)? Diese
   Details erweitern Factory-ADR-063 D2 → Nachtrag, kein neuer ADR.
-- [ ] **Q-24.6 · Token-Rechte:** spec-428 Q3 nennt *contents:write* + *pull-requests:write* im
+- [x] **Q-24.6 · Token-Rechte:** → Contents, Pull requests, Workflows (je read/write) auf dem
+  Konsumenten-Repo; *issues:write* auf `nothra/dev-factory` erst in T2b (Factory-ADR-063 E15). spec-428 Q3 nennt *contents:write* + *pull-requests:write* im
   Konsumenten-Repo. Reicht das für das Lesen der Releases von `nothra/dev-factory` (öffentlich) und ggf.
   für das Pushen von Workflow-Dateien (`.github/workflows/**` ändert sich mit jeder Version, die einen
   Workflow ändert → braucht vermutlich zusätzlich *workflows:write*)? In `/architecture` klären und in
@@ -162,7 +170,7 @@ Repos noch ein Register seiner Konsumenten (Pull statt Push, Factory-ADR-063 D2)
 
 ## Größe
 
-6 Kriterien aus spec-428 + 5 neue + 3 neue Fehlerszenarien = 14, deutlich unter der Schwelle von 25 AK
+6 Kriterien aus spec-428 + 6 neue (AK-24a–f) + 3 neue Fehlerszenarien = 15, deutlich unter der Schwelle von 25 AK
 (Lesson `nothra/tch-gastro-services#369`). Erwartet wenige neue Dateien (Workflow, ggf. Skript, Tests)
 plus `OPERATING.md` und `OWNERSHIP.md`.
 
@@ -172,4 +180,4 @@ plus `OPERATING.md` und `OWNERSHIP.md`.
 |---|---|
 | AK2.2d, AK2.4, AK2.4b | gleich (verfeinert) |
 | F1, F3, FS-T2.3 | gleich (verfeinert; FS-T2.3 auch ohne neue Version) |
-| neu | AK-24a–e, F-24.1–F-24.3 |
+| neu | AK-24a–f, F-24.1–F-24.3 |
