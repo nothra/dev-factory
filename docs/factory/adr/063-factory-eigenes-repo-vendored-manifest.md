@@ -602,6 +602,9 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   *Alternativen:* `actions/checkout` mit `token:` (scheitert ohne Secret schon vor dem No-op aus
   E11.1); `gh auth setup-git` (schreibt in die globale Git-Config – im Test die des Entwicklers);
   Token in der Remote-URL (landet in `.git/config` und Fehlermeldungen).
+  *Abholung ohne Token (Security-Review):* `factory-sync.sh` ersetzt sich beim Abholen selbst und startet
+  sich danach in der Fassung des Release neu – Code eines noch ungeprüften Tags. Das Skript ruft es deshalb
+  mit `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN` auf; Push und `gh` laufen erst danach mit dem Token.
 - **E13 · PR-Body:** Titel `chore: factory auf V heben`. Body in dieser Reihenfolge: ein Satz „hebt
   von N auf V", die Marke aus E11.4, der Hinweis aus AK-24c (Branch gehört dem Workflow, wird bei
   jeder neuen Version neu aufgebaut, eigene Commits entfallen dann), dann je Version in (N, V] neueste

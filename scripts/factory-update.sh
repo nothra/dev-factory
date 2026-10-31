@@ -141,7 +141,9 @@ rebuild_branch() {
   [ -z "$(git status --porcelain)" ] || die "Arbeitsbaum nicht sauber – kein Neuaufbau (fail-closed)"
   ORIG_REF="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)" || die "aktueller Checkout nicht ermittelbar"
   git checkout --quiet -B "$UPDATE_BRANCH" "origin/$BASE_BRANCH" || die "Branch $UPDATE_BRANCH nicht von origin/$BASE_BRANCH aufbaubar"
-  FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION" || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
+  # Ohne Token: factory-sync.sh ersetzt sich beim Abholen selbst und startet in der neuen Fassung aus dem Release neu –
+  # Code eines noch ungeprüften Tags darf das schreibberechtigte PAT nie sehen (E12; Push und gh laufen erst danach).
+  env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION" || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
   git add -A && git "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $TARGET_VERSION heben" \
     || die "Commit fehlgeschlagen – nichts gepusht"
   git_with_token push --quiet --force-with-lease="refs/heads/$UPDATE_BRANCH:$BRANCH_SHA" origin "HEAD:refs/heads/$UPDATE_BRANCH" \
