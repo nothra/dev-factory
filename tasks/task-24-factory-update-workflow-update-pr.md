@@ -111,6 +111,13 @@ Review-Iteration 5 (`tasks/review-24.md`, APPROVED) – Hook-Finding aus Iterati
 keine Kritisch-/Wichtig-Findings. Nitpick: gitignorete Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`)
 vor `/security-review` manuell löschen. Erneutes `/security-review` steht aus.
 
+## Test-Notizen
+/test 2026-10-31: alle AK/FS gegen die Tests geprüft. Lücke: mehrseitige `gh api --paginate`-Antwort (ein Array je
+Seite, `add` im Filter) war nie mit zwei Arrays getestet – neuer Test + Mutationsbeleg (ohne `add` rot, derselbe Guard).
+Release-Filter (Draft/Pre-Release/Asset/Nicht-SemVer) sind je mit einem höheren Release belegt. Kein Coverage-Werkzeug
+für Bash; Abdeckung über AK-Matrix. Suiten grün (2142 / 145). Wegwerf-Dateien `scripts/*.tmp.sh` und
+`tasks/telemetry-raw-24-*.tmp.txt` (gitignoret) liegen noch – `rm` war nicht freigegeben, manuell löschen.
+
 ## Refactoring-Notizen
 /refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
 Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).

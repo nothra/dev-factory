@@ -665,6 +665,26 @@ nochange_24 "AK2.4b: Draft, Pre-Release, Release ohne Manifest-Asset und Nicht-S
 world_24 s1; add_release_24 v1.9.0; add_release_24 v1.10.0; releases_24 v1.10.0 v1.9.0 v1.0.0
 upd_24 >/dev/null; assert_true "$([ "$(lock_on_branch_24)" = v1.10.0 ]; echo $?)" "#24 E11: höchste Version numerisch verglichen (v1.10.0 > v1.9.0)"
 
+# Pagination: `gh api --paginate` liefert je Seite ein eigenes JSON-Array hintereinander – die neueste Version kann auf Seite 2 liegen
+paged_ok_24() { [ "$(lock_on_branch_24 2>/dev/null)" = v1.1.0 ]; }
+world_24 pg1; add_release_24 v1.1.0
+{ releases_24 v1.0.0; cat "$GS_24/releases.json"; releases_24 v1.1.0; cat "$GS_24/releases.json"; } > "$GS_24/pages.json"
+mv "$GS_24/pages.json" "$GS_24/releases.json"
+assert_true "$([ "$(jq -s 'length' "$GS_24/releases.json")" = 2 ]; echo $?)" "#24 Pagination (Voraussetzung): die Stub-Antwort besteht aus zwei getrennten Arrays"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 Pagination: neueste Version nur auf Seite 2 → Lauf grün"
+assert_true "$(paged_ok_24; echo $?)" "#24 Pagination: Version von Seite 2 (v1.1.0) wird angeboten"
+# Mutation: ohne `add` (nur die erste Seite) bliebe v1.1.0 unsichtbar – derselbe Guard muss rot werden
+world_24 pg2; add_release_24 v1.1.0
+{ releases_24 v1.0.0; cat "$GS_24/releases.json"; releases_24 v1.1.0; cat "$GS_24/releases.json"; } > "$GS_24/pages.json"
+mv "$GS_24/pages.json" "$GS_24/releases.json"
+sed 's/^  add$/  .[0]/' "$UPD_24" > "$T23/mut24-pages.sh"
+assert_true "$([ "$(grep -c '^  add$' "$UPD_24")" = 1 ] && ! grep -q '^  add$' "$T23/mut24-pages.sh"; echo $?)" \
+  "#24 Pagination (Mutation): genau das Zusammenführen der Seiten ist im Mutanten entfernt"
+factory_scripts_24 "$W24/pages-mut" "$T23/mut24-pages.sh"
+upd_24 "$W24/pages-mut/scripts/factory-update.sh" >/dev/null
+assert_exit 1 "$(paged_ok_24; echo $?)" "#24 Pagination (Mutation): ohne das Zusammenführen ist derselbe Guard rot – es ist wirksam"
+
 # ── F3 / AK-24a: mehrere Versionen → ein PR, neu aufgebaut auf die neueste ───────────────────────────────────────────
 world_24 f3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
 upd_24 >/dev/null
