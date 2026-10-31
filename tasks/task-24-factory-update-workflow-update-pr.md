@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Übernommener Workflow `factory-update.yml` (täglich + `workflow_dispatch`): erkennt eine neuere
@@ -157,3 +157,5 @@ Release-Code im selben Job) und ein Rezidiv in `build-tooling.md` (Wegwerf-Datei
 ---
 Branch: `feature/24-factory-update-workflow-update-pr`
 Erstellt: 2026-10-30 21:48
+
+PR-Shepherd 2026-10-31: Merge freigegeben – alle Gates grün.
