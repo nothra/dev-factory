@@ -834,6 +834,33 @@ upd_24 "$MUT_24/scripts/factory-update.sh" >/dev/null
 assert_exit 1 "$(sync_saw_no_token_24; echo $?)" "#24 Security (Mutation): ohne env -u ist derselbe Guard rot – die tokenfreie Abholung ist wirksam"
 assert_true "$(grep -qF "FST=$GOOD_TOKEN_24" "$SEEN_24"; echo $?)" "#24 Security (Mutation): der Stub sah im Mutanten tatsächlich das Token"
 
+# Security: Git-Hooks laufen nie – nach der Abholung stammen sie aus dem ungeprüften Release und erbten beim Push das Token
+# spy_hooks_24 – core.hooksPath von C1 auf protokollierende Hooks (Hook-Name + sichtbare Token-Variablen); setzt HOOKS_24
+spy_hooks_24() {
+  local dir="$W24/hooks" h
+  HOOKS_24="$W24/hooks.log"; mkdir -p "$dir"; : > "$HOOKS_24"
+  for h in pre-commit commit-msg pre-push post-checkout reference-transaction; do
+    printf '#!/usr/bin/env bash\nprintf "%s FST=%%s GH=%%s\\n" "${FACTORY_SYNC_TOKEN:-}" "${GH_TOKEN:-}" >> "%s"\nexit 0\n' "$h" "$HOOKS_24" > "$dir/$h"
+    chmod +x "$dir/$h"
+  done
+  git -C "$C1_23" config core.hooksPath "$dir"
+}
+hooks_saw_no_token_24() { ! grep -qE '=[^ ]' "$HOOKS_24"; }
+next_world_24 hooks; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; spy_hooks_24
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(lock_on_branch_24)" = v1.1.0 ]; echo $?)" "#24 Security: mit installierten Hooks entsteht der Update-PR (kein Gate-Hook bricht den Push ab, F1)"
+assert_true "$(hooks_saw_no_token_24; echo $?)" "#24 Security: kein Git-Hook sieht FACTORY_SYNC_TOKEN oder GH_TOKEN"
+assert_true "$([ ! -s "$HOOKS_24" ]; echo $?)" "#24 Security: kein Git-Hook läuft (Commit, Push, Checkout, Fetch)"
+# Mutation: ohne die Hook-Abschaltung laufen die Hooks mit Token – derselbe Guard muss rot werden
+next_world_24 hooks; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; spy_hooks_24
+sed 's|-c core.hooksPath=/dev/null ||' "$UPD_24" > "$T23/mut24-hooks.sh"
+assert_true "$([ "$(grep -c 'core.hooksPath=/dev/null' "$UPD_24")" = 1 ] && ! grep -q 'core.hooksPath' "$T23/mut24-hooks.sh"; echo $?)" \
+  "#24 Security (Mutation): genau die Hook-Abschaltung ist im Mutanten entfernt"
+factory_scripts_24 "$W24/nohooks-mut" "$T23/mut24-hooks.sh"
+upd_24 "$W24/nohooks-mut/scripts/factory-update.sh" >/dev/null
+assert_exit 1 "$(hooks_saw_no_token_24; echo $?)" "#24 Security (Mutation): ohne core.hooksPath=/dev/null ist derselbe Guard rot – die Abschaltung ist wirksam"
+assert_true "$(grep -qE "^pre-push FST=$GOOD_TOKEN_24 " "$HOOKS_24"; echo $?)" "#24 Security (Mutation): im Mutanten sah der pre-push-Hook tatsächlich das Token"
+
 # ── F-24.2: Release-Liste nicht lesbar → rot ─────────────────────────────────────────────────────────────────────────
 world_24 r1; : > "$GS_24/releases-fail"
 out_24="$(upd_24)"; rc_24=$?
@@ -924,7 +951,7 @@ upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: nach erfo
 world_24 o2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
 upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: auch nach einem Abbruch im PR-Schritt steht der Checkout wieder auf main"
 # Mutationsbeleg: ohne den Checkout auf ORIG_REF verletzt derselbe Fall den Guard
-RESTORE_LINE_24='git checkout --quiet "$ORIG_REF"'
+RESTORE_LINE_24='git_nohooks checkout --quiet "$ORIG_REF"'
 grep -vF "$RESTORE_LINE_24" "$UPD_24" > "$T23/mut24-restore.sh"
 assert_true "$([ "$(grep -cF "$RESTORE_LINE_24" "$UPD_24")" = 1 ] && ! grep -qF "$RESTORE_LINE_24" "$T23/mut24-restore.sh"; echo $?)" \
   "#24 Rückkehr (Mutation): genau die Checkout-Zeile auf ORIG_REF ist im Mutanten entfernt"

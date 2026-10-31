@@ -608,6 +608,11 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   *Abholung ohne Token (Security-Review):* `factory-sync.sh` ersetzt sich beim Abholen selbst und startet
   sich danach in der Fassung des Release neu – Code eines noch ungeprüften Tags. Das Skript ruft es deshalb
   mit `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN` auf; Push und `gh` laufen erst danach mit dem Token.
+  *Ohne Git-Hooks (Review-Iteration 4):* Nach der Abholung rufen installierte Hooks (`install-hooks.sh`:
+  `pre-commit`/`pre-push` relativ zum Arbeitsbaum) Skripte des Release auf; der `pre-push`-Hook erbte das Token,
+  das der Credential-Helper aus der Umgebung liest, und ein rotes Gate darin bräche den Push ab, den F1 als
+  Update-PR vorsieht. Checkout, Fetch, Commit und Push laufen daher mit `-c core.hooksPath=/dev/null` – das
+  schaltet alle Hook-Typen ab, nicht nur die von `--no-verify` erfassten.
 - **E13 · PR-Body:** Titel `chore: factory auf V heben`. Body in dieser Reihenfolge: ein Satz „hebt
   von N auf V", die Marke aus E11.4, der Hinweis aus AK-24c (Branch gehört dem Workflow, wird bei
   jeder neuen Version neu aufgebaut, eigene Commits entfallen dann), dann je Version in (N, V] neueste

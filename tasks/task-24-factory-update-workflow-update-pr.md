@@ -99,6 +99,14 @@ Security-Review (`tasks/security-24.md`, NEEDS_FIXES) – Fix 2026-10-31:
 - Hinweise (Release-Notes ungefiltert im Body, Helper ohne Host-Prüfung): bewusst nicht umgesetzt – laut Report
   geringes Risiko bzw. kein Handlungsbedarf. Erneutes `/security-review` steht aus.
 
+Review-Iteration 4 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
+- W (Hooks sehen das Token): Checkout, Fetch, Commit und Push laufen über `git_nohooks`
+  (`-c core.hooksPath=/dev/null`) – nach der Abholung stammen installierte Hooks aus dem ungeprüften Release, der
+  `pre-push` erbte das Token, ein rotes Gate darin hätte den Push für F1 verhindert. Test mit protokollierenden Hooks
+  (fünf Typen) per `core.hooksPath`, Mutationsbeleg mit derselben Guard-Funktion `hooks_saw_no_token_24`.
+  ADR-063 E12 nachgezogen.
+- Nitpick: Wegwerf-Sonden `scripts/*.tmp.sh` (gitignoret, nicht im PR) – Löschen manuell, `rm` war nicht freigegeben.
+
 ## Refactoring-Notizen
 /refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
 Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).

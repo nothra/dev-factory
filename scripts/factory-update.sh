@@ -15,7 +15,8 @@
 #
 # Anmeldung: alle gh-Aufrufe laufen mit GH_TOKEN=$FACTORY_SYNC_TOKEN; der eingebaute Actions-Token wird nie gelesen
 # (Pushes mit ihm lösten keine pull_request-Workflows aus, AK2.4). Der Push meldet sich über einen Credential-Helper an,
-# der das Token zur Laufzeit aus der Umgebung ausgibt – es steht weder in argv noch in .git/config (E12).
+# der das Token zur Laufzeit aus der Umgebung ausgibt – es steht weder in argv noch in .git/config (E12). Git-Hooks
+# laufen bei keinem ref-schreibenden git-Aufruf (Checkout, Fetch, Commit, Push).
 #
 # Projektwurzel: FACTORY_DIR (Tests/Override), sonst eine Ebene über scripts/. Fail-closed: jedes Werkzeug oder jede
 # Antwort, die scheitert, beendet den Lauf mit Exit 1, bevor etwas gepusht wird.
@@ -42,12 +43,15 @@ die() { printf '✗ factory-update: %s\n' "$1" >&2; exit 1; }
 note() { printf 'ℹ factory-update: %s\n' "$1"; }
 
 cleanup() {
-  [ -z "$ORIG_REF" ] || git checkout --quiet "$ORIG_REF" || echo "⚠ factory-update: Rückkehr auf $ORIG_REF fehlgeschlagen" >&2
+  [ -z "$ORIG_REF" ] || git_nohooks checkout --quiet "$ORIG_REF" || echo "⚠ factory-update: Rückkehr auf $ORIG_REF fehlgeschlagen" >&2
   [ -z "$WORK" ] || rm -rf "$WORK"
 }
 
 gh_token() { GH_TOKEN="$FACTORY_SYNC_TOKEN" gh "$@"; }
-git_with_token() { git -c credential.helper= -c "credential.helper=$CREDENTIAL_HELPER" "$@"; }
+# Ohne Hooks: nach der Abholung rufen die installierten Hooks Skripte des ungeprüften Release auf, mit dem Token in der
+# Umgebung – und ein rotes Gate im pre-push brächte genau den Push zu Fall, den F1 als Update-PR vorsieht.
+git_nohooks() { git -c core.hooksPath=/dev/null "$@"; }
+git_with_token() { git_nohooks -c credential.helper= -c "credential.helper=$CREDENTIAL_HELPER" "$@"; }
 
 has_lock() { [ -e "$ROOT/$LOCK_FILE" ] || [ -L "$ROOT/$LOCK_FILE" ]; }
 
@@ -140,11 +144,11 @@ check_existing_pr() {
 rebuild_branch() {
   [ -z "$(git status --porcelain)" ] || die "Arbeitsbaum nicht sauber – kein Neuaufbau (fail-closed)"
   ORIG_REF="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)" || die "aktueller Checkout nicht ermittelbar"
-  git checkout --quiet -B "$UPDATE_BRANCH" "origin/$BASE_BRANCH" || die "Branch $UPDATE_BRANCH nicht von origin/$BASE_BRANCH aufbaubar"
+  git_nohooks checkout --quiet -B "$UPDATE_BRANCH" "origin/$BASE_BRANCH" || die "Branch $UPDATE_BRANCH nicht von origin/$BASE_BRANCH aufbaubar"
   # Ohne Token: factory-sync.sh ersetzt sich beim Abholen selbst und startet in der neuen Fassung aus dem Release neu –
   # Code eines noch ungeprüften Tags darf das schreibberechtigte PAT nie sehen (E12; Push und gh laufen erst danach).
   env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION" || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
-  git add -A && git "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $TARGET_VERSION heben" \
+  git add -A && git_nohooks "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $TARGET_VERSION heben" \
     || die "Commit fehlgeschlagen – nichts gepusht"
   git_with_token push --quiet --force-with-lease="refs/heads/$UPDATE_BRANCH:$BRANCH_SHA" origin "HEAD:refs/heads/$UPDATE_BRANCH" \
     || die "Push auf $UPDATE_BRANCH abgelehnt (Branch inzwischen geändert oder Token ohne Recht) – PR unverändert"
