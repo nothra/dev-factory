@@ -107,6 +107,10 @@ Review-Iteration 4 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
   ADR-063 E12 nachgezogen.
 - Nitpick: Wegwerf-Sonden `scripts/*.tmp.sh` (gitignoret, nicht im PR) – Löschen manuell, `rm` war nicht freigegeben.
 
+Review-Iteration 5 (`tasks/review-24.md`, APPROVED) – Hook-Finding aus Iteration 4 behoben und per Mutation belegt;
+keine Kritisch-/Wichtig-Findings. Nitpick: gitignorete Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`)
+vor `/security-review` manuell löschen. Erneutes `/security-review` steht aus.
+
 ## Refactoring-Notizen
 /refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
 Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).
