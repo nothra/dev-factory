@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -88,6 +88,9 @@ Review-Iteration 2 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
 - W2 Vorbehalt „zu wenig Rechte" in Spec (FS-T2.3 + neue offene Frage Q-24.7), ADR E11.2 und hier bei FS-T2.3.
 - N (65 536-Zeichen-Grenze des PR-Bodys): bewusst nicht umgesetzt – optional, die Notes sind
   CHANGELOG-Abschnitte; ein zu langer Body macht den Lauf rot, nicht still falsch.
+
+Review-Iteration 3 (`tasks/review-24.md`, APPROVED) – keine Kritisch-/Wichtig-Findings; ein Nitpick:
+gitignorete Wegwerf-Dateien (`*.tmp.*`) im Worktree vor `/test` löschen.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
