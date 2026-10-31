@@ -121,6 +121,10 @@ für Bash; Abdeckung über AK-Matrix. Suiten grün (2142 / 145). Wegwerf-Dateien
 ## Refactoring-Notizen
 /refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
 Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).
+/refactor 2026-10-31 (zweiter Durchgang nach `/test`): erneut kein Änderungsbedarf, kein Code geändert. Suiten grün
+(2142 / 145). Ein einzelner Lauf zeigte 1 rot, der nicht reproduzierbar war (zwei Folgeläufe grün, Test unbenannt) –
+bei Wiederauftreten Lauf mit Ausgabe sichern. Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`,
+gitignoret) liegen weiter; `rm` ist nicht freigegeben – manuell vor `/security-review` löschen.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
