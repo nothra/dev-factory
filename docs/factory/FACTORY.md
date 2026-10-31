@@ -1,4 +1,4 @@
-# Development Factory · v0.6.1
+# Development Factory · v0.7.0
 
 > **Besitzer: Factory** (`bash scripts/checks/ownership-check.sh --list factory`). Generischer Teil der Agenten-Regeln; die
 > projekteigenen Regeln stehen in `CLAUDE.md`, die diese Datei per `@import` einbindet.
