@@ -32,6 +32,19 @@ des Update-PRs alle Repository-Secrets. Das Token ist vom Release-Code zu trenne
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
+Entscheidung: Factory-ADR-063, Nachtrag 2026-10-31 (E17–E22).
+- Workflow in vier Jobs: `guard` (kein Environment; kein Lock → No-op; Repository-Secret gleichen Namens → rot),
+  `preflight` (Environment, Token-Prüfung, Version/PR-Stand), `fetch` (kein Secret, Release-Code, Ergebnis nur als
+  `git bundle`-Artefakt), `publish` (Environment, nur `main`-Code, prüft Bundle, `commit-tree`, Push auf SHA, PR).
+- Token als Environment-Secret `factory-update` (Branch-Regel `main`), nicht als Repository-Secret.
+- `factory-update.sh`: `guard|preflight|fetch|publish`; ohne Argument Kurzform für Tests (frischer Klon ohne Token,
+  Übergabe per Bundle), in CI (`GITHUB_ACTIONS=true`) verweigert.
+- Umsetzungs-Reihenfolge (TDD): Wiring-Tests je Job (yq) rot → Workflow; Verhaltenstests mit bösem Fixture-Release
+  (fsmonitor-Marker, Hook, Fremdpfad, Symlink) rot → `fetch`/`publish`; Mutationsbelege; dann `OPERATING.md` §0.6
+  und E4/E10/E12-Verweise im ADR; ADR-Status auf Accepted.
+- Alte Wiring-Anker (`wf_wired_24`) werden durch strengere je Job ersetzt – sonst keine spec-24-Assertion ändern.
+- Menschliche Schritte (nicht agentenerfüllbar): Environment/Secret im Konsumenten einrichten; Beleg am echten Repo
+  (Test-PR, Secret leer) in T2a-4.
 
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->

@@ -144,25 +144,25 @@ sich darauf verlässt, dass ein Release dieses Token nicht erreicht, bevor er de
 > mit Branch-Regel `main`; Aufteilung auf zwei Jobs, Job 1 ohne Secret, `git bundle` als Artefakt,
 > Job 2 mit Secret ohne Release-Code) sind **Eingaben**, keine Festlegung.
 
-- [ ] **Q-37.1 · Beide Maßnahmen oder eine?** Deckt allein die Aufteilung auf zwei Jobs AK-37a–c ab und
+- [x] **Q-37.1 · Beide Maßnahmen oder eine?** Deckt allein die Aufteilung auf zwei Jobs AK-37a–c ab und
   allein der Kontext AK-37e, oder sind beide nötig? (Aus Sicht der Anforderung: **beide Angriffsflächen
-  müssen geschlossen sein**, AK-37a–c **und** AK-37e.) In `/architecture` klären.
-- [ ] **Q-37.2 · Übergabeformat und Prüfung:** Wie kommt das Ergebnis des Abholschritts in den
-  Token-Schritt (Artefakt, Bundle, Patch), und welche Prüfung vor dem Push reicht für AK-37c?
+  müssen geschlossen sein**, AK-37a–c **und** AK-37e.) → beide nötig (Factory-ADR-063 Nachtrag 2026-10-31, E17).
+- [x] **Q-37.2 · Übergabeformat und Prüfung:** Wie kommt das Ergebnis des Abholschritts in den
+  Token-Schritt (Artefakt, Bundle, Patch), und welche Prüfung vor dem Push reicht für AK-37c? → Bundle, Prüfung im Token-Job (E18).
 - [ ] **Q-37.3 · Beleg am echten Repo:** Wie wird die Durchsetzung durch GitHub (Secret im Kontext für
   PR-Workflows unsichtbar) einmal real nachgewiesen? Vorschlag: im ersten echten Konsumenten
   (`nothra/tch-gastro-services#428`) ein Test-PR, dessen Workflow `${{ secrets.FACTORY_SYNC_TOKEN }}`
   ausgibt (maskiert → leer erwartet). Menschlicher Schritt, vom Maintainer zu bestätigen.
-- [ ] **Q-37.4 · Umgang mit Bestand (AK-37f):** Bricht der Workflow hart ab, wenn ein
+- [x] **Q-37.4 · Umgang mit Bestand (AK-37f):** Bricht der Workflow hart ab, wenn ein
   Repository-Secret gleichen Namens erkannt wird, oder genügt Dokumentation? (Die Erkennung selbst ist
-  mit einem Token nicht verlässlich möglich – ggf. nur Hinweis in §0.6; AK-37f dann herabstufen.)
-- [ ] **Q-37.5 · Kosten für Konsumenten:** Ein Environment mit Deployment-Branch-Regel ist je
+  mit einem Token nicht verlässlich möglich – → Wächter-Job ohne Environment, hart rot (E17); AK-37f gilt in der ersten Fassung.)
+- [x] **Q-37.5 · Kosten für Konsumenten:** Ein Environment mit Deployment-Branch-Regel ist je
   Konsumenten-Repo einmal einzurichten (Plan-abhängig? Environments mit Branch-Regeln sind für private
   Repos nicht in jedem GitHub-Plan verfügbar). Ist das für alle Konsumenten tragbar, oder braucht ein
-  Fallback (z. B. Organisations-Secret mit Repository-Auswahl) einen eigenen Pfad?
-- [ ] **Q-37.6 · Konkurrenz mit Concurrency-Gruppe:** Zwei Jobs/Artefakte dürfen die bestehende
+  Fallback (z. B. Organisations-Secret mit Repository-Auswahl) einen eigenen Pfad? → Voraussetzung, vor Einbindung prüfen; kein Ersatzpfad (E19).
+- [x] **Q-37.6 · Konkurrenz mit Concurrency-Gruppe:** Zwei Jobs/Artefakte dürfen die bestehende
   Concurrency-Regel (`factory-update`, höchstens ein Lauf, kein Abbruch) nicht aufweichen
-  (spec-24 F3). In `/architecture` mitprüfen.
+  (spec-24 F3). → Gruppe bleibt auf Workflow-Ebene (E21).
 
 ## Größe
 

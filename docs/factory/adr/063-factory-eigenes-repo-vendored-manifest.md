@@ -660,3 +660,116 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
 `pr-closes-issue`), `docs/factory/OPERATING.md`, `docs/factory/guidelines/git-workflow.md` (Ausnahme bei
 der Closes-Regel nennen). Im Factory-Repo läuft der Workflow täglich als grüner No-op. Der erste echte
 Lauf – und damit der Beleg, dass die Gates am Update-PR tatsächlich anlaufen – ist Teil von T2a-4.
+
+## Nachtrag 2026-10-31 · Token und Release-Code trennen (Spec #37, Q-37.1–Q-37.6)
+
+Aus `/architecture` zu #37 (Security-Review zu #24); Status: Proposed, wird mit der Umsetzung in #37 auf
+Accepted gesetzt. **Ersetzt** das „Restrisiko akzeptiert" aus E4 (letzter Absatz Phase 2) und E12 (Absatz
+„Abholung ohne Token") und die Job-Struktur aus E10; E11 (Ablauf und Reihenfolge), E13–E16 bleiben, soweit
+unten nicht verändert. Die Verhaltensentscheidungen stehen in `docs/specs/spec-37-factory-sync-token-trennen.md`.
+
+**Bedrohung:** Release-Code (die neue Fassung von `factory-sync.sh` samt `--compose --check`) läuft
+während der Abholung. Ein kompromittiertes Release soll `FACTORY_SYNC_TOKEN` nicht erreichen, bevor ein
+Mensch den Update-PR geprüft hat. Drei Wege (Issue #37): `.git/config` (`core.fsmonitor`) für den folgenden
+Git-Aufruf des Elternprozesses, `/proc/<ppid>/environ` bzw. `sudo` auf dem Runner, und das
+Repository-Secret für `pull_request`-Workflows des Update-PRs.
+
+- **E17 · Vier Jobs, Secret nur in zwei davon.** `factory-update.yml` besteht aus:
+  1. `guard` – **ohne** `environment`, ohne Checkout-Anmeldung: prüft (a) ob `factory.lock` existiert
+     (kein Lock → die übrigen Jobs entfallen, grüner No-op ohne Token und ohne Freigabe, F-37.3) und
+     (b) dass **kein Repository-Secret** `FACTORY_SYNC_TOKEN` existiert. Ein Job ohne Environment sieht
+     nur Repository-Secrets; er reicht den Wert als `FACTORY_SYNC_TOKEN_REPO_SECRET` an
+     `factory-update.sh guard`, das bei nicht-leerem Wert mit Verweis auf `OPERATING.md` §0.6 rot endet
+     (AK-37f, Q-37.4: **hart rot**, nicht nur Doku – ein Environment-Secret gleichen Namens überstimmt das
+     Repository-Secret nur im Environment-Job, PR-Workflows sähen es weiter).
+  2. `preflight` – `environment: factory-update`, nur Code aus `main`: Token-Prüfung (FS-T2.3, E11.2),
+     neueste Version, Stand von Branch und PR (E11.3/E11.4). Nichts zu tun → Exit 0, Ausgabe `version`
+     leer, die Folge-Jobs entfallen. Sonst Ausgabe `version` (per Regex `^v[0-9]+\.[0-9]+\.[0-9]+$`
+     validiert) und `base_sha` (`origin/main`). Führt **keinen** Release-Code aus.
+  3. `fetch` – **ohne** `environment`, ohne Secret, `permissions: contents: read`: Checkout, `yq`,
+     `factory-update.sh fetch <version> <base_sha>`: baut den Neuaufbau (`factory-sync.sh`, ein Commit)
+     und legt **nur** `git bundle create update.bundle <base_sha>..HEAD` als Artefakt ab. Hier läuft
+     Release-Code; das Token existiert in diesem Job und auf diesem Runner nicht (kein `env -u`, kein
+     gleicher Prozessbaum, kein `/proc`-Zugriff, `sudo` bleibt auf einem Wegwerf-Runner wirkungslos).
+  4. `publish` – `environment: factory-update`, nur Code aus `main`, `needs: [preflight, fetch]`: lädt das
+     Artefakt, prüft es (E18), pusht und legt den PR an (E11.5/E11.6 mit dem neuen Ablauf). Führt keinen
+     Release-Code aus.
+  *Alternativen:* (A) nur Environment-Secret, ein Job – schließt Weg 3, nicht Weg 1/2 (Release-Code läuft
+  weiter im Job mit Token); (B) nur Zwei-Job-Aufteilung mit Repository-Secret – schließt Weg 1/2, nicht
+  Weg 3; (C) Release-Code im selben Job per `unshare`/Benutzerwechsel absondern – auf dem Runner mit
+  passwortlosem `sudo` keine Grenze, schwer testbar; (D) kurzlebiges GitHub-App-Token statt PAT – eigenes
+  Thema (neue Abhängigkeit, Einrichtung je Repo), als Ausbaustufe offen. **Beide** Maßnahmen sind nötig
+  (Q-37.1). Verworfen auch: Release-Code gar nicht ausführen (Abholung ohne Neustart in neuer Fassung) –
+  ändert den Vertrag aus E4/#23.
+- **E18 · Übergabe als Daten, Prüfung im Token-Job (Q-37.2).** Das Artefakt enthält ausschließlich den
+  Bundle (keine Konfiguration, keine Hooks, keine Arbeitsbaumdateien). `publish` holt aus ihm in einen
+  frischen Checkout von `main` in einen Quarantäne-Ref (`git bundle verify`, `git fetch <bundle>`; Git
+  führt dabei keinen Code aus dem Bundle aus) und prüft **vor** dem Push, alle Prüfungen fail-closed:
+  genau ein Commit, Elternteil = aktuelles `origin/main` (bewegt sich `main` zwischen den Jobs, endet
+  der Lauf rot, der nächste baut neu auf); keine Modi `120000`/`160000` (Symlink, Submodul); Pfade ⊆
+  Pfade des alten Locks ∪ Pfade des neuen Manifests ∪ zusammengesetzte Zieldateien ∪ `factory.lock`;
+  `factory.lock` im Bundle ist byte-gleich zum **frisch** aus dem Release geholten Manifest (E1, über
+  `scripts/lib/factory-lock.sh` aus `main`) und trägt die erwartete Version; jede Manifest-Datei im Baum
+  hat den Manifest-Hash. Der Commit wird **nicht** aus dem Bundle übernommen, sondern mit dem Baum des
+  Quarantäne-Commits neu erzeugt (`git commit-tree`, feste Identität aus E11.5): Autor, Nachricht,
+  Signatur und Zusatz-Header des Release-Codes gelangen nicht in den Branch. Der Push setzt auf eine SHA
+  (`<sha>:refs/heads/chore/factory-update`) statt auf `HEAD`; der Arbeitsbaum wird nicht mehr
+  umgeschaltet (entfällt: `checkout -B`, `ORIG_REF`, Rückkehr im `trap`).
+- **E19 · Token als Environment-Secret (Q-37.3/Q-37.5).** Das PAT liegt als Secret im Environment
+  `factory-update` (*Deployment branches: nur `main`*, keine Pflicht-Reviewer – der Lauf ist täglich
+  und unbeaufsichtigt), **nicht** als Repository-Secret. `pull_request`-Workflows auf
+  `chore/factory-update` laufen auf einem Branch ≠ `main`: ein Job mit diesem Environment wird
+  abgelehnt, ein Job ohne es sieht das Secret nicht. Ein manueller `workflow_dispatch` von einem anderen
+  Branch scheitert aus demselben Grund (gewollt). `OPERATING.md` §0.6 wird entsprechend umgeschrieben
+  (Environment anlegen, Branch-Regel, Secret dort, Umzug eines bestehenden Repository-Secrets). Voraussetzung:
+  Environments mit Branch-Regel – für private Repos plan-abhängig, **vor der Einbindung je Konsument
+  prüfen** (menschlicher Schritt); wo sie fehlen, bleibt nur die manuelle Abholung (`factory-sync.sh`),
+  der Auto-Update-Weg gilt dort als nicht abgesichert (kein Ersatzpfad mit Organisations-Secret: es wäre
+  für PR-Workflows weiter sichtbar). Ob GitHub die Regel wie beschrieben durchsetzt, belegt erst ein Lauf am
+  echten Repo (Test-PR, dessen Workflow `${{ secrets.FACTORY_SYNC_TOKEN }}` ausgibt – maskiert, leer
+  erwartet; T2a-4, `nothra/tch-gastro-services#428`).
+- **E20 · Skript mit vier Aufrufformen.** `factory-update.sh guard | preflight | fetch | publish`; der
+  Workflow ruft nur diese. Ohne Argument läuft die Kette in einem Prozess (für Offline-Tests und lokal):
+  Abholung in einem frischen Klon des Konsumenten unter `$WORK` **ohne** Token (`env -u`), Übergabe
+  per Bundle, danach Prüfung und Push wie in `publish`. So prüfen die spec-24-Tests (AK2.2d, F3, AK-24a–d,
+  F-24.1) denselben Weg wie der Workflow (AK-37d). Mit `GITHUB_ACTIONS=true` verweigert die Kurzform den
+  Lauf (kein Token neben Release-Code in CI). Die gemeinsamen Funktionen bleiben in einer Datei (kein
+  zweites Skript, keine zweite Lib: ein einzelnes Skript, das `publish` nur aus `main` lädt, erfüllt F-37.4,
+  solange der Job `main` auscheckt).
+- **E21 · Concurrency (Q-37.6).** Die Gruppe `factory-update` (kein Abbruch) steht weiter auf
+  Workflow-Ebene und deckt alle vier Jobs; der Artefaktname trägt `${{ github.run_id }}`, damit sich Läufe
+  nicht überschreiben. `upload-artifact`/`download-artifact` und `checkout` mit Tag `@v4` wie bisher
+  (E10); ein SHA-Pin der Actions ist eine eigene, übergreifende Entscheidung.
+- **E22 · Tests (ergänzt E16).** (a) *Wiring* an der echten `factory-update.yml`, per `yq` je Job: nur
+  `preflight` und `publish` tragen `environment: factory-update`; `secrets.FACTORY_SYNC_TOKEN` kommt in
+  `preflight`/`publish` und in genau einer Zeile in `guard` (als `FACTORY_SYNC_TOKEN_REPO_SECRET`) vor,
+  **nie** in `fetch`; `fetch` hat kein `environment`; die Job-Abhängigkeiten stimmen; `GITHUB_TOKEN`
+  taucht nicht auf; jeder Job, der Release-Code ausführt, hat `permissions: contents: read`. Die bisherigen
+  Anker an der alten Ein-Job-Struktur (`wf_wired_24`) werden durch diese strengeren ersetzt; sonst bleibt
+  keine spec-24-Assertion verändert. (b) *Verhalten* (Fixture-Release, dessen Abholcode `.git/config`
+  (`core.fsmonitor` mit Marker), einen Hook, eine Datei außerhalb der Pfadliste und einen Symlink schreibt):
+  Marker läuft nie, jede Abweichung → Exit 1 ohne Push (AK-37b/c, F-37.1). (c) *Mutationsbelege* je tragender
+  Prüfung (Secret im `fetch`-Job, Pfadprüfung, Elternteil-Prüfung, Manifest-Gleichheit, Repository-Secret-
+  Wächter). (d) `guard`: Lock fehlt → No-op ohne Token; `FACTORY_SYNC_TOKEN_REPO_SECRET` gesetzt → rot.
+
+**Restrisiko (ehrlich):**
+1. *Das Release selbst ist bösartig und der Mensch bemerkt es im Update-PR nicht.* Die Trennung verhindert
+   den Diebstahl des Tokens, nicht die Auslieferung schädlicher Dateien: Änderungen an `.github/workflows/**`
+   und Skripten stehen im PR und laufen erst nach Merge – Review des Update-PRs und die Gates des
+   Konsumenten bleiben die Grenze.
+2. *Lesender Zugriff:* Release-Code in `fetch` sieht den Checkout und das Netz des Runners (Quellcode des
+   Konsumenten ist lesbar und könnte hinausgehen). `contents: read` und `persist-credentials: false`
+   begrenzen das auf das, was der Checkout ohnehin enthält; ein private Repo bleibt insoweit exponiert.
+3. *Verfälschtes Ergebnis:* Release-Code kann den Bundle manipulieren; die Prüfung in E18 fängt Pfade,
+   Modi, Elternteil, Manifest und Hashes der übernommenen Dateien. Zusammengesetzte Dateien (E4 Phase 1d)
+   werden nur auf Pfad geprüft, nicht auf Inhalt; ihre Prüfung ist das Review des PRs.
+4. *Environment-Konfiguration:* Die Schutzwirkung hängt an der Branch-Regel `main` des Environments; sie
+   ist ein menschlicher Schritt je Konsument (`guard` erkennt nur das Repository-Secret, nicht eine fehlende
+   Branch-Regel).
+
+**Konsequenzen:** geändert `.github/workflows/factory-update.yml` (vier Jobs), `scripts/factory-update.sh`
+(vier Aufrufformen, Übergabe per Bundle, kein Checkout im Arbeitsbaum), `docs/factory/OPERATING.md` §0.6,
+E4/E10/E12 dieses ADR (Verweise statt „Restrisiko akzeptiert"), Tests in `scripts/checks/tests/factory-lock-tests.sh`.
+Keine neue Datei (kein `OWNERSHIP.md`-Eintrag nötig). Bestehende Konsumenten müssen das Secret **vor** dem
+Update auf die neue Version umziehen, sonst endet `guard` rot (gewollt); das gehört in die Release-Notes
+des nächsten Releases.
