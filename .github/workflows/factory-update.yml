@@ -1,0 +1,46 @@
+# Development Factory – Update-Workflow (Factory-ADR-063, Nachtrag 2026-10-30 E10–E16).
+#
+# Täglich und per `workflow_dispatch`: erkennt eine neuere Factory-Version im Quell-Repo (`upstream.repo`),
+# holt sie über `scripts/factory-sync.sh` ab und pflegt genau einen Update-PR auf dem Branch
+# `chore/factory-update`. Der Workflow ist nur Auslöser – die ganze Logik steht in
+# `scripts/factory-update.sh` (offline getestet). Er merged nie und aktiviert kein Auto-Merge;
+# über den PR entscheiden die Gates des Projekts und der Mensch.
+#
+# Ohne `factory.lock` (z. B. im Factory-Repo selbst) ist der Lauf ein grüner No-op ohne Token.
+#
+# Einrichtung (einmalig, je Konsumenten-Repo): Fine-grained PAT als Repository-Secret
+# FACTORY_SYNC_TOKEN – Rechte, Laufzeit und Rotation: docs/factory/OPERATING.md §0.6.
+# Alle Schreibzugriffe laufen über diesen PAT; der eingebaute Token des Laufs bleibt lesend
+# (permissions unten), weil Pushes mit ihm keine pull_request-Workflows auslösen würden.
+
+name: Factory Update
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Höchstens ein Lauf gleichzeitig; ein laufender wird nicht abgebrochen (er pusht ggf. gerade).
+concurrency:
+  group: factory-update
+  cancel-in-progress: false
+
+jobs:
+  factory-update:
+    runs-on: ubuntu-latest
+    steps:
+      # Voller Verlauf für den Neuaufbau von origin/main; keine gespeicherte Anmeldung in .git/config –
+      # der Push meldet sich zur Laufzeit über einen Credential-Helper mit dem PAT an (E12).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - name: Neue Factory-Version als Update-PR anbieten
+        env:
+          FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}
+        run: bash scripts/factory-update.sh

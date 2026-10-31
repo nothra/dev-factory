@@ -37,6 +37,9 @@ jobs:
       - name: PR-Body auf Closing-Keyword prüfen
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BASE_REPO: ${{ github.repository }}
         run: bash scripts/checks/pr-closes-keyword-check.sh
 
   # ─── Issue-Sync-Gate ────────────────────────────────────────────────────────

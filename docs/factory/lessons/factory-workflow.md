@@ -1752,3 +1752,19 @@ den Tabellenmodus erzwingen (`FACTORY_LOCK_FILE` auf einen nie vorhandenen Pfad)
 Arbeitsbaum liest (Tag, Commit), den Modus explizit erzwingen lassen, und (d) im ADR festhalten, dass die Moduswahl am Arbeitsbaum hängt.
 
 → `/architecture`, `/implement`, `/security-review` – bei einem Gate/Skript, das seinen Modus aus der Existenz einer Datei ableitet
+
+### Ein Skript, das seine eigene Datei ersetzen lässt, endet mit `exit` direkt nach `main` (aus Factory-Task #24, `/review` Iteration 1)
+
+`factory-update.sh` ruft `factory-sync.sh` auf, das den Konsumenten-Stand – darunter `factory-update.sh` selbst – auf die Zielversion hebt. Bash liest ein Skript inkrementell; Zeilen **nach** `main "$@"` stammen dann aus der neuen, evtl. längeren Datei (Offset bleibt, Inhalt wechselt) – undefiniertes Verhalten. Ein Test mit gleich langer Datei sieht das nicht.
+
+**Regel:** Ein Skript, das die eigene Ersetzung auslösen kann, schließt mit `main "$@"; exit $?` ab (nichts dahinter), und der E2E-Test läuft aus dem Konsumenten-Checkout gegen eine **verlängerte** Zielversion; Mutationsbeleg: ohne `exit` rot. Verwandt: laufende `run-tests.sh` nicht editieren (Lesson `testing.md`).
+
+→ `/implement`, `/review` – bei einem Skript, das ein Werkzeug aufruft, das die Skriptdatei selbst überschreiben kann
+
+### Credential und ungeprüfter Release-Code im selben Job: `env -u` und `core.hooksPath=/dev/null` sind Schadensbegrenzung, keine Grenze (aus Factory-Task #24, `/review` Iteration 4 + `/security-review` Durchgang 1–3)
+
+Nach `factory-sync.sh` liegt Code aus dem **ungeprüften Release** im Arbeitsbaum, darunter Git-Hooks. Zwei reale Befunde: (1) der `pre-push`-Hook erbte `FACTORY_SYNC_TOKEN` (und hätte mit rotem Gate den Push für den Fehlerfall F1 verhindert) → alle Git-Aufrufe nach der Abholung über `git_nohooks`; (2) `env -u` schützt nur vor **versehentlichem** Erben – gegen Code im selben Job (`.git/config`-`fsmonitor`, `/proc/<ppid>/environ`, PR-Workflows mit Repo-Secrets) ist es keine Grenze. Kommentar, ADR und Test dürfen das nicht als Schutz verkaufen.
+
+**Regel:** (a) Token nur an die Schritte reichen, die es brauchen (Abholung tokenfrei), (b) Hooks des abgeholten Stands für nachfolgende Git-Aufrufe abschalten, (c) Test mit protokollierendem Stub/Hook + Mutationsbeleg mit derselben Guard-Funktion, (d) Restrisiko im ADR benennen und auf ein Issue verweisen (hier #37: Environment-Secret, zwei Jobs).
+
+→ `/architecture`, `/implement`, `/security-review` – bei einem Workflow/Skript, das ein Token hält und danach Code aus einer Fremdquelle ausführt oder dessen Hooks auslöst

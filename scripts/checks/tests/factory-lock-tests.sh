@@ -74,6 +74,8 @@ build_template_23 "$T23/tmpl"
 
 # world_23 <name> – frische Kopie der Vorlage; setzt U23/R23/C0_23/C1_23
 world_23() {
+  # Eine schon vorhandene Welt würde cp -R in sich hinein kopieren (alter, veränderter Stand bliebe) – fail-closed
+  [ ! -e "$T23/$1" ] || { echo "world_23: Welt '$1' existiert schon – Namen eindeutig wählen (fail-closed)" >&2; exit 2; }
   cp -R "$T23/tmpl" "$T23/$1"
   U23="$T23/$1/U"; R23="$T23/$1/R"; C0_23="$T23/$1/C0"; C1_23="$T23/$1/C1"
 }
@@ -516,6 +518,533 @@ ci_wired_23() { # $1 = Job-Block: yq bereitstellen steht vor der echten run:-Zei
 ci_wired_23 "$JOB_23"; assert_exit 0 "$?" "#23 AK2.5b: factory-ci.yml Job factory-integrity: yq bereitstellen, dann der Check mit --ci (echte run:-Zeilen)"
 ci_wired_23 "$(printf '%s\n' "$JOB_23" | grep -vxF '        run: bash scripts/checks/factory-integrity-check.sh --ci')"
 assert_exit 1 "$?" "#23 AK2.5b (Mutation): ohne die run:-Zeile wird derselbe Guard rot"
+
+# ═══ Factory-Issue #24: Update-Workflow und Update-PR (factory-update.sh) ════════════════════════════════════════════
+# Gleiche Welt wie #23 (world_23), dazu ein Bare-Repo als `origin` des Konsumenten und ein gh-Stub im PATH, der
+# Repo-Rechte, Release-Liste und PR-Zustand aus Dateien liefert und jeden Aufruf protokolliert (Factory-ADR-063 E16).
+echo ""
+echo "Factory-Issue #24: Update-Workflow und Update-PR:"
+
+UPD_24="$FACTORY_ROOT/scripts/factory-update.sh"
+BR_24="chore/factory-update"
+GOOD_TOKEN_24="pat-gueltig-24"
+
+# gh-Stub: Zustand unter $GH_STUB_STATE (push, releases.json, prs.json, calls.log); jeder Aufruf mit falschem GH_TOKEN → 401
+GH_STUB_24="$T23/ghstub"; mkdir -p "$GH_STUB_24"
+cat > "$GH_STUB_24/gh" <<'STUB'
+#!/usr/bin/env bash
+s="$GH_STUB_STATE"
+printf '%s | GH_TOKEN=%s | GITHUB_TOKEN=%s\n' "$*" "${GH_TOKEN:-}" "${GITHUB_TOKEN:+gesetzt}" >> "$s/calls.log"
+[ "${GH_TOKEN:-}" = "$GH_STUB_TOKEN" ] || { echo "HTTP 401: Bad credentials" >&2; exit 1; }
+arg() { local k="$1"; shift; while [ $# -gt 0 ]; do [ "$1" = "$k" ] && { printf '%s' "$2"; return; }; shift; done; }
+case "$1 $2" in
+  "api repos/"*)       cat "$s/push" ;;
+  "api --paginate")    [ ! -e "$s/releases-fail" ] || exit 1; cat "$s/releases.json" ;;
+  "pr list")
+    st="$(arg --state "$@")"
+    [ ! -e "$s/pr-list-fail-$st" ] || exit 1
+    jq --arg st "$st" --arg h "$(arg --head "$@")" \
+      '[.[] | select(.headRefName == $h) | select(if $st == "open" then .state == "OPEN" else .state != "OPEN" end)]' "$s/prs.json" ;;
+  "pr create")
+    [ ! -e "$s/pr-create-fail" ] || exit 1
+    n=$(( $(jq length "$s/prs.json") + 1 ))
+    jq --argjson n "$n" --arg t "$(arg --title "$@")" --rawfile b "$(arg --body-file "$@")" --arg h "$(arg --head "$@")" --arg l "$(arg --label "$@")" \
+      '. + [{number: $n, url: "https://example.invalid/pull/\($n)", state: "OPEN", title: $t, body: $b, headRefName: $h,
+             isCrossRepository: false, mergedAt: null, labels: [$l]}]' "$s/prs.json" > "$s/x" && mv "$s/x" "$s/prs.json"
+    echo "https://example.invalid/pull/$n" ;;
+  "pr edit")
+    [ ! -e "$s/pr-edit-fail" ] || exit 1
+    jq --argjson n "$3" --arg t "$(arg --title "$@")" --rawfile b "$(arg --body-file "$@")" \
+      'map(if .number == $n then .title = $t | .body = $b else . end)' "$s/prs.json" > "$s/x" && mv "$s/x" "$s/prs.json" ;;
+  *) exit 0 ;;   # z. B. „pr merge“: tut nichts, steht aber im Protokoll
+esac
+STUB
+chmod +x "$GH_STUB_24/gh"
+
+# add_release_24 <tag> – neuer Tag im Upstream der aktuellen Welt (gültige Versionszeile) samt Manifest
+add_release_24() {
+  printf '# Development Factory · %s\n' "$1" > "$U23/docs/factory/FACTORY.md"
+  printf 'echo %s\n' "$1" >> "$U23/scripts/tool.sh"
+  git -C "$U23" add -A && git_23 -C "$U23" commit -q -m "$1" && git -C "$U23" tag "$1"
+  mk_manifest_23 "$U23" "$1" "$R23/$1/factory-release.json"
+}
+# releases_24 <tag…> – Release-Liste des Stubs: je Tag ein veröffentlichtes Release mit Manifest-Asset und Notes „Notes <tag>“
+releases_24() {
+  printf '%s\n' "$@" | jq -R . | jq -s 'map({tag_name: ., draft: false, prerelease: false, body: "Notes \(.)",
+                                            assets: [{name: "factory-release.json"}]})' > "$GS_24/releases.json"
+}
+# world_24 <name> – world_23 + Bare-Origin für C1 + frischer Stub-Zustand (Push-Recht, keine PRs, nur v1.0.0 veröffentlicht)
+# Eigener Namensraum w24-<name>: die Welten aus #23 tragen dieselben Kurznamen (d1, x3 …)
+world_24() {
+  W24="$T23/w24-$1"
+  world_23 "w24-$1"
+  ORIGIN_24="$W24/origin.git"; GS_24="$W24/gh"; mkdir -p "$GS_24"
+  git clone -q --bare "$C1_23" "$ORIGIN_24"
+  git -C "$C1_23" remote add origin "file://$ORIGIN_24" && git -C "$C1_23" fetch -q origin
+  printf 'true\n' > "$GS_24/push"; printf '[]\n' > "$GS_24/prs.json"; : > "$GS_24/calls.log"
+  releases_24 v1.0.0
+}
+# upd_24 [<skript>] – factory-update.sh gegen C1 der aktuellen Welt; Token gültig, GITHUB_TOKEN gesetzt (darf nie ankommen)
+upd_24() {
+  env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" \
+    GITHUB_REPOSITORY="${REPO_24-acme/consumer}" GITHUB_TOKEN=actions-token-24 FACTORY_SYNC_TOKEN="${TOKEN_24-$GOOD_TOKEN_24}" \
+    bash "${1:-$UPD_24}"
+}
+sha_24() { git -C "$ORIGIN_24" rev-parse -q --verify "refs/heads/$1"; }
+open_prs_24() { jq '[.[] | select(.state == "OPEN")] | length' "$GS_24/prs.json"; }
+pr_body_24() { jq -r '.[0].body' "$GS_24/prs.json"; }
+# writes_24 – schreibende Aufrufe im Stub-Protokoll (leer = keine)
+writes_24() { grep -E '^pr (create|edit|merge|comment|close)|^api .*(-X|--method)' "$GS_24/calls.log"; }
+lock_on_branch_24() { git -C "$ORIGIN_24" show "refs/heads/$BR_24:factory.lock" | jq -r .version; }
+# factory_scripts_24 <wurzel> <update-skript> – factory-update.sh (die übergebene Fassung) samt allem, was es zur Laufzeit lädt
+factory_scripts_24() {
+  mkdir -p "$1/scripts/checks" "$1/scripts/lib"
+  cp "$FACTORY_ROOT/scripts/factory-sync.sh" "$1/scripts/"
+  cp "$FACTORY_ROOT/scripts/checks/factory-integrity-check.sh" "$FACTORY_ROOT/scripts/checks/customization-points.txt" "$1/scripts/checks/"
+  cp "$FACTORY_ROOT/scripts/lib/factory-lock.sh" "$FACTORY_ROOT/scripts/lib/gate-config.sh" "$1/scripts/lib/"
+  cp "$2" "$1/scripts/factory-update.sh"
+}
+# Welt-Namen aus einem Zähler (für Schleifen: eindeutig unabhängig vom Testwert)
+N_24=0
+next_world_24() { N_24=$((N_24 + 1)); world_24 "$1$N_24"; }
+
+# ── AK2.2d / AK2.4 / F1: neue Version → Update-PR ────────────────────────────────────────────────────────────────────
+world_24 u1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+main_before_24="$(sha_24 main)"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK2.2d: neue Version v1.1.0 → Lauf grün"
+assert_true "$([ "$(lock_on_branch_24)" = v1.1.0 ]; echo $?)" "#24 AK2.2d: factory.lock auf $BR_24 zeigt auf v1.1.0"
+# Vergleich: Diff des Branches == Diff einer direkten Abholung auf main
+git clone -q "file://$ORIGIN_24" "$W24/direct"
+env_23 "$W24/direct" bash "$SYNC_23" v1.1.0 >/dev/null
+git -C "$W24/direct" add -A
+direct_tree_24="$(git -C "$W24/direct" write-tree)"
+branch_tree_24="$(git -C "$ORIGIN_24" rev-parse "refs/heads/$BR_24^{tree}")"
+assert_true "$([ "$direct_tree_24" = "$branch_tree_24" ]; echo $?)" "#24 AK2.2d: Stand des Branches == Ergebnis von factory-sync.sh v1.1.0 auf main (sonst keine Änderung)"
+assert_true "$([ "$(git -C "$ORIGIN_24" rev-parse "refs/heads/$BR_24^")" = "$main_before_24" ]; echo $?)" "#24 AK2.2d: genau ein Commit auf main"
+assert_true "$([ "$(git -C "$ORIGIN_24" log -1 --format=%an "refs/heads/$BR_24")" = factory-update ]; echo $?)" "#24 E11: Commit mit expliziter Identität factory-update"
+assert_true "$([ "$(open_prs_24)" = 1 ]; echo $?)" "#24 AK2.2d: genau ein offener PR"
+assert_contains_286 "$(pr_body_24)" 'Notes v1.1.0' "#24 AK2.2d: der PR-Body zeigt die Release Notes von v1.1.0"
+assert_contains_286 "$(pr_body_24)" '<!-- factory-update-version: v1.1.0 -->' "#24 E13: der PR-Body trägt die Versionsmarke"
+assert_contains_286 "$(pr_body_24)" 'von v1.0.0 auf v1.1.0' "#24 E13: der PR-Body nennt „von N auf V“"
+assert_true "$([ "$(jq -r '.[0].title' "$GS_24/prs.json")" = 'chore: factory auf v1.1.0 heben' ]; echo $?)" "#24 E13: Titel nennt die Version"
+assert_true "$([ "$(jq -r '.[0].labels[0]' "$GS_24/prs.json")" = enhancement ]; echo $?)" "#24 E11: PR trägt das Art-Label enhancement"
+assert_true "$(grep -qE '^pr create .*--base main .*--head chore/factory-update' "$GS_24/calls.log"; echo $?)" "#24 AK2.2d: PR von $BR_24 nach main"
+assert_absent "$(grep -E '^pr create' "$GS_24/calls.log")" '--draft' "#24 E11: der PR ist kein Draft"
+assert_absent "$(cat "$GS_24/calls.log")" 'pr merge' "#24 AK2.4: kein Merge-Aufruf im Protokoll"
+assert_absent "$(cat "$GS_24/calls.log")" '--auto' "#24 AK2.4: kein Auto-Merge im Protokoll"
+assert_absent "$(cat "$GS_24/calls.log")" 'GITHUB_TOKEN=gesetzt' "#24 AK2.4: GITHUB_TOKEN erreicht gh nie (kein Rückfall)"
+assert_true "$([ "$(grep -c '' "$GS_24/calls.log")" = "$(grep -c "GH_TOKEN=$GOOD_TOKEN_24 " "$GS_24/calls.log")" ]; echo $?)" "#24 AK2.4: jeder gh-Aufruf läuft mit FACTORY_SYNC_TOKEN"
+assert_true "$([ "$(sha_24 main)" = "$main_before_24" ]; echo $?)" "#24 F1: main im Origin unverändert"
+assert_true "$([ "$(git -C "$ORIGIN_24" for-each-ref --format='%(refname)' refs/heads | LC_ALL=C sort | tr '\n' ' ')" = "refs/heads/$BR_24 refs/heads/main " ]; echo $?)" \
+  "#24 F1: einziges neues Schreibziel im Origin ist $BR_24"
+assert_absent "$(cat "$C1_23/.git/config")" "$GOOD_TOKEN_24" "#24 E12: das Token steht nicht in .git/config"
+
+# ── AK2.4b: keine neuere Version / kein Release → nichts geändert ────────────────────────────────────────────────────
+nochange_24() { # $1 = Beschreibung; erwartet: grün, Hinweis, kein schreibender Aufruf, Origin unverändert
+  local refs_before; refs_before="$(git -C "$ORIGIN_24" for-each-ref)"
+  out_24="$(upd_24)"; rc_24=$?
+  assert_exit 0 "$rc_24" "#24 $1 → Lauf grün"
+  assert_contains_286 "$out_24" 'ℹ' "#24 $1 → Hinweis in der Ausgabe"
+  assert_true "$([ -z "$(writes_24)" ]; echo $?)" "#24 $1 → kein schreibender gh-Aufruf"
+  assert_true "$([ "$refs_before" = "$(git -C "$ORIGIN_24" for-each-ref)" ]; echo $?)" "#24 $1 → kein Push"
+}
+world_24 n1; nochange_24 "AK2.4b: neueste Version = N"
+assert_contains_286 "$out_24" 'keine neuere Version' "#24 AK2.4b: der Hinweis nennt den Grund"
+world_24 n2; printf '[]\n' > "$GS_24/releases.json"; nochange_24 "AK2.4b: kein veröffentlichtes Release"
+world_24 n3; releases_24 v0.9.0; nochange_24 "AK2.4b: neueste Version < N (kein Downgrade)"
+world_24 n4; add_release_24 v1.1.0; add_release_24 v2.5.0
+jq '[{tag_name: "v2.5.0", draft: true, prerelease: false, body: "", assets: [{name: "factory-release.json"}]},
+     {tag_name: "v1.1.0", draft: false, prerelease: true, body: "", assets: [{name: "factory-release.json"}]},
+     {tag_name: "v9.0.0", draft: false, prerelease: false, body: "", assets: [{name: "notes.txt"}]},
+     {tag_name: "v9.1.0-rc1", draft: false, prerelease: false, body: "", assets: [{name: "factory-release.json"}]},
+     {tag_name: "v1.0.0", draft: false, prerelease: false, body: "", assets: [{name: "factory-release.json"}]}]' -n > "$GS_24/releases.json"
+nochange_24 "AK2.4b: Draft, Pre-Release, Release ohne Manifest-Asset und Nicht-SemVer-Tag zählen nicht"
+
+# Numerischer Vergleich: v1.10.0 > v1.9.0 (kein lexikalischer Vergleich)
+world_24 s1; add_release_24 v1.9.0; add_release_24 v1.10.0; releases_24 v1.10.0 v1.9.0 v1.0.0
+upd_24 >/dev/null; assert_true "$([ "$(lock_on_branch_24)" = v1.10.0 ]; echo $?)" "#24 E11: höchste Version numerisch verglichen (v1.10.0 > v1.9.0)"
+
+# Pagination: `gh api --paginate` liefert je Seite ein eigenes JSON-Array hintereinander – die neueste Version kann auf Seite 2 liegen
+paged_ok_24() { [ "$(lock_on_branch_24 2>/dev/null)" = v1.1.0 ]; }
+world_24 pg1; add_release_24 v1.1.0
+{ releases_24 v1.0.0; cat "$GS_24/releases.json"; releases_24 v1.1.0; cat "$GS_24/releases.json"; } > "$GS_24/pages.json"
+mv "$GS_24/pages.json" "$GS_24/releases.json"
+assert_true "$([ "$(jq -s 'length' "$GS_24/releases.json")" = 2 ]; echo $?)" "#24 Pagination (Voraussetzung): die Stub-Antwort besteht aus zwei getrennten Arrays"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 Pagination: neueste Version nur auf Seite 2 → Lauf grün"
+assert_true "$(paged_ok_24; echo $?)" "#24 Pagination: Version von Seite 2 (v1.1.0) wird angeboten"
+# Mutation: ohne `add` (nur die erste Seite) bliebe v1.1.0 unsichtbar – derselbe Guard muss rot werden
+world_24 pg2; add_release_24 v1.1.0
+{ releases_24 v1.0.0; cat "$GS_24/releases.json"; releases_24 v1.1.0; cat "$GS_24/releases.json"; } > "$GS_24/pages.json"
+mv "$GS_24/pages.json" "$GS_24/releases.json"
+sed 's/^  add$/  .[0]/' "$UPD_24" > "$T23/mut24-pages.sh"
+assert_true "$([ "$(grep -c '^  add$' "$UPD_24")" = 1 ] && ! grep -q '^  add$' "$T23/mut24-pages.sh"; echo $?)" \
+  "#24 Pagination (Mutation): genau das Zusammenführen der Seiten ist im Mutanten entfernt"
+factory_scripts_24 "$W24/pages-mut" "$T23/mut24-pages.sh"
+upd_24 "$W24/pages-mut/scripts/factory-update.sh" >/dev/null
+assert_exit 1 "$(paged_ok_24; echo $?)" "#24 Pagination (Mutation): ohne das Zusammenführen ist derselbe Guard rot – es ist wirksam"
+
+# ── F3 / AK-24a: mehrere Versionen → ein PR, neu aufgebaut auf die neueste ───────────────────────────────────────────
+world_24 f3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 F3: zweiter Lauf nach v1.2.0 → grün"
+assert_true "$([ "$(open_prs_24)" = 1 ]; echo $?)" "#24 F3: höchstens ein offener Update-PR"
+assert_true "$([ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 F3: Lock im Branch = v1.2.0"
+assert_true "$([ "$(git -C "$ORIGIN_24" rev-parse "refs/heads/$BR_24^")" = "$(sha_24 main)" ]; echo $?)" "#24 F3: Branch von main aus neu aufgebaut (v1.1.0 nicht als Zwischenstand)"
+assert_true "$([ "$(jq -r '.[0].title' "$GS_24/prs.json")" = 'chore: factory auf v1.2.0 heben' ]; echo $?)" "#24 F3: Titel nennt v1.2.0"
+assert_true "$(grep -qE '^pr edit 1 ' "$GS_24/calls.log"; echo $?)" "#24 F3: der bestehende PR wird bearbeitet, nicht neu angelegt"
+body_24="$(pr_body_24)"
+assert_contains_286 "$body_24" '<!-- factory-update-version: v1.2.0 -->' "#24 F3: Body nennt v1.2.0 (Marke)"
+assert_contains_286 "$body_24" 'Notes v1.1.0' "#24 AK-24a: Notes der übersprungenen Version v1.1.0 im Body"
+assert_contains_286 "$body_24" 'Notes v1.2.0' "#24 AK-24a: Notes der neuesten Version v1.2.0 im Body"
+assert_absent "$body_24" 'Notes v1.0.0' "#24 AK-24a: Notes von N selbst nicht im Body (Intervall (N, V])"
+pos_24() { printf '%s\n' "$body_24" | grep -nxF "## $1" | head -1 | cut -d: -f1; }
+assert_true "$([ -n "$(pos_24 v1.2.0)" ] && [ -n "$(pos_24 v1.1.0)" ] && [ "$(pos_24 v1.2.0)" -lt "$(pos_24 v1.1.0)" ]; echo $?)" \
+  "#24 AK-24a: je Version eine Überschrift, neueste zuerst"
+
+# ── AK-24b: offener PR schon auf der neuesten Version → Branch unberührt (auch mit Fremd-Commit) ─────────────────────
+world_24 b1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null
+git -C "$C1_23" fetch -q origin && git -C "$C1_23" checkout -q -B fremd "origin/$BR_24"
+printf 'mensch\n' > "$C1_23/mensch.txt"; git -C "$C1_23" add mensch.txt; git_23 -C "$C1_23" commit -q -m mensch
+git -C "$C1_23" push -q origin "HEAD:refs/heads/$BR_24"
+git -C "$C1_23" checkout -q main
+printf 'weiter\n' > "$C1_23/main-weiter.txt"; git -C "$C1_23" add main-weiter.txt; git_23 -C "$C1_23" commit -q -m weiter
+git -C "$C1_23" push -q origin main
+branch_before_24="$(sha_24 "$BR_24")"; prs_before_24="$(cat "$GS_24/prs.json")"; : > "$GS_24/calls.log"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK-24b: PR steht schon auf v1.1.0 → grün"
+assert_true "$([ "$branch_before_24" = "$(sha_24 "$BR_24")" ]; echo $?)" "#24 AK-24b: Branch-SHA vor/nach gleich (Fremd-Commit bleibt, main weitergelaufen)"
+assert_true "$([ "$prs_before_24" = "$(cat "$GS_24/prs.json")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 AK-24b: PR unverändert, kein schreibender Aufruf"
+assert_contains_286 "$out_24" 'steht schon auf v1.1.0' "#24 AK-24b: Hinweis nennt den Grund"
+
+# ── AK-24c: neuere Version ersetzt Fremd-Commits sichtbar ────────────────────────────────────────────────────────────
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK-24c: neuere Version v1.2.0 bei Fremd-Commit → grün (Lease auf den gelesenen SHA)"
+assert_true "$(git -C "$ORIGIN_24" cat-file -e "refs/heads/$BR_24:mensch.txt" 2>/dev/null; [ $? -ne 0 ]; echo $?)" "#24 AK-24c: der Fremd-Commit ist nicht mehr auf dem Branch"
+assert_true "$([ "$(git -C "$ORIGIN_24" rev-parse "refs/heads/$BR_24^")" = "$(sha_24 main)" ]; echo $?)" "#24 AK-24c: neu aufgebaut auf dem aktuellen main"
+assert_contains_286 "$(pr_body_24)" 'gehört dem Workflow' "#24 AK-24c: der Body nennt den Branch-Besitz"
+assert_contains_286 "$(pr_body_24)" 'eigene Commits' "#24 AK-24c: der Body sagt, dass eigene Commits entfallen"
+
+# Lease: hat sich der Branch zwischen Lesen und Push geändert, wird nicht überschrieben (git-Wrapper schiebt einen Fremd-Push dazwischen)
+world_24 l1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+git -C "$C1_23" push -q origin "main:refs/heads/$BR_24"
+LEASE_24="$W24/gitwrap"; mkdir -p "$LEASE_24"; REAL_GIT_24="$(command -v git)"
+cat > "$LEASE_24/git" <<WRAP
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [ "\$a" = push ] && [ ! -e "$LEASE_24/done" ]; then
+    : > "$LEASE_24/done"
+    "$REAL_GIT_24" -C "$ORIGIN_24" -c user.email=t@example.invalid -c user.name=t commit-tree -p refs/heads/$BR_24 -m dazwischen "refs/heads/$BR_24^{tree}" \
+      | xargs -I{} "$REAL_GIT_24" -C "$ORIGIN_24" update-ref refs/heads/$BR_24 {}
+  fi
+done
+exec "$REAL_GIT_24" "\$@"
+WRAP
+chmod +x "$LEASE_24/git"
+racing_24="$(PATH="$LEASE_24:$PATH" upd_24 >/dev/null; echo $?)"; between_24="$(sha_24 "$BR_24")"
+assert_true "$([ "$racing_24" -ne 0 ] && [ "$(git -C "$ORIGIN_24" log -1 --format=%s "$between_24")" = dazwischen ]; echo $?)" \
+  "#24 E11: --force-with-lease – ein Push, der zwischen Lesen und Schreiben kam, wird nicht überschrieben"
+
+# ── AK-24d: ohne Merge geschlossene Version wird nicht erneut angeboten ─────────────────────────────────────────────
+world_24 d1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null
+jq 'map(.state = "CLOSED")' "$GS_24/prs.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/prs.json"
+git -C "$ORIGIN_24" update-ref -d "refs/heads/$BR_24"; : > "$GS_24/calls.log"
+nochange_24 "AK-24d: v1.1.0 ohne Merge geschlossen, weiterhin neueste"
+assert_contains_286 "$out_24" 'https://example.invalid/pull/1' "#24 AK-24d: der Hinweis verlinkt den geschlossenen PR"
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK-24d: danach v1.2.0 → grün"
+assert_true "$([ "$(open_prs_24)" = 1 ] && [ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 AK-24d: für v1.2.0 entsteht wieder ein PR"
+# Eine Marke in den eingebetteten Release Notes sperrt nicht – nur die Marke im Kopf des Bodys zählt
+world_24 d3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+jq '(.[] | select(.tag_name == "v1.1.0") | .body) = "Beispiel:\n<!-- factory-update-version: v1.2.0 -->"' "$GS_24/releases.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/releases.json"
+upd_24 >/dev/null
+assert_contains_286 "$(pr_body_24)" '<!-- factory-update-version: v1.2.0 -->' "#24 AK-24d (Voraussetzung): die Notes im PR für v1.1.0 zitieren die Marke von v1.2.0"
+jq 'map(.state = "CLOSED")' "$GS_24/prs.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/prs.json"
+git -C "$ORIGIN_24" update-ref -d "refs/heads/$BR_24"
+add_release_24 v1.2.0; jq '. + [{tag_name: "v1.2.0", draft: false, prerelease: false, body: "Notes v1.2.0", assets: [{name: "factory-release.json"}]}]' \
+  "$GS_24/releases.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/releases.json"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(open_prs_24)" = 1 ] && [ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" \
+  "#24 AK-24d: eine Marke in den Release Notes eines abgelehnten PRs sperrt die zitierte Version nicht"
+# Ein Fork-PR mit gleichem Branch-Namen und der Marke im Body sperrt keine Version
+world_24 d2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+jq -n '[{number: 7, url: "https://example.invalid/pull/7", state: "CLOSED", title: "x", headRefName: "chore/factory-update",
+         isCrossRepository: true, mergedAt: null, body: "<!-- factory-update-version: v1.1.0 -->"}]' > "$GS_24/prs.json"
+upd_24 >/dev/null; assert_true "$([ "$(open_prs_24)" = 1 ]; echo $?)" "#24 AK-24d: geschlossener Fork-PR sperrt die Version nicht"
+assert_true "$(grep -qE '^pr edit 7' "$GS_24/calls.log"; [ $? -ne 0 ]; echo $?)" "#24 E11: ein Fork-PR mit gleichem Branch-Namen wird nie bearbeitet"
+
+# ── AK-24e: ohne factory.lock → No-op, ohne Token, ohne Netz ─────────────────────────────────────────────────────────
+world_24 e1
+out_24="$(env_23 "$C0_23" env PATH="$GH_STUB_24:$(stubs_23 curl):$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN=x FACTORY_SYNC_TOKEN= bash "$UPD_24")"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK-24e: ohne factory.lock und ohne Token → No-op, grün"
+assert_contains_286 "$out_24" 'kein factory.lock' "#24 AK-24e: der Hinweis nennt den Grund"
+assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 AK-24e: kein gh-Aufruf (kein Netzzugriff)"
+
+# ── F-24.3: Lock unlesbar → rot, kein Rückfall auf No-op ─────────────────────────────────────────────────────────────
+for bad_24 in '{' '' '{"schema":1,"version":"kaputt"}'; do
+  next_world_24 lockbad;printf '%s' "$bad_24" > "$C1_23/factory.lock"
+  out_24="$(upd_24)"; rc_24=$?
+  assert_exit 1 "$rc_24" "#24 F-24.3: Lock „${bad_24}“ → rot"
+  assert_contains_286 "$out_24" 'factory.lock' "#24 F-24.3: die Meldung nennt factory.lock (Lock „${bad_24}“)"
+  assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 F-24.3: vor jedem gh-Aufruf abgebrochen (Lock „${bad_24}“)"
+done
+world_24 g9; rm "$C1_23/factory.lock"; ln -s /nicht/vorhanden/lock "$C1_23/factory.lock"
+upd_24 >/dev/null; assert_exit 1 "$?" "#24 F-24.3: hängender Symlink als Lock → rot (kein No-op)"
+
+# ── FS-T2.3: Token fehlt / abgelehnt → rot vor jedem weiteren Schritt, auch ohne neue Version ────────────────────────
+# token_refused_24 <exit> <ausgabe> <protokoll-datei> – rot, Meldung nennt Token + OPERATING.md, Release-Liste nie gelesen
+token_refused_24() {
+  [ "$1" -eq 1 ] && grep -qF 'FACTORY_SYNC_TOKEN' <<< "$2" && grep -qF 'OPERATING.md' <<< "$2" && ! grep -qF 'releases' "$3"
+}
+world_24 t1
+out_24="$(TOKEN_24='' upd_24)"; rc_24=$?
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 0 "$?" "#24 FS-T2.3: Token leer (GITHUB_TOKEN gesetzt) → rot mit Verweis auf OPERATING.md, nichts weiter"
+world_24 t2
+out_24="$(TOKEN_24=abgelaufen upd_24)"; rc_24=$?
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 0 "$?" "#24 FS-T2.3: Token abgelehnt (401) → rot, Release-Liste nie gelesen"
+world_24 t3; printf 'false\n' > "$GS_24/push"
+out_24="$(upd_24)"; rc_24=$?
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 0 "$?" "#24 FS-T2.3: Token ohne Schreibrecht → rot"
+world_24 t4; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+out_24="$(TOKEN_24=abgelaufen upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ]; echo $?)" "#24 FS-T2.3: abgelehntes Token bei neuer Version → rot, kein Push"
+# Mutationsbeleg: ohne den Aufruf der Token-Prüfung verletzt derselbe Fall den Guard
+MUT_24="$T23/mut24"
+grep -vxF '  require_token' "$UPD_24" > "$T23/mut24-update.sh"
+factory_scripts_24 "$MUT_24" "$T23/mut24-update.sh"
+assert_true "$([ "$(grep -cxF '  require_token' "$UPD_24")" = 1 ] && ! grep -qxF '  require_token' "$MUT_24/scripts/factory-update.sh"; echo $?)" \
+  "#24 FS-T2.3 (Mutation): genau der Aufruf der Token-Prüfung ist im Mutanten entfernt"
+world_24 t5
+out_24="$(TOKEN_24=abgelaufen upd_24 "$MUT_24/scripts/factory-update.sh")"; rc_24=$?
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 1 "$?" "#24 FS-T2.3 (Mutation): ohne Token-Prüfung ist derselbe Guard rot – die Prüfung ist wirksam"
+
+# ── Security: die Abholung läuft ohne Token (factory-sync.sh startet sich in der Fassung des Release neu) ────────────
+# Wrapper-Stub statt factory-sync.sh: protokolliert, welche Token-Variablen er sieht, und reicht an das echte Skript weiter.
+tokenless_sync_24() { # $1 = update-skript; setzt SEEN_24 (Protokoll) und MUT_24
+  MUT_24="$W24/tokenless"; factory_scripts_24 "$MUT_24" "$1"
+  mv "$MUT_24/scripts/factory-sync.sh" "$MUT_24/scripts/factory-sync.real.sh"
+  SEEN_24="$W24/sync-env.log"
+  printf '#!/usr/bin/env bash\nprintf "FST=%%s GH=%%s GT=%%s\\n" "${FACTORY_SYNC_TOKEN:-}" "${GH_TOKEN:-}" "${GITHUB_TOKEN:-}" >> "%s"\nexec bash "%s" "$@"\n' \
+    "$SEEN_24" "$MUT_24/scripts/factory-sync.real.sh" > "$MUT_24/scripts/factory-sync.sh"
+  chmod +x "$MUT_24/scripts/factory-sync.sh"
+}
+next_world_24 tokenless; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+tokenless_sync_24 "$UPD_24"
+out_24="$(upd_24 "$MUT_24/scripts/factory-update.sh")"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 Security: Lauf mit Wrapper-Stub für factory-sync.sh grün (Stub reicht an das echte Skript weiter)"
+assert_true "$([ -s "$SEEN_24" ]; echo $?)" "#24 Security: factory-sync.sh wurde aufgerufen (Protokoll nicht leer)"
+# Zeilenweise: factory-sync.sh startet sich nach dem Abholen neu (--compose --check) – auch dieser Aufruf muss tokenfrei sein
+sync_saw_no_token_24() { [ "$(wc -l < "$SEEN_24")" -ge 2 ] && ! grep -qvxF 'FST= GH= GT=' "$SEEN_24"; }
+assert_true "$(sync_saw_no_token_24; echo $?)" "#24 Security: jeder Aufruf von factory-sync.sh (auch der Neustart) sieht weder FACTORY_SYNC_TOKEN noch GH_TOKEN noch GITHUB_TOKEN"
+assert_true "$([ "$(lock_on_branch_24)" = v1.1.0 ]; echo $?)" "#24 Security: der Update-PR entsteht trotzdem (Push und PR laufen danach mit Token)"
+# Mutation: ohne das `env -u` desselben Aufrufs sieht der Stub das Token – derselbe Guard muss rot werden
+next_world_24 tokenless; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+sed 's/env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN //' "$UPD_24" > "$T23/mut24-tokenless.sh"
+assert_true "$([ "$(grep -c 'env -u FACTORY_SYNC_TOKEN' "$UPD_24")" = 1 ] && ! grep -q 'env -u FACTORY_SYNC_TOKEN' "$T23/mut24-tokenless.sh"; echo $?)" \
+  "#24 Security (Mutation): genau das env -u der Abholung ist im Mutanten entfernt"
+tokenless_sync_24 "$T23/mut24-tokenless.sh"
+upd_24 "$MUT_24/scripts/factory-update.sh" >/dev/null
+assert_exit 1 "$(sync_saw_no_token_24; echo $?)" "#24 Security (Mutation): ohne env -u ist derselbe Guard rot – die tokenfreie Abholung ist wirksam"
+assert_true "$(grep -qF "FST=$GOOD_TOKEN_24" "$SEEN_24"; echo $?)" "#24 Security (Mutation): der Stub sah im Mutanten tatsächlich das Token"
+
+# Security: Git-Hooks laufen nie – nach der Abholung stammen sie aus dem ungeprüften Release und erbten beim Push das Token
+# spy_hooks_24 – core.hooksPath von C1 auf protokollierende Hooks (Hook-Name + sichtbare Token-Variablen); setzt HOOKS_24
+spy_hooks_24() {
+  local dir="$W24/hooks" h
+  HOOKS_24="$W24/hooks.log"; mkdir -p "$dir"; : > "$HOOKS_24"
+  for h in pre-commit commit-msg pre-push post-checkout reference-transaction; do
+    printf '#!/usr/bin/env bash\nprintf "%s FST=%%s GH=%%s\\n" "${FACTORY_SYNC_TOKEN:-}" "${GH_TOKEN:-}" >> "%s"\nexit 0\n' "$h" "$HOOKS_24" > "$dir/$h"
+    chmod +x "$dir/$h"
+  done
+  git -C "$C1_23" config core.hooksPath "$dir"
+}
+hooks_saw_no_token_24() { ! grep -qE '=[^ ]' "$HOOKS_24"; }
+next_world_24 hooks; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; spy_hooks_24
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(lock_on_branch_24)" = v1.1.0 ]; echo $?)" "#24 Security: mit installierten Hooks entsteht der Update-PR (kein Gate-Hook bricht den Push ab, F1)"
+assert_true "$(hooks_saw_no_token_24; echo $?)" "#24 Security: kein Git-Hook sieht FACTORY_SYNC_TOKEN oder GH_TOKEN"
+assert_true "$([ ! -s "$HOOKS_24" ]; echo $?)" "#24 Security: kein Git-Hook läuft (Commit, Push, Checkout, Fetch)"
+# Mutation: ohne die Hook-Abschaltung laufen die Hooks mit Token – derselbe Guard muss rot werden
+next_world_24 hooks; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; spy_hooks_24
+sed 's|-c core.hooksPath=/dev/null ||' "$UPD_24" > "$T23/mut24-hooks.sh"
+assert_true "$([ "$(grep -c 'core.hooksPath=/dev/null' "$UPD_24")" = 1 ] && ! grep -q 'core.hooksPath' "$T23/mut24-hooks.sh"; echo $?)" \
+  "#24 Security (Mutation): genau die Hook-Abschaltung ist im Mutanten entfernt"
+factory_scripts_24 "$W24/nohooks-mut" "$T23/mut24-hooks.sh"
+upd_24 "$W24/nohooks-mut/scripts/factory-update.sh" >/dev/null
+assert_exit 1 "$(hooks_saw_no_token_24; echo $?)" "#24 Security (Mutation): ohne core.hooksPath=/dev/null ist derselbe Guard rot – die Abschaltung ist wirksam"
+assert_true "$(grep -qE "^pre-push FST=$GOOD_TOKEN_24 " "$HOOKS_24"; echo $?)" "#24 Security (Mutation): im Mutanten sah der pre-push-Hook tatsächlich das Token"
+
+# ── F-24.2: Release-Liste nicht lesbar → rot ─────────────────────────────────────────────────────────────────────────
+world_24 r1; : > "$GS_24/releases-fail"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 1 "$rc_24" "#24 F-24.2: Abruf der Release-Liste scheitert → rot (nicht „keine neue Version“)"
+assert_contains_286 "$out_24" 'Release-Liste' "#24 F-24.2: die Meldung nennt die Release-Liste"
+for resp_24 in 'kein json' '{"message":"Not Found"}' ''; do
+  next_world_24 relbad;printf '%s' "$resp_24" > "$GS_24/releases.json"
+  upd_24 >/dev/null; rc_24=$?
+  assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.2: Antwort „${resp_24}“ ist kein JSON-Array → rot, nichts geändert"
+done
+
+# ── F-24.1: Abholung scheitert → rot, kein Push, bestehender PR unverändert ──────────────────────────────────────────
+world_24 a1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0; rm -rf "$R23/v1.2.0"
+branch_before_24="$(sha_24 "$BR_24")"; prs_before_24="$(cat "$GS_24/prs.json")"; main_before_24="$(sha_24 main)"; : > "$GS_24/calls.log"
+out_24="$(upd_24)"; rc_24=$?
+assert_exit 1 "$rc_24" "#24 F-24.1: Manifest fehlt → Abholung scheitert → rot"
+assert_contains_286 "$out_24" 'nicht eingebunden' "#24 F-24.1: die Meldung von factory-sync.sh wird ausgegeben"
+assert_true "$([ "$branch_before_24" = "$(sha_24 "$BR_24")" ] && [ "$main_before_24" = "$(sha_24 main)" ]; echo $?)" "#24 F-24.1: kein Push (Branch und main unverändert)"
+assert_true "$([ "$prs_before_24" = "$(cat "$GS_24/prs.json")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.1: bestehender PR unverändert"
+world_24 a2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+printf 'echo lokal\n' >> "$C1_23/scripts/tool.sh"; git_23 -C "$C1_23" commit -qam lokal
+git -C "$C1_23" push -q origin main
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.1/F2: lokale Änderung auf main → rot, kein Push, kein PR"
+assert_contains_286 "$out_24" 'scripts/tool.sh' "#24 F-24.1/F2: die Meldung nennt die geänderte Datei"
+
+# ── /test: weitere Fail-closed-Zweige (je Zweig: rot, zweigspezifische Meldung, nichts gepusht, kein schreibender gh-Aufruf) ──
+# fail_closed_24 <beschreibung> <meldung> – setzt rc_24/out_24 des vorigen Laufs voraus; Branch nie gepusht, kein PR geschrieben
+fail_closed_24() {
+  assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 $1 → rot, kein Push, kein schreibender gh-Aufruf"
+  assert_contains_286 "$out_24" "$2" "#24 $1 → Meldung nennt „$2“"
+}
+# gh nicht installiert: PATH nur mit den übrigen Werkzeugen (Symlinks), ohne gh
+NOGH_24="$T23/nogh24"; mkdir -p "$NOGH_24"
+for tool_24 in bash git jq yq awk sed grep cat tr cut sort head tail dirname basename mktemp rm cp mv mkdir shasum curl find ls wc uniq date cmp chmod readlink tee xargs env; do
+  [ -x "$(command -v "$tool_24" 2>/dev/null)" ] && ln -sf "$(command -v "$tool_24")" "$NOGH_24/$tool_24"
+done
+world_24 g1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+out_24="$(env_23 "$C1_23" env PATH="$NOGH_24" GITHUB_REPOSITORY=acme/consumer FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "$UPD_24")"; rc_24=$?
+fail_closed_24 "gh nicht installiert" 'gh nicht gefunden'
+assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 gh nicht installiert → der Stub wurde nie gerufen (Voraussetzung: kein gh im PATH)"
+# GITHUB_REPOSITORY kein Slug → rot vor jedem gh-Aufruf
+for repo_24 in 'kein-slug' '' 'a/b/c' 'a b/c'; do
+  next_world_24 slug; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+  out_24="$(REPO_24="$repo_24" upd_24)"; rc_24=$?
+  fail_closed_24 "GITHUB_REPOSITORY „${repo_24}“ ist kein Slug" 'kein <owner>/<repo>-Slug'
+  assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 GITHUB_REPOSITORY „${repo_24}“ → kein gh-Aufruf"
+done
+# Fetch von origin scheitert → rot vor jedem Schreiben
+world_24 f1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+git -C "$C1_23" remote set-url origin "file://$W24/gibt-es-nicht.git"
+out_24="$(upd_24)"; rc_24=$?
+fail_closed_24 "Fetch von origin scheitert" 'Fetch von origin'
+# PR-Listen nicht lesbar (offen / geschlossen) → rot, nichts geschrieben (kein Rückfall auf „kein PR“ → kein Duplikat-PR)
+for st_24 in open closed; do
+  next_world_24 prl; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-list-fail-$st_24"
+  out_24="$(upd_24)"; rc_24=$?
+  fail_closed_24 "PR-Liste ($st_24) nicht lesbar" "PRs nicht lesbar"
+done
+# Arbeitsbaum des Konsumenten nicht sauber → kein Neuaufbau (ein Checkout -B würde die Änderung mitnehmen oder verlieren)
+world_24 dirty1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+printf 'unfertig\n' > "$C1_23/unfertig.txt"
+out_24="$(upd_24)"; rc_24=$?
+fail_closed_24 "unsauberer Arbeitsbaum" 'Arbeitsbaum nicht sauber'
+assert_true "$([ "$(cat "$C1_23/unfertig.txt")" = unfertig ]; echo $?)" "#24 unsauberer Arbeitsbaum → die Änderung des Konsumenten bleibt unberührt"
+
+# PR anlegen scheitert, nachdem gepusht wurde → rot mit eigener Meldung; Branch steht (nächster Lauf repariert per Neuaufbau)
+world_24 c1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ "$(lock_on_branch_24)" = v1.1.0 ] && [ "$(open_prs_24)" = 0 ]; echo $?)" "#24 pr create scheitert → rot, Branch gepusht, kein PR"
+assert_contains_286 "$out_24" 'nicht anlegbar' "#24 pr create scheitert → Meldung nennt das Anlegen"
+rm -f "$GS_24/pr-create-fail"; : > "$GS_24/calls.log"; out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(open_prs_24)" = 1 ]; echo $?)" "#24 pr create scheitert → der Folgelauf legt den PR an (selbstheilend)"
+# PR bearbeiten scheitert → rot, Body des bestehenden PR unverändert
+world_24 pred1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; upd_24 >/dev/null
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0; : > "$GS_24/pr-edit-fail"; body_before_24="$(pr_body_24)"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ "$body_before_24" = "$(pr_body_24)" ]; echo $?)" "#24 pr edit scheitert → rot, PR-Body unverändert"
+assert_contains_286 "$out_24" 'nicht aktualisierbar' "#24 pr edit scheitert → Meldung nennt das Aktualisieren"
+
+# Der Checkout des Konsumenten steht nach dem Lauf wieder auf dem Ausgangs-Branch (Folgelauf liest den Lock von dort)
+# back_on_main_24 – C1 steht auf main
+back_on_main_24() { [ "$(git -C "$C1_23" symbolic-ref -q --short HEAD)" = main ]; }
+world_24 o1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: nach erfolgreichem Lauf steht der Checkout wieder auf main"
+world_24 o2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
+upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: auch nach einem Abbruch im PR-Schritt steht der Checkout wieder auf main"
+# Mutationsbeleg: ohne den Checkout auf ORIG_REF verletzt derselbe Fall den Guard
+RESTORE_LINE_24='git_nohooks checkout --quiet "$ORIG_REF"'
+grep -vF "$RESTORE_LINE_24" "$UPD_24" > "$T23/mut24-restore.sh"
+assert_true "$([ "$(grep -cF "$RESTORE_LINE_24" "$UPD_24")" = 1 ] && ! grep -qF "$RESTORE_LINE_24" "$T23/mut24-restore.sh"; echo $?)" \
+  "#24 Rückkehr (Mutation): genau die Checkout-Zeile auf ORIG_REF ist im Mutanten entfernt"
+factory_scripts_24 "$T23/mut24r" "$T23/mut24-restore.sh"
+world_24 o3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 "$T23/mut24r/scripts/factory-update.sh" >/dev/null; back_on_main_24; assert_exit 1 "$?" "#24 Rückkehr (Mutation): ohne die Zeile ist derselbe Guard rot – die Rückkehr ist wirksam"
+
+# ── Selbst-Ersatz: factory-update.sh läuft aus dem Konsumenten-Checkout, factory-sync.sh überschreibt es im Lauf ─────
+# Bash liest ein Skript stückweise und setzt nach `main` am alten Byte-Offset fort – dann in der neuen Fassung.
+# self_replace_24 <welt> <update-skript> – C1 hat <update-skript> mit v1.1.0 übernommen; v1.2.0 liefert dieselbe Datei,
+# verlängert um eine erkennbare Zeile genau am alten Dateiende. Das Skript läuft aus C1; setzt out_24/rc_24.
+self_replace_24() {
+  world_24 "$1"
+  factory_scripts_24 "$U23" "$2"
+  add_release_24 v1.1.0
+  sync_23 "$C1_23" v1.1.0 >/dev/null
+  git -C "$C1_23" add -A && git_23 -C "$C1_23" commit -q -m "adopt v1.1.0" && git -C "$C1_23" push -q origin main
+  printf 'echo AUS-NEUER-VERSION-24; exit 7\n' >> "$U23/scripts/factory-update.sh"
+  add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+  out_24="$(upd_24 "$C1_23/scripts/factory-update.sh")"; rc_24=$?
+}
+# Guard: Lauf grün, und keine Zeile der neuen Fassung wurde ausgeführt
+self_replace_safe_24() { [ "$1" -eq 0 ] && ! grep -qF 'AUS-NEUER-VERSION-24' <<< "$2"; }
+self_replace_24 sr1 "$UPD_24"
+assert_true "$(cmp -s "$C1_23/scripts/factory-update.sh" "$UPD_24"; echo $?)" "#24 Selbst-Ersatz (Voraussetzung): C1 führt die übernommene factory-update.sh aus"
+self_replace_safe_24 "$rc_24" "$out_24"; assert_exit 0 "$?" "#24 Selbst-Ersatz: nach main liest bash nichts mehr aus der ersetzten Datei (grün, nichts aus v1.2.0 ausgeführt)"
+assert_true "$([ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 Selbst-Ersatz: der Update-PR steht auf v1.2.0 (inkl. neuer factory-update.sh)"
+# Mutationsbeleg: steht nach `main "$@"` kein exit auf derselben Zeile, verletzt derselbe Fall den Guard
+END_LINE_24='main "$@"; exit $?'
+sed "s/^main \"\\\$@\"; exit \\\$?\$/main \"\$@\"/" "$UPD_24" > "$T23/mut24-selfreplace.sh"
+assert_true "$([ "$(grep -cxF "$END_LINE_24" "$UPD_24")" = 1 ] && ! grep -qxF "$END_LINE_24" "$T23/mut24-selfreplace.sh" \
+  && [ "$(grep -cxF 'main "$@"' "$T23/mut24-selfreplace.sh")" = 1 ]; echo $?)" \
+  "#24 Selbst-Ersatz (Mutation): genau die Aufrufzeile ist im Mutanten auf 'main \"\$@\"' ohne exit reduziert"
+self_replace_24 sr2 "$T23/mut24-selfreplace.sh"
+self_replace_safe_24 "$rc_24" "$out_24"; assert_exit 1 "$?" "#24 Selbst-Ersatz (Mutation): ohne exit auf der Aufrufzeile ist derselbe Guard rot"
+
+# ── E12: Credential-Helper gibt das Token zur Laufzeit aus der Umgebung aus ──────────────────────────────────────────
+helper_line_24="$(grep -E '^CREDENTIAL_HELPER=' "$UPD_24")"
+assert_absent "$helper_line_24" "$GOOD_TOKEN_24" "#24 E12: die Helper-Definition enthält keinen Token-Wert"
+cred_24="$(eval "$helper_line_24"; printf 'protocol=https\nhost=github.com\n\n' \
+  | FACTORY_SYNC_TOKEN=geheim-24 git -c credential.helper= -c "credential.helper=$CREDENTIAL_HELPER" credential fill 2>/dev/null)"
+assert_contains_286 "$cred_24" 'password=geheim-24' "#24 E12: der Helper liefert das Token aus FACTORY_SYNC_TOKEN"
+assert_contains_286 "$cred_24" 'username=x-access-token' "#24 E12: der Helper liefert username=x-access-token"
+
+# ── Verdrahtung: Skript und Workflow ─────────────────────────────────────────────────────────────────────────────────
+upd_src_24="$(cat "$UPD_24")"
+assert_true "$([ "$(grep -cE '(git|git_with_token) .*push ' <<< "$upd_src_24")" = 1 ]; echo $?)" "#24 F1: das Skript hat genau eine Push-Zeile"
+assert_true "$(grep -E '(git|git_with_token) .*push ' <<< "$upd_src_24" | grep -qF '"HEAD:refs/heads/$UPDATE_BRANCH"'; echo $?)" "#24 F1: einziges Push-Ziel ist refs/heads/\$UPDATE_BRANCH"
+assert_true "$(grep -qxF 'UPDATE_BRANCH="chore/factory-update"' <<< "$upd_src_24"; echo $?)" "#24 F1: UPDATE_BRANCH ist fest chore/factory-update"
+assert_absent "$upd_src_24" 'pr merge' "#24 AK2.4: das Skript ruft nie gh pr merge"
+assert_absent "$upd_src_24" '--auto' "#24 AK2.4: das Skript aktiviert kein Auto-Merge"
+assert_absent "$upd_src_24" '$GITHUB_TOKEN' "#24 AK2.4: das Skript liest GITHUB_TOKEN nie"
+assert_absent "$upd_src_24" '${GITHUB_TOKEN' "#24 AK2.4: das Skript liest GITHUB_TOKEN nie (Klammerform)"
+
+WF_24="$FACTORY_ROOT/.github/workflows/factory-update.yml"
+wf_24="$(cat "$WF_24" 2>/dev/null)"
+assert_true "$(grep -qE '^  schedule:' <<< "$wf_24" && grep -qE "^    - cron: '[^']+'" <<< "$wf_24"; echo $?)" "#24 AK2.2d: factory-update.yml läuft per schedule"
+assert_true "$(grep -qE '^  workflow_dispatch:' <<< "$wf_24"; echo $?)" "#24 AK2.2d: factory-update.yml läuft per workflow_dispatch"
+assert_true "$(grep -qxF '  group: factory-update' <<< "$wf_24" && grep -qxF '  cancel-in-progress: false' <<< "$wf_24"; echo $?)" "#24 E10: concurrency factory-update, ohne Cancel"
+assert_true "$(grep -qxF 'permissions:' <<< "$wf_24" && grep -qxF '  contents: read' <<< "$wf_24"; echo $?)" "#24 E10: GITHUB_TOKEN nur contents: read"
+assert_true "$(grep -qxF '          fetch-depth: 0' <<< "$wf_24" && grep -qxF '          persist-credentials: false' <<< "$wf_24"; echo $?)" "#24 E10: Checkout mit fetch-depth 0 und ohne gespeicherte Anmeldung"
+# Reihenfolge: yq bereitstellen vor der echten run:-Zeile, Token aus dem Secret als Env
+wf_wired_24() {
+  local y r
+  y="$(grep -nF 'run: sudo bash scripts/install-yq.sh' <<< "$1" | head -1 | cut -d: -f1)"
+  r="$(grep -nxF '        run: bash scripts/factory-update.sh' <<< "$1" | head -1 | cut -d: -f1)"
+  [ -n "$y" ] && [ -n "$r" ] && [ "$y" -lt "$r" ] && grep -qxF '          FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}' <<< "$1"
+}
+wf_wired_24 "$wf_24"; assert_exit 0 "$?" "#24 AK2.4: yq, dann factory-update.sh mit FACTORY_SYNC_TOKEN aus dem Secret (echte Zeilen)"
+wf_wired_24 "$(grep -vF 'FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}' <<< "$wf_24")"
+assert_exit 1 "$?" "#24 AK2.4 (Mutation): ohne die Token-Zeile wird derselbe Guard rot"
+assert_absent "$wf_24" 'GITHUB_TOKEN' "#24 AK2.4: factory-update.yml reicht GITHUB_TOKEN nicht weiter"
+assert_absent "$wf_24" 'pr merge' "#24 AK2.4: factory-update.yml merged nie"
 
 rm -rf "$T23"
 fi

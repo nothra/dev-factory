@@ -143,6 +143,48 @@ Commit vor diesem Schritt liegen muss.
 bestehen; `run-pipeline.sh` sourct sie **nicht**. Die **Prozess**-Kennzahlen (Abschnitt 5)
 brauchen die Telemetrie **nicht** – die zwei Ebenen aus ADR-006 bleiben getrennt.
 
+### 0.6 Update-Workflow: Token `FACTORY_SYNC_TOKEN` (je Konsumenten-Repo)
+
+Der Workflow `factory-update.yml` läuft täglich (und per `workflow_dispatch`), erkennt eine neuere
+Factory-Version in `upstream.repo` und pflegt dafür **einen** PR auf dem Branch `chore/factory-update`
+(Factory-ADR-063, Nachtrag E10–E15). Er merged nie; über den PR entscheiden die Gates und der Mensch.
+Ohne `factory.lock` (z. B. im Factory-Repo selbst) ist der Lauf ein grüner No-op ohne Token.
+
+**Anlegen (menschlicher Schritt, einmalig):**
+
+1. GitHub → *Settings* → *Developer settings* → *Fine-grained personal access tokens* → *Generate new token*.
+2. *Repository access:* **nur** das Konsumenten-Repo.
+3. *Permissions* (Repository): **Contents** read and write, **Pull requests** read and write,
+   **Workflows** read and write (eine Version, die eine Datei unter `.github/workflows/` ändert, ließe
+   sich sonst nicht pushen); *Metadata: read* setzt GitHub selbst. Das öffentliche Quell-Repo liest der
+   Token ohne eigenes Recht.
+4. *Expiration:* höchstens **1 Jahr**; Ablaufdatum im Team-Kalender notieren.
+5. Im Konsumenten-Repo als Repository-Secret **`FACTORY_SYNC_TOKEN`** hinterlegen
+   (*Settings* → *Secrets and variables* → *Actions*).
+
+**Warum ein PAT und nicht `GITHUB_TOKEN`:** Pushes und PRs mit dem eingebauten Token lösen keine
+`pull_request`-Workflows aus – die Gates am Update-PR liefen nie. Der eingebaute Token bleibt im
+Workflow auf `contents: read`; das Skript liest ihn nie.
+
+**Ablauf und Rotation:** Vor dem Ablauf einen neuen Token mit denselben Rechten anlegen, das Secret
+überschreiben und den alten Token löschen. Danach einmal `workflow_dispatch` auslösen: der Lauf muss grün
+sein.
+
+**Symptom „Lauf rot: Token"** – Meldung `FACTORY_SYNC_TOKEN fehlt …`, `… wird abgelehnt …` oder
+`… hat kein Schreibrecht …`: Secret fehlt, Token abgelaufen bzw. widerrufen oder Rechte zu knapp. Das
+Skript prüft das Token bei vorhandenem Lock **bei jedem Lauf zuerst**, auch ohne neue Version – ein
+abgelaufener Token fällt am nächsten Tag auf, nicht erst beim nächsten Release. Die Rechteprüfung liest
+`permissions.push` des Repos; ob GitHub dort die Rechte eines Fine-grained-Tokens oder die Rolle seines
+Besitzers meldet, ist noch nicht am echten Repo belegt. Fehlt dem Token nur *Contents: write* bzw.
+*Pull requests: write*, kann der Lauf daher erst beim Push bzw. beim Anlegen des PRs rot werden – rot
+bleibt er in jedem Fall. Abhilfe: Token wie oben neu anlegen bzw. rotieren.
+
+**Branch-Besitz:** `chore/factory-update` gehört dem Workflow. Steht der PR schon auf der neuesten
+Version, bleibt der Branch unberührt; bei einer neueren Version wird er von `main` neu aufgebaut, eigene
+Commits entfallen dann. Ein ohne Merge geschlossener PR sperrt seine Version – erst eine neuere wird wieder
+angeboten. Der Update-PR braucht kein Issue (Ausnahme im Gate `pr-closes-issue`, nur für diesen Branch im
+selben Repo).
+
 ---
 
 ## 1. Der automatisierte Weg (Default)
@@ -496,6 +538,10 @@ neu zusammen und schreibt `factory.lock` zuletzt. Mit `factory.lock` bricht die 
 geändert ist (Dateiliste in der Meldung). Die **Erstabholung** ohne Lock bricht bei abweichenden Dateien ebenfalls ab; nur
 `--adopt` überschreibt sie und gibt die Liste aus (mit Lock wird `--adopt` abgelehnt). Ein Manifest, das eine Anpassungsstelle
 oder einen Projektbereich (`scripts/project/`, `docs/project/`, `docs/adr/`, `docs/specs/`, `tasks/`) liefern würde, wird abgelehnt.
+
+**Automatisch abholen:** Der Workflow `factory-update.yml` ruft `factory-sync.sh` täglich für die neueste veröffentlichte Version
+auf und legt das Ergebnis als Update-PR auf `chore/factory-update` vor (`scripts/factory-update.sh`). Einrichtung des Tokens und
+Verhalten im Fehlerfall: [0.6](#06-update-workflow-token-factory_sync_token-je-konsumenten-repo).
 
 **Gate:** `bash scripts/checks/factory-integrity-check.sh` (lokale Stufe, offline; fester Check in `pre-commit.sh` und
 `pre-push.sh`) prüft Hashes gegen `factory.lock` und `--compose --check`; `--ci` (Job `factory-integrity`) vergleicht zusätzlich

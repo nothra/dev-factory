@@ -497,7 +497,11 @@ Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
      zusammengesetzte Dateien schreiben, **zuletzt** `factory.lock` als Byte-Kopie des Manifests.
      Scheitert ein Schritt, stellt ein `trap` das Backup wieder her und entfernt neu angelegte Dateien.
      Ein harter Abbruch des Prozesses (`SIGKILL`, Stromausfall) während Phase 2 ist nicht abgedeckt;
-     Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Leere Verzeichnisse nach dem Löschen bleiben
+     Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Die anschließende Prüfung
+     `--compose --check` läuft allerdings schon in der **neuen** Fassung des Skripts aus dem Release –
+     Code des abgeholten Tags; wer `factory-sync.sh` automatisiert aufruft, tut das deshalb ohne
+     Anmeldedaten in der Umgebung (E12) – das schützt vor versehentlicher Weitergabe, nicht vor
+     bösartigem Release-Code im selben Job (Restrisiko, Ausbau: Issue #37). Leere Verzeichnisse nach dem Löschen bleiben
      (Git führt sie nicht).
 - **E5 · Gemeinsame Bibliothek `scripts/lib/factory-lock.sh`** (übernommen, gesourct relativ zum
   Skript): Hash per `shasum -a 256` bzw. `sha256sum`, Prüfung von Lock/Manifest (E4 1b), Abruf des
@@ -548,3 +552,111 @@ Stufe braucht nur `jq` und ein Hash-Werkzeug). Jeder Commit und Push im Konsumen
 Lock-Dateien (heute 114). Gemessen am 2026-10-25 auf macOS: ein `shasum`-Aufruf über alle Dateien
 ≈ 0,05 s, ein Aufruf je Datei ≈ 1,8 s – E5 hasht deshalb in **einem** Aufruf (Dateiliste per
 `xargs -0`), nicht in einer Schleife je Datei.
+
+## Nachtrag 2026-10-30 · Update-Workflow und Update-PR (Spec #24, Q-24.5/Q-24.6)
+
+Aus `/architecture` zu #24 (T2a-3); angenommen, umgesetzt in #24. Verfeinert D2; kein
+Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.1–Q-24.4 stehen in der Spec.
+
+- **E10 · Logik in einem Skript, Workflow dünn:** `scripts/factory-update.sh` (übernommen) trägt den
+  ganzen Ablauf; `.github/workflows/factory-update.yml` (übernommen) ist nur Auslöser: `schedule`
+  (täglich) + `workflow_dispatch`, `concurrency: { group: factory-update, cancel-in-progress: false }`,
+  `permissions: contents: read` für `GITHUB_TOKEN` (alle Schreibzugriffe laufen über den PAT),
+  `actions/checkout@v4` mit `fetch-depth: 0` und `persist-credentials: false`, `yq` über
+  `scripts/install-yq.sh`, dann `bash scripts/factory-update.sh` mit `FACTORY_SYNC_TOKEN` als Env.
+  *Alternativen:* Logik inline im YAML (offline nicht testbar, Kernprinzip „Bash orchestriert");
+  Fremd-Action wie `peter-evans/create-pull-request` (zusätzliche Lieferketten-Abhängigkeit mit
+  Schreibrechten, Branch-/PR-Regeln aus Q-24.3/Q-24.4 nicht abbildbar, nicht offline testbar).
+- **E11 · Ablauf von `factory-update.sh`** (Reihenfolge ist Teil der Entscheidung):
+  1. *Moduswahl:* kein `factory.lock` (`-e`/`-L` wie E8) → Hinweis, Exit 0, kein Token, kein Netz
+     (AK-24e). Lock vorhanden → Lock lesen über `scripts/lib/factory-lock.sh`; ungültig → Exit 1
+     (F-24.3).
+  2. *Token:* `FACTORY_SYNC_TOKEN` leer → Exit 1 mit Verweis auf `OPERATING.md`. Sonst
+     `gh api repos/$GITHUB_REPOSITORY --jq .permissions.push` mit `GH_TOKEN=$FACTORY_SYNC_TOKEN`; Fehler
+     oder nicht `true` → Exit 1 (FS-T2.3). Kein Rückfall auf `GITHUB_TOKEN`: das Skript liest ihn nie.
+     Vorbehalt: ob `permissions.push` die Rechte eines Fine-grained-Tokens oder die Rolle seines
+     Besitzers meldet, ist offline nicht belegbar (Q-24.7). Ein Token mit zu knappen Rechten wird dann
+     erst beim Push bzw. bei `gh pr create` rot – rot bleibt der Lauf in jedem Fall; der Beleg am
+     echten Repo folgt in T2a-4 (`nothra/tch-gastro-services#428`).
+  3. *Neueste Version:* `gh api --paginate repos/<upstream.repo>/releases` (mit Token, kein
+     Rate-Limit für anonyme Abrufe vom Runner). Kandidaten: `draft == false`, `prerelease == false`,
+     `tag_name` erfüllt `^v[0-9]+\.[0-9]+\.[0-9]+$`, ein Asset `factory-release.json`; die höchste nach
+     numerischem Vergleich der drei Teile (kein `sort -V`, bash 3.2/BSD). Abruf scheitert oder Antwort
+     ist kein JSON-Array → Exit 1 (F-24.2). Keine Kandidaten oder höchste ≤ N → Hinweis, Exit 0
+     (AK2.4b).
+  4. *Stand des Branches/PRs* (Ziel V): offener PR = `gh pr list --head chore/factory-update --state
+     open`; seine Version ist `version` aus `factory.lock` auf `origin/chore/factory-update`
+     (`git show`), nicht Titel oder Body. Gleich V → Hinweis, Exit 0, kein Push (AK-24b). Kein offener
+     PR, aber ein geschlossener, nicht gemergter PR dieses Branches trägt im Kopf des Bodys (vor der
+     ersten Release-Überschrift aus E13) die Marke `<!-- factory-update-version: V -->` → Hinweis mit
+     PR-Link, Exit 0 (AK-24d). Eine Marke in den zitierten Release Notes zählt nicht.
+  5. *Neuaufbau:* `git checkout -B chore/factory-update origin/main`, `bash scripts/factory-sync.sh V`
+     (scheitert → Exit 1, nichts gepusht, F-24.1), ein Commit `chore: factory auf V heben` mit
+     expliziter Identität (`-c user.name=factory-update -c user.email=factory-update@localhost`, Lesson
+     nothra/tch-gastro-services#334). Push nur auf `refs/heads/chore/factory-update` mit
+     `--force-with-lease=refs/heads/chore/factory-update:<zuvor gelesener SHA>` (leer, wenn der Branch
+     noch nicht existiert) – nie ein anderes Ziel (F1).
+  6. *PR:* offener PR → `gh pr edit` (Titel, Body); sonst `gh pr create --base main --head
+     chore/factory-update --label enhancement` (Art-Label laut `git-workflow.md`, „Infra/Tooling"),
+     nicht als Draft. Nie `gh pr merge`, nie `--auto` (AK2.4).
+- **E12 · Push-Anmeldung ohne Token in Argumenten oder Config:** Der Push setzt per `-c` einen
+  Credential-Helper, der `username=x-access-token` und `password=$FACTORY_SYNC_TOKEN` zur Laufzeit aus der
+  Umgebung ausgibt (`credential.helper=` leert vorher geerbte Helper). Das Token steht so weder in der
+  Prozessliste noch in `.git/config`; gegen ein lokales `file://`-Origin in Tests ist der Helper wirkungslos.
+  *Alternativen:* `actions/checkout` mit `token:` (scheitert ohne Secret schon vor dem No-op aus
+  E11.1); `gh auth setup-git` (schreibt in die globale Git-Config – im Test die des Entwicklers);
+  Token in der Remote-URL (landet in `.git/config` und Fehlermeldungen).
+  *Abholung ohne Token (Security-Review):* `factory-sync.sh` ersetzt sich beim Abholen selbst und startet
+  sich danach in der Fassung des Release neu – Code eines noch ungeprüften Tags. Das Skript ruft es deshalb
+  mit `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN` auf; Push und `gh` laufen erst danach mit dem Token.
+  Das verhindert nur das **versehentliche** Erben (Logging, `curl` mit Umgebung), ist aber keine Grenze gegen
+  bösartigen Code des Release im selben Job und unter demselben Benutzer: er kann `.git/config` setzen
+  (`core.fsmonitor` läuft beim folgenden `git add` mit dem Token), `/proc/<ppid>/environ` lesen oder über eine
+  geänderte Workflow-Datei im Update-PR das Secret auslesen. *Restrisiko akzeptiert:* Voraussetzung ist ein
+  kompromittierter Tag in der Factory; `main` bleibt durch das Ruleset geschützt. Echte Trennung (Environment-Secret
+  mit Branch-Regel, Abholung und Push in zwei Jobs): Issue #37.
+  *Ohne Git-Hooks (Review-Iteration 4):* Nach der Abholung rufen installierte Hooks (`install-hooks.sh`:
+  `pre-commit`/`pre-push` relativ zum Arbeitsbaum) Skripte des Release auf; der `pre-push`-Hook erbte das Token,
+  das der Credential-Helper aus der Umgebung liest, und ein rotes Gate darin bräche den Push ab, den F1 als
+  Update-PR vorsieht. Checkout, Fetch, Commit und Push laufen daher mit `-c core.hooksPath=/dev/null` – das
+  schaltet alle Hook-Typen ab, nicht nur die von `--no-verify` erfassten.
+- **E13 · PR-Body:** Titel `chore: factory auf V heben`. Body in dieser Reihenfolge: ein Satz „hebt
+  von N auf V", die Marke aus E11.4, der Hinweis aus AK-24c (Branch gehört dem Workflow, wird bei
+  jeder neuen Version neu aufgebaut, eigene Commits entfallen dann), dann je Version in (N, V] neueste
+  zuerst eine Überschrift `## <version>` mit dem Release-Body aus E11.3 (AK-24a). Der Release-Body ist
+  der CHANGELOG-Abschnitt der Version (`release.yml`); er ist Inhalt des Factory-Repos und geht als
+  Daten in den Body, nicht in eine Shell-Auswertung (`--body-file`).
+- **E14 · Ausnahme im Gate `pr-closes-issue`** (Fund aus `/architecture`, entschieden 2026-10-30): Ein
+  Update-PR hat kein Issue und wäre am Required Check `pr-closes-issue` immer rot (AK2.4).
+  `scripts/checks/pr-closes-keyword-check.sh` lässt einen PR ohne Closing-Keyword durch, wenn **beide**
+  gelten: Head-Branch `chore/factory-update` **und** Head-Repo = Basis-Repo (ein Fork-PR mit gleichem
+  Branch-Namen bleibt geprüft). Eigene Meldung, Exit 0. Der Job in `factory-ci.yml` reicht dafür
+  `github.head_ref`, `github.event.pull_request.head.repo.full_name` und `github.repository` als Env
+  durch. Das Gate ist ein Hygiene-Gate (verwaiste Issues), keine Sicherheitsgrenze; wer pushen darf, kann
+  die Ausnahme nutzen – akzeptiert. Der Check-Name bleibt (ADR-029 unverändert).
+  *Alternative:* der Workflow legt je Update-PR ein Issue an und schreibt `Closes #<nr>` (Gate
+  unverändert, aber Issue-Lebenszyklus bei Neuaufbau und Ablehnung mitpflegen, Token braucht
+  zusätzlich *issues:write*) – verworfen.
+- **E15 · Token-Rechte (Q-24.6):** Fine-grained PAT, nur auf das Konsumenten-Repo: *Contents:
+  read and write*, *Pull requests: read and write*, *Workflows: read and write* (eine Version, die eine
+  Datei unter `.github/workflows/` ändert, lässt sich sonst nicht pushen), *Metadata: read* (implizit).
+  Öffentliche Repos wie `nothra/dev-factory` liest jeder Fine-grained PAT ohne eigenes Recht.
+  *issues:write* auf `nothra/dev-factory` (D2) braucht erst T2b (Fund-Ablage) und wird dort ergänzt.
+  Laufzeit ≤ 1 Jahr; Anlage, Ablauf und Rotation in `OPERATING.md` (neuer Abschnitt im Einmal-Setup,
+  Verweis aus §5.5a).
+- **E16 · Tests (offline, ausgelieferte Suite):** Upstream-Fixture aus #23 (lokales Repo mit Tags,
+  `FACTORY_UPSTREAM_GIT_URL`/`FACTORY_RELEASE_BASE_URL`), dazu ein lokales Bare-Repo als `origin` des
+  Konsumenten und ein `gh`-Stub im `PATH`, der Release-Liste, Repo-Rechte und PR-Zustand aus Dateien
+  liefert und jeden Aufruf protokolliert. Belege über Protokoll (kein schreibender Aufruf, kein
+  `merge`), Branch-SHA in `origin` und `main` vor/nach. Wiring-Tests an den echten Zeilen von
+  `factory-update.yml` (Trigger, `concurrency`, Token-Quelle, kein `GITHUB_TOKEN` im Skript-Schritt) und
+  am Env-Durchreichen des `pr-closes-issue`-Jobs. Mutationsbelege für Token-Prüfung (FS-T2.3) und
+  Fork-Bedingung (E14). Die neue Bibliotheks-Nutzung kommt in alle Scaffoldings (Lesson
+  nothra/tch-gastro-services#197).
+
+**Konsequenzen:** neue Factory-Dateien `scripts/factory-update.sh` und
+`.github/workflows/factory-update.yml` (je eine Zeile `factory` in `OWNERSHIP.md`); geändert
+`scripts/checks/pr-closes-keyword-check.sh`, `.github/workflows/factory-ci.yml` (Env des Jobs
+`pr-closes-issue`), `docs/factory/OPERATING.md`, `docs/factory/guidelines/git-workflow.md` (Ausnahme bei
+der Closes-Regel nennen). Im Factory-Repo läuft der Workflow täglich als grüner No-op. Der erste echte
+Lauf – und damit der Beleg, dass die Gates am Update-PR tatsächlich anlaufen – ist Teil von T2a-4.

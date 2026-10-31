@@ -40,3 +40,5 @@ gegen den geplanten Dateinamen laufen lassen, nicht das Muster erraten.
 die AK5.4-Aufnahmen stand im Review als `??` im `git status`; `*.tmp.spec.ts` deckte sie nicht ab. Das Muster
 `*.tmp.config.ts` fehlt in `.gitignore` noch (Edit wurde in der Session nicht freigegeben, offen). Regel unverändert: vor dem Anlegen eines Wegwerf-Artefakts mit
 `git check-ignore -v <pfad>` prüfen, dass ein Muster es deckt, nicht hinterher aufräumen.
+
+**Nachtrag (aus Factory-Task #24): fünftes Vorkommnis – `tasks/telemetry-raw-<id>-*.tmp.txt` (von der Pipeline erzeugt) und `scripts/*.tmp.sh`-Sonden** lagen über sechs Skill-Läufe liegen, weil `rm` nicht freigegeben war; jeder Report vermerkte es, niemand löschte. Gitignoret heißt unkritisch für den Diff, aber stale für verzeichnisweite Scan-Guards (siehe `factory-workflow.md`). Sonden direkt nach Gebrauch über einen erlaubten Weg löschen (z. B. `bash scripts/…`-Wrapper) oder gar nicht erst anlegen.
