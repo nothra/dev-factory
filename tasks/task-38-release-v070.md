@@ -2,12 +2,12 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
-- [ ] Tests vollständig
-- [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Review bestanden – entfällt (Doku-Release ohne Pipeline, wie v0.6.1)
+- [x] Tests vollständig – entfällt (Doku-Release ohne Pipeline, wie v0.6.1)
+- [x] Security-Review bestanden – entfällt (Doku-Release ohne Pipeline, wie v0.6.1)
+- [x] Refactoring abgeschlossen – entfällt (Doku-Release ohne Pipeline, wie v0.6.1)
+- [x] Codify ausgeführt – entfällt (Doku-Release ohne Pipeline, wie v0.6.1)
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Release v0.7.0 vorbereiten (Muster v0.6.1: #20/#21): CHANGELOG-Abschnitt `v0.7.0 – 2026-10-31` aus `Unreleased`,
@@ -21,8 +21,9 @@ Nicht im Release: #37 (kommt in v0.7.1), #30, #35, #15, #14.
 - [x] „Breaking“ geprüft (MINOR darf brechen, Factory-ADR-063 D6): `OWNERSHIP.md` nicht mehr ausgeliefert, Integritäts-Gate
 - [x] „Bekannte Einschränkungen“: #37 offen, `FACTORY_SYNC_TOKEN` erst ab v0.7.1 hinterlegen (FS-T2.3)
 - [x] `docs/factory/FACTORY.md`: Version v0.7.0; `factory-release-check.sh v0.7.0` ok
-- [ ] Gates grün, PR gemergt
-- [ ] Tag `v0.7.0` (setzt der Mensch) → `release.yml` legt GitHub Release mit Asset `factory-release.json` an
+- [x] Gates grün (pre-commit/pre-push lokal, CI am PR #39); Merge über `/pr-shepherd`-Weg
+- [x] Nach dem Merge (außerhalb des Branches): Tag `v0.7.0` setzt der Mensch; Prüfung des Releases mit Asset
+  `factory-release.json` meldet die Session in Issue #38 (Squash-Merge – Datei auf `main` ist danach nicht mehr änderbar)
 
 ## Technische Notizen
 Reines Doku-Release, keine Pipeline (wie v0.6.1). Text nach dem Vorgehen von `/release-notes` aus Task-Dateien,
