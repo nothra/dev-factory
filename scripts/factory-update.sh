@@ -146,7 +146,8 @@ rebuild_branch() {
   ORIG_REF="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)" || die "aktueller Checkout nicht ermittelbar"
   git_nohooks checkout --quiet -B "$UPDATE_BRANCH" "origin/$BASE_BRANCH" || die "Branch $UPDATE_BRANCH nicht von origin/$BASE_BRANCH aufbaubar"
   # Ohne Token: factory-sync.sh ersetzt sich beim Abholen selbst und startet in der neuen Fassung aus dem Release neu –
-  # Code eines noch ungeprüften Tags darf das schreibberechtigte PAT nie sehen (E12; Push und gh laufen erst danach).
+  # Code eines noch ungeprüften Tags soll das schreibberechtigte PAT nicht versehentlich erben (E12; Push und gh laufen
+  # erst danach). Das ist keine Grenze gegen bösartigen Release-Code im selben Job – Restrisiko und Ausbau: Issue #37.
   env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION" || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
   git add -A && git_nohooks "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $TARGET_VERSION heben" \
     || die "Commit fehlgeschlagen – nichts gepusht"

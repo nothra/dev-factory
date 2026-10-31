@@ -500,7 +500,8 @@ Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
      Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Die anschließende Prüfung
      `--compose --check` läuft allerdings schon in der **neuen** Fassung des Skripts aus dem Release –
      Code des abgeholten Tags; wer `factory-sync.sh` automatisiert aufruft, tut das deshalb ohne
-     Anmeldedaten in der Umgebung (E12). Leere Verzeichnisse nach dem Löschen bleiben
+     Anmeldedaten in der Umgebung (E12) – das schützt vor versehentlicher Weitergabe, nicht vor
+     bösartigem Release-Code im selben Job (Restrisiko, Ausbau: Issue #37). Leere Verzeichnisse nach dem Löschen bleiben
      (Git führt sie nicht).
 - **E5 · Gemeinsame Bibliothek `scripts/lib/factory-lock.sh`** (übernommen, gesourct relativ zum
   Skript): Hash per `shasum -a 256` bzw. `sha256sum`, Prüfung von Lock/Manifest (E4 1b), Abruf des
@@ -608,6 +609,12 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   *Abholung ohne Token (Security-Review):* `factory-sync.sh` ersetzt sich beim Abholen selbst und startet
   sich danach in der Fassung des Release neu – Code eines noch ungeprüften Tags. Das Skript ruft es deshalb
   mit `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN` auf; Push und `gh` laufen erst danach mit dem Token.
+  Das verhindert nur das **versehentliche** Erben (Logging, `curl` mit Umgebung), ist aber keine Grenze gegen
+  bösartigen Code des Release im selben Job und unter demselben Benutzer: er kann `.git/config` setzen
+  (`core.fsmonitor` läuft beim folgenden `git add` mit dem Token), `/proc/<ppid>/environ` lesen oder über eine
+  geänderte Workflow-Datei im Update-PR das Secret auslesen. *Restrisiko akzeptiert:* Voraussetzung ist ein
+  kompromittierter Tag in der Factory; `main` bleibt durch das Ruleset geschützt. Echte Trennung (Environment-Secret
+  mit Branch-Regel, Abholung und Push in zwei Jobs): Issue #37.
   *Ohne Git-Hooks (Review-Iteration 4):* Nach der Abholung rufen installierte Hooks (`install-hooks.sh`:
   `pre-commit`/`pre-push` relativ zum Arbeitsbaum) Skripte des Release auf; der `pre-push`-Hook erbte das Token,
   das der Credential-Helper aus der Umgebung liest, und ein rotes Gate darin bräche den Push ab, den F1 als
