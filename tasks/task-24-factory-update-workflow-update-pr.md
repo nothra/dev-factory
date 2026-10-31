@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -125,6 +125,11 @@ Review-Iteration 6 (`tasks/review-24.md`, APPROVED) – Delta seit Iteration 5 (
 zweiten Security-Durchgang) geprüft; keine Kritisch-/Wichtig-Findings, Suiten grün (2142 / 145). Nitpicks: Mutantenlauf
 des Pagination-Tests ohne zweigspezifisches Signal, ein langer Zeilenumbruch in ADR-063 E4, gitignorete
 `tasks/telemetry-raw-24-*.tmp.txt` liegen noch.
+
+Security-Review, dritter Durchgang (`tasks/security-24.md`, PASSED) – Doku-Fix `01f00ba` deckt das Finding aus dem
+zweiten Durchgang; kein ausführbarer Code seitdem geändert. Restrisiko (Token und Release-Code im selben Job) akzeptiert,
+verfolgt in #37. Hinweise unverändert (Release-Notes ungefiltert im Body, Helper ohne Host-Prüfung); gitignorete
+`tasks/telemetry-raw-24-*.tmp.txt` noch manuell löschen.
 
 ## Test-Notizen
 /test 2026-10-31: alle AK/FS gegen die Tests geprüft. Lücke: mehrseitige `gh api --paginate`-Antwort (ein Array je
