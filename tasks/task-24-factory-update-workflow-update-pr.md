@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -91,6 +91,10 @@ Review-Iteration 2 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
 
 Review-Iteration 3 (`tasks/review-24.md`, APPROVED) – keine Kritisch-/Wichtig-Findings; ein Nitpick:
 gitignorete Wegwerf-Dateien (`*.tmp.*`) im Worktree vor `/test` löschen.
+
+## Refactoring-Notizen
+/refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
+Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
