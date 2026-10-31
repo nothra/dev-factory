@@ -73,6 +73,14 @@ Entscheidungen: Factory-ADR-063, Nachtrag 2026-10-30 (E10–E16). Kurzfassung f�
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+Review-Iteration 1 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31, alle Findings behoben:
+- K1 Selbst-Ersatz: Aufrufzeile `main "$@"; exit $?` (bash liest nach `main` nichts mehr aus der von
+  `factory-sync.sh` ersetzten Datei). E2E-Test läuft aus dem Konsumenten-Checkout gegen eine verlängerte
+  Zielversion + Mutationsbeleg (ohne `exit` → rot).
+- W1 Marke: nur der Body-Kopf vor der ersten `## `-Überschrift zählt; Test mit zitierter Marke in den Notes.
+- N1 `permissions.push`: offline nicht klärbar – `OPERATING.md` §0.6 benennt ehrlich, dass zu knappe Rechte
+  ggf. erst beim Push/PR rot werden; am echten Repo in T2a-4 gegenprüfen.
+- N2 `ORIG_REF` neben `WORK`; N3 Weltnamen per Zähler (`next_world_24`), Mutanten-Scaffold als `factory_scripts_24`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

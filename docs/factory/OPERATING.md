@@ -173,8 +173,11 @@ sein.
 **Symptom „Lauf rot: Token"** – Meldung `FACTORY_SYNC_TOKEN fehlt …`, `… wird abgelehnt …` oder
 `… hat kein Schreibrecht …`: Secret fehlt, Token abgelaufen bzw. widerrufen oder Rechte zu knapp. Das
 Skript prüft das Token bei vorhandenem Lock **bei jedem Lauf zuerst**, auch ohne neue Version – ein
-abgelaufener Token fällt am nächsten Tag auf, nicht erst beim nächsten Release. Abhilfe: Token wie oben
-neu anlegen bzw. rotieren.
+abgelaufener Token fällt am nächsten Tag auf, nicht erst beim nächsten Release. Die Rechteprüfung liest
+`permissions.push` des Repos; ob GitHub dort die Rechte eines Fine-grained-Tokens oder die Rolle seines
+Besitzers meldet, ist noch nicht am echten Repo belegt. Fehlt dem Token nur *Contents: write* bzw.
+*Pull requests: write*, kann der Lauf daher erst beim Push bzw. beim Anlegen des PRs rot werden – rot
+bleibt er in jedem Fall. Abhilfe: Token wie oben neu anlegen bzw. rotieren.
 
 **Branch-Besitz:** `chore/factory-update` gehört dem Workflow. Steht der PR schon auf der neuesten
 Version, bleibt der Branch unberührt; bei einer neueren Version wird er von `main` neu aufgebaut, eigene

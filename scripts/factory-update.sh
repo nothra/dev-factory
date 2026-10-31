@@ -36,11 +36,10 @@ COMMIT_IDENTITY=(-c user.name=factory-update -c user.email=factory-update@localh
 CREDENTIAL_HELPER='!f() { [ "$1" = get ] || return 0; printf "username=x-access-token\npassword=%s\n" "$FACTORY_SYNC_TOKEN"; }; f'
 
 WORK=""
+ORIG_REF=""  # Checkout vor dem Neuaufbau; wird am Ende wiederhergestellt, damit ein Folgelauf den Lock von dort liest
 
 die() { printf '✗ factory-update: %s\n' "$1" >&2; exit 1; }
 note() { printf 'ℹ factory-update: %s\n' "$1"; }
-
-ORIG_REF=""  # Checkout vor dem Neuaufbau; wird am Ende wiederhergestellt, damit ein Folgelauf den Lock von dort liest
 
 cleanup() {
   [ -z "$ORIG_REF" ] || git checkout --quiet "$ORIG_REF" || echo "⚠ factory-update: Rückkehr auf $ORIG_REF fehlgeschlagen" >&2
@@ -127,8 +126,9 @@ check_existing_pr() {
     return 0
   fi
   closed="$(own_prs closed)" || die "geschlossene PRs nicht lesbar (fail-closed)"
+  # Nur der Kopf des Bodys (vor der ersten Release-Überschrift aus write_body) zählt – zitierte Notes sperren nichts
   rejected="$(jq -r --arg m "$VERSION_MARK_PREFIX$TARGET_VERSION -->" \
-    '[.[] | select(.mergedAt == null) | select((.body // "") | contains($m))] | .[0].url // empty' <<< "$closed")"
+    '[.[] | select(.mergedAt == null) | select((.body // "") | split("\n## ")[0] | contains($m))] | .[0].url // empty' <<< "$closed")"
   if [ -n "$rejected" ]; then
     note "$TARGET_VERSION wurde ohne Merge abgelehnt ($rejected) – erst eine neuere Version wird wieder angeboten"
     exit 0
@@ -203,4 +203,6 @@ main() {
   publish_pr
 }
 
-main "$@"
+# Auf einer Zeile: factory-sync.sh ersetzt diese Datei im Lauf, und bash liest Skripte stückweise – ohne das exit
+# hier läse es nach main am alten Byte-Offset in der neuen Fassung weiter.
+main "$@"; exit $?

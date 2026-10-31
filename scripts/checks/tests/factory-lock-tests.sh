@@ -593,6 +593,17 @@ pr_body_24() { jq -r '.[0].body' "$GS_24/prs.json"; }
 # writes_24 – schreibende Aufrufe im Stub-Protokoll (leer = keine)
 writes_24() { grep -E '^pr (create|edit|merge|comment|close)|^api .*(-X|--method)' "$GS_24/calls.log"; }
 lock_on_branch_24() { git -C "$ORIGIN_24" show "refs/heads/$BR_24:factory.lock" | jq -r .version; }
+# factory_scripts_24 <wurzel> <update-skript> – factory-update.sh (die übergebene Fassung) samt allem, was es zur Laufzeit lädt
+factory_scripts_24() {
+  mkdir -p "$1/scripts/checks" "$1/scripts/lib"
+  cp "$FACTORY_ROOT/scripts/factory-sync.sh" "$1/scripts/"
+  cp "$FACTORY_ROOT/scripts/checks/factory-integrity-check.sh" "$FACTORY_ROOT/scripts/checks/customization-points.txt" "$1/scripts/checks/"
+  cp "$FACTORY_ROOT/scripts/lib/factory-lock.sh" "$FACTORY_ROOT/scripts/lib/gate-config.sh" "$1/scripts/lib/"
+  cp "$2" "$1/scripts/factory-update.sh"
+}
+# Welt-Namen aus einem Zähler (für Schleifen: eindeutig unabhängig vom Testwert)
+N_24=0
+next_world_24() { N_24=$((N_24 + 1)); world_24 "$1$N_24"; }
 
 # ── AK2.2d / AK2.4 / F1: neue Version → Update-PR ────────────────────────────────────────────────────────────────────
 world_24 u1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
@@ -727,7 +738,19 @@ add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
 out_24="$(upd_24)"; rc_24=$?
 assert_exit 0 "$rc_24" "#24 AK-24d: danach v1.2.0 → grün"
 assert_true "$([ "$(open_prs_24)" = 1 ] && [ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 AK-24d: für v1.2.0 entsteht wieder ein PR"
-# Ein Fork-PR mit gleichem Branch-Namen und der Marke im Body sperrt keine Version; eine Marke in den Release Notes auch nicht
+# Eine Marke in den eingebetteten Release Notes sperrt nicht – nur die Marke im Kopf des Bodys zählt
+world_24 d3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+jq '(.[] | select(.tag_name == "v1.1.0") | .body) = "Beispiel:\n<!-- factory-update-version: v1.2.0 -->"' "$GS_24/releases.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/releases.json"
+upd_24 >/dev/null
+assert_contains_286 "$(pr_body_24)" '<!-- factory-update-version: v1.2.0 -->' "#24 AK-24d (Voraussetzung): die Notes im PR für v1.1.0 zitieren die Marke von v1.2.0"
+jq 'map(.state = "CLOSED")' "$GS_24/prs.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/prs.json"
+git -C "$ORIGIN_24" update-ref -d "refs/heads/$BR_24"
+add_release_24 v1.2.0; jq '. + [{tag_name: "v1.2.0", draft: false, prerelease: false, body: "Notes v1.2.0", assets: [{name: "factory-release.json"}]}]' \
+  "$GS_24/releases.json" > "$GS_24/x" && mv "$GS_24/x" "$GS_24/releases.json"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(open_prs_24)" = 1 ] && [ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" \
+  "#24 AK-24d: eine Marke in den Release Notes eines abgelehnten PRs sperrt die zitierte Version nicht"
+# Ein Fork-PR mit gleichem Branch-Namen und der Marke im Body sperrt keine Version
 world_24 d2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
 jq -n '[{number: 7, url: "https://example.invalid/pull/7", state: "CLOSED", title: "x", headRefName: "chore/factory-update",
          isCrossRepository: true, mergedAt: null, body: "<!-- factory-update-version: v1.1.0 -->"}]' > "$GS_24/prs.json"
@@ -743,7 +766,7 @@ assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 AK-24e: kein gh-Aufru
 
 # ── F-24.3: Lock unlesbar → rot, kein Rückfall auf No-op ─────────────────────────────────────────────────────────────
 for bad_24 in '{' '' '{"schema":1,"version":"kaputt"}'; do
-  world_24 "g$(printf '%s' "$bad_24" | wc -c | tr -d ' ')"; printf '%s' "$bad_24" > "$C1_23/factory.lock"
+  next_world_24 lockbad;printf '%s' "$bad_24" > "$C1_23/factory.lock"
   out_24="$(upd_24)"; rc_24=$?
   assert_exit 1 "$rc_24" "#24 F-24.3: Lock „${bad_24}“ → rot"
   assert_contains_286 "$out_24" 'factory.lock' "#24 F-24.3: die Meldung nennt factory.lock (Lock „${bad_24}“)"
@@ -770,11 +793,9 @@ world_24 t4; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
 out_24="$(TOKEN_24=abgelaufen upd_24)"; rc_24=$?
 assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ]; echo $?)" "#24 FS-T2.3: abgelehntes Token bei neuer Version → rot, kein Push"
 # Mutationsbeleg: ohne den Aufruf der Token-Prüfung verletzt derselbe Fall den Guard
-MUT_24="$T23/mut24"; mkdir -p "$MUT_24/scripts/checks" "$MUT_24/scripts/lib"
-cp "$FACTORY_ROOT/scripts/factory-sync.sh" "$MUT_24/scripts/"
-cp "$FACTORY_ROOT/scripts/checks/factory-integrity-check.sh" "$FACTORY_ROOT/scripts/checks/customization-points.txt" "$MUT_24/scripts/checks/"
-cp "$FACTORY_ROOT/scripts/lib/factory-lock.sh" "$FACTORY_ROOT/scripts/lib/gate-config.sh" "$MUT_24/scripts/lib/"
-grep -vxF '  require_token' "$UPD_24" > "$MUT_24/scripts/factory-update.sh"
+MUT_24="$T23/mut24"
+grep -vxF '  require_token' "$UPD_24" > "$T23/mut24-update.sh"
+factory_scripts_24 "$MUT_24" "$T23/mut24-update.sh"
 assert_true "$([ "$(grep -cxF '  require_token' "$UPD_24")" = 1 ] && ! grep -qxF '  require_token' "$MUT_24/scripts/factory-update.sh"; echo $?)" \
   "#24 FS-T2.3 (Mutation): genau der Aufruf der Token-Prüfung ist im Mutanten entfernt"
 world_24 t5
@@ -787,7 +808,7 @@ out_24="$(upd_24)"; rc_24=$?
 assert_exit 1 "$rc_24" "#24 F-24.2: Abruf der Release-Liste scheitert → rot (nicht „keine neue Version“)"
 assert_contains_286 "$out_24" 'Release-Liste' "#24 F-24.2: die Meldung nennt die Release-Liste"
 for resp_24 in 'kein json' '{"message":"Not Found"}' ''; do
-  world_24 "r$(printf '%s' "$resp_24" | wc -c | tr -d ' ')x"; printf '%s' "$resp_24" > "$GS_24/releases.json"
+  next_world_24 relbad;printf '%s' "$resp_24" > "$GS_24/releases.json"
   upd_24 >/dev/null; rc_24=$?
   assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.2: Antwort „${resp_24}“ ist kein JSON-Array → rot, nichts geändert"
 done
@@ -808,6 +829,35 @@ git -C "$C1_23" push -q origin main
 out_24="$(upd_24)"; rc_24=$?
 assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.1/F2: lokale Änderung auf main → rot, kein Push, kein PR"
 assert_contains_286 "$out_24" 'scripts/tool.sh' "#24 F-24.1/F2: die Meldung nennt die geänderte Datei"
+
+# ── Selbst-Ersatz: factory-update.sh läuft aus dem Konsumenten-Checkout, factory-sync.sh überschreibt es im Lauf ─────
+# Bash liest ein Skript stückweise und setzt nach `main` am alten Byte-Offset fort – dann in der neuen Fassung.
+# self_replace_24 <welt> <update-skript> – C1 hat <update-skript> mit v1.1.0 übernommen; v1.2.0 liefert dieselbe Datei,
+# verlängert um eine erkennbare Zeile genau am alten Dateiende. Das Skript läuft aus C1; setzt out_24/rc_24.
+self_replace_24() {
+  world_24 "$1"
+  factory_scripts_24 "$U23" "$2"
+  add_release_24 v1.1.0
+  sync_23 "$C1_23" v1.1.0 >/dev/null
+  git -C "$C1_23" add -A && git_23 -C "$C1_23" commit -q -m "adopt v1.1.0" && git -C "$C1_23" push -q origin main
+  printf 'echo AUS-NEUER-VERSION-24; exit 7\n' >> "$U23/scripts/factory-update.sh"
+  add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+  out_24="$(upd_24 "$C1_23/scripts/factory-update.sh")"; rc_24=$?
+}
+# Guard: Lauf grün, und keine Zeile der neuen Fassung wurde ausgeführt
+self_replace_safe_24() { [ "$1" -eq 0 ] && ! grep -qF 'AUS-NEUER-VERSION-24' <<< "$2"; }
+self_replace_24 sr1 "$UPD_24"
+assert_true "$(cmp -s "$C1_23/scripts/factory-update.sh" "$UPD_24"; echo $?)" "#24 Selbst-Ersatz (Voraussetzung): C1 führt die übernommene factory-update.sh aus"
+self_replace_safe_24 "$rc_24" "$out_24"; assert_exit 0 "$?" "#24 Selbst-Ersatz: nach main liest bash nichts mehr aus der ersetzten Datei (grün, nichts aus v1.2.0 ausgeführt)"
+assert_true "$([ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 Selbst-Ersatz: der Update-PR steht auf v1.2.0 (inkl. neuer factory-update.sh)"
+# Mutationsbeleg: steht nach `main "$@"` kein exit auf derselben Zeile, verletzt derselbe Fall den Guard
+END_LINE_24='main "$@"; exit $?'
+sed "s/^main \"\\\$@\"; exit \\\$?\$/main \"\$@\"/" "$UPD_24" > "$T23/mut24-selfreplace.sh"
+assert_true "$([ "$(grep -cxF "$END_LINE_24" "$UPD_24")" = 1 ] && ! grep -qxF "$END_LINE_24" "$T23/mut24-selfreplace.sh" \
+  && [ "$(grep -cxF 'main "$@"' "$T23/mut24-selfreplace.sh")" = 1 ]; echo $?)" \
+  "#24 Selbst-Ersatz (Mutation): genau die Aufrufzeile ist im Mutanten auf 'main \"\$@\"' ohne exit reduziert"
+self_replace_24 sr2 "$T23/mut24-selfreplace.sh"
+self_replace_safe_24 "$rc_24" "$out_24"; assert_exit 1 "$?" "#24 Selbst-Ersatz (Mutation): ohne exit auf der Aufrufzeile ist derselbe Guard rot"
 
 # ── E12: Credential-Helper gibt das Token zur Laufzeit aus der Umgebung aus ──────────────────────────────────────────
 helper_line_24="$(grep -E '^CREDENTIAL_HELPER=' "$UPD_24")"
