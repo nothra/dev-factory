@@ -111,7 +111,11 @@ Review-Iteration 5 (`tasks/review-24.md`, APPROVED) – Hook-Finding aus Iterati
 keine Kritisch-/Wichtig-Findings. Nitpick: gitignorete Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`)
 vor `/security-review` manuell löschen. Erneutes `/security-review` steht aus.
 
-Security-Review, zweiter Durchgang (`tasks/security-24.md`, NEEDS_FIXES) – offen:
+Security-Review, zweiter Durchgang (`tasks/security-24.md`, NEEDS_FIXES) – Fix 2026-10-31 (`01f00ba`):
+Kommentar `factory-update.sh:148-150`, ADR-063 E4 und E12 sagen jetzt, dass `env -u` nur vor versehentlichem
+Erben schützt und keine Grenze gegen Release-Code im selben Job ist. Das Restrisiko ist akzeptiert, mit Verweis auf
+#37; `env -u`-Aufruf und Test bleiben. Kein Code-Verhalten geändert, Suiten grün (2142 / 145). Erneutes
+`/security-review` steht aus. Finding im Wortlaut des Reports:
 - Wichtig: `env -u` ist keine Grenze gegen Code aus dem Release im selben Job (`.git/config`-`fsmonitor` vor
   `git add -A` selbst nachgestellt, dazu `/proc/<ppid>/environ`, `sudo`, und PR-Workflows mit Repo-Secrets). Im Scope:
   Kommentar `factory-update.sh:148-149` und ADR-063 E4/E12 ehrlich fassen, Restrisiko benennen, auf #37 verweisen.
