@@ -141,6 +141,9 @@ Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten 
 bei Wiederauftreten Lauf mit Ausgabe sichern. Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`,
 gitignoret) liegen weiter; `rm` ist nicht freigegeben – manuell vor `/security-review` löschen.
 
+/refactor 2026-10-31 (dritter Durchgang nach Security-Fix): Delta seit dem zweiten Durchgang ist nur ein Kommentar in
+`factory-update.sh` (Restrisiko/#37) plus Doku – kein Änderungsbedarf, kein Code geändert. Suiten grün (2142 / 145).
+
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
 
