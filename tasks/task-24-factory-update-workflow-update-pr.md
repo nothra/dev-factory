@@ -121,6 +121,11 @@ Erben schützt und keine Grenze gegen Release-Code im selben Job ist. Das Restri
   Kommentar `factory-update.sh:148-149` und ADR-063 E4/E12 ehrlich fassen, Restrisiko benennen, auf #37 verweisen.
   Strukturelle Härtung (Environment-Secret, zwei Jobs) in Issue #37.
 
+Review-Iteration 6 (`tasks/review-24.md`, APPROVED) – Delta seit Iteration 5 (Pagination-Test, Doku-Fix aus dem
+zweiten Security-Durchgang) geprüft; keine Kritisch-/Wichtig-Findings, Suiten grün (2142 / 145). Nitpicks: Mutantenlauf
+des Pagination-Tests ohne zweigspezifisches Signal, ein langer Zeilenumbruch in ADR-063 E4, gitignorete
+`tasks/telemetry-raw-24-*.tmp.txt` liegen noch.
+
 ## Test-Notizen
 /test 2026-10-31: alle AK/FS gegen die Tests geprüft. Lücke: mehrseitige `gh api --paginate`-Antwort (ein Array je
 Seite, `add` im Filter) war nie mit zwei Arrays getestet – neuer Test + Mutationsbeleg (ohne `add` rot, derselbe Guard).
