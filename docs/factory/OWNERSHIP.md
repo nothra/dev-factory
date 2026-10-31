@@ -44,6 +44,7 @@ Parser und liest nichts anderes:
 | factory | `.claude/commands/**` | Skills der Pipeline |
 | factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-integrity`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
+| factory | `.github/workflows/factory-update.yml` | Täglicher Auslöser des Update-PRs auf `chore/factory-update` (ADR-063 E10) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
 | factory | `docs/factory/FACTORY.md` | Generischer Teil der Agenten-Regeln (aus `CLAUDE.md`, nothra/tch-gastro-services#431) |
 | factory | `docs/factory/OPERATING.md` | Betriebshandbuch der Pipeline; projektspezifische Abschnitte stehen im Betriebsdokument des Projekts (`docs/project/betrieb.md`) |
@@ -77,6 +78,7 @@ Parser und liest nichts anderes:
 | factory | `docs/factory/gitignore.factory` | Factory-Anteil der `.gitignore` |
 | factory | `scripts/factory-commit.sh` | Commit/Push-Seam (ADR-019) |
 | factory | `scripts/factory-poll.sh` | Poll-Skript (ADR-008) |
+| factory | `scripts/factory-update.sh` | Erkennt eine neuere Factory-Version und pflegt den Update-PR (ADR-063 E11–E13) |
 | factory | `scripts/factory-release-check.sh` | Release-Prüfung: Version in `FACTORY.md` == Tag, CHANGELOG-Abschnitt (Factory-ADR-063 D6) |
 | factory | `scripts/factory-release-manifest.sh` | Release-Manifest `factory-release.json` (Factory-ADR-063 Q1) |
 | factory | `scripts/init-factory.sh` | Initialisierung |

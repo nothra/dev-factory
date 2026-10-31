@@ -551,7 +551,7 @@ Lock-Dateien (heute 114). Gemessen am 2026-10-25 auf macOS: ein `shasum`-Aufruf 
 
 ## Nachtrag 2026-10-30 · Update-Workflow und Update-PR (Spec #24, Q-24.5/Q-24.6)
 
-Aus `/architecture` zu #24 (T2a-3); gilt als angenommen mit der Umsetzung in #24. Verfeinert D2; kein
+Aus `/architecture` zu #24 (T2a-3); angenommen, umgesetzt in #24. Verfeinert D2; kein
 Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.1–Q-24.4 stehen in der Spec.
 
 - **E10 · Logik in einem Skript, Workflow dünn:** `scripts/factory-update.sh` (übernommen) trägt den

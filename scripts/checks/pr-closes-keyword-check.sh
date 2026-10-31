@@ -16,6 +16,11 @@
 # (start-work.sh setzt genau das) – die URL-/owner/repo#-Form ist bewusst nicht
 # abgedeckt, um die Konvention einheitlich zu halten.
 #
+# Ausnahme (Factory-ADR-063 E14): der Update-PR des Workflows factory-update.yml hat kein Issue. Er
+# kommt ohne Keyword durch, wenn der Head-Branch chore/factory-update ist UND aus demselben Repo
+# stammt ($PR_HEAD_REF, $PR_HEAD_REPO, $PR_BASE_REPO aus CI) – ein Fork-PR mit gleichem Namen bleibt
+# geprüft. Hygiene-Gate, keine Sicherheitsgrenze: wer pushen darf, kann die Ausnahme nutzen.
+#
 # Nur POSIX-ERE (clean-code.md: portabel, kein PCRE) – läuft lokal (macOS/BSD)
 # und in CI (GNU) identisch.
 
@@ -26,6 +31,16 @@ GREEN='\033[0;32m'
 NC='\033[0m'
 
 PR_BODY="${PR_BODY:-}"
+
+is_update_pr() {
+  [ "${PR_HEAD_REF:-}" = "chore/factory-update" ] &&
+  [ -n "${PR_BASE_REPO:-}" ] && [ "${PR_HEAD_REPO:-}" = "$PR_BASE_REPO" ]
+}
+
+if is_update_pr; then
+  echo -e "${GREEN}✓${NC} Update-PR der Factory (chore/factory-update, selbes Repo) – kein Issue nötig."
+  exit 0
+fi
 
 # Wortgrenze + Keyword + optionaler Doppelpunkt + Whitespace + #<nr>.
 # grep -i macht das Muster case-insensitiv; -E aktiviert ERE.

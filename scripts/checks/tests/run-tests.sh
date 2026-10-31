@@ -3206,6 +3206,40 @@ done
   && grep -q 'github.event.pull_request.body' "$CI_FILE"; }
 assert_true "$?" "#112: CI verdrahtet das Closing-Keyword-Gate (Script + PR-Body-Env)"
 
+# Factory-Issue #24 AK-24f: Ausnahme für den Update-PR (Factory-ADR-063 E14) – nur Branch chore/factory-update im selben Repo
+echo ""
+echo "Factory-Issue #24 AK-24f: pr-closes-keyword-check.sh lässt den Update-PR ohne Keyword durch:"
+# closes_gate_24 <gate> <head-ref> <head-repo> <base-repo> – Gate-Lauf ohne Keyword im Body; Ausgabe stdout, Exit = Gate-Exit
+closes_gate_24() {
+  PR_BODY="Hebt die Factory." PR_HEAD_REF="$2" PR_HEAD_REPO="$3" PR_BASE_REPO="$4" bash "$1" 2>&1
+}
+GATE_CLOSES_24="$CHECKS_DIR/pr-closes-keyword-check.sh"
+out_24="$(closes_gate_24 "$GATE_CLOSES_24" chore/factory-update acme/consumer acme/consumer)"; rc_24=$?
+assert_exit 0 "$rc_24" "#24 AK-24f: Update-PR (chore/factory-update, selbes Repo) ohne Keyword → grün"
+assert_contains_286 "$out_24" 'Update-PR' "#24 AK-24f: eigene Meldung für die Ausnahme"
+closes_gate_24 "$GATE_CLOSES_24" chore/factory-update fork/consumer acme/consumer >/dev/null
+assert_exit 1 "$?" "#24 AK-24f: Fork-PR mit gleichem Branch-Namen ohne Keyword → rot"
+closes_gate_24 "$GATE_CLOSES_24" feature/x acme/consumer acme/consumer >/dev/null
+assert_exit 1 "$?" "#24 AK-24f: anderer Branch im selben Repo ohne Keyword → rot"
+closes_gate_24 "$GATE_CLOSES_24" chore/factory-update "" "" >/dev/null
+assert_exit 1 "$?" "#24 AK-24f: Head- und Basis-Repo unbekannt (leer) → rot (leer = leer ist kein selbes Repo)"
+closes_gate_24 "$GATE_CLOSES_24" chore/factory-update-x acme/consumer acme/consumer >/dev/null
+assert_exit 1 "$?" "#24 AK-24f: Branch, der nur mit chore/factory-update beginnt → rot"
+# Mutationsbeleg: ohne die Repo-Bedingung wird der Fork-Fall grün – die Bedingung ist wirksam
+FORK_LINE_24='  [ -n "${PR_BASE_REPO:-}" ] && [ "${PR_HEAD_REPO:-}" = "$PR_BASE_REPO" ]'
+MUT_CLOSES_24="$(mktemp -d)/pr-closes-keyword-check.sh"
+awk -v l="$FORK_LINE_24" '$0 == l { print "  true"; next } { print }' "$GATE_CLOSES_24" > "$MUT_CLOSES_24"
+assert_true "$([ "$(grep -cxF -- "$FORK_LINE_24" "$GATE_CLOSES_24")" = 1 ] && ! grep -qxF -- "$FORK_LINE_24" "$MUT_CLOSES_24"; echo $?)" \
+  "#24 AK-24f (Mutation): genau die Repo-Bedingung ist im Mutanten ersetzt"
+closes_gate_24 "$MUT_CLOSES_24" chore/factory-update fork/consumer acme/consumer >/dev/null
+assert_exit 0 "$?" "#24 AK-24f (Mutation): ohne Repo-Bedingung käme der Fork-PR durch – derselbe Fall, der oben rot ist"
+rm -rf "$(dirname "$MUT_CLOSES_24")"
+# Verdrahtung: der Job pr-closes-issue reicht Head-Branch, Head-Repo und Basis-Repo als Env durch
+closes_job_24="$(ci_job_block pr-closes-issue "$CI_FILE")"
+for env_line_24 in 'PR_HEAD_REF: ${{ github.head_ref }}' 'PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}' 'PR_BASE_REPO: ${{ github.repository }}'; do
+  assert_true "$(grep -qxF -- "          $env_line_24" <<< "$closes_job_24"; echo $?)" "#24 AK-24f: Job pr-closes-issue setzt $env_line_24"
+done
+
 # ─── nothra/tch-gastro-services#149: Format-Gate in pre-push.sh (Prettier-Konformität) ─────────────────
 # Ursache des Drifts (Task 149): format:check war an keinem Gate verdrahtet.
 # Struktur UND Verhalten absichern – analog zum nothra/tch-gastro-services#101-Lint-Gate-Test.
@@ -8236,7 +8270,7 @@ for chk_431 in issue-sync factory-self-test pr-closes-issue config-validation; d
 done
 
 miss_431=""
-for wfp_431 in "$FCI_431" "$FACTORY_ROOT/.github/workflows/factory-poll.yml"; do
+for wfp_431 in "$FCI_431" "$FACTORY_ROOT/.github/workflows/factory-poll.yml" "$FACTORY_ROOT/.github/workflows/factory-update.yml"; do
   for sp_431 in $(grep -oE 'scripts/[A-Za-z0-9_./-]+\.sh' "$wfp_431" | sort -u); do
     [[ -f "$FACTORY_ROOT/$sp_431" ]] || miss_431="$miss_431 $(basename "$wfp_431"):$sp_431"
   done

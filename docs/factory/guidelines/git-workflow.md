@@ -22,6 +22,9 @@ git push origin feature/<kurzbeschreibung>
 Eine bloße Referenz wie `(#<id>)` im Titel oder ein deutsches „Behebt #<id>" ist nur eine
 Erwähnung – das Issue bleibt offen (beobachtet an nothra/tch-gastro-services#74/#71/#76, deren gemergte PRs die Issues
 nicht schlossen). `start-work.sh` setzt die `Closes`-Zeile im Draft-PR bereits automatisch.
+**Einzige Ausnahme:** der Update-PR des Workflows `factory-update.yml` (Head-Branch `chore/factory-update`
+im selben Repo) hat kein Issue; das Gate `pr-closes-issue` lässt ihn ohne Keyword durch – ein Fork-PR mit
+gleichem Branch-Namen bleibt geprüft (Factory-ADR-063 E14).
 
 Branch-Konvention (aligned mit Conventional Commits):
 
