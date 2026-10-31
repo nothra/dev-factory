@@ -1,11 +1,13 @@
 # Security Review: Task 24
 
-Geprüft: `git diff origin/main...HEAD` – Schwerpunkt `scripts/factory-update.sh`, `.github/workflows/factory-update.yml`,
-`scripts/checks/pr-closes-keyword-check.sh` + `factory-ci.yml` (Gate-Ausnahme E14), dazu das Zusammenspiel mit dem
-bestehenden `scripts/factory-sync.sh` (#23). Bedrohungsmodell: ein Konsumenten-Repo führt den Workflow täglich mit einem
-Fine-grained PAT aus (Contents/Pull requests/Workflows read+write, Laufzeit ≤ 1 Jahr); Eingaben von außen sind die
-Release-Liste des Quell-Repos (Tags, Release-Bodies, Assets), der Inhalt des abgeholten Releases und der Zustand von
-PRs/Branch im Konsumenten-Repo.
+Geprüft: `git diff origin/main...HEAD` (Stand `7bed7f5`) – Schwerpunkt `scripts/factory-update.sh`,
+`.github/workflows/factory-update.yml`, `scripts/checks/pr-closes-keyword-check.sh` + `factory-ci.yml` (Gate-Ausnahme
+E14), ADR-063 E4/E12, dazu das Zusammenspiel mit `scripts/factory-sync.sh` (#23). Bedrohungsmodell: ein Konsumenten-Repo
+führt den Workflow täglich mit einem Fine-grained PAT aus (Contents/Pull requests/Workflows read+write, Laufzeit ≤ 1 Jahr).
+Eingaben von außen: die Release-Liste des Quell-Repos (Tags, Release-Bodies, Assets), der Inhalt des abgeholten Releases
+und der Zustand von PRs und Branch im Konsumenten-Repo.
+
+Zweiter Durchgang nach dem Fix `aa6ccbe`/`a90e82a` (Abholung per `env -u …`) und Review-Iteration 4 (Hooks aus).
 
 ## Kritische Findings (Blocker)
 
@@ -13,44 +15,54 @@ _keine_
 
 ## Wichtige Findings
 
-- [ ] **[Secrets / Lieferkette] Neu abgeholter Factory-Code läuft mit `FACTORY_SYNC_TOKEN` in der Umgebung – vor jedem
-  menschlichen Review.** `rebuild_branch` ruft `FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION"`
-  (`scripts/factory-update.sh:144`) mit unveränderter Umgebung auf; das Token ist dort exportiert (Workflow-`env:`).
-  `factory-sync.sh` schreibt in Phase 2 die Release-Dateien – darunter sich selbst (`scripts/factory-sync.sh` steht auf
-  Seite `factory`, `OWNERSHIP.md:76`) – und ruft danach `bash "$SELF" --compose --check` auf
-  (`scripts/factory-sync.sh:322`, `$SELF` = derselbe Pfad, also schon die **neue** Fassung). Folge: ein kompromittierter
-  oder fehlerhafter Tag im Quell-Repo bekommt sofort Codeausführung mit einem PAT, das Workflows und Inhalte im
-  Konsumenten-Repo schreiben darf (andere Branches, Workflow-Dateien, Tags) – genau der Schritt, den Update-PR, Gates und
-  menschliche Freigabe (AK2.4, F1) vor das Übernehmen neuer Factory-Fassungen stellen sollen. Das Verhalten von
-  `factory-sync.sh` stammt aus #23, die Token-Exposition entsteht erst mit diesem PR. Auch der Kommentar in
-  ADR-063 E4 („Phase 2 führt nur lokale Kopien aus“) trifft auf Zeile 322 nicht zu.
-  **Empfohlene Lösung (im Scope, wenige Zeilen):** die Abholung ohne Anmeldedaten laufen lassen, z. B.
-  `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION"` –
-  `factory-sync.sh` holt das Release per anonymem `git`/`curl` und braucht kein Token. Test: Stub-`factory-sync.sh`
-  im Fixture protokolliert, ob `FACTORY_SYNC_TOKEN` gesetzt ist; Erwartung „leer“, Mutationsbeleg ohne `env -u` → rot.
-  Den ADR-Satz in E4 präzisieren (die nachgezogene `--compose --check`-Prüfung führt die neue Fassung aus).
+- [ ] **[Secrets / Lieferkette] Der Fix aus dem ersten Durchgang ist keine Grenze – Code und ADR behaupten aber eine.**
+  `scripts/factory-update.sh:148-149` („Code eines noch ungeprüften Tags darf das schreibberechtigte PAT nie sehen“),
+  ADR-063 E4 (`063-…md:501-503`, „ohne Anmeldedaten in der Umgebung“) und E12 (`:608-610`) stellen `env -u` als
+  Abschirmung gegen den Release-Code dar. Das stimmt nur für ein **versehentliches** Weiterreichen (Logging, `curl` mit
+  Env). Code des Release läuft weiter im selben Job und unter demselben Benutzer wie der spätere Push und kann an das Token
+  kommen:
+  1. **`.git/config`:** Release-Code schreibt z. B. `core.fsmonitor`. Das folgende `git add -A` (`:151`, ohne Wrapper)
+     und auch `git -c core.hooksPath=/dev/null commit/status` führen den Befehl mit `FACTORY_SYNC_TOKEN` in der Umgebung
+     aus. **Selbst nachgestellt** (Wegwerf-Repro `scripts/sec24-fsmonitor.tmp.sh`): Ausgabe
+     `FACTORY_SYNC_TOKEN=geheim-123` bzw. `…-456` nach dem `hooksPath`-Aufruf. `core.hooksPath` schaltet nur Hooks
+     ab, keine anderen Befehle aus der Config (Filter, `fsmonitor`, `include.path` …).
+  2. **Prozessumgebung/Runner:** unter Linux liest ein Kindprozess desselben Benutzers `/proc/<ppid>/environ` des
+     Elternprozesses (Yama `ptrace_scope=1` beschränkt nur das Anhängen, nicht das Lesen); GitHub-Runner haben außerdem
+     passwortloses `sudo`, `git`/`gh` lassen sich also austauschen. (Hier nicht nachgestellt, kein Linux/Docker verfügbar.)
+  3. **Der Update-PR selbst:** er kommt aus demselben Repo. `pull_request`-Workflows laufen mit den Workflow-Dateien des
+     PR-Stands und sehen alle Repository-Secrets – ein Release, das eine Datei unter `.github/workflows/` ändert, kann
+     `secrets.FACTORY_SYNC_TOKEN` auslesen, bevor ein Mensch den PR geprüft hat. Diesen Weg hat schon der erste Durchgang
+     übersehen.
+  **Einordnung:** Voraussetzung ist ein kompromittiertes oder fehlerhaftes Release in `nothra/dev-factory`; die Wirkung
+  ist ein Schreib-PAT auf das Konsumenten-Repo (Branches außer `main`, Workflow-Dateien, Tags). `main` bleibt durch
+  das Ruleset geschützt. Eine echte Trennung braucht eine Änderung am Aufbau des Workflows → **Issue #37**
+  (Environment-Secret mit Branch-Regel `main`, Abholung und Push auf zwei Jobs verteilen).
+  **Im Scope (wenige Zeilen Prosa):** Kommentar `:148-149` sowie ADR-063 E4 und E12 ehrlich fassen – `env -u`
+  verhindert, dass das Token versehentlich weitergegeben wird, ist aber keine Grenze gegen Code aus dem Release im
+  selben Job. Das Vertrauen in die Tags des Quell-Repos ist die eigentliche Annahme; Restrisiko benennen und auf #37
+  verweisen. Der `env -u`-Aufruf und sein Test bleiben, sie sind als Schutz vor versehentlicher Weitergabe richtig.
 
 ## Hinweise
 
-- [ ] **[Integrität] Release-Notes landen ungefiltert im PR-Body.** `write_body` übernimmt `.body` jedes Releases
-  (`scripts/factory-update.sh:159`). Enthält ein Release-Text `Closes #12`/`Fixes #12` oder `@name`, schließt der Merge
-  des Update-PRs das **Konsumenten**-Issue #12 bzw. benachrichtigt die Person – das Gate `pr-closes-issue` sieht den
-  Body für diesen Branch bewusst nicht mehr an (E14). Die Marke ist korrekt gegen zitierte Notes abgesichert (nur der
-  Kopf zählt). Aktuell enthält `CHANGELOG.md` keine Closing-Keywords; Risiko daher gering. Abhilfe bei Bedarf: Notes in
-  einen `<details>`-Block mit eingerücktem Code oder Keywords/`@` entschärfen – Entscheidung beim Implementierer.
-- [ ] **[Konfiguration] Credential-Helper prüft den Host nicht.** Der Helper gibt das Token für jede Anfrage aus
-  (`scripts/factory-update.sh:36`). Benutzt werden nur `fetch`/`push` gegen `origin` (von `actions/checkout` auf
-  `github.com` gesetzt), Git reicht Anmeldedaten nicht an fremde Redirect-Hosts weiter → kein Handlungsbedarf, nur
-  festgehalten, falls später weitere Remotes dazukommen.
-- [ ] **[Gate-Ausnahme] E14 ist sauber umgesetzt.** Werte kommen als `env:` (keine `${{ }}`-Interpolation im `run:`),
-  Trigger ist `pull_request` (nicht `pull_request_target`), Fork-PRs mit gleichem Branch-Namen bleiben geprüft. Dass
-  jeder mit Push-Recht die Ausnahme nutzen kann, ist im Skriptkopf als „Hygiene-Gate, keine Sicherheitsgrenze“ benannt.
+- [ ] **[Integrität] Release-Notes landen ungefiltert im PR-Body** (`scripts/factory-update.sh:165`). Ein
+  `Closes #12`/`@name` im Release-Text würde beim Merge ein **Konsumenten**-Issue schließen bzw. jemanden
+  benachrichtigen; das Gate `pr-closes-issue` sieht den Body für diesen Branch bewusst nicht an (E14). `CHANGELOG.md`
+  enthält aktuell keine Closing-Keywords → geringes Risiko. Vom Implementierer bewusst nicht umgesetzt; unverändert.
+- [ ] **[Konfiguration] Credential-Helper prüft den Host nicht** (`:37`). Benutzt werden nur `fetch`/`push` gegen
+  `origin` (`github.com` aus `actions/checkout`). Kein Handlungsbedarf, solange keine weiteren Remotes dazukommen.
+- [ ] **[Gate-Ausnahme] E14 ist sauber umgesetzt.** Werte kommen über `env:` (keine `${{ }}`-Interpolation im `run:`),
+  Trigger ist `pull_request` (nicht `pull_request_target`), Fork-PRs mit gleichem Branch-Namen bleiben geprüft.
+- [ ] **[Hygiene] Wegwerf-Dateien dieses Durchgangs:** `scripts/sec24-fsmonitor.tmp.sh`, `scripts/sec24-issue.tmp.sh`
+  (gitignoret, nicht im PR). `rm` war nicht freigegeben – zusammen mit den älteren `scripts/*.tmp.sh` und
+  `tasks/telemetry-raw-24-*.tmp.txt` manuell löschen.
 
-Geprüft und unauffällig: Token nie in argv/URL/`.git/config` (`persist-credentials: false`, Helper per `-c`,
-`credential.helper=` zurückgesetzt, `GIT_TERMINAL_PROMPT=0`); `GITHUB_TOKEN` wird entfernt, Workflow-Rechte nur
-`contents: read`; `GITHUB_REPOSITORY` gegen Slug-Regex, Tags gegen `^v\d+\.\d+\.\d+$` geprüft, bevor sie in
-Befehle/Pfade fließen; Push nur auf `refs/heads/chore/factory-update` mit Lease; nie `merge`/`--auto`; Fehlermeldungen
-geben gh-/API-Fehlertexte, aber nie das Token aus; Release-Liste fail-closed validiert; Fremd-Action vermieden.
+Geprüft und unauffällig: Token nie in argv/URL/`.git/config` (`persist-credentials: false`, Helper per `-c` als
+Literal, `credential.helper=` vorher geleert, `GIT_TERMINAL_PROMPT=0`); `GITHUB_TOKEN` wird entfernt, Workflow-Rechte
+nur `contents: read`; `GITHUB_REPOSITORY` gegen Slug-Regex, Tags gegen `^v\d+\.\d+\.\d+$` geprüft, bevor sie in Befehle
+und Pfade fließen; Release-Liste fail-closed validiert (auch mehrseitig); PR-Auswahl nur ohne `isCrossRepository`;
+Push nur auf `refs/heads/chore/factory-update` mit Lease; nie `merge`/`--auto`; Hooks bei Checkout/Fetch/Commit/Push
+aus; Selbst-Ersatz per `main "$@"; exit $?` abgefangen; Fehlermeldungen geben gh-/API-Texte aus, aber nie das Token;
+keine neuen Abhängigkeiten oder Fremd-Actions.
 
 ## Ergebnis
 NEEDS_FIXES

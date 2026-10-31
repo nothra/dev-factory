@@ -111,6 +111,12 @@ Review-Iteration 5 (`tasks/review-24.md`, APPROVED) – Hook-Finding aus Iterati
 keine Kritisch-/Wichtig-Findings. Nitpick: gitignorete Wegwerf-Dateien (`scripts/*.tmp.sh`, `tasks/telemetry-raw-24-*.tmp.txt`)
 vor `/security-review` manuell löschen. Erneutes `/security-review` steht aus.
 
+Security-Review, zweiter Durchgang (`tasks/security-24.md`, NEEDS_FIXES) – offen:
+- Wichtig: `env -u` ist keine Grenze gegen Code aus dem Release im selben Job (`.git/config`-`fsmonitor` vor
+  `git add -A` selbst nachgestellt, dazu `/proc/<ppid>/environ`, `sudo`, und PR-Workflows mit Repo-Secrets). Im Scope:
+  Kommentar `factory-update.sh:148-149` und ADR-063 E4/E12 ehrlich fassen, Restrisiko benennen, auf #37 verweisen.
+  Strukturelle Härtung (Environment-Secret, zwei Jobs) in Issue #37.
+
 ## Test-Notizen
 /test 2026-10-31: alle AK/FS gegen die Tests geprüft. Lücke: mehrseitige `gh api --paginate`-Antwort (ein Array je
 Seite, `add` im Filter) war nie mit zwei Arrays getestet – neuer Test + Mutationsbeleg (ohne `add` rot, derselbe Guard).
