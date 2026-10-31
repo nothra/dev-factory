@@ -132,7 +132,10 @@ Repos noch ein Register seiner Konsumenten (Pull statt Push, Factory-ADR-063 D2)
   weiteren Schritt** fehl, mit klarer Meldung (Token fehlt/ungültig, Verweis auf `OPERATING.md`) –
   auch wenn keine neue Version vorliegt. Es gibt keinen Push, keinen halben PR und keinen Rückfall auf
   `GITHUB_TOKEN`. *Beleg: je ein Test für fehlendes und abgelehntes Token; Mutationsbeleg
-  (Token-Prüfung entfernt → Test rot).*
+  (Token-Prüfung entfernt → Test rot).* *Vorbehalt (Q-24.7):* Für den Fall „zu wenig Rechte" ist „vor
+  jedem weiteren Schritt" offline nicht belegbar; meldet `permissions.push` die Rolle des
+  Token-Besitzers, wird der Lauf erst beim Push bzw. beim Anlegen des PRs rot. Rot bleibt er in jedem
+  Fall; der Beleg am echten Repo folgt in T2a-4.
 - [ ] **F-24.1 · Abholung scheitert** GIVEN `factory-sync.sh` bricht ab (lokale Änderung an einer
   übernommenen Datei auf `main` (F2), Hash-Abweichung, Manifest fehlt (FS-T2.1/.2/.4)) WHEN der Workflow
   läuft THEN ist der Lauf rot mit der Meldung von `factory-sync.sh`; kein Push, kein PR, ein bestehender
@@ -167,6 +170,10 @@ Repos noch ein Register seiner Konsumenten (Pull statt Push, Factory-ADR-063 D2)
   für das Pushen von Workflow-Dateien (`.github/workflows/**` ändert sich mit jeder Version, die einen
   Workflow ändert → braucht vermutlich zusätzlich *workflows:write*)? In `/architecture` klären und in
   `OPERATING.md` festhalten.
+- [ ] **Q-24.7 · Was meldet `permissions.push` für einen Fine-grained-Token?** Die Rechte des Tokens
+  oder die Rolle seines Besitzers im Repo? Offline nicht klärbar (Review-Iteration 1, N1). Bis zur
+  Klärung gilt der Vorbehalt bei FS-T2.3; `OPERATING.md` §0.6 benennt ihn. Klärung am echten Repo mit
+  einem Token ohne Schreibrecht in T2a-4 (`nothra/tch-gastro-services#428`).
 
 ## Größe
 

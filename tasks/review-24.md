@@ -1,72 +1,57 @@
 # Review: Task 24
 
-Diff-Basis: `git diff origin/main...HEAD` (490e6d9). Spec: `docs/specs/spec-24-factory-update-workflow-update-pr.md`,
-Entscheidungen: Factory-ADR-063 Nachtrag 2026-10-30 (E10–E16). Drei Runden (Logik, Code-Qualität, Architektur)
-im Orchestrator-Kontext, ohne Fork-Delegation. Ausgelieferte Suite `scripts/checks/tests/run-tests.sh` lokal:
-2084 grün, 0 rot (Exit 0) – das kritische Finding liegt außerhalb dessen, was die Suite heute abdeckt.
+Review-Iteration 2. Diff-Basis: `git diff origin/main...HEAD` (ce9edf7). Spec:
+`docs/specs/spec-24-factory-update-workflow-update-pr.md`, Entscheidungen: Factory-ADR-063 Nachtrag 2026-10-30
+(E10–E16). Drei Runden (Logik, Code-Qualität, Architektur) im Orchestrator-Kontext, ohne Fork-Delegation.
+Ausgelieferte Suite `scripts/checks/tests/run-tests.sh` lokal: 2091 grün, 0 rot (Exit 0).
+
+Iteration 1 (NEEDS_REWORK) ist vollständig abgearbeitet: K1 (Selbst-Ersatz), W1 (Marke im ganzen Body), N1–N3. Belege
+im Rework-Commit ce9edf7: Aufrufzeile `main "$@"; exit $?` mit WHY-Kommentar; E2E-Fall aus dem Konsumenten-Checkout mit
+verlängerter Zielversion plus Mutant ohne `exit` (rot); Testfall „Marke in den Notes eines abgelehnten PRs", der gegen
+den alten `contains`-Code rot gewesen wäre; `ORIG_REF` neben `WORK`; Welt-Zähler `next_world_24`; Mutanten-Scaffold
+`factory_scripts_24` (wiederverwendet statt kopiert).
 
 ## Kritische Findings (müssen behoben werden)
-- [x] [scripts/factory-update.sh:206] **Das laufende Skript wird während des Laufs überschrieben – nach `main` liest bash
-  weiter aus der neuen Version.** In CI läuft `bash scripts/factory-update.sh` aus dem Checkout des Konsumenten, und genau
-  diese Datei ist eine übernommene Factory-Datei im Manifest. `factory-sync.sh` schreibt sie in `install_file`
-  (`scripts/factory-sync.sh:274`) per `cp -p` **auf denselben Inode**. Bash liest Skripte stückweise und setzt
-  nach `main "$@"` am alten Byte-Offset fort – in der **neuen** Datei. Im Erfolgsfall (`publish_pr` → `main` kehrt normal
-  zurück) führt der Lauf also beliebige Zeilen der Zielversion aus, wenn diese `factory-update.sh` verlängert: Syntaxfehler,
-  ein falscher Exit-Code oder ein zweiter `main`-Aufruf. Auslöser ist jede Version, die das Skript länger macht.
-  Repro (Wegwerf-Skript, gelöscht): `main() { cp "$NEWVER" "$0"; echo fertig; }; main "$@"` mit einer längeren Ersatzdatei →
-  Ausgabe `fertig`, danach `AUSGEFUEHRT-AUS-NEUER-VERSION`, `rc=7`. Die Suite sieht den Fall nicht, weil `upd_24`
-  (`scripts/checks/tests/factory-lock-tests.sh:585-588`) das Skript aus `$FACTORY_ROOT` startet und nicht die Kopie in `C1`
-  (Lesson nothra/tch-gastro-services#431 „Bash liest Skripte inkrementell", hier zur Laufzeit in Produktion).
-  **Fix:** die Aufrufzeile so schreiben, dass bash nach `main` nichts mehr aus der Datei liest, z. B. `main "$@"; exit $?` auf
-  **einer** Zeile (oder `{ main "$@"; exit; }`); WHY-Kommentar dazu. **Test:** E2E-Fall, in dem das Skript aus dem
-  Konsumenten-Checkout läuft (`bash "$C1_23/scripts/factory-update.sh"`) und die Zielversion im Upstream-Fixture eine
-  längere `scripts/factory-update.sh` mit einer erkennbaren Zeile am alten Offset liefert; Mutationsbeleg (`exit` entfernt →
-  rot).
+_(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
-- [x] [scripts/checks/tests/factory-lock-tests.sh:730] **Der Testkommentar behauptet ein Verhalten, das weder geprüft noch
-  umgesetzt ist:** „eine Marke in den Release Notes [sperrt] auch nicht". Der Test darunter prüft nur den Fork-PR; die
-  Release-Liste des Falls hat den Body `Notes v1.1.0` ohne Marke. Die Prüfung in `scripts/factory-update.sh:130-131` sucht
-  die Marke per `contains($m)` im **ganzen** Body, also auch in den eingebetteten Release Notes. Fall: die Notes einer
-  übersprungenen Version zitieren das Markenformat mit der Zielversion, etwa ein CHANGELOG-Abschnitt, der dieses Feature
-  beschreibt. Wird der PR ohne Merge geschlossen, sperrt das die Version, obwohl der PR für sie gar nicht gebaut war.
-  Das Risiko ist klein, aber der Kommentar ist eine falsche Zusicherung (Lesson „X erzwingt Y", nothra/tch-gastro-services#319).
-  **Fix:** entweder die Marke nur im Kopf des Bodys suchen (vor der ersten `## `-Überschrift; der Body wird in
-  `write_body` mit fester Reihenfolge erzeugt) und einen Test mit Marke in den Notes ergänzen, oder den Halbsatz aus dem
-  Kommentar streichen.
+- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:582] **Die ADR beschreibt die Marken-Prüfung noch
+  im alten Stand:** „ein geschlossener, nicht gemergter PR dieses Branches trägt **im Body** die Marke". Seit dem Rework
+  zählt nur der Kopf des Bodys vor der ersten `## `-Überschrift (`scripts/factory-update.sh:129-131`). Dieser PR ändert
+  also die Mechanik, die die ADR beschreibt, und sie muss im selben PR mitgehen (Lesson nothra/tch-gastro-services#211).
+  **Fix:** E11.4 um „im Kopf des Bodys (vor der ersten Release-Überschrift aus E13), zitierte Release Notes zählen nicht"
+  ergänzen. E13 nennt die feste Reihenfolge schon und ist damit der natürliche Verweis.
+- [ ] [docs/specs/spec-24-factory-update-workflow-update-pr.md:130-131] **Spec und ADR versprechen mehr, als der
+  Rework jetzt dokumentiert.** FS-T2.3 sagt: „abgelehnt (abgelaufen, **zu wenig Rechte**) … schlägt der Lauf **vor jedem
+  weiteren Schritt** fehl". ADR E11.2 (Z. 570-572) sagt sinngemäß dasselbe. Seit N1 hält `OPERATING.md` §0.6 dagegen
+  ehrlich fest, dass `permissions.push` vielleicht die Rolle des Token-Besitzers meldet. Ein Token mit zu knappen Rechten
+  würde dann erst beim Push bzw. bei `gh pr create` rot. Die Task-Datei hakt FS-T2.3 trotzdem ohne Vorbehalt ab.
+  Das ausgelieferte Betriebshandbuch und die Spec widersprechen sich damit (Lessons nothra/tch-gastro-services#253/#388:
+  eine im selben PR entstandene Spec bekommt denselben Drift-Check, und eine Abschwächung gehört in die Spec).
+  **Fix:** In der Spec bei FS-T2.3 einen Vorbehalt plus Q-Eintrag ergänzen: der Fall „zu wenig Rechte" ist offline
+  nicht belegbar, rot bleibt der Lauf in jedem Fall, der Beleg am echten Repo folgt in T2a-4 (`nothra/tch-gastro-services#428`).
+  ADR E11.2 entsprechend nachziehen und die Task-Datei bei FS-T2.3 auf die Einschränkung verweisen lassen.
 
 ## Nitpicks (optional)
-- [x] [scripts/factory-update.sh:69] `.permissions.push` aus `GET /repos/{repo}` gibt vermutlich die Rolle des
-  **Token-Besitzers** im Repo wieder, nicht die Rechte eines Fine-grained PAT (unverifiziert, offline nicht prüfbar).
-  Dann käme ein Token mit nur *Contents: read* durch die Prüfung und scheitert erst beim Push bzw. bei `gh pr create`.
-  Der Lauf bleibt rot (fail-closed), aber nicht „vor jedem weiteren Schritt" (FS-T2.3, Fall „zu wenig Rechte"). Beim
-  ersten echten Lauf (T2a-4) mit einem Token ohne Schreibrecht gegenprüfen, sonst die Meldung bzw. `OPERATING.md` §0.6
-  ehrlich formulieren.
-- [x] [scripts/factory-update.sh:43] `ORIG_REF` steht zwischen `die`/`note` und `cleanup`, getrennt von `WORK` (Z. 38).
-  Beide Zustandsvariablen zusammen deklarieren.
-- [x] [scripts/checks/tests/factory-lock-tests.sh:746,790] Weltnamen aus der Byte-Länge des Testwerts (`g$(… | wc -c)`,
-  `r$(…)x`) sind nur zufällig eindeutig. `world_23` bricht zwar fail-closed ab (gut), aber ein neuer Testwert gleicher Länge
-  bricht die Suite. Ein Zähler wäre robuster.
+- [ ] [scripts/factory-update.sh:159] Der PR-Body hängt die Release Notes aller übersprungenen Versionen ungekürzt an.
+  GitHub begrenzt PR-Bodies auf 65 536 Zeichen. Bei sehr vielen bzw. langen Notes scheitert `gh pr create`/`gh pr edit`
+  dann **nach** dem Push: der Lauf ist rot, der Branch ist gepusht, aber es gibt keinen PR. Ein Folgelauf heilt das nicht,
+  solange die Notes zu lang bleiben. Heute unrealistisch, weil die Notes CHANGELOG-Abschnitte sind. Optional: Notes bei
+  einer festen Grenze mit Verweis auf die Release-Seite kürzen.
 
 ## Positives
-- Die Reihenfolge aus E11 ist genau umgesetzt: Moduswahl per `-e`/`-L` (inkl. hängendem Symlink als Test), Token-Prüfung
-  vor jedem Netzaufruf, `GITHUB_TOKEN` per `unset` hart entfernt und im Stub-Protokoll als nie angekommen belegt.
-- Push mit `--force-with-lease` auf den gelesenen SHA, inklusive eines echten Race-Tests über einen git-Wrapper, der einen
-  Fremd-Push dazwischenschiebt. Das ist stärker, als die Spec verlangt.
-- Credential-Helper ohne Token in argv oder `.git/config`, mit Verhaltenstest über `git credential fill` und Negativprüfung
-  auf `.git/config`.
-- AK2.2d wird über Tree-Gleichheit gegen eine direkte Abholung belegt, nicht über Einzeldateien. F3/AK-24a prüfen die
-  Reihenfolge der Überschriften per Positionsvergleich (Lesson nothra/tch-gastro-services#286).
-- Die Mutationsbelege für Token-Prüfung und Fork-Bedingung ersetzen die volle Aufrufzeile und belegen per Zählung, dass
-  genau diese Zeile ersetzt wurde (Lesson nothra/tch-gastro-services#310). Der Wiring-Guard am Workflow hat eine eigene
-  Mutation.
-- Der Scaffold wird wiederverwendet (`world_23` → `world_24`) statt parallel gebaut, der `gh`-Stub liegt im Scaffold und
-  die Git-Identität in Fixtures ist explizit gesetzt (Lessons nothra/tch-gastro-services#310/#314/#265).
-- Die Doku ist vollständig nachgezogen: ADR-Nachtrag E10–E16, `OPERATING.md` §0.6 plus Verweis aus §5.5a, die Ausnahme
-  in `git-workflow.md`, beide `OWNERSHIP.md`-Zeilen und der #431-Guard für Skriptverweise um `factory-update.yml`
-  erweitert.
-- Architektur: ADR-063 D2 (Pull statt Push), E10 (dünner Workflow) und ADR-029 (Check-Name unverändert) sind eingehalten.
-  Keine Routen-Änderung, `docs/routes.md` ist nicht betroffen.
+- K1 ist sauber gelöst und belegt: der Test lässt genau das Szenario aus dem Finding laufen (Skript aus `C1`,
+  `factory-sync.sh` ersetzt es im Lauf, und die Zielversion trägt am alten Byte-Offset eine erkennbare Zeile). Der Mutant
+  prüft per Zählung, dass genau die Aufrufzeile reduziert wurde (Lesson nothra/tch-gastro-services#310).
+- Der Fix für W1 nutzt die feste Body-Reihenfolge aus `write_body` statt eines zweiten Formats. `split("\n## ")[0]` ist
+  auch robust gegen `\r\n`-Bodies nach einer Bearbeitung in der Web-Oberfläche.
+- Die Voraussetzungs-Assertion im neuen AK-24d-Fall belegt, dass die zitierte Marke wirklich im PR-Body steht. Sonst
+  bliebe der Test aus dem falschen Grund grün (Lesson nothra/tch-gastro-services#214).
+- N1 ist ehrlich formuliert statt wegbehauptet (Lesson nothra/tch-gastro-services#319); offen ist nur der Nachzug in Spec/ADR (s. o.).
+- Unverändert gut aus Iteration 1: E11-Reihenfolge, `--force-with-lease` mit Race-Test, Credential-Helper ohne Token in
+  argv/Config, Fork-Bedingung im Gate mit Mutationsbeleg und Wiring-Test, Doku und `OWNERSHIP.md` vollständig.
+- Architektur: ADR-063 D2/E10, ADR-029 (Check-Name unverändert) eingehalten; keine Routen-Änderung, `docs/routes.md`
+  nicht betroffen.
 
 ## Empfehlung
 NEEDS_REWORK

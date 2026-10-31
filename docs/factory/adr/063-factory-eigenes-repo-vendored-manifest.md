@@ -570,6 +570,10 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   2. *Token:* `FACTORY_SYNC_TOKEN` leer → Exit 1 mit Verweis auf `OPERATING.md`. Sonst
      `gh api repos/$GITHUB_REPOSITORY --jq .permissions.push` mit `GH_TOKEN=$FACTORY_SYNC_TOKEN`; Fehler
      oder nicht `true` → Exit 1 (FS-T2.3). Kein Rückfall auf `GITHUB_TOKEN`: das Skript liest ihn nie.
+     Vorbehalt: ob `permissions.push` die Rechte eines Fine-grained-Tokens oder die Rolle seines
+     Besitzers meldet, ist offline nicht belegbar (Q-24.7). Ein Token mit zu knappen Rechten wird dann
+     erst beim Push bzw. bei `gh pr create` rot – rot bleibt der Lauf in jedem Fall; der Beleg am
+     echten Repo folgt in T2a-4 (`nothra/tch-gastro-services#428`).
   3. *Neueste Version:* `gh api --paginate repos/<upstream.repo>/releases` (mit Token, kein
      Rate-Limit für anonyme Abrufe vom Runner). Kandidaten: `draft == false`, `prerelease == false`,
      `tag_name` erfüllt `^v[0-9]+\.[0-9]+\.[0-9]+$`, ein Asset `factory-release.json`; die höchste nach
@@ -579,8 +583,9 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   4. *Stand des Branches/PRs* (Ziel V): offener PR = `gh pr list --head chore/factory-update --state
      open`; seine Version ist `version` aus `factory.lock` auf `origin/chore/factory-update`
      (`git show`), nicht Titel oder Body. Gleich V → Hinweis, Exit 0, kein Push (AK-24b). Kein offener
-     PR, aber ein geschlossener, nicht gemergter PR dieses Branches trägt im Body die Marke
-     `<!-- factory-update-version: V -->` → Hinweis mit PR-Link, Exit 0 (AK-24d).
+     PR, aber ein geschlossener, nicht gemergter PR dieses Branches trägt im Kopf des Bodys (vor der
+     ersten Release-Überschrift aus E13) die Marke `<!-- factory-update-version: V -->` → Hinweis mit
+     PR-Link, Exit 0 (AK-24d). Eine Marke in den zitierten Release Notes zählt nicht.
   5. *Neuaufbau:* `git checkout -B chore/factory-update origin/main`, `bash scripts/factory-sync.sh V`
      (scheitert → Exit 1, nichts gepusht, F-24.1), ein Commit `chore: factory auf V heben` mit
      expliziter Identität (`-c user.name=factory-update -c user.email=factory-update@localhost`, Lesson

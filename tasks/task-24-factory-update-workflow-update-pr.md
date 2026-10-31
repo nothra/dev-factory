@@ -31,6 +31,7 @@ Teil-Task T2a-3 von `nothra/tch-gastro-services#428`. Spec: `docs/specs/spec-24-
 ### Fehlerszenarien
 - [x] F1 – rote Gates im Update-PR: PR bleibt offen, `main` unverändert, Workflow schreibt nie auf `main`
 - [x] FS-T2.3 – Token fehlt/abgelehnt → Lauf rot vor jedem weiteren Schritt, auch ohne neue Version
+  (Vorbehalt Q-24.7: bei „zu wenig Rechte" ggf. erst beim Push/PR rot – Beleg am echten Repo in T2a-4)
 - [x] F-24.1 – Abholung scheitert → rot, kein Push, bestehender PR unverändert
 - [x] F-24.2 – Release-Liste nicht lesbar → rot (fail-closed)
 - [x] F-24.3 – `factory.lock` unlesbar → rot, kein Rückfall auf No-op
@@ -81,6 +82,12 @@ Review-Iteration 1 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31, a
 - N1 `permissions.push`: offline nicht klärbar – `OPERATING.md` §0.6 benennt ehrlich, dass zu knappe Rechte
   ggf. erst beim Push/PR rot werden; am echten Repo in T2a-4 gegenprüfen.
 - N2 `ORIG_REF` neben `WORK`; N3 Weltnamen per Zähler (`next_world_24`), Mutanten-Scaffold als `factory_scripts_24`.
+
+Review-Iteration 2 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
+- W1 ADR-063 E11.4: Marke zählt nur im Kopf des Bodys (vor der ersten Release-Überschrift aus E13).
+- W2 Vorbehalt „zu wenig Rechte" in Spec (FS-T2.3 + neue offene Frage Q-24.7), ADR E11.2 und hier bei FS-T2.3.
+- N (65 536-Zeichen-Grenze des PR-Bodys): bewusst nicht umgesetzt – optional, die Notes sind
+  CHANGELOG-Abschnitte; ein zu langer Body macht den Lauf rot, nicht still falsch.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
