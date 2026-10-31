@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -150,7 +150,9 @@ gitignoret) liegen weiter; `rm` ist nicht freigegeben – manuell vor `/security
 `factory-update.sh` (Restrisiko/#37) plus Doku – kein Änderungsbedarf, kein Code geändert. Suiten grün (2142 / 145).
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+/codify 2026-10-31 (`tasks/codify-24.md`): zwei neue Lessons in `factory-workflow.md` (Selbst-Ersatz-Skript; Token +
+Release-Code im selben Job) und ein Rezidiv in `build-tooling.md` (Wegwerf-Dateien), je mit Index-Zeile in
+`PROJECT-CONTEXT.md`. Kein neuer Check.
 
 ---
 Branch: `feature/24-factory-update-workflow-update-pr`
