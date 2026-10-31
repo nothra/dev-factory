@@ -542,15 +542,18 @@ case "$1 $2" in
   "api --paginate")    [ ! -e "$s/releases-fail" ] || exit 1; cat "$s/releases.json" ;;
   "pr list")
     st="$(arg --state "$@")"
+    [ ! -e "$s/pr-list-fail-$st" ] || exit 1
     jq --arg st "$st" --arg h "$(arg --head "$@")" \
       '[.[] | select(.headRefName == $h) | select(if $st == "open" then .state == "OPEN" else .state != "OPEN" end)]' "$s/prs.json" ;;
   "pr create")
+    [ ! -e "$s/pr-create-fail" ] || exit 1
     n=$(( $(jq length "$s/prs.json") + 1 ))
     jq --argjson n "$n" --arg t "$(arg --title "$@")" --rawfile b "$(arg --body-file "$@")" --arg h "$(arg --head "$@")" --arg l "$(arg --label "$@")" \
       '. + [{number: $n, url: "https://example.invalid/pull/\($n)", state: "OPEN", title: $t, body: $b, headRefName: $h,
              isCrossRepository: false, mergedAt: null, labels: [$l]}]' "$s/prs.json" > "$s/x" && mv "$s/x" "$s/prs.json"
     echo "https://example.invalid/pull/$n" ;;
   "pr edit")
+    [ ! -e "$s/pr-edit-fail" ] || exit 1
     jq --argjson n "$3" --arg t "$(arg --title "$@")" --rawfile b "$(arg --body-file "$@")" \
       'map(if .number == $n then .title = $t | .body = $b else . end)' "$s/prs.json" > "$s/x" && mv "$s/x" "$s/prs.json" ;;
   *) exit 0 ;;   # z. B. „pr merge“: tut nichts, steht aber im Protokoll
@@ -584,7 +587,7 @@ world_24() {
 # upd_24 [<skript>] – factory-update.sh gegen C1 der aktuellen Welt; Token gültig, GITHUB_TOKEN gesetzt (darf nie ankommen)
 upd_24() {
   env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" \
-    GITHUB_REPOSITORY=acme/consumer GITHUB_TOKEN=actions-token-24 FACTORY_SYNC_TOKEN="${TOKEN_24-$GOOD_TOKEN_24}" \
+    GITHUB_REPOSITORY="${REPO_24-acme/consumer}" GITHUB_TOKEN=actions-token-24 FACTORY_SYNC_TOKEN="${TOKEN_24-$GOOD_TOKEN_24}" \
     bash "${1:-$UPD_24}"
 }
 sha_24() { git -C "$ORIGIN_24" rev-parse -q --verify "refs/heads/$1"; }
@@ -829,6 +832,76 @@ git -C "$C1_23" push -q origin main
 out_24="$(upd_24)"; rc_24=$?
 assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 F-24.1/F2: lokale Änderung auf main → rot, kein Push, kein PR"
 assert_contains_286 "$out_24" 'scripts/tool.sh' "#24 F-24.1/F2: die Meldung nennt die geänderte Datei"
+
+# ── /test: weitere Fail-closed-Zweige (je Zweig: rot, zweigspezifische Meldung, nichts gepusht, kein schreibender gh-Aufruf) ──
+# fail_closed_24 <beschreibung> <meldung> – setzt rc_24/out_24 des vorigen Laufs voraus; Branch nie gepusht, kein PR geschrieben
+fail_closed_24() {
+  assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#24 $1 → rot, kein Push, kein schreibender gh-Aufruf"
+  assert_contains_286 "$out_24" "$2" "#24 $1 → Meldung nennt „$2“"
+}
+# gh nicht installiert: PATH nur mit den übrigen Werkzeugen (Symlinks), ohne gh
+NOGH_24="$T23/nogh24"; mkdir -p "$NOGH_24"
+for tool_24 in bash git jq yq awk sed grep cat tr cut sort head tail dirname basename mktemp rm cp mv mkdir shasum curl find ls wc uniq date cmp chmod readlink tee xargs env; do
+  [ -x "$(command -v "$tool_24" 2>/dev/null)" ] && ln -sf "$(command -v "$tool_24")" "$NOGH_24/$tool_24"
+done
+world_24 g1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+out_24="$(env_23 "$C1_23" env PATH="$NOGH_24" GITHUB_REPOSITORY=acme/consumer FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "$UPD_24")"; rc_24=$?
+fail_closed_24 "gh nicht installiert" 'gh nicht gefunden'
+assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 gh nicht installiert → der Stub wurde nie gerufen (Voraussetzung: kein gh im PATH)"
+# GITHUB_REPOSITORY kein Slug → rot vor jedem gh-Aufruf
+for repo_24 in 'kein-slug' '' 'a/b/c' 'a b/c'; do
+  next_world_24 slug; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+  out_24="$(REPO_24="$repo_24" upd_24)"; rc_24=$?
+  fail_closed_24 "GITHUB_REPOSITORY „${repo_24}“ ist kein Slug" 'kein <owner>/<repo>-Slug'
+  assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#24 GITHUB_REPOSITORY „${repo_24}“ → kein gh-Aufruf"
+done
+# Fetch von origin scheitert → rot vor jedem Schreiben
+world_24 f1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+git -C "$C1_23" remote set-url origin "file://$W24/gibt-es-nicht.git"
+out_24="$(upd_24)"; rc_24=$?
+fail_closed_24 "Fetch von origin scheitert" 'Fetch von origin'
+# PR-Listen nicht lesbar (offen / geschlossen) → rot, nichts geschrieben (kein Rückfall auf „kein PR“ → kein Duplikat-PR)
+for st_24 in open closed; do
+  next_world_24 prl; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-list-fail-$st_24"
+  out_24="$(upd_24)"; rc_24=$?
+  fail_closed_24 "PR-Liste ($st_24) nicht lesbar" "PRs nicht lesbar"
+done
+# Arbeitsbaum des Konsumenten nicht sauber → kein Neuaufbau (ein Checkout -B würde die Änderung mitnehmen oder verlieren)
+world_24 dirty1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+printf 'unfertig\n' > "$C1_23/unfertig.txt"
+out_24="$(upd_24)"; rc_24=$?
+fail_closed_24 "unsauberer Arbeitsbaum" 'Arbeitsbaum nicht sauber'
+assert_true "$([ "$(cat "$C1_23/unfertig.txt")" = unfertig ]; echo $?)" "#24 unsauberer Arbeitsbaum → die Änderung des Konsumenten bleibt unberührt"
+
+# PR anlegen scheitert, nachdem gepusht wurde → rot mit eigener Meldung; Branch steht (nächster Lauf repariert per Neuaufbau)
+world_24 c1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ "$(lock_on_branch_24)" = v1.1.0 ] && [ "$(open_prs_24)" = 0 ]; echo $?)" "#24 pr create scheitert → rot, Branch gepusht, kein PR"
+assert_contains_286 "$out_24" 'nicht anlegbar' "#24 pr create scheitert → Meldung nennt das Anlegen"
+rm -f "$GS_24/pr-create-fail"; : > "$GS_24/calls.log"; out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(open_prs_24)" = 1 ]; echo $?)" "#24 pr create scheitert → der Folgelauf legt den PR an (selbstheilend)"
+# PR bearbeiten scheitert → rot, Body des bestehenden PR unverändert
+world_24 pred1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; upd_24 >/dev/null
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0; : > "$GS_24/pr-edit-fail"; body_before_24="$(pr_body_24)"
+out_24="$(upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && [ "$body_before_24" = "$(pr_body_24)" ]; echo $?)" "#24 pr edit scheitert → rot, PR-Body unverändert"
+assert_contains_286 "$out_24" 'nicht aktualisierbar' "#24 pr edit scheitert → Meldung nennt das Aktualisieren"
+
+# Der Checkout des Konsumenten steht nach dem Lauf wieder auf dem Ausgangs-Branch (Folgelauf liest den Lock von dort)
+# back_on_main_24 – C1 steht auf main
+back_on_main_24() { [ "$(git -C "$C1_23" symbolic-ref -q --short HEAD)" = main ]; }
+world_24 o1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: nach erfolgreichem Lauf steht der Checkout wieder auf main"
+world_24 o2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
+upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: auch nach einem Abbruch im PR-Schritt steht der Checkout wieder auf main"
+# Mutationsbeleg: ohne den Checkout auf ORIG_REF verletzt derselbe Fall den Guard
+RESTORE_LINE_24='git checkout --quiet "$ORIG_REF"'
+grep -vF "$RESTORE_LINE_24" "$UPD_24" > "$T23/mut24-restore.sh"
+assert_true "$([ "$(grep -cF "$RESTORE_LINE_24" "$UPD_24")" = 1 ] && ! grep -qF "$RESTORE_LINE_24" "$T23/mut24-restore.sh"; echo $?)" \
+  "#24 Rückkehr (Mutation): genau die Checkout-Zeile auf ORIG_REF ist im Mutanten entfernt"
+factory_scripts_24 "$T23/mut24r" "$T23/mut24-restore.sh"
+world_24 o3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+upd_24 "$T23/mut24r/scripts/factory-update.sh" >/dev/null; back_on_main_24; assert_exit 1 "$?" "#24 Rückkehr (Mutation): ohne die Zeile ist derselbe Guard rot – die Rückkehr ist wirksam"
 
 # ── Selbst-Ersatz: factory-update.sh läuft aus dem Konsumenten-Checkout, factory-sync.sh überschreibt es im Lauf ─────
 # Bash liest ein Skript stückweise und setzt nach `main` am alten Byte-Offset fort – dann in der neuen Fassung.
