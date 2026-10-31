@@ -497,7 +497,10 @@ Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
      zusammengesetzte Dateien schreiben, **zuletzt** `factory.lock` als Byte-Kopie des Manifests.
      Scheitert ein Schritt, stellt ein `trap` das Backup wieder her und entfernt neu angelegte Dateien.
      Ein harter Abbruch des Prozesses (`SIGKILL`, Stromausfall) während Phase 2 ist nicht abgedeckt;
-     Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Leere Verzeichnisse nach dem Löschen bleiben
+     Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Die anschließende Prüfung
+     `--compose --check` läuft allerdings schon in der **neuen** Fassung des Skripts aus dem Release –
+     Code des abgeholten Tags; wer `factory-sync.sh` automatisiert aufruft, tut das deshalb ohne
+     Anmeldedaten in der Umgebung (E12). Leere Verzeichnisse nach dem Löschen bleiben
      (Git führt sie nicht).
 - **E5 · Gemeinsame Bibliothek `scripts/lib/factory-lock.sh`** (übernommen, gesourct relativ zum
   Skript): Hash per `shasum -a 256` bzw. `sha256sum`, Prüfung von Lock/Manifest (E4 1b), Abruf des

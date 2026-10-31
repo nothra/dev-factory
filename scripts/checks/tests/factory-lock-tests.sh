@@ -821,7 +821,8 @@ out_24="$(upd_24 "$MUT_24/scripts/factory-update.sh")"; rc_24=$?
 assert_exit 0 "$rc_24" "#24 Security: Lauf mit Wrapper-Stub für factory-sync.sh grün (Stub reicht an das echte Skript weiter)"
 assert_true "$([ -s "$SEEN_24" ]; echo $?)" "#24 Security: factory-sync.sh wurde aufgerufen (Protokoll nicht leer)"
 # Zeilenweise: factory-sync.sh startet sich nach dem Abholen neu (--compose --check) – auch dieser Aufruf muss tokenfrei sein
-assert_true "$([ "$(wc -l < "$SEEN_24")" -ge 2 ] && ! grep -qvxF 'FST= GH= GT=' "$SEEN_24"; echo $?)" "#24 Security: jeder Aufruf von factory-sync.sh (auch der Neustart) sieht weder FACTORY_SYNC_TOKEN noch GH_TOKEN noch GITHUB_TOKEN"
+sync_saw_no_token_24() { [ "$(wc -l < "$SEEN_24")" -ge 2 ] && ! grep -qvxF 'FST= GH= GT=' "$SEEN_24"; }
+assert_true "$(sync_saw_no_token_24; echo $?)" "#24 Security: jeder Aufruf von factory-sync.sh (auch der Neustart) sieht weder FACTORY_SYNC_TOKEN noch GH_TOKEN noch GITHUB_TOKEN"
 assert_true "$([ "$(lock_on_branch_24)" = v1.1.0 ]; echo $?)" "#24 Security: der Update-PR entsteht trotzdem (Push und PR laufen danach mit Token)"
 # Mutation: ohne das `env -u` desselben Aufrufs sieht der Stub das Token – derselbe Guard muss rot werden
 next_world_24 tokenless; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
@@ -830,7 +831,8 @@ assert_true "$([ "$(grep -c 'env -u FACTORY_SYNC_TOKEN' "$UPD_24")" = 1 ] && ! g
   "#24 Security (Mutation): genau das env -u der Abholung ist im Mutanten entfernt"
 tokenless_sync_24 "$T23/mut24-tokenless.sh"
 upd_24 "$MUT_24/scripts/factory-update.sh" >/dev/null
-assert_true "$(grep -qF "FST=$GOOD_TOKEN_24" "$SEEN_24"; echo $?)" "#24 Security (Mutation): ohne env -u sieht factory-sync.sh das Token – der Guard ist wirksam"
+assert_exit 1 "$(sync_saw_no_token_24; echo $?)" "#24 Security (Mutation): ohne env -u ist derselbe Guard rot – die tokenfreie Abholung ist wirksam"
+assert_true "$(grep -qF "FST=$GOOD_TOKEN_24" "$SEEN_24"; echo $?)" "#24 Security (Mutation): der Stub sah im Mutanten tatsächlich das Token"
 
 # ── F-24.2: Release-Liste nicht lesbar → rot ─────────────────────────────────────────────────────────────────────────
 world_24 r1; : > "$GS_24/releases-fail"

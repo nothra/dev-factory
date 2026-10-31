@@ -92,6 +92,13 @@ Review-Iteration 2 (`tasks/review-24.md`, NEEDS_REWORK) – Rework 2026-10-31:
 Review-Iteration 3 (`tasks/review-24.md`, APPROVED) – keine Kritisch-/Wichtig-Findings; ein Nitpick:
 gitignorete Wegwerf-Dateien (`*.tmp.*`) im Worktree vor `/test` löschen.
 
+Security-Review (`tasks/security-24.md`, NEEDS_FIXES) – Fix 2026-10-31:
+- Wichtig (Token bei der Abholung): `factory-sync.sh` läuft per `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN`
+  ohne Anmeldedaten; Test mit Wrapper-Stub (auch der Neustart `--compose --check` ist tokenfrei), Mutationsbeleg mit
+  derselben Guard-Funktion. ADR-063 E4 (Prüfung läuft in der neuen Fassung) und E12 präzisiert.
+- Hinweise (Release-Notes ungefiltert im Body, Helper ohne Host-Prüfung): bewusst nicht umgesetzt – laut Report
+  geringes Risiko bzw. kein Handlungsbedarf. Erneutes `/security-review` steht aus.
+
 ## Refactoring-Notizen
 /refactor 2026-10-31: `factory-update.sh`, Workflow und Tests gegen die Checkliste geprüft (Naming, Funktionsgröße,
 Duplikation, Kommentare) – kein Änderungsbedarf, kein Code geändert. Suiten grün (2124 / 145).
