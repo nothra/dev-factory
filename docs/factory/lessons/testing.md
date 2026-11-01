@@ -772,3 +772,11 @@ Zwei Fehler im Guard-Test eines Verweis-Scanners, beide erst im Suite-Lauf sicht
 
 - **`scan … | grep -qF …` unter `set -o pipefail`:** Ein Scanner, der bei einem Fund mit Exit 1 endet, macht die Pipeline rot, obwohl `grep` den Fund sieht – der Test „erkennt den Fund“ schlägt genau dann fehl, wenn der Guard richtig arbeitet. Ausgabe zuerst in eine Variable fangen (`out="$(scan …)"`), dann `grep -qF -- … <<< "$out"`; bei mehr als einer Verwendung als kleiner Helfer.
 - **Mutation in einer geteilten Fixture nicht zurückgenommen:** Eine Mutationsprobe (Zeile an eine Fixture-Datei anhängen) wirkt auf jede spätere Probe derselben Fixture. Die AK6-Mutation färbte so den späteren Lock-Modus-Test rot. Jede Mutation direkt nach ihrer Assertion zurückkopieren (`cp` aus dem Original), nicht erst am Ende.
+
+### Ein Feindcode-Test beweist nur etwas, wenn der feindliche Code nachweislich lief – Gegenprobe im verbotenen Zustand (aus Factory-Task #37, `/implement`)
+
+Der erste „Hostile-Release"-Test für die Kurzform war grün, weil der feindliche Code nie ausgeführt wurde (`$SELF` zeigte auf die vertrauenswürdige Kopie, `factory-sync.sh` startete das Release nicht neu). Erst der CI-getreue Nachbau (Abholung im Klon, Modus `fetch`) und eine **Gegenprobe mit gesetztem Token** – dort muss der Feindcode das Token sehen – machten das Grün aussagekräftig.
+
+**Regel:** Test gegen feindlichen Code braucht (a) einen Zähler/Marker, der sein Laufen belegt, (b) die Gegenprobe im Zustand, in dem er das Geschützte sehen **müsste**; fehlt eines, ist das Grün Zufall. Gleiche Familie wie die Positivkontrolle bei Mutations-Fixtures.
+
+→ `/implement`, `/test`, `/security-review` – bei Tests, die Schadcode aus Fremdquelle simulieren

@@ -1768,3 +1768,27 @@ Nach `factory-sync.sh` liegt Code aus dem **ungeprüften Release** im Arbeitsbau
 **Regel:** (a) Token nur an die Schritte reichen, die es brauchen (Abholung tokenfrei), (b) Hooks des abgeholten Stands für nachfolgende Git-Aufrufe abschalten, (c) Test mit protokollierendem Stub/Hook + Mutationsbeleg mit derselben Guard-Funktion, (d) Restrisiko im ADR benennen und auf ein Issue verweisen (hier #37: Environment-Secret, zwei Jobs).
 
 → `/architecture`, `/implement`, `/security-review` – bei einem Workflow/Skript, das ein Token hält und danach Code aus einer Fremdquelle ausführt oder dessen Hooks auslöst
+
+### Nachtrag Credential/Release-Code: die Grenze ist ein Job, nicht ein Prozess – Ergebnis als Bundle, Prüfung im Token-Job (aus Factory-Task #37)
+
+Die Lösung zum Issue aus Factory-Task #24: Der Release-Code läuft in einem eigenen Job **ohne Environment und ohne Secret** (`fetch`), das Token liegt als **Environment-Secret** mit Branch-Regel `main` nur in den Jobs, die ausschließlich Code aus `main` ausführen (`preflight`, `publish`). Übergabe nur als `git bundle`; `publish` prüft es als Quarantäne (ein Commit auf `origin/main`, keine Modi 120000/160000, Pfade ⊆ alter Lock ∪ neues Manifest ∪ zusammengesetzte Ziele, Lock == frisch geholtes Manifest, Hash je Datei) und erzeugt den Commit per `commit-tree` **neu** – Autor, Nachricht und Header des Release-Codes gelangen nicht in den Branch. Alle Jobs checken den Standard-Branch aus, nie das Ergebnis eines anderen Jobs. Offen bleibt das Runtime-Token des Folgeschritts `upload-artifact` im `fetch`-Job (Cache-Vergiftung von `main`, Issue #41) und die nicht prüfbare Branch-Regel des Environments – beides im ADR als Restrisiko, nicht als „erledigt".
+
+**Regel:** Bei „Token neben Fremdcode" zuerst die Job-/Environment-Grenze ziehen (Secret an Environment mit Branch-Regel, nicht Repository-Secret – sonst sieht es jeder `pull_request`-Workflow), den `guard` auf das Repository-Secret gleichen Namens rot schalten, Eingaben zwischen Jobs über `env:` statt Expression und vor Nutzung auf Form prüfen; `env -u` bleibt nur für die Kurzform lokal.
+
+→ `/architecture`, `/implement`, `/security-review` – bei Workflow mit Secret und Fremdcode-Ausführung
+
+### Ein Prüfer jenseits einer Vertrauensgrenze spiegelt jede Prüfung des Werkzeugs, dessen Ergebnis er prüft – und die Doku nennt die Prüfliste im selben Commit (aus Factory-Task #37, Review-Iteration 1/2)
+
+`publish` prüfte das Bundle gegen Pfade, Modi, Lock und Hashes – aber nicht „keine geschützten Stellen im Manifest", obwohl `factory-sync.sh` genau das ablehnt (Review-Iteration 1, W1): ein böses Release hätte Projektbesitz über das Manifest „legitimieren" können. Der Fix zog ADR-063 E18 und `OPERATING.md` §0.6 nicht mit; das fand erst Iteration 2.
+
+**Regel:** (a) Wird eine Prüfung vom erzeugenden Werkzeug in einen Verifier hinter einer Vertrauensgrenze verlagert, die Prüfliste des Werkzeugs Zeile für Zeile gegen den Verifier legen (Parität), nicht nur gegen die Spec; (b) jede neue Prüfung bekommt Test + Mutationsbeleg **und** die Nennung in ADR, Betriebshandbuch und Doku-Guard im selben Commit.
+
+→ `/implement`, `/review`, `/security-review` – bei einem Verifier/Gate, das das Ergebnis eines anderen Werkzeugs oder Jobs prüft
+
+### Turn-Limit, siebtes Vorkommnis: 12 AK + 4 Jobs + Prüfliste reißen 3×20 Turns ohne einen Commit (aus Factory-Task #37)
+
+`/implement` lief dreimal in die Turn-Grenze und hinterließ nichts Committetes; die manuelle Fortsetzung in frischen Skill-Läufen (implement → review → fix → review → test → refactor) lief sauber, mit Commit und Push je Stufe. Die OTEL-Telemetrie der manuell gefahrenen Stufen fehlt (Lesson zu nothra/tch-gastro-services#346).
+
+**Regel:** Ein Task mit Sicherheitsgrenze, mehreren Jobs und einer mutationsbelegten Testsuite von vornherein manuell in getrennten Skill-Läufen fahren statt `run-pipeline.sh`; Telemetrie-Lücke in der Task-Datei vermerken.
+
+→ `/pipeline`, `/implement` – bei der Entscheidung für den Lauf eines Tasks mit > 10 AK plus neuer Sicherheitsgrenze

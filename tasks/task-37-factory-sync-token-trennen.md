@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -90,7 +90,8 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
 <!-- Wird durch /review befüllt -->
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Siehe `tasks/codify-37.md`: vier Learnings (Job-Grenze, Verifier-Parität, Turn-Limit #7, Feindcode-Test) ausgelagert; Issue #41.
+Manuelle Stage-2-Fortsetzung: die OTEL-Telemetrie fehlt für alle Stufen (Lesson zu nothra/tch-gastro-services#346).
 
 ---
 Branch: `improvement/37-factory-sync-token-trennen`
