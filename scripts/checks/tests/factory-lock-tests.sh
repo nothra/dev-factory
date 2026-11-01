@@ -1255,6 +1255,62 @@ targets_ok_37 "$T23/m37-targets-a.sh" "$FACTORY_ROOT/scripts/factory-sync.sh"; a
 sed 's#^GITIGNORE_TARGET=.*#GITIGNORE_TARGET=".gitignore.neu"#' "$FACTORY_ROOT/scripts/factory-sync.sh" > "$T23/m37-targets-b.sh"
 targets_ok_37 "$UPD_24" "$T23/m37-targets-b.sh"; assert_exit 1 "$?" "#37 E18 (Mutation): ändert factory-sync.sh ein Ziel, ist der Drift-Guard rot"
 
+# ── /test: Fail-closed-Zweige von fetch/publish, die Mutationsläufe als ungetestet gezeigt haben ─────────────────────────
+# mutdie_37 <name> <anfang-der-meldung> – Mutante: das `|| die "<anfang>…` wird zu `|| true "<anfang>…` (der Zweig läuft weiter statt zu enden)
+mutdie_37() { mutant_37 "$1" "s#\|\| die \"$2#|| true \"$2#"; }
+# Jeder Fall: rot mit zweigspezifischer Meldung, kein Push, kein schreibender gh-Aufruf (bzw. kein Bundle bei fetch)
+sc_handover_37() { bundle_37 "$1"; BUNDLE_37=''; pub_37 "${2:-}" ''; refused_ok_37 'Pfad des Übergabe-Bundles fehlt'; }
+sc_manifest_gone_37() { bundle_37 "$1"; rm -f "$R23/v1.1.0/factory-release.json"; pub_37 "${2:-}"; refused_ok_37 'nicht abrufbar'; }
+sc_manifest_bad_37() { bundle_37 "$1"; printf '{' > "$R23/v1.1.0/factory-release.json"; pub_37 "${2:-}"; refused_ok_37 'ungültig'; }
+sc_nocp_37() { # Liste der Anpassungsstellen fehlt → Schutzprüfung nicht möglich → fail-closed (nicht „keine Funde“)
+  local s="${2:-}"
+  bundle_37 "$1"
+  if [ -z "$s" ]; then factory_scripts_24 "$W24/nocp" "$UPD_24"; s="$W24/nocp/scripts/factory-update.sh"; fi
+  rm -f "$(dirname "$s")/checks/customization-points.txt"; pub_37 "$s"; refused_ok_37 'nicht prüfbar'
+}
+sc_missing_file_37() { bundle_37 "$1" 'git rm -q scripts/tool.sh && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit'; pub_37 "${2:-}"; refused_ok_37 'fehlt in der Übergabe'; }
+sc_newline_37() {
+  bundle_37 "$1" "$(printf '%s' "touch \"\$(printf 'zeile\\numbruch')\" && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit")"
+  pub_37 "${2:-}"; refused_ok_37 'Zeilenumbruch'
+}
+sc_push_rejected_37() { # Origin lehnt den Push ab (z. B. Branch-Schutz) → rot, PR nie angelegt
+  bundle_37 "$1"; mkdir -p "$ORIGIN_24/hooks"; printf '#!/bin/sh\nexit 1\n' > "$ORIGIN_24/hooks/pre-receive"; chmod +x "$ORIGIN_24/hooks/pre-receive"
+  pub_37 "${2:-}"; refused_ok_37 'abgelehnt'
+}
+sc_dirty_fetch_37() { # Modus fetch in einem Checkout mit unversionierter Datei → rot, kein Bundle
+  world_24 "$1"; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"; : > "$CL_37/unfertig.txt"
+  out_24="$(env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN bash "${2:-$UPD_24}" fetch v1.1.0 "$(git -C "$ORIGIN_24" rev-parse main)" "$BUNDLE_37")"; rc_24=$?
+  [ "$rc_24" -eq 1 ] && grep -qF 'Arbeitsbaum nicht sauber' <<< "$out_24" && [ ! -e "$BUNDLE_37" ]
+}
+sc_base_missing_37() { # Basis-Commit existiert im Checkout nicht → rot, kein Bundle
+  world_24 "$1"; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"
+  out_24="$(env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN bash "${2:-$UPD_24}" fetch v1.1.0 "$(printf '0%.0s' $(seq 40))" "$BUNDLE_37")"; rc_24=$?
+  [ "$rc_24" -eq 1 ] && grep -qF 'nicht auscheckbar' <<< "$out_24" && [ ! -e "$BUNDLE_37" ]
+}
+cov_37() { # <fall> <meldungsanfang> <beschreibung> – Fall grün, Mutante (die → weiter) rot
+  local fn="sc_$1_37"
+  "$fn" "cv-$1-a"; assert_exit 0 "$?" "#37 /test: $3 → rot, zweigspezifische Meldung, nichts gepusht"
+  mutdie_37 "cv-$1" "$2"
+  "$fn" "cv-$1-b" "$MUT37"; assert_exit 1 "$?" "#37 /test (Mutation): ohne dieses die ist derselbe Fall nicht mehr rot – der Zweig ist wirksam"
+}
+cov_37 handover 'Pfad des Übergabe-Bundles' 'leerer Bundle-Pfad (Modus publish)'
+cov_37 manifest_gone 'Release-Manifest zu \$version nicht abrufbar' 'Release-Manifest nicht abrufbar'
+cov_37 manifest_bad 'Release-Manifest zu \$version ungültig' 'Release-Manifest ungültig'
+cov_37 nocp 'Anpassungsstellen nicht prüfbar' 'Liste der Anpassungsstellen fehlt (kein „keine Funde“)'
+cov_37 missing_file 'Manifest-Datei fehlt in der Übergabe' 'Manifest-Datei fehlt im Bundle'
+cov_37 push_rejected 'Push auf \$UPDATE_BRANCH abgelehnt' 'Origin lehnt den Push ab'
+cov_37 dirty_fetch 'Arbeitsbaum nicht sauber' 'Modus fetch mit unsauberem Arbeitsbaum'
+cov_37 base_missing 'Basis \$base nicht auscheckbar' 'Modus fetch mit unbekannter Basis'
+# Zeilenumbruch im Pfad: das case-Muster endet nicht auf `|| die`, eigene Mutante
+sc_newline_37 nl-a; assert_exit 0 "$?" "#37 /test: Pfad mit Zeilenumbruch in der Übergabe → rot, zweigspezifische Meldung, nichts gepusht"
+mutant_37 nl 's#\) die "Übergabe enthält einen Pfad#) true "Übergabe enthält einen Pfad#'
+sc_newline_37 nl-b "$MUT37"; assert_exit 1 "$?" "#37 /test (Mutation): ohne dieses die ist derselbe Fall nicht mehr rot"
+# Unbekannter Modus
+out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" bash "$UPD_24" frobnicate)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'unbekannter Modus' <<< "$out_24"; echo $?)" "#37 /test: unbekannter Modus → rot mit Meldung"
+
 # ── F-37.1: Übergabe scheitert → rot, kein Push, bestehender PR unverändert ──────────────────────────────────────────
 bundle_37 pu1; pub_37 "" "$W24/gibt-es-nicht.bundle"
 refused_ok_37 'Bundle fehlt'; assert_exit 0 "$?" "#37 F-37.1: kein Bundle (Abholung abgebrochen) → rot, kein Push, kein PR"

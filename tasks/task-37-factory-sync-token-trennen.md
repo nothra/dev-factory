@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -69,6 +69,13 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
 
 - **Review-Iteration 2 umgesetzt:** ADR-063 E18 und `OPERATING.md` §0.6 nennen die Prüfung „keine geschützten Stellen im Manifest“;
   Doku-Guard-Anker (`ops_ok_37`/`adr_ok_37`) mit je einer Mutation. Die Nitpicks (`verify_bundle` aufteilen, `PROT_37` lesbar machen) gehen an `/refactor`.
+
+- **/test (Abdeckung ohne Coverage-Werkzeug):** Die `die`-Zweige von `fetch`/`publish`/`guard` wurden einzeln auf Test + Mutationsbeleg
+  geprüft (Lesson Factory-Task #22/#23). Lücken geschlossen, je mit zweigspezifischer Meldung, „nichts gepusht“ und einer Mutante
+  (`|| die` → `|| true`): leerer Bundle-Pfad, Manifest nicht abrufbar/ungültig, Liste der Anpassungsstellen fehlt (kein „keine Funde“),
+  Manifest-Datei fehlt im Bundle, Pfad mit Zeilenumbruch, Origin lehnt Push ab, `fetch` mit unsauberem Arbeitsbaum/unbekannter Basis,
+  unbekannter Modus. Bewusst ungetestet (nicht ohne Eingriff in git erzeugbar): `commit-tree`-Fehler, `bundle create`-Fehler,
+  `fetch`-aus-Bundle-Fehler nach erfolgreichem `bundle verify`, Hash-Werkzeug-Fehler (`fl_hash_paths`, in #23 gedeckt).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
