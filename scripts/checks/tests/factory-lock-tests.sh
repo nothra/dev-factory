@@ -1044,6 +1044,8 @@ echo "Factory-Issue #37: Token und Release-Code trennen:"
 
 # ── Verdrahtung: je Job, wo das Token verfügbar ist (AK-37a/e, F-37.3, F-37.4) ──────────────────────────────────────────
 wf_job_37() { yq -o=json ".jobs.$2" "$1"; }
+# Ausgabe erst fangen, dann prüfen: `yq … | grep -q` ist unter pipefail ein SIGPIPE-Race (lokal grün, sonst gelegentlich rot)
+wf_has_line_37() { local out; out="$(yq "$2" "$1")"; grep -qxF -- "$3" <<< "$out"; }
 wf_idx_37() { yq ".jobs.$2.steps | to_entries | .[] | select((.value.uses // .value.run // \"\") | test(\"$3\")) | .key" "$1" | head -1; }
 wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
   local f="$1" j
@@ -1052,7 +1054,7 @@ wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
   for j in preflight publish; do [ "$(yq ".jobs.$j.environment" "$f")" = factory-update ] || return 1; done
   [ "$(grep -c 'secrets\.FACTORY_SYNC_TOKEN' "$f")" = 3 ] || return 1
   [ "$(wf_job_37 "$f" guard | grep -c 'FACTORY_SYNC_TOKEN_REPO_SECRET": ".*secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
-  ! wf_job_37 "$f" fetch | grep -q 'secrets\.' || return 1
+  local fetch_job; fetch_job="$(wf_job_37 "$f" fetch)"; ! grep -q 'secrets\.' <<< "$fetch_job" || return 1
   [ "$(wf_job_37 "$f" preflight | grep -c 'secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
   [ "$(wf_job_37 "$f" publish | grep -c 'secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
   [ "$(yq -o=json -I=0 '.jobs.preflight.needs' "$f")" = '"guard"' ] || return 1
@@ -1065,10 +1067,10 @@ wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
     [ "$(yq ".jobs.$j.steps[0].with.ref" "$f")" = '${{ github.event.repository.default_branch }}' ] || return 1
     [ "$(yq ".jobs.$j.steps[0].with.persist-credentials" "$f")" = false ] || return 1
   done
-  yq '.jobs.guard.steps[].run' "$f" | grep -qxF 'bash scripts/factory-update.sh guard' || return 1
-  yq '.jobs.preflight.steps[].run' "$f" | grep -qxF 'bash scripts/factory-update.sh preflight' || return 1
-  yq '.jobs.fetch.steps[].run' "$f" | grep -qxF 'bash scripts/factory-update.sh fetch "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/update.bundle"' || return 1
-  yq '.jobs.publish.steps[].run' "$f" | grep -qxF 'bash scripts/factory-update.sh publish "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/bundle/update.bundle"' || return 1
+  wf_has_line_37 "$f" '.jobs.guard.steps[].run' 'bash scripts/factory-update.sh guard' || return 1
+  wf_has_line_37 "$f" '.jobs.preflight.steps[].run' 'bash scripts/factory-update.sh preflight' || return 1
+  wf_has_line_37 "$f" '.jobs.fetch.steps[].run' 'bash scripts/factory-update.sh fetch "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/update.bundle"' || return 1
+  wf_has_line_37 "$f" '.jobs.publish.steps[].run' 'bash scripts/factory-update.sh publish "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/bundle/update.bundle"' || return 1
   for j in preflight fetch publish; do
     [ "$(wf_idx_37 "$f" "$j" 'install-yq')" -lt "$(wf_idx_37 "$f" "$j" 'factory-update.sh')" ] || return 1
   done
@@ -1175,7 +1177,8 @@ assert_true "$([ "$FETCH_RC_37" -eq 0 ] && [ "$rc_24" -eq 0 ] && [ "$(lock_on_br
 assert_true "$([ -s "$MARKLOG_37" ]; echo $?)" "#37 AK-37b (Voraussetzung): der Marker-Befehl des Release lief in der Abholung (Nutzlast wurde ausgeführt)"
 assert_true "$(no_token_marker_37; echo $?)" "#37 AK-37b: kein Marker-Befehl (fsmonitor, Filter, Hooks) sah je ein Token – weder in der Abholung noch in publish"
 assert_true "$([ "$(git -C "$ORIGIN_24" log -1 --format='%an|%ae|%s' "refs/heads/$BR_24")" = 'factory-update|factory-update@localhost|chore: factory auf v1.2.0 heben' ]; echo $?)" "#37 AK-37b: der Commit auf dem Branch trägt feste Identität und Nachricht"
-assert_true "$(git -C "$ORIGIN_24" ls-tree -r --name-only "refs/heads/$BR_24" | grep -qE 'EVIL|\.git/'; [ $? -ne 0 ]; echo $?)" "#37 AK-37b: nichts aus .git/ des Klons gelangt in den Branch"
+tree_37="$(git -C "$ORIGIN_24" ls-tree -r --name-only "refs/heads/$BR_24")"
+assert_true "$(grep -qE 'EVIL|\.git/' <<< "$tree_37"; [ $? -ne 0 ]; echo $?)" "#37 AK-37b: nichts aus .git/ des Klons gelangt in den Branch"
 # Gegenprobe: lief die Abholung mit Token (ein Job für beides), sähe derselbe Marker-Befehl es – die Trennung ist es, die schützt
 hostile_37 hc2 payload_config_37 token
 assert_exit 1 "$(no_token_marker_37; echo $?)" "#37 AK-37b (Gegenprobe): mit Token in der Abholung sieht der Marker-Befehl des Release das Token – die Trennung ist wirksam"
