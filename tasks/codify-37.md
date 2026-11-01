@@ -10,6 +10,8 @@
   in getrennten Skill-Läufen fahren; Telemetrie-Lücke vermerken – wegen: 3×20 Turns ohne Commit in Phase 1.
 - `docs/factory/lessons/testing.md` + Index – **Feindcode-Test braucht Laufnachweis und Gegenprobe** – wegen: grüner Hostile-Test, der den
   feindlichen Code nie ausführte.
+- `docs/factory/lessons/factory-workflow.md` + Index – **Skript mit CI-Erkennung: Tests hermetisch halten, CI-Rot im Ubuntu-Container nachstellen**
+  – wegen: 84 rote Tests in CI bei lokal grün (`GITHUB_ACTIONS=true` ließ die Kurzform verweigern; ein Fixture-Commit ohne Identität).
 
 ### Folge-Arbeit
 - Issue #41 (aus `/security-review`): Runtime-Token des `fetch`-Jobs gegen Release-Code abschirmen (Label `enhancement`, `security`;

@@ -1792,3 +1792,11 @@ Die Lösung zum Issue aus Factory-Task #24: Der Release-Code läuft in einem eig
 **Regel:** Ein Task mit Sicherheitsgrenze, mehreren Jobs und einer mutationsbelegten Testsuite von vornherein manuell in getrennten Skill-Läufen fahren statt `run-pipeline.sh`; Telemetrie-Lücke in der Task-Datei vermerken.
 
 → `/pipeline`, `/implement` – bei der Entscheidung für den Lauf eines Tasks mit > 10 AK plus neuer Sicherheitsgrenze
+
+### Ein Skript, das `GITHUB_ACTIONS`/`GITHUB_OUTPUT` auswertet, macht seine Tests in CI rot – Test-Umgebung hermetisch halten, CI-Rot im Ubuntu-Container nachstellen (aus Factory-Task #37, CI nach `/codify`)
+
+Task 37 ließ die Kurzform von `factory-update.sh` in CI verweigern (`GITHUB_ACTIONS=true`). Die Self-Test-Suite läuft selbst in CI und erbt die Variable: 82 Tests aus Task 24 riefen die Kurzform auf und wurden rot, lokal war alles grün. Zusätzlich schrieben `guard`/`preflight` über `GITHUB_OUTPUT` in die Ausgabedatei des echten Jobs. Ein dritter Fehler kam aus der Lesson zur Git-Identität: ein Fixture-Helper (`moved_37`) committete ohne Identität, der Commit scheiterte still hinter `&&`, der Test prüfte nichts mehr.
+
+**Regel:** (a) Führt ein Skript Zweige nach `GITHUB_ACTIONS`, `GITHUB_OUTPUT`, `CI` aus, unsetzt die Test-Datei sie am Anfang (hermetisch) und setzt sie nur in den Tests, die den Zweig prüfen; (b) Fixture-Commits immer über den Helfer mit Identität (`git_23`), nie rohes `git commit`; (c) ein CI-only-Rot mit `docker run --platform linux/amd64 ubuntu:24.04` nachstellen (git, jq, curl, wget, `install-yq.sh`) und `GITHUB_ACTIONS=true GITHUB_OUTPUT=…` setzen – so war die Ursache in einer Stunde gefunden, Raten hätte länger gedauert; Scratch-Pfade für Docker unter dem Home-Verzeichnis anlegen (`/private/tmp` ist nicht freigegeben).
+
+→ `/implement`, `/test`, `/review` – bei Skript mit CI-Erkennung, dessen Tests in derselben CI laufen, und bei CI-only-Rot

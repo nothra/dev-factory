@@ -522,6 +522,10 @@ assert_exit 1 "$?" "#23 AK2.5b (Mutation): ohne die run:-Zeile wird derselbe Gua
 # ═══ Factory-Issue #24: Update-Workflow und Update-PR (factory-update.sh) ════════════════════════════════════════════
 # Gleiche Welt wie #23 (world_23), dazu ein Bare-Repo als `origin` des Konsumenten und ein gh-Stub im PATH, der
 # Repo-Rechte, Release-Liste und PR-Zustand aus Dateien liefert und jeden Aufruf protokolliert (Factory-ADR-063 E16).
+# In GitHub Actions sind GITHUB_ACTIONS=true und GITHUB_OUTPUT gesetzt: die Kurzform von factory-update.sh verweigert dort den
+# Lauf (#37), und die Modi guard/preflight würden in die Ausgabedatei des echten Jobs schreiben. Tests, die das brauchen, setzen
+# die Variablen je Aufruf selbst (`GITHUB_ACTIONS=true upd_24`, `GITHUB_OUTPUT=…`).
+unset GITHUB_ACTIONS GITHUB_OUTPUT
 echo ""
 echo "Factory-Issue #24: Update-Workflow und Update-PR:"
 
@@ -1225,7 +1229,7 @@ TWO_37='git -c user.email=t@x -c user.name=t commit -q --allow-empty -m zweiter'
 bundle_refused_37 pb3 "$TWO_37" 'nicht genau ein Commit'; assert_exit 0 "$?" "#37 AK-37c: zwei Commits in der Übergabe → rot, kein Push"
 mutant_37 anzahl 's#\[ "\$\(git rev-list --count "\$base..\$QUARANTINE_SHA"\)" = 1 \]#true#; s#\[ "\$\(git rev-parse "\$QUARANTINE_SHA\^"\)" = "\$base" \]#true#'
 bundle_refused_37 pb4 "$TWO_37" 'nicht genau ein Commit' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Commit-/Elternteil-Prüfung ist derselbe Guard rot"
-moved_37() { bundle_37 "$1"; git -C "$C1_23" commit -q --allow-empty -m weiter && git -C "$C1_23" push -q origin main; pub_37 "${2:-}"; refused_ok_37 'bewegt'; }
+moved_37() { bundle_37 "$1"; git_23 -C "$C1_23" commit -q --allow-empty -m weiter && git -C "$C1_23" push -q origin main; pub_37 "${2:-}"; refused_ok_37 'bewegt'; }
 moved_37 pm1; assert_exit 0 "$?" "#37 AK-37c: main bewegt sich zwischen Abholung und Prüfung → rot, kein Push (der nächste Lauf baut neu auf)"
 mutant_37 bewegt 's#\[ "\$\(git rev-parse -q --verify "refs/remotes/origin/\$BASE_BRANCH"\)" = "\$base" \]#true#'
 moved_37 pm2 "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Prüfung der Basis ist derselbe Guard rot"
