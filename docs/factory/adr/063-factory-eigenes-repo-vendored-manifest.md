@@ -703,7 +703,7 @@ Repository-Secret für `pull_request`-Workflows des Update-PRs.
   frischen Checkout von `main` in einen Quarantäne-Ref (`git bundle verify`, `git fetch <bundle>`; Git
   führt dabei keinen Code aus dem Bundle aus) und prüft **vor** dem Push, alle Prüfungen fail-closed:
   genau ein Commit, Elternteil = aktuelles `origin/main` (bewegt sich `main` zwischen den Jobs, endet
-  der Lauf rot, der nächste baut neu auf); keine Modi `120000`/`160000` (Symlink, Submodul); Pfade ⊆
+  der Lauf rot, der nächste baut neu auf); keine Modi `120000`/`160000` (Symlink, Submodul); keine geschützten Stellen im Manifest (Projektbereiche und Anpassungsstellen, `fl_protected_findings` wie in `factory-sync.sh` – das Manifest gehört dem Release); Pfade ⊆
   Pfade des alten Locks ∪ Pfade des neuen Manifests ∪ zusammengesetzte Zieldateien ∪ `factory.lock`;
   `factory.lock` im Bundle ist byte-gleich zum **frisch** aus dem Release geholten Manifest (E1, über
   `scripts/lib/factory-lock.sh` aus `main`) und trägt die erwartete Version; jede Manifest-Datei im Baum

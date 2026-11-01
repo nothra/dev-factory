@@ -181,7 +181,7 @@ Test-PR am echten Repo, dessen Workflow `${{ secrets.FACTORY_SYNC_TOKEN }}` ausg
 **Aufbau des Workflows:** vier Jobs. `guard` (ohne Environment) prüft Lock und Repository-Secret, `preflight` und `publish`
 (Environment `factory-update`) tragen das Token und führen nur Code aus `main` aus, `fetch` (ohne Secret) holt die neue Version
 ab – nur dort läuft Code des noch ungeprüften Release – und übergibt das Ergebnis als `git bundle`. `publish` prüft es
-(ein Commit auf `main`, keine Symlinks, nur erwartete Pfade, `factory.lock` = Manifest, Datei-Hashes) und erzeugt den Commit
+(ein Commit auf `main`, keine Symlinks, keine geschützten Stellen im Manifest, nur erwartete Pfade, `factory.lock` = Manifest, Datei-Hashes) und erzeugt den Commit
 neu. Restrisiko: ein bösartiges Release, das der Mensch im Update-PR nicht bemerkt – siehe Factory-ADR-063, Nachtrag 2026-10-31.
 
 **Warum ein PAT und nicht `GITHUB_TOKEN`:** Pushes und PRs mit dem eingebauten Token lösen keine

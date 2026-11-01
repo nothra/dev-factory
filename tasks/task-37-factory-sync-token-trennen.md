@@ -67,6 +67,9 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
   Mutation); (W3) Spec AK-37d an die angepassten Mechanik-Anker angeglichen; Nitpicks: Drift-Guard `COMPOSED_TARGETS` ↔ `factory-sync.sh`
   (beide Richtungen mutiert), `publish`-Aufruf der Argument-Tests über `pub_37`, CHANGELOG-Hinweis unter „Unreleased“.
 
+- **Review-Iteration 2 umgesetzt:** ADR-063 E18 und `OPERATING.md` §0.6 nennen die Prüfung „keine geschützten Stellen im Manifest“;
+  Doku-Guard-Anker (`ops_ok_37`/`adr_ok_37`) mit je einer Mutation. Die Nitpicks (`verify_bundle` aufteilen, `PROT_37` lesbar machen) gehen an `/refactor`.
+
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
 

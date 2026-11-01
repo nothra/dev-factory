@@ -1102,7 +1102,7 @@ flat_37() { tr '\n' ' ' < "$1" | tr -s ' '; }
 ops_ok_37() { # $1 = geglätteter Text von OPERATING.md
   local p
   for p in 'Environment `factory-update`' 'Deployment branches and tags' 'Regel **`main`**' '**Kein** gleichnamiges Repository-Secret' \
-           'Bestand umziehen' 'das Repository-Secret gleichen Namens **löschen**' '**Test-Lauf:**' '`workflow_dispatch` **auf `main`**'; do
+           'Bestand umziehen' 'das Repository-Secret gleichen Namens **löschen**' '**Test-Lauf:**' '`workflow_dispatch` **auf `main`**' 'keine geschützten Stellen im Manifest'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
   ! grep -qF -- 'als Repository-Secret **`FACTORY_SYNC_TOKEN`** hinterlegen' <<< "$1"
@@ -1110,16 +1110,18 @@ ops_ok_37() { # $1 = geglätteter Text von OPERATING.md
 adr_ok_37() { # $1 = geglätteter Text von ADR-063
   local p
   for p in '**Restrisiko (ehrlich):**' 'Status: Accepted (2026-11-01' 'Ersetzt durch #37' 'Nachtrag 2026-10-31, E17/E20' \
-           'Release selbst ist bösartig' 'Environment-Konfiguration'; do
+           'Release selbst ist bösartig' 'Environment-Konfiguration' 'keine geschützten Stellen im Manifest'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
   ! grep -qF -- 'Status: Proposed, wird mit der Umsetzung' <<< "$1"
 }
 ops_37="$(flat_37 "$FACTORY_ROOT/docs/factory/OPERATING.md")"; adr_37="$(flat_37 "$FACTORY_ROOT/docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md")"
 ops_ok_37 "$ops_37"; assert_exit 0 "$?" "#37 AK-37e/g: OPERATING.md §0.6 beschreibt Environment, Branch-Regel main, Umzug des Bestands, Test-Lauf – und nicht mehr „als Repository-Secret“"
+ops_ok_37 "${ops_37//keine geschützten Stellen im Manifest/}"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne „keine geschützten Stellen im Manifest“ in OPERATING.md ist derselbe Guard rot"
 ops_ok_37 "${ops_37//Bestand umziehen/}"; assert_exit 1 "$?" "#37 AK-37g (Mutation): ohne den Abschnitt „Bestand umziehen“ ist derselbe Guard rot"
 ops_ok_37 "$ops_37 Im Konsumenten-Repo als Repository-Secret **\`FACTORY_SYNC_TOKEN\`** hinterlegen"; assert_exit 1 "$?" "#37 AK-37e (Mutation): die alte Anweisung „als Repository-Secret hinterlegen“ macht den Guard rot"
 adr_ok_37 "$adr_37"; assert_exit 0 "$?" "#37 AK-37h: ADR-063 nennt Restrisiko, Status Accepted und verweist in E4/E12 auf die neue Aufteilung"
+adr_ok_37 "${adr_37//keine geschützten Stellen im Manifest/}"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne „keine geschützten Stellen im Manifest“ in ADR-063 E18 ist derselbe Guard rot"
 adr_ok_37 "${adr_37//Restrisiko (ehrlich)/}"; assert_exit 1 "$?" "#37 AK-37h (Mutation): ohne den Abschnitt „Restrisiko (ehrlich)“ ist derselbe Guard rot"
 
 # ── Hilfen für die Verhaltenstests ───────────────────────────────────────────────────────────────────────────────────
