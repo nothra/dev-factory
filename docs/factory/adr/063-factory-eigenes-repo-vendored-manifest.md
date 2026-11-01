@@ -312,7 +312,8 @@ Grundsatzentscheidung.
 - **Q4 · Worktree-Vorbereitung:** die Ursprungs-spezifischen Schritte von `start-work.sh` (`pnpm install`,
   Hinweis „vor dem ersten E2E-Lauf seeden") kommen aus optionalen Schlüsseln `commands.install` und
   `start_work.hint` in `factory.config.yml` (gleiches Muster wie `commands.*`); ohne Eintrag entfällt
-  der Schritt still.
+  der Schritt still. Die `.env.local`-Kopie folgt demselben Muster über `start_work.copy_files`
+  (Nachtrag 2026-11-01, Spec #47).
 - **Q5 · Label-Validierung:** T1a verlegt nur die **Datenquelle** (`labels.aspects` /
   `labels.aspects_extra`); das Verhalten bleibt unverändert (heute fail-open: ein unbekanntes Label
   fällt weg). Eine harte Ablehnung gegen die Vereinigung kommt frühestens in T3 mit dem Label-Wechsel
@@ -773,3 +774,56 @@ E4/E10/E12 dieses ADR (Verweise statt „Restrisiko akzeptiert"), Tests in `scri
 Keine neue Datei (kein `OWNERSHIP.md`-Eintrag nötig). Bestehende Konsumenten müssen das Secret **vor** dem
 Update auf die neue Version umziehen, sonst endet `guard` rot (gewollt); das gehört in die Release-Notes
 des nächsten Releases.
+
+## Nachtrag 2026-11-01 · Worktree-Dateispiegelung über `start_work.copy_files` (Spec #47)
+
+Aus `/architecture` zu #47; Status: Proposed (wird mit der Umsetzung in #47 Accepted). **Erweitert Q4**
+aus dem Nachtrag 2026-10-19: Neben `commands.install` und `start_work.hint` wandert auch die bisher fest
+verdrahtete `.env.local`-Kopie (nothra/tch-gastro-services#236) in die Config. Die Verhaltensentscheidungen
+(Hinweis immer bei gesetztem Wert, Opt-out `FACTORY_WT_SKIP_COPY` mit Alias `FACTORY_WT_SKIP_ENV`, fehlende
+Elternordner anlegen, nur Einzeldateien) stehen in `docs/specs/spec-47-copy-files-konfigurierbar.md`.
+
+- **E23 · Schlüssel und Lesen.** `start_work.copy_files` ist eine Liste in `factory.defaults.yml`, Default
+  `[]`. Die leere Liste macht `start_work.copy_files.*` zur erlaubten Override-Oberfläche (Regel 2 des
+  Config-Gates, wie `labels.aspects_extra`). Gelesen wird über einen neuen Helfer
+  `factory_cfg_list <pfad>` in `scripts/lib/gate-config.sh`: ein Element je Zeile, leer bei fehlendem
+  Schlüssel. `factory_cfg` bleibt für Skalare; die Liste nicht als YAML-Text weiterzureichen hält das
+  Parsen an einer Stelle.
+- **E24 · Ein Validator für Gate und Skript.** Die Pfadregel steht genau einmal, als Funktion
+  `copy_entry_problem <eintrag>` in `gate-config.sh`: leere Ausgabe = gültig, sonst der Ablehnungsgrund.
+  Ungültig sind: leer, absolut, ein `..`-Segment, abschließendes `/`, Steuerzeichen (inkl. Zeilenumbruch –
+  er würde die zeilenweise Liste aus E23 zerlegen). `config-validation-check.sh` sourct `gate-config.sh`
+  und prüft in einer neuen Regel 9 Typ (Liste, Elemente `!!str`) und jeden Eintrag mit dem Validator;
+  `start-work.sh` ruft denselben Validator vor jeder Kopie (Defense in depth: das Gate läuft nur im
+  pre-push-Hook, nicht vor `start-work.sh`). Ein ungültiger Eintrag wird im Skript gewarnt und
+  übersprungen, nie kopiert.
+- **E25 · Kein Schreiben außerhalb des Worktrees.** Vor dem Anlegen fehlender Elternordner wird die
+  Elternkette des Ziels Komponente für Komponente ab der Worktree-Wurzel geprüft: Ist eine vorhandene
+  Komponente ein Symlink oder kein Verzeichnis, wird der Eintrag übersprungen; fehlende Komponenten werden
+  einzeln mit `mkdir` (ohne `-p`) angelegt. Bewusst **strenger** als „Ziel liegt außerhalb": auch ein
+  Symlink, der innerhalb des Worktrees bleibt, führt zum Überspringen. Dafür braucht es kein `realpath`
+  (unter macOS-Bash 3.2 nicht garantiert) und keine Pfad-Normalisierung. Das Ziel selbst schützt weiter der
+  `-e`/`-L`-Guard (nie überschreiben).
+- **E26 · Schleife im Skript, keine neue Datei.** Die Kopie je Eintrag wird eine Funktion in
+  `start-work.sh`, die die bestehende Schutzlogik übernimmt (`-f`-Vorbedingung der Quelle, `-e`/`-L`-Guard,
+  `cp -p`, Aufräumen bei Fehlschlag mit `|| true`) und für jeden Fehlerfall zurückkehrt, ohne den Lauf
+  abzubrechen. `ENV_COPIED` entfällt; der Hinweis (`start_work.hint`) hängt an keiner Kopie mehr.
+- **E27 · Opt-out.** `FACTORY_WT_SKIP_COPY` gewinnt; ist er nicht gesetzt, zählt `FACTORY_WT_SKIP_ENV`.
+
+**Alternativen:**
+- *Eigene Lib `scripts/lib/worktree-copy.sh`* – isoliert testbar, aber eine weitere ausgelieferte Datei
+  samt `OWNERSHIP.md`-Zeile und Scaffold-Kopie in jedem Test-Wegwerf-Repo (Lesson
+  nothra/tch-gastro-services#197). Die E2E-Tests von `start-work.sh` decken das Verhalten bereits ab;
+  verworfen.
+- *Validierung nur im Config-Gate* – eine Stelle weniger, aber `start-work.sh` liefe ungeschützt, wenn der
+  Hook nicht installiert oder umgangen ist; verworfen.
+- *Validierung doppelt (Gate in `yq`, Skript in Bash)* – zwei Regeln, die driften; verworfen zugunsten E24.
+- *Pfad-Normalisierung + `realpath`-Prüfung „liegt im Worktree"* – erlaubt mehr Fälle, hängt aber an
+  einem nicht überall vorhandenen Werkzeug und an Normalisierungsdetails (`.`, doppelte `/`); verworfen
+  zugunsten E25.
+
+**Konsequenzen:** geändert `scripts/start-work.sh`, `scripts/lib/gate-config.sh`,
+`scripts/checks/config-validation-check.sh`, `factory.defaults.yml`, Tests in
+`scripts/checks/tests/run-tests.sh`, Doku laut Spec (AK17). Keine neue Datei. Ein Projekt, das die
+`.env.local`-Kopie behalten will, setzt `start_work.copy_files: [".env.local"]` (CHANGELOG); ohne den
+Eintrag entfällt die Kopie nach dem Update still.

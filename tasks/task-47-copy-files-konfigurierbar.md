@@ -40,10 +40,41 @@ Spec: [`docs/specs/spec-47-copy-files-konfigurierbar.md`](../docs/specs/spec-47-
 - [ ] Fehlerszenarien F1–F8 getestet
 
 ## Technische Notizen
-<!-- Von /architecture befüllt oder eigene Notizen -->
+Architektur: Nachtrag 2026-11-01 in `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md`
+(E23–E27, Status Proposed → beim Umsetzen auf Accepted flippen). Kein neues ADR, keine neue Datei.
+
+Implementierungs-Hinweise:
+1. **`scripts/lib/gate-config.sh`:** `factory_cfg_list <pfad>` (ein Element je Zeile, `// []`, gleiche
+   Merge-Logik wie `factory_cfg`; `*` ersetzt Listen, hängt nicht an) und `copy_entry_problem <eintrag>`
+   (leer = gültig; sonst Grund: leer / absolut / `..`-Segment / abschließendes `/` / Steuerzeichen).
+   Modul-Header „Stellt bereit" mitpflegen (Lesson nothra/tch-gastro-services#207).
+2. **`config-validation-check.sh`:** `gate-config.sh` relativ zum Skript sourcen
+   (`$(dirname "${BASH_SOURCE[0]}")/../lib/gate-config.sh`, nicht über `FACTORY_DIR` – Lesson
+   nothra/tch-gastro-services#431). Neue Regel 9 nach dem Muster von Regel 8: Typ `!!seq`, Elemente
+   `!!str`, jeder Eintrag durch `copy_entry_problem`. Header-Aufzählung ergänzen.
+   **Achtung:** jede Test-Fixture, die `config-validation-check.sh` in eine Wegwerf-Wurzel kopiert, muss
+   jetzt auch `scripts/lib/gate-config.sh` mitkopieren (Lesson nothra/tch-gastro-services#197) – vorher
+   per Grep zählen.
+3. **`factory.defaults.yml`:** `start_work.copy_files: []` mit `@reason`/`@tradeoff`; Kommentar zu
+   `hint` von der `.env.local` lösen.
+4. **`start-work.sh`:** Funktion je Eintrag (Validator → `-f`-Quelle → Elternkette ohne Symlink, fehlende
+   Ordner einzeln per `mkdir` → `-e`/`-L`-Guard → `cp -p` → Aufräumen `|| true`), jede Abweichung = Warnung
+   + `return 0`. `-d "$WORKDIR"`-Guard bleibt. Liste per `while IFS= read -r` (Leerzeichen im Pfad
+   erlaubt). Opt-out `SKIP="${FACTORY_WT_SKIP_COPY:-${FACTORY_WT_SKIP_ENV:-0}}"`. `ENV_COPIED` und die
+   Hinweis-Kopplung entfernen; Hinweis-Block außerhalb jeder Bedingung. Hilfetext: `factory-pipeline` raus,
+   Schalter umbenennen. WHY-Kommentare ohne Ursprungs-Wortlaut (AK16).
+5. **Tests (`scripts/checks/tests/run-tests.sh`):** Gruppe „#236" neutral umbauen – Fixture-Config setzt
+   `copy_files` explizit, Hinweis-Wortlaut neutral (kein `pnpm db:seed`). Bestehende Fälle (Symlink-Quelle,
+   defekter Symlink, unlesbar, `cp`-Teilabbruch per PATH-Stub, Modus) bleiben und laufen gegen einen
+   konfigurierten Eintrag. Neu: AK1/2/5/7/8/10–12/15, F2/F5/F6/F8, Gate-Fälle AK13/14 (je ein Negativtest).
+   Mutationsbeleg AK4: dieselbe Guard-Funktion auf Original und Mutante (Lesson Factory-Task #23).
+   Zwei-Einträge-Fälle: Ein Fehlschlag in Eintrag 1 darf Eintrag 2 nicht verhindern – assertieren.
+6. **Doku (AK17):** FACTORY.md Regel 8, git-workflow.md (Secret-Hygiene, Env-Schalter), OPERATING.md
+   (Abschnitt um Zeile 592), `.gitignore`/`.gitignore.project`-Kommentar, CHANGELOG mit Migrationszeile.
+   `@import`-Limit im Blick behalten (FACTORY.md ist importiert).
 
 ## Offene Fragen
-- [ ] ADR-Trigger? Vermutlich nur Nachtrag zu Factory-ADR-063 Q4 (Kopplung `start_work.hint` ↔ `.env.local` dort beschrieben) – `/architecture` entscheidet.
+- [x] ADR-Trigger? → Nachtrag zu Factory-ADR-063 (E23–E27), kein neues ADR (`/architecture`, 2026-11-01).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

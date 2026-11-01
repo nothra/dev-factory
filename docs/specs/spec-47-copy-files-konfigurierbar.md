@@ -151,9 +151,9 @@ gespiegelt. Eine Warnung im Output gibt es in allen Fällen außer F1 und F7.
   unvollständige Ziel wird entfernt, damit AK4 es beim nächsten Lauf nicht konserviert.
 - [ ] **F5 – Elternordner lässt sich nicht anlegen** (z. B. am Pfad liegt eine Datei): Warnung,
   Eintrag übersprungen.
-- [ ] **F6 – Ziel läge außerhalb des Worktrees:** führt ein Elternordner des Ziels im Worktree über
-  einen (getrackten) Symlink aus dem Worktree heraus, wird der Eintrag nicht kopiert und gewarnt.
-  Es wird nie außerhalb des Worktrees geschrieben oder ein Ordner angelegt.
+- [ ] **F6 – Symlink in der Elternkette:** ist ein vorhandener Elternordner des Ziels im Worktree ein
+  (getrackter) Symlink – egal wohin er zeigt –, wird der Eintrag nicht kopiert und gewarnt. So wird nie
+  außerhalb des Worktrees geschrieben oder ein Ordner angelegt (Factory-ADR-063 E25).
 - [ ] **F7 – Worktree-Pfad ist kein Verzeichnis** (Wiederverwendungs-Zweig trifft auf eine reguläre
   Datei): Spiegelung entfällt wirkungslos, wie heute (`-d`-Guard).
 - [ ] **F8 – Config nicht lesbar / Gate ausgelassen:** ein ungültiger Eintrag (absolut, `..`) wird
@@ -166,7 +166,5 @@ gespiegelt. Eine Warnung im Output gibt es in allen Fällen außer F1 und F7.
 - [x] Env-Schalter: **`FACTORY_WT_SKIP_COPY`, `FACTORY_WT_SKIP_ENV` als Alias** (entschieden 2026-11-01).
 - [x] Fehlende Unterordner: **innerhalb des Worktrees anlegen** (entschieden 2026-11-01).
 - [x] Eintragsart: **nur einzelne Dateien, keine Verzeichnisse, keine Globs** (entschieden 2026-11-01).
-- [ ] ADR-Trigger? Vermutlich keiner – die Mechanik folgt dem bestehenden Muster aus Factory-ADR-063 Q4.
-  Factory-ADR-063 nennt `start_work.hint` mit der Kopplung an die `.env.local`; die Beschreibung dort
-  ist im selben PR nachzuziehen (Lesson nothra/tch-gastro-services#211). `/architecture` entscheidet,
-  ob ein Nachtrag genügt.
+- [x] ADR-Trigger: **Nachtrag 2026-11-01 zu Factory-ADR-063 (E23–E27)**, kein neues ADR
+  (`/architecture`, 2026-11-01).
