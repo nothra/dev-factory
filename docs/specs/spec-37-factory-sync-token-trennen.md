@@ -84,7 +84,10 @@ sich darauf verlässt, dass ein Release dieses Token nicht erreicht, bevor er de
 - [ ] **AK-37d · Ergebnis identisch zu bisher** GIVEN dasselbe Fixture wie in spec-24 (AK2.2d, F3,
   AK-24a–d) WHEN der Update-Lauf mit der neuen Aufteilung läuft THEN sind Diff des Branches, PR-Body,
   Titel, Labels und die Zahl offener PRs unverändert gegenüber spec-24. *Beleg: die bestehenden
-  Tests aus spec-24 laufen unverändert grün (kein Test abgeschwächt).*
+  Tests aus spec-24 laufen grün; angepasst sind nur Anker an der **Mechanik**, die E18 bewusst ändert (Rückkehr auf
+  `ORIG_REF` entfällt – der Arbeitsbaum wird nicht mehr umgeschaltet, statt der Mutation prüft ein Test, dass HEAD und
+  lokale Branches unberührt bleiben; Push-Ziel `<sha>:refs/heads/…` statt `HEAD:…`; Selbst-Ersatz im Modus `fetch`;
+  Ein-Job-Verdrahtung `wf_wired_24` durch Anker je Job ersetzt – ADR-063 E22e). Kein Verhaltens-Assertion wurde abgeschwächt.*
 
 ### Token im Repository-Secret
 

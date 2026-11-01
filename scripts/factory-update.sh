@@ -175,7 +175,7 @@ fetch_release() {
 
 # Prüfliste des Übergabe-Commits (E18), alle fail-closed. Setzt QUARANTINE_SHA; $WORK/manifest.json ist das frisch geholte Manifest.
 verify_bundle() {
-  local repo="$1" version="$2" base="$3" bundle="$4" meta path mode unexpected
+  local repo="$1" version="$2" base="$3" bundle="$4" meta path mode unexpected findings rc
   [ -f "$bundle" ] || die "Übergabe-Bundle fehlt: $bundle – nichts gepusht"
   git_nohooks bundle verify --quiet "$bundle" >/dev/null 2>&1 || die "Übergabe-Bundle unlesbar oder unvollständig – nichts gepusht"
   git_nohooks fetch --quiet --no-tags "$bundle" HEAD 2>/dev/null || die "Übergabe-Bundle nicht übernehmbar – nichts gepusht"
@@ -187,6 +187,13 @@ verify_bundle() {
 
   fl_fetch_manifest "$repo" "$version" "$WORK/manifest.json" || die "Release-Manifest zu $version nicht abrufbar – nichts gepusht"
   fl_validate_manifest "$WORK/manifest.json" "$repo" "$version" || die "Release-Manifest zu $version ungültig – nichts gepusht"
+  # Wie factory-sync.sh: ein Manifest, das Projektbesitz oder Anpassungsstellen liefert, ist abgelehnt – das Manifest gehört dem Release
+  findings="$(fl_protected_findings "$WORK/manifest.json")"; rc=$?
+  [ "$rc" -eq 0 ] || die "Anpassungsstellen nicht prüfbar (fail-closed) – nichts gepusht"
+  if [ -n "$findings" ]; then
+    printf '%s\n' "$findings" | sed 's/^/✗ /; s/\t/: liefert eine geschützte Stelle (/; s/$/)/' >&2
+    die "Manifest von $version liefert geschützte Stellen (Projektbesitz) – nichts gepusht"
+  fi
   { jq -r '.files[].path' "$LOCK_FILE"; jq -r '.files[].path' "$WORK/manifest.json"; printf '%s\n' "$LOCK_FILE" "${COMPOSED_TARGETS[@]}"; } \
     | LC_ALL=C sort -u > "$WORK/allowed.txt"
 

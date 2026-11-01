@@ -1075,6 +1075,8 @@ wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
     [ "$(wf_idx_37 "$f" "$j" 'install-yq')" -lt "$(wf_idx_37 "$f" "$j" 'factory-update.sh')" ] || return 1
   done
   [ "$(wf_idx_37 "$f" publish 'download-artifact')" -lt "$(wf_idx_37 "$f" publish 'factory-update.sh')" ] || return 1
+  # Re-run all jobs behält run_id: ohne overwrite scheitert der zweite Versuch von fetch am vorhandenen Artefakt
+  [ "$(yq '.jobs.fetch.steps[] | select((.uses // "") | test("upload-artifact")) | .with.overwrite' "$f")" = true ] || return 1
 }
 wf_ok_37 "$WF_24"; assert_exit 0 "$?" "#37 AK-37a/e, F-37.3/4: Workflow je Job verdrahtet (Environment nur preflight/publish, Secret nie in fetch, main-Checkout)"
 # Mutationsbeleg je tragender Zeile: derselbe Prüfer wird rot
@@ -1091,6 +1093,7 @@ mut_wf_37 environment-fehlt-im-publish 'del(.jobs.publish.environment)'
 mut_wf_37 fetch-ohne-lesende-rechte 'del(.jobs.fetch.permissions)'
 mut_wf_37 checkout-nicht-main '.jobs.publish.steps[0].with.ref = "${{ github.head_ref }}"'
 mut_wf_37 publish-ohne-fetch '.jobs.publish.needs = "preflight"'
+mut_wf_37 artefakt-ohne-overwrite 'del(.jobs.fetch.steps[] | select((.uses // "") | test("upload-artifact")) | .with.overwrite)'
 mut_wf_37 noop-pfad-im-environment-job '.jobs.preflight.if = "true"'
 
 # ── Doku-Guards: OPERATING.md §0.6 (AK-37e/g), ADR-063 (AK-37h) ───────────────────────────────────────────────────────
@@ -1130,7 +1133,7 @@ mutant_37() {
 refused_ok_37() { [ "$rc_24" -eq 1 ] && grep -qF -- "$1" <<< "$out_24" && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; }
 pub_37() { # [<update-skript>] [<bundle>] – Modus publish gegen C1; setzt out_24/rc_24
   out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer \
-    FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "${1:-$UPD_24}" publish "${VER_37:-v1.1.0}" "$BASE_37" "${2:-$BUNDLE_37}")"; rc_24=$?
+    FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "${1:-$UPD_24}" publish "${VER_37-v1.1.0}" "$BASE_37" "${2:-$BUNDLE_37}")"; rc_24=$?
 }
 # hostile_37 <welt> <payload-funktion> [token] – wie der CI-Job fetch: frischer Klon eines main, das die Skripte schon trägt (v1.1.0),
 # Modus fetch im Klon (dort ersetzt factory-sync.sh sich selbst), ohne Token – mit dem dritten Argument „token“ als Gegenprobe mit Token.
@@ -1231,6 +1234,25 @@ bundle_37 pc1 "$META_37"; pub_37; meta_ok_37; assert_exit 0 "$?" "#37 AK-37c: Au
 mutant_37 commit 's#"\$sha:refs/heads/\$UPDATE_BRANCH"#"$QUARANTINE_SHA:refs/heads/$UPDATE_BRANCH"#'
 bundle_37 pc2 "$META_37"; pub_37 "$MUT37"; meta_ok_37; assert_exit 1 "$?" "#37 AK-37c (Mutation): wird der Commit aus dem Bundle gepusht, ist derselbe Guard rot"
 
+# Manifest des Release liefert eine geschützte Stelle (Projektbereich tasks/): factory-sync.sh lehnt das ab, publish muss es ebenso tun
+PROT_37='printf x > tasks/x.md && h="$(shasum -a 256 tasks/x.md | cut -c1-64)" && jq --arg h "$h" ".files += [{path: \"tasks/x.md\", sha256: \$h}]" "$R23/v1.1.0/factory-release.json" > "$R23/m.json" && mv "$R23/m.json" "$R23/v1.1.0/factory-release.json" && cp "$R23/v1.1.0/factory-release.json" factory.lock && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit'
+bundle_refused_37 pr1 "$PROT_37" 'geschützte'; assert_exit 0 "$?" "#37 AK-37c: Manifest mit geschützter Stelle (tasks/) → rot, kein Push (wie factory-sync.sh)"
+mutant_37 geschuetzt 's#fl_protected_findings "\$WORK/manifest.json"#printf ""#'
+bundle_refused_37 pr2 "$PROT_37" 'geschützte' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Prüfung geschützter Stellen ist derselbe Guard rot"
+
+# Drift-Guard: die zusammengesetzten Ziele, die publish zulässt, sind genau die von factory-sync.sh geschriebenen
+targets_ok_37() { # $1 = factory-update.sh, $2 = factory-sync.sh
+  local a b
+  a="$(sed -n 's/^COMPOSED_TARGETS=(\(.*\))$/\1/p' "$1" | tr ' ' '\n' | LC_ALL=C sort)"
+  b="$(sed -n 's/^SETTINGS_TARGET="\(.*\)"$/\1/p; s/^GITIGNORE_TARGET="\(.*\)"$/\1/p' "$2" | LC_ALL=C sort)"
+  [ -n "$a" ] && [ "$a" = "$b" ]
+}
+targets_ok_37 "$UPD_24" "$FACTORY_ROOT/scripts/factory-sync.sh"; assert_exit 0 "$?" "#37 E18: COMPOSED_TARGETS in factory-update.sh == SETTINGS_TARGET/GITIGNORE_TARGET in factory-sync.sh"
+sed 's#^COMPOSED_TARGETS=.*#COMPOSED_TARGETS=(.claude/settings.json)#' "$UPD_24" > "$T23/m37-targets-a.sh"
+targets_ok_37 "$T23/m37-targets-a.sh" "$FACTORY_ROOT/scripts/factory-sync.sh"; assert_exit 1 "$?" "#37 E18 (Mutation): fehlt ein Ziel in factory-update.sh, ist der Drift-Guard rot"
+sed 's#^GITIGNORE_TARGET=.*#GITIGNORE_TARGET=".gitignore.neu"#' "$FACTORY_ROOT/scripts/factory-sync.sh" > "$T23/m37-targets-b.sh"
+targets_ok_37 "$UPD_24" "$T23/m37-targets-b.sh"; assert_exit 1 "$?" "#37 E18 (Mutation): ändert factory-sync.sh ein Ziel, ist der Drift-Guard rot"
+
 # ── F-37.1: Übergabe scheitert → rot, kein Push, bestehender PR unverändert ──────────────────────────────────────────
 bundle_37 pu1; pub_37 "" "$W24/gibt-es-nicht.bundle"
 refused_ok_37 'Bundle fehlt'; assert_exit 0 "$?" "#37 F-37.1: kein Bundle (Abholung abgebrochen) → rot, kein Push, kein PR"
@@ -1241,8 +1263,7 @@ refused_ok_37 'unlesbar'; assert_exit 0 "$?" "#37 F-37.1: unlesbares Bundle → 
 world_24 pu2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; upd_24 >/dev/null
 add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0; BASE_37="$(git -C "$ORIGIN_24" rev-parse main)"
 branch_before_24="$(sha_24 "$BR_24")"; prs_before_24="$(cat "$GS_24/prs.json")"; : > "$GS_24/calls.log"
-out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" \
-  bash "$UPD_24" publish v1.2.0 "$BASE_37" "$W24/gibt-es-nicht.bundle")"; rc_24=$?
+VER_37=v1.2.0 pub_37 "" "$W24/gibt-es-nicht.bundle"
 assert_true "$([ "$rc_24" -eq 1 ] && [ "$branch_before_24" = "$(sha_24 "$BR_24")" ] && [ "$prs_before_24" = "$(cat "$GS_24/prs.json")" ] && [ -z "$(writes_24)" ]; echo $?)" "#37 F-37.1: bestehender Update-PR und Branch bleiben bei fehlender Übergabe unverändert"
 # neuere Version seit dem Preflight → publish wirft die Übergabe weg
 bundle_37 ps1; releases_24 v1.0.0 v1.1.0 v1.2.0; pub_37
@@ -1252,12 +1273,10 @@ bundle_37 ps2; releases_24 v1.0.0 v1.1.0 v1.2.0; pub_37 "$MUT37"; refused_ok_37 
 # Übergabeargumente stammen aus Job-Ausgaben: Form wird geprüft, bevor sie an git/curl gehen
 bundle_37 pa1
 for bad_37 in 'v1.1' '--upload-pack=x' ''; do
-  out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" \
-    bash "$UPD_24" publish "$bad_37" "$BASE_37" "$BUNDLE_37")"; rc_24=$?
+  VER_37="$bad_37" pub_37
   assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#37 Übergabe: Version „${bad_37}“ → rot, nichts geschrieben"
 done
-out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" \
-  bash "$UPD_24" publish v1.1.0 "kein-sha" "$BUNDLE_37")"; rc_24=$?
+VER_37=v1.1.0; BASE_37=kein-sha pub_37
 assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'keine Commit-SHA' <<< "$out_24" && [ -z "$(writes_24)" ]; echo $?)" "#37 Übergabe: Basis ohne SHA-Form → rot, nichts geschrieben"
 
 # ── Modus guard (AK-37f, F-37.3) und preflight (F-37.2) ──────────────────────────────────────────────────────────────

@@ -5,6 +5,15 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ## Unreleased
 
+### Geändert
+
+- **Token und Release-Code getrennt (Factory-ADR-063 Nachtrag 2026-10-31, #37):** `factory-update.yml` besteht aus vier Jobs
+  (`guard`, `preflight`, `fetch`, `publish`); das Token liegt nur in `preflight`/`publish` als Secret des Environments
+  `factory-update` (Branch-Regel `main`), der Code des abgeholten Release läuft nur in `fetch` ohne Secret, das Ergebnis
+  wandert als `git bundle` zu `publish`, das es prüft und den Commit neu erzeugt. **Umziehen vor dem Update:** ein bestehendes
+  Repository-Secret `FACTORY_SYNC_TOKEN` ins Environment verschieben und löschen, sonst endet `guard` rot
+  (`docs/factory/OPERATING.md` §0.6).
+
 ## v0.7.0 – 2026-10-31
 
 Erste Version, die ein Konsumenten-Repo selbst abholen und aktuell halten kann (T2a, Epic

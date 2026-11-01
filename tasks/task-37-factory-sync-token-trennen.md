@@ -62,6 +62,11 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
   einrichten, Repository-Secret löschen (OPERATING.md §0.6); Beleg am echten Repo (Test-PR, Secret leer) = Q-37.3 / T2a-4.
   Release-Notes des nächsten Releases: Secret **vor** dem Update umziehen, sonst endet `guard` rot.
 
+- **Review-Iteration 1 (tasks/review-37.md) umgesetzt:** (W1) `verify_bundle` lehnt ein Manifest mit geschützten Stellen ab
+  (`fl_protected_findings`, wie `factory-sync.sh`; Test + Mutation); (W2) `upload-artifact` mit `overwrite: true` (Re-run, Wiring-Anker +
+  Mutation); (W3) Spec AK-37d an die angepassten Mechanik-Anker angeglichen; Nitpicks: Drift-Guard `COMPOSED_TARGETS` ↔ `factory-sync.sh`
+  (beide Richtungen mutiert), `publish`-Aufruf der Argument-Tests über `pub_37`, CHANGELOG-Hinweis unter „Unreleased“.
+
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
 

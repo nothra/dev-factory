@@ -100,6 +100,7 @@ jobs:
           name: factory-update-bundle-${{ github.run_id }}
           path: ${{ runner.temp }}/update.bundle
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   publish:
