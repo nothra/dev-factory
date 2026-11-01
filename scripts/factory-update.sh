@@ -173,9 +173,12 @@ fetch_release() {
   git_nohooks bundle create --quiet "$bundle" "$base..HEAD" || die "Übergabe-Bundle nicht erzeugbar – nichts gepusht"
 }
 
-# Prüfliste des Übergabe-Commits (E18), alle fail-closed. Setzt QUARANTINE_SHA; $WORK/manifest.json ist das frisch geholte Manifest.
-verify_bundle() {
-  local repo="$1" version="$2" base="$3" bundle="$4" meta path mode unexpected findings rc
+# Prüfliste des Übergabe-Commits (E18), alle fail-closed, in vier Schritten. Setzt QUARANTINE_SHA; $WORK/manifest.json ist das
+# frisch geholte Manifest des Release.
+
+# 1. Bundle laden: lesbar, genau ein Commit auf der erwarteten Basis (Quarantäne – nichts davon wird ausgeführt).
+load_bundle() {
+  local base="$1" bundle="$2"
   [ -f "$bundle" ] || die "Übergabe-Bundle fehlt: $bundle – nichts gepusht"
   git_nohooks bundle verify --quiet "$bundle" >/dev/null 2>&1 || die "Übergabe-Bundle unlesbar oder unvollständig – nichts gepusht"
   git_nohooks fetch --quiet --no-tags "$bundle" HEAD 2>/dev/null || die "Übergabe-Bundle nicht übernehmbar – nichts gepusht"
@@ -184,7 +187,11 @@ verify_bundle() {
     || die "origin/$BASE_BRANCH hat sich seit der Abholung bewegt – nichts gepusht, der nächste Lauf baut neu auf"
   [ "$(git rev-list --count "$base..$QUARANTINE_SHA")" = 1 ] && [ "$(git rev-parse "$QUARANTINE_SHA^")" = "$base" ] \
     || die "Übergabe ist nicht genau ein Commit auf origin/$BASE_BRANCH – nichts gepusht"
+}
 
+# 2. Manifest holen und prüfen: gültig, keine geschützten Stellen (wie factory-sync.sh).
+verify_manifest() {
+  local repo="$1" version="$2" findings rc
   fl_fetch_manifest "$repo" "$version" "$WORK/manifest.json" || die "Release-Manifest zu $version nicht abrufbar – nichts gepusht"
   fl_validate_manifest "$WORK/manifest.json" "$repo" "$version" || die "Release-Manifest zu $version ungültig – nichts gepusht"
   # Wie factory-sync.sh: ein Manifest, das Projektbesitz oder Anpassungsstellen liefert, ist abgelehnt – das Manifest gehört dem Release
@@ -194,6 +201,11 @@ verify_bundle() {
     printf '%s\n' "$findings" | sed 's/^/✗ /; s/\t/: liefert eine geschützte Stelle (/; s/$/)/' >&2
     die "Manifest von $version liefert geschützte Stellen (Projektbesitz) – nichts gepusht"
   fi
+}
+
+# 3. Geänderte Pfade: keine Symlinks/Submodule, nur Pfade aus altem Lock, neuem Manifest und zusammengesetzten Zielen.
+verify_changed_paths() {
+  local base="$1" meta path mode unexpected
   { jq -r '.files[].path' "$LOCK_FILE"; jq -r '.files[].path' "$WORK/manifest.json"; printf '%s\n' "$LOCK_FILE" "${COMPOSED_TARGETS[@]}"; } \
     | LC_ALL=C sort -u > "$WORK/allowed.txt"
 
@@ -209,7 +221,11 @@ verify_bundle() {
     printf '%s\n' "$unexpected" | sed 's/^/✗ unerwarteter Pfad: /' >&2
     die "Übergabe ändert Pfade außerhalb von Manifest, altem Lock und zusammengesetzten Dateien – nichts gepusht"
   fi
+}
 
+# 4. Inhalt: factory.lock == Manifest, jede Manifest-Datei hat den Manifest-Hash.
+verify_hashes() {
+  local version="$1" path
   git cat-file blob "$QUARANTINE_SHA:$LOCK_FILE" 2>/dev/null | cmp -s - "$WORK/manifest.json" \
     || die "$LOCK_FILE der Übergabe ist nicht das Manifest von $version – nichts gepusht"
   mkdir -p "$WORK/quarantine"
@@ -221,6 +237,14 @@ verify_bundle() {
   fl_hash_paths "$WORK/quarantine" < "$WORK/manifest-paths.txt" > "$WORK/quarantine.tsv" || die "Hashen der Übergabe fehlgeschlagen – nichts gepusht"
   fl_manifest_tsv "$WORK/manifest.json" > "$WORK/want.tsv"
   [ -z "$(fl_diff_hashes "$WORK/want.tsv" "$WORK/quarantine.tsv")" ] || die "Dateien der Übergabe stimmen nicht mit dem Manifest überein – nichts gepusht"
+}
+
+verify_bundle() {
+  local repo="$1" version="$2" base="$3" bundle="$4"
+  load_bundle "$base" "$bundle"
+  verify_manifest "$repo" "$version"
+  verify_changed_paths "$base"
+  verify_hashes "$version"
 }
 
 # Neuer Commit mit dem geprüften Baum (Autor, Nachricht, Signatur und Header des Release-Codes gelangen nicht in den Branch), per SHA gepusht.
@@ -267,6 +291,15 @@ prepare_with_token() {
   REPO="$(fl_upstream_repo)" || die "Quell-Repo nicht ermittelbar (upstream.repo, fail-closed)"
 }
 
+make_work_dir() { WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"; }
+
+# Keine neuere Version als der Lock (TARGET_VERSION leer) → Hinweis, Exit 0.
+exit_if_current() {
+  [ -z "$TARGET_VERSION" ] || return 0
+  note "keine neuere Version als $LOCK_VERSION in $REPO veröffentlicht – nichts zu tun"
+  exit 0
+}
+
 # Version und Basis stammen aus Job-Ausgaben: Form prüfen, bevor sie an git/curl gehen.
 require_handover_args() { # $1 version, $2 base, $3 bundle
   printf '%s' "$1" | grep -qE "$FL_VERSION_RE" || die "Version muss die Form vX.Y.Z haben: '$1'"
@@ -288,12 +321,9 @@ mode_guard() {
 
 mode_preflight() {
   prepare_with_token
-  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  make_work_dir
   find_newer_releases "$REPO"
-  if [ -z "$TARGET_VERSION" ]; then
-    note "keine neuere Version als $LOCK_VERSION in $REPO veröffentlicht – nichts zu tun"
-    exit 0
-  fi
+  exit_if_current
   fetch_origin
   check_existing_pr
   emit_output version "$TARGET_VERSION"
@@ -309,7 +339,7 @@ mode_fetch() {
 mode_publish() {
   require_handover_args "${1:-}" "${2:-}" "${3:-}"
   prepare_with_token
-  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  make_work_dir
   find_newer_releases "$REPO"
   [ "$TARGET_VERSION" = "$1" ] || die "neueste Version ist inzwischen ${TARGET_VERSION:-keine}, nicht $1 – nichts gepusht, der nächste Lauf baut neu auf"
   fetch_origin
@@ -323,12 +353,9 @@ mode_publish() {
 mode_all() {
   [ "${GITHUB_ACTIONS:-}" != true ] || die "die Kurzform ohne Modus läuft nicht in CI (Token neben Release-Code) – guard|preflight|fetch|publish verwenden"
   prepare_with_token
-  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  make_work_dir
   find_newer_releases "$REPO"
-  if [ -z "$TARGET_VERSION" ]; then
-    note "keine neuere Version als $LOCK_VERSION in $REPO veröffentlicht – nichts zu tun"
-    exit 0
-  fi
+  exit_if_current
   fetch_origin
   check_existing_pr
   require_clean_tree "$ROOT"

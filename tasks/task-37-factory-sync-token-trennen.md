@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -76,6 +76,11 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
   Manifest-Datei fehlt im Bundle, Pfad mit Zeilenumbruch, Origin lehnt Push ab, `fetch` mit unsauberem Arbeitsbaum/unbekannter Basis,
   unbekannter Modus. Bewusst ungetestet (nicht ohne Eingriff in git erzeugbar): `commit-tree`-Fehler, `bundle create`-Fehler,
   `fetch`-aus-Bundle-Fehler nach erfolgreichem `bundle verify`, Hash-Werkzeug-Fehler (`fl_hash_paths`, in #23 gedeckt).
+
+- **/refactor (kein neues Verhalten, Testgruppe vorher/nachher 482 grün):** `verify_bundle` (~60 Zeilen) in `load_bundle`,
+  `verify_manifest`, `verify_changed_paths`, `verify_hashes` aufgeteilt (Prüfzeilen wörtlich unverändert, damit die Mutationsbelege
+  greifen); doppelte Blöcke als `make_work_dir` und `exit_if_current` herausgezogen (drei bzw. zwei Stellen); das `PROT_37`-Fixture ist
+  die Funktion `craft_protected_manifest_37`. Beide Nitpicks aus `tasks/review-37.md` erledigt.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

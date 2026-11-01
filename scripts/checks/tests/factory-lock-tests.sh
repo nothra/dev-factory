@@ -1236,8 +1236,18 @@ bundle_37 pc1 "$META_37"; pub_37; meta_ok_37; assert_exit 0 "$?" "#37 AK-37c: Au
 mutant_37 commit 's#"\$sha:refs/heads/\$UPDATE_BRANCH"#"$QUARANTINE_SHA:refs/heads/$UPDATE_BRANCH"#'
 bundle_37 pc2 "$META_37"; pub_37 "$MUT37"; meta_ok_37; assert_exit 1 "$?" "#37 AK-37c (Mutation): wird der Commit aus dem Bundle gepusht, ist derselbe Guard rot"
 
+# craft_protected_manifest_37 – im Klon: Datei unter tasks/ (Projektbereich) hinzufügen, ins Release-Manifest und in factory.lock
+# aufnehmen (gültiger Hash), Commit ersetzen – ein Release, das die Sperre des Projektbesitzes umgehen will
+craft_protected_manifest_37() {
+  local hash
+  printf x > tasks/x.md
+  hash="$(shasum -a 256 tasks/x.md | cut -c1-64)"
+  jq --arg h "$hash" '.files += [{path: "tasks/x.md", sha256: $h}]' "$R23/v1.1.0/factory-release.json" > "$R23/m.json" \
+    && mv "$R23/m.json" "$R23/v1.1.0/factory-release.json" && cp "$R23/v1.1.0/factory-release.json" factory.lock \
+    && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit
+}
 # Manifest des Release liefert eine geschützte Stelle (Projektbereich tasks/): factory-sync.sh lehnt das ab, publish muss es ebenso tun
-PROT_37='printf x > tasks/x.md && h="$(shasum -a 256 tasks/x.md | cut -c1-64)" && jq --arg h "$h" ".files += [{path: \"tasks/x.md\", sha256: \$h}]" "$R23/v1.1.0/factory-release.json" > "$R23/m.json" && mv "$R23/m.json" "$R23/v1.1.0/factory-release.json" && cp "$R23/v1.1.0/factory-release.json" factory.lock && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit'
+PROT_37=craft_protected_manifest_37
 bundle_refused_37 pr1 "$PROT_37" 'geschützte'; assert_exit 0 "$?" "#37 AK-37c: Manifest mit geschützter Stelle (tasks/) → rot, kein Push (wie factory-sync.sh)"
 mutant_37 geschuetzt 's#fl_protected_findings "\$WORK/manifest.json"#printf ""#'
 bundle_refused_37 pr2 "$PROT_37" 'geschützte' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Prüfung geschützter Stellen ist derselbe Guard rot"
