@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Der Update-Workflow führt Code des noch ungeprüften Release im selben Job aus, in dem danach
@@ -92,6 +92,8 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
 ## Codify-Notizen
 Siehe `tasks/codify-37.md`: vier Learnings (Job-Grenze, Verifier-Parität, Turn-Limit #7, Feindcode-Test) ausgelagert; Issue #41.
 Manuelle Stage-2-Fortsetzung: die OTEL-Telemetrie fehlt für alle Stufen (Lesson zu nothra/tch-gastro-services#346).
+
+PR-Shepherd 2026-11-01: Merge freigegeben – alle Gates grün (CI auf PR #40: 7/7 grün, `CLEAN`, keine Review-Kommentare, Branch aktuell auf `main`). Menschliche Schritte offen: Environment `factory-update` + Secret, Repository-Secret löschen, Beleg am echten Repo (Q-37.3).
 
 ---
 Branch: `improvement/37-factory-sync-token-trennen`
