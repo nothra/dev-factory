@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -81,6 +81,10 @@ Q-37.4 (Umgang mit Bestand), Q-37.5 (Environments je GitHub-Plan), Q-37.6 (Concu
   `verify_manifest`, `verify_changed_paths`, `verify_hashes` aufgeteilt (Prüfzeilen wörtlich unverändert, damit die Mutationsbelege
   greifen); doppelte Blöcke als `make_work_dir` und `exit_if_current` herausgezogen (drei bzw. zwei Stellen); das `PROT_37`-Fixture ist
   die Funktion `craft_protected_manifest_37`. Beide Nitpicks aus `tasks/review-37.md` erledigt.
+
+- **/security-review (`tasks/security-37.md`, PASSED, keine Blocker/Wichtigen):** Token-Fluss, Handover-Eingaben, Bundle-Prüfung und Pfad-Traversal
+  im Token-Job geprüft, ohne Befund. Hinweis: das Runtime-Token des `fetch`-Jobs ist im Folgeschritt `upload-artifact` gegen Release-Code nicht
+  abgeschirmt (Cache-Vergiftung von `main`, nur bei Konsumenten mit Caches, nicht nachgestellt) – verfolgt in Issue #41, nicht Teil von #37.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
