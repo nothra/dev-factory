@@ -522,6 +522,10 @@ assert_exit 1 "$?" "#23 AK2.5b (Mutation): ohne die run:-Zeile wird derselbe Gua
 # ═══ Factory-Issue #24: Update-Workflow und Update-PR (factory-update.sh) ════════════════════════════════════════════
 # Gleiche Welt wie #23 (world_23), dazu ein Bare-Repo als `origin` des Konsumenten und ein gh-Stub im PATH, der
 # Repo-Rechte, Release-Liste und PR-Zustand aus Dateien liefert und jeden Aufruf protokolliert (Factory-ADR-063 E16).
+# In GitHub Actions sind GITHUB_ACTIONS=true und GITHUB_OUTPUT gesetzt: die Kurzform von factory-update.sh verweigert dort den
+# Lauf (#37), und die Modi guard/preflight würden in die Ausgabedatei des echten Jobs schreiben. Tests, die das brauchen, setzen
+# die Variablen je Aufruf selbst (`GITHUB_ACTIONS=true upd_24`, `GITHUB_OUTPUT=…`).
+unset GITHUB_ACTIONS GITHUB_OUTPUT
 echo ""
 echo "Factory-Issue #24: Update-Workflow und Update-PR:"
 
@@ -970,14 +974,13 @@ world_24 o1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
 upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: nach erfolgreichem Lauf steht der Checkout wieder auf main"
 world_24 o2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$GS_24/pr-create-fail"
 upd_24 >/dev/null; back_on_main_24; assert_exit 0 "$?" "#24 Rückkehr: auch nach einem Abbruch im PR-Schritt steht der Checkout wieder auf main"
-# Mutationsbeleg: ohne den Checkout auf ORIG_REF verletzt derselbe Fall den Guard
-RESTORE_LINE_24='git_nohooks checkout --quiet "$ORIG_REF"'
-grep -vF "$RESTORE_LINE_24" "$UPD_24" > "$T23/mut24-restore.sh"
-assert_true "$([ "$(grep -cF "$RESTORE_LINE_24" "$UPD_24")" = 1 ] && ! grep -qF "$RESTORE_LINE_24" "$T23/mut24-restore.sh"; echo $?)" \
-  "#24 Rückkehr (Mutation): genau die Checkout-Zeile auf ORIG_REF ist im Mutanten entfernt"
-factory_scripts_24 "$T23/mut24r" "$T23/mut24-restore.sh"
-world_24 o3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
-upd_24 "$T23/mut24r/scripts/factory-update.sh" >/dev/null; back_on_main_24; assert_exit 1 "$?" "#24 Rückkehr (Mutation): ohne die Zeile ist derselbe Guard rot – die Rückkehr ist wirksam"
+# Seit #37 (Factory-ADR-063 E18) schaltet der Lauf den Arbeitsbaum des Konsumenten gar nicht mehr um: ORIG_REF und die Rückkehr
+# entfallen, der Neuaufbau läuft in einem frischen Klon. Statt der Rückkehr-Mutation gilt: HEAD und Branches von C1 bleiben unberührt.
+untouched_24() { [ "$(git -C "$C1_23" rev-parse HEAD)" = "$1" ] && ! git -C "$C1_23" show-ref -q --verify "refs/heads/$BR_24"; }
+world_24 o3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; head_24="$(git -C "$C1_23" rev-parse HEAD)"
+upd_24 >/dev/null; untouched_24 "$head_24"; assert_exit 0 "$?" "#24 E18: nach erfolgreichem Lauf sind HEAD und lokale Branches des Konsumenten unverändert (kein lokaler $BR_24)"
+world_24 o4; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; head_24="$(git -C "$C1_23" rev-parse HEAD)"; : > "$GS_24/pr-create-fail"
+upd_24 >/dev/null; untouched_24 "$head_24"; assert_exit 0 "$?" "#24 E18: auch nach einem Abbruch im PR-Schritt sind HEAD und lokale Branches unverändert"
 
 # ── Selbst-Ersatz: factory-update.sh läuft aus dem Konsumenten-Checkout, factory-sync.sh überschreibt es im Lauf ─────
 # Bash liest ein Skript stückweise und setzt nach `main` am alten Byte-Offset fort – dann in der neuen Fassung.
@@ -991,14 +994,17 @@ self_replace_24() {
   git -C "$C1_23" add -A && git_23 -C "$C1_23" commit -q -m "adopt v1.1.0" && git -C "$C1_23" push -q origin main
   printf 'echo AUS-NEUER-VERSION-24; exit 7\n' >> "$U23/scripts/factory-update.sh"
   add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
-  out_24="$(upd_24 "$C1_23/scripts/factory-update.sh")"; rc_24=$?
+  # Seit #37 läuft die Abholung im Modus fetch im Checkout des Konsumenten (CI: Job fetch) – dort ersetzt factory-sync.sh die Datei
+  SR_PRE_24="$(cmp -s "$C1_23/scripts/factory-update.sh" "$UPD_24"; echo $?)"
+  BUNDLE_24="$W24/sr.bundle"
+  out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" bash "$C1_23/scripts/factory-update.sh" fetch v1.2.0 "$(git -C "$ORIGIN_24" rev-parse main)" "$BUNDLE_24")"; rc_24=$?
 }
 # Guard: Lauf grün, und keine Zeile der neuen Fassung wurde ausgeführt
 self_replace_safe_24() { [ "$1" -eq 0 ] && ! grep -qF 'AUS-NEUER-VERSION-24' <<< "$2"; }
 self_replace_24 sr1 "$UPD_24"
-assert_true "$(cmp -s "$C1_23/scripts/factory-update.sh" "$UPD_24"; echo $?)" "#24 Selbst-Ersatz (Voraussetzung): C1 führt die übernommene factory-update.sh aus"
+assert_true "$SR_PRE_24" "#24 Selbst-Ersatz (Voraussetzung): C1 führt die übernommene factory-update.sh aus"
 self_replace_safe_24 "$rc_24" "$out_24"; assert_exit 0 "$?" "#24 Selbst-Ersatz: nach main liest bash nichts mehr aus der ersetzten Datei (grün, nichts aus v1.2.0 ausgeführt)"
-assert_true "$([ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#24 Selbst-Ersatz: der Update-PR steht auf v1.2.0 (inkl. neuer factory-update.sh)"
+assert_true "$([ "$(git bundle list-heads "$BUNDLE_24" | wc -l | tr -d ' ')" -ge 1 ]; echo $?)" "#24 Selbst-Ersatz: die Abholung liefert das Bundle (inkl. neuer factory-update.sh)"
 # Mutationsbeleg: steht nach `main "$@"` kein exit auf derselben Zeile, verletzt derselbe Fall den Guard
 END_LINE_24='main "$@"; exit $?'
 sed "s/^main \"\\\$@\"; exit \\\$?\$/main \"\$@\"/" "$UPD_24" > "$T23/mut24-selfreplace.sh"
@@ -1019,7 +1025,7 @@ assert_contains_286 "$cred_24" 'username=x-access-token' "#24 E12: der Helper li
 # ── Verdrahtung: Skript und Workflow ─────────────────────────────────────────────────────────────────────────────────
 upd_src_24="$(cat "$UPD_24")"
 assert_true "$([ "$(grep -cE '(git|git_with_token) .*push ' <<< "$upd_src_24")" = 1 ]; echo $?)" "#24 F1: das Skript hat genau eine Push-Zeile"
-assert_true "$(grep -E '(git|git_with_token) .*push ' <<< "$upd_src_24" | grep -qF '"HEAD:refs/heads/$UPDATE_BRANCH"'; echo $?)" "#24 F1: einziges Push-Ziel ist refs/heads/\$UPDATE_BRANCH"
+assert_true "$(grep -E '(git|git_with_token) .*push ' <<< "$upd_src_24" | grep -qF '"$sha:refs/heads/$UPDATE_BRANCH"'; echo $?)" "#24 F1: einziges Push-Ziel ist refs/heads/\$UPDATE_BRANCH"
 assert_true "$(grep -qxF 'UPDATE_BRANCH="chore/factory-update"' <<< "$upd_src_24"; echo $?)" "#24 F1: UPDATE_BRANCH ist fest chore/factory-update"
 assert_absent "$upd_src_24" 'pr merge' "#24 AK2.4: das Skript ruft nie gh pr merge"
 assert_absent "$upd_src_24" '--auto' "#24 AK2.4: das Skript aktiviert kein Auto-Merge"
@@ -1033,18 +1039,358 @@ assert_true "$(grep -qE '^  workflow_dispatch:' <<< "$wf_24"; echo $?)" "#24 AK2
 assert_true "$(grep -qxF '  group: factory-update' <<< "$wf_24" && grep -qxF '  cancel-in-progress: false' <<< "$wf_24"; echo $?)" "#24 E10: concurrency factory-update, ohne Cancel"
 assert_true "$(grep -qxF 'permissions:' <<< "$wf_24" && grep -qxF '  contents: read' <<< "$wf_24"; echo $?)" "#24 E10: GITHUB_TOKEN nur contents: read"
 assert_true "$(grep -qxF '          fetch-depth: 0' <<< "$wf_24" && grep -qxF '          persist-credentials: false' <<< "$wf_24"; echo $?)" "#24 E10: Checkout mit fetch-depth 0 und ohne gespeicherte Anmeldung"
-# Reihenfolge: yq bereitstellen vor der echten run:-Zeile, Token aus dem Secret als Env
-wf_wired_24() {
-  local y r
-  y="$(grep -nF 'run: sudo bash scripts/install-yq.sh' <<< "$1" | head -1 | cut -d: -f1)"
-  r="$(grep -nxF '        run: bash scripts/factory-update.sh' <<< "$1" | head -1 | cut -d: -f1)"
-  [ -n "$y" ] && [ -n "$r" ] && [ "$y" -lt "$r" ] && grep -qxF '          FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}' <<< "$1"
-}
-wf_wired_24 "$wf_24"; assert_exit 0 "$?" "#24 AK2.4: yq, dann factory-update.sh mit FACTORY_SYNC_TOKEN aus dem Secret (echte Zeilen)"
-wf_wired_24 "$(grep -vF 'FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}' <<< "$wf_24")"
-assert_exit 1 "$?" "#24 AK2.4 (Mutation): ohne die Token-Zeile wird derselbe Guard rot"
 assert_absent "$wf_24" 'GITHUB_TOKEN' "#24 AK2.4: factory-update.yml reicht GITHUB_TOKEN nicht weiter"
 assert_absent "$wf_24" 'pr merge' "#24 AK2.4: factory-update.yml merged nie"
+
+# ═══ Factory-Issue #37: Token und Release-Code trennen (Factory-ADR-063, Nachtrag 2026-10-31 E17–E22) ═════════════════════
+echo ""
+echo "Factory-Issue #37: Token und Release-Code trennen:"
+
+# ── Verdrahtung: je Job, wo das Token verfügbar ist (AK-37a/e, F-37.3, F-37.4) ──────────────────────────────────────────
+wf_job_37() { yq -o=json ".jobs.$2" "$1"; }
+# Ausgabe erst fangen, dann prüfen: `yq … | grep -q` ist unter pipefail ein SIGPIPE-Race (lokal grün, sonst gelegentlich rot)
+wf_has_line_37() { local out; out="$(yq "$2" "$1")"; grep -qxF -- "$3" <<< "$out"; }
+wf_idx_37() { yq ".jobs.$2.steps | to_entries | .[] | select((.value.uses // .value.run // \"\") | test(\"$3\")) | .key" "$1" | head -1; }
+wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
+  local f="$1" j
+  [ "$(yq -o=json -I=0 '.jobs | keys' "$f")" = '["guard","preflight","fetch","publish"]' ] || return 1
+  for j in guard fetch; do [ -z "$(yq ".jobs.$j.environment // \"\"" "$f")" ] || return 1; done
+  for j in preflight publish; do [ "$(yq ".jobs.$j.environment" "$f")" = factory-update ] || return 1; done
+  [ "$(grep -c 'secrets\.FACTORY_SYNC_TOKEN' "$f")" = 3 ] || return 1
+  [ "$(wf_job_37 "$f" guard | grep -c 'FACTORY_SYNC_TOKEN_REPO_SECRET": ".*secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
+  local fetch_job; fetch_job="$(wf_job_37 "$f" fetch)"; ! grep -q 'secrets\.' <<< "$fetch_job" || return 1
+  [ "$(wf_job_37 "$f" preflight | grep -c 'secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
+  [ "$(wf_job_37 "$f" publish | grep -c 'secrets\.FACTORY_SYNC_TOKEN')" = 1 ] || return 1
+  [ "$(yq -o=json -I=0 '.jobs.preflight.needs' "$f")" = '"guard"' ] || return 1
+  [ "$(yq -o=json -I=0 '.jobs.fetch.needs' "$f")" = '"preflight"' ] || return 1
+  [ "$(yq -o=json -I=0 '.jobs.publish.needs' "$f")" = '["preflight","fetch"]' ] || return 1
+  [ "$(yq '.jobs.preflight.if' "$f")" = "needs.guard.outputs.lock == 'true'" ] || return 1
+  [ "$(yq '.jobs.fetch.if' "$f")" = "needs.preflight.outputs.version != ''" ] || return 1
+  for j in guard preflight fetch publish; do
+    [ "$(yq ".jobs.$j.permissions.contents" "$f")" = read ] || return 1
+    [ "$(yq ".jobs.$j.steps[0].with.ref" "$f")" = '${{ github.event.repository.default_branch }}' ] || return 1
+    [ "$(yq ".jobs.$j.steps[0].with.persist-credentials" "$f")" = false ] || return 1
+  done
+  wf_has_line_37 "$f" '.jobs.guard.steps[].run' 'bash scripts/factory-update.sh guard' || return 1
+  wf_has_line_37 "$f" '.jobs.preflight.steps[].run' 'bash scripts/factory-update.sh preflight' || return 1
+  wf_has_line_37 "$f" '.jobs.fetch.steps[].run' 'bash scripts/factory-update.sh fetch "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/update.bundle"' || return 1
+  wf_has_line_37 "$f" '.jobs.publish.steps[].run' 'bash scripts/factory-update.sh publish "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/bundle/update.bundle"' || return 1
+  for j in preflight fetch publish; do
+    [ "$(wf_idx_37 "$f" "$j" 'install-yq')" -lt "$(wf_idx_37 "$f" "$j" 'factory-update.sh')" ] || return 1
+  done
+  [ "$(wf_idx_37 "$f" publish 'download-artifact')" -lt "$(wf_idx_37 "$f" publish 'factory-update.sh')" ] || return 1
+  # Re-run all jobs behält run_id: ohne overwrite scheitert der zweite Versuch von fetch am vorhandenen Artefakt
+  [ "$(yq '.jobs.fetch.steps[] | select((.uses // "") | test("upload-artifact")) | .with.overwrite' "$f")" = true ] || return 1
+}
+wf_ok_37 "$WF_24"; assert_exit 0 "$?" "#37 AK-37a/e, F-37.3/4: Workflow je Job verdrahtet (Environment nur preflight/publish, Secret nie in fetch, main-Checkout)"
+# Mutationsbeleg je tragender Zeile: derselbe Prüfer wird rot
+mut_wf_37() { # $1 = Name, $2 = yq-Ausdruck
+  cp "$WF_24" "$T23/mut37-$1.yml"; yq -i "$2" "$T23/mut37-$1.yml"
+  assert_true "$(cmp -s "$WF_24" "$T23/mut37-$1.yml"; [ $? -ne 0 ]; echo $?)" "#37 Mutation $1: der Mutant unterscheidet sich vom Workflow (Voraussetzung)"
+  wf_ok_37 "$T23/mut37-$1.yml"; assert_exit 1 "$?" "#37 AK-37 (Mutation): $1 → derselbe Prüfer ist rot"
+}
+mut_wf_37 secret-im-fetch '.jobs.fetch.env.FACTORY_SYNC_TOKEN = "${{ secrets.FACTORY_SYNC_TOKEN }}"'
+mut_wf_37 secret-im-fetch-schritt '.jobs.fetch.steps[1].env.X = "${{ secrets.FACTORY_SYNC_TOKEN }}"'
+mut_wf_37 environment-im-fetch '.jobs.fetch.environment = "factory-update"'
+mut_wf_37 environment-im-guard '.jobs.guard.environment = "factory-update"'
+mut_wf_37 environment-fehlt-im-publish 'del(.jobs.publish.environment)'
+mut_wf_37 fetch-ohne-lesende-rechte 'del(.jobs.fetch.permissions)'
+mut_wf_37 checkout-nicht-main '.jobs.publish.steps[0].with.ref = "${{ github.head_ref }}"'
+mut_wf_37 publish-ohne-fetch '.jobs.publish.needs = "preflight"'
+mut_wf_37 artefakt-ohne-overwrite 'del(.jobs.fetch.steps[] | select((.uses // "") | test("upload-artifact")) | .with.overwrite)'
+mut_wf_37 noop-pfad-im-environment-job '.jobs.preflight.if = "true"'
+
+# ── Doku-Guards: OPERATING.md §0.6 (AK-37e/g), ADR-063 (AK-37h) ───────────────────────────────────────────────────────
+# Fließtext auf eine Zeile (Zeilenumbrüche der Prosa dürfen die Anker nicht lautlos brechen)
+flat_37() { tr '\n' ' ' < "$1" | tr -s ' '; }
+ops_ok_37() { # $1 = geglätteter Text von OPERATING.md
+  local p
+  for p in 'Environment `factory-update`' 'Deployment branches and tags' 'Regel **`main`**' '**Kein** gleichnamiges Repository-Secret' \
+           'Bestand umziehen' 'das Repository-Secret gleichen Namens **löschen**' '**Test-Lauf:**' '`workflow_dispatch` **auf `main`**' 'keine geschützten Stellen im Manifest'; do
+    grep -qF -- "$p" <<< "$1" || return 1
+  done
+  ! grep -qF -- 'als Repository-Secret **`FACTORY_SYNC_TOKEN`** hinterlegen' <<< "$1"
+}
+adr_ok_37() { # $1 = geglätteter Text von ADR-063
+  local p
+  for p in '**Restrisiko (ehrlich):**' 'Status: Accepted (2026-11-01' 'Ersetzt durch #37' 'Nachtrag 2026-10-31, E17/E20' \
+           'Release selbst ist bösartig' 'Environment-Konfiguration' 'keine geschützten Stellen im Manifest'; do
+    grep -qF -- "$p" <<< "$1" || return 1
+  done
+  ! grep -qF -- 'Status: Proposed, wird mit der Umsetzung' <<< "$1"
+}
+ops_37="$(flat_37 "$FACTORY_ROOT/docs/factory/OPERATING.md")"; adr_37="$(flat_37 "$FACTORY_ROOT/docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md")"
+ops_ok_37 "$ops_37"; assert_exit 0 "$?" "#37 AK-37e/g: OPERATING.md §0.6 beschreibt Environment, Branch-Regel main, Umzug des Bestands, Test-Lauf – und nicht mehr „als Repository-Secret“"
+ops_ok_37 "${ops_37//keine geschützten Stellen im Manifest/}"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne „keine geschützten Stellen im Manifest“ in OPERATING.md ist derselbe Guard rot"
+ops_ok_37 "${ops_37//Bestand umziehen/}"; assert_exit 1 "$?" "#37 AK-37g (Mutation): ohne den Abschnitt „Bestand umziehen“ ist derselbe Guard rot"
+ops_ok_37 "$ops_37 Im Konsumenten-Repo als Repository-Secret **\`FACTORY_SYNC_TOKEN\`** hinterlegen"; assert_exit 1 "$?" "#37 AK-37e (Mutation): die alte Anweisung „als Repository-Secret hinterlegen“ macht den Guard rot"
+adr_ok_37 "$adr_37"; assert_exit 0 "$?" "#37 AK-37h: ADR-063 nennt Restrisiko, Status Accepted und verweist in E4/E12 auf die neue Aufteilung"
+adr_ok_37 "${adr_37//keine geschützten Stellen im Manifest/}"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne „keine geschützten Stellen im Manifest“ in ADR-063 E18 ist derselbe Guard rot"
+adr_ok_37 "${adr_37//Restrisiko (ehrlich)/}"; assert_exit 1 "$?" "#37 AK-37h (Mutation): ohne den Abschnitt „Restrisiko (ehrlich)“ ist derselbe Guard rot"
+
+# ── Hilfen für die Verhaltenstests ───────────────────────────────────────────────────────────────────────────────────
+# mutant_37 <name> <sed-ausdruck> – Mutante von factory-update.sh samt Umgebung; setzt MUT37 (Pfad); fail-closed, wenn der Ausdruck nichts ändert
+mutant_37() {
+  sed -E "$2" "$UPD_24" > "$T23/m37-$1.sh"
+  [ "$(diff "$UPD_24" "$T23/m37-$1.sh" | grep -c '^<')" -ge 1 ] || { echo "mutant_37: '$1' ändert nichts – Ausdruck anpassen (fail-closed)" >&2; exit 2; }
+  factory_scripts_24 "$T23/m37-$1" "$T23/m37-$1.sh"; MUT37="$T23/m37-$1/scripts/factory-update.sh"
+}
+# refused_ok_37 <meldung> – rot (Exit 1), Meldung enthalten, kein Push, kein schreibender gh-Aufruf
+refused_ok_37() { [ "$rc_24" -eq 1 ] && grep -qF -- "$1" <<< "$out_24" && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; }
+pub_37() { # [<update-skript>] [<bundle>] – Modus publish gegen C1; setzt out_24/rc_24
+  out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer \
+    FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "${1:-$UPD_24}" publish "${VER_37-v1.1.0}" "$BASE_37" "${2:-$BUNDLE_37}")"; rc_24=$?
+}
+# hostile_37 <welt> <payload-funktion> [token] – wie der CI-Job fetch: frischer Klon eines main, das die Skripte schon trägt (v1.1.0),
+# Modus fetch im Klon (dort ersetzt factory-sync.sh sich selbst), ohne Token – mit dem dritten Argument „token“ als Gegenprobe mit Token.
+# Das Release v1.2.0 hat in factory-sync.sh nach dem Neustart (--compose --check) die Nutzlast; Prüfung und Push dann per publish in C1.
+# MARKER_37 protokolliert in MARKLOG_37 jeden Aufruf samt Token. Setzt out_24/rc_24 (von publish), FETCH_RC_37, BASE_37, BUNDLE_37, VER_37.
+hostile_37() {
+  world_24 "$1"
+  MARKLOG_37="$W24/marker.log"; MARKER_37="$W24/marker.sh"; : > "$MARKLOG_37"
+  printf '#!/bin/sh\necho "RAN FST=${FACTORY_SYNC_TOKEN:-} GH=${GH_TOKEN:-} $*" >> "%s"\nexit 0\n' "$MARKLOG_37" > "$MARKER_37"; chmod +x "$MARKER_37"
+  factory_scripts_24 "$U23" "$UPD_24"
+  add_release_24 v1.1.0
+  sync_23 "$C1_23" v1.1.0 >/dev/null
+  git -C "$C1_23" add -A && git_23 -C "$C1_23" commit -q -m "adopt v1.1.0" && git -C "$C1_23" push -q origin main
+  { echo; "$2"; } >> "$U23/scripts/factory-sync.sh"
+  add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0
+  VER_37=v1.2.0; BASE_37="$(git -C "$ORIGIN_24" rev-parse main)"; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"
+  if [ "${3:-}" = token ]; then
+    env_23 "$CL_37" env FACTORY_SYNC_TOKEN="$GOOD_TOKEN_24" bash "$CL_37/scripts/factory-update.sh" fetch "$VER_37" "$BASE_37" "$BUNDLE_37" >/dev/null
+  else
+    env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN bash "$CL_37/scripts/factory-update.sh" fetch "$VER_37" "$BASE_37" "$BUNDLE_37" >/dev/null
+  fi
+  FETCH_RC_37=$?
+  pub_37 "${4:-}"
+}
+payload_config_37() { cat <<EOF
+git -C "\$FACTORY_DIR" config core.fsmonitor "$MARKER_37"
+git -C "\$FACTORY_DIR" config filter.evil.clean "$MARKER_37 filter; cat"
+printf '* filter=evil\n' >> "\$FACTORY_DIR/.git/info/attributes"
+mkdir -p "\$FACTORY_DIR/.git/hooks"
+for h in pre-commit commit-msg pre-push post-commit reference-transaction; do printf '#!/bin/sh\n"$MARKER_37" hook-%s\nexit 0\n' "\$h" > "\$FACTORY_DIR/.git/hooks/\$h"; chmod +x "\$FACTORY_DIR/.git/hooks/\$h"; done
+git -C "\$FACTORY_DIR" config core.hooksPath "\$FACTORY_DIR/.git/hooks"
+true
+EOF
+}
+payload_foreign_37() { printf '%s\n' 'printf evil > "$FACTORY_DIR/EVIL.txt"'; }
+payload_symlink_37() { printf '%s\n' 'rm -f "$FACTORY_DIR/scripts/tool.sh"; ln -s /etc/hosts "$FACTORY_DIR/scripts/tool.sh"'; }
+payload_tamper_37() { printf '%s\n' 'printf "echo boese\n" >> "$FACTORY_DIR/scripts/tool.sh"'; }
+no_token_marker_37() { ! grep -qE 'FST=[^ ]|GH=[^ ]' "$MARKLOG_37"; }
+
+# ── AK-37b: Git-Konfiguration, Hooks und .git/info des Release erreichen das Token nie ────────────────────────────────
+hostile_37 hc1 payload_config_37
+assert_true "$([ "$FETCH_RC_37" -eq 0 ] && [ "$rc_24" -eq 0 ] && [ "$(lock_on_branch_24)" = v1.2.0 ]; echo $?)" "#37 AK-37b/d: Release mit böser Git-Konfiguration/Hooks/Filter → der Update-PR entsteht trotzdem"
+assert_true "$([ -s "$MARKLOG_37" ]; echo $?)" "#37 AK-37b (Voraussetzung): der Marker-Befehl des Release lief in der Abholung (Nutzlast wurde ausgeführt)"
+assert_true "$(no_token_marker_37; echo $?)" "#37 AK-37b: kein Marker-Befehl (fsmonitor, Filter, Hooks) sah je ein Token – weder in der Abholung noch in publish"
+assert_true "$([ "$(git -C "$ORIGIN_24" log -1 --format='%an|%ae|%s' "refs/heads/$BR_24")" = 'factory-update|factory-update@localhost|chore: factory auf v1.2.0 heben' ]; echo $?)" "#37 AK-37b: der Commit auf dem Branch trägt feste Identität und Nachricht"
+tree_37="$(git -C "$ORIGIN_24" ls-tree -r --name-only "refs/heads/$BR_24")"
+assert_true "$(grep -qE 'EVIL|\.git/' <<< "$tree_37"; [ $? -ne 0 ]; echo $?)" "#37 AK-37b: nichts aus .git/ des Klons gelangt in den Branch"
+# Gegenprobe: lief die Abholung mit Token (ein Job für beides), sähe derselbe Marker-Befehl es – die Trennung ist es, die schützt
+hostile_37 hc2 payload_config_37 token
+assert_exit 1 "$(no_token_marker_37; echo $?)" "#37 AK-37b (Gegenprobe): mit Token in der Abholung sieht der Marker-Befehl des Release das Token – die Trennung ist wirksam"
+assert_true "$(grep -qF "FST=$GOOD_TOKEN_24" "$MARKLOG_37"; echo $?)" "#37 AK-37b (Gegenprobe): der Marker lief tatsächlich mit dem Token"
+
+# ── AK-37c: Übergabe als Daten, Prüfung vor dem Push ─────────────────────────────────────────────────────────────────
+hostile_refused_37() { hostile_37 "$1" "$2" "" "${4:-}"; refused_ok_37 "$3"; }
+hostile_refused_37 hf1 payload_foreign_37 'unerwarteter Pfad'; assert_exit 0 "$?" "#37 AK-37c: Datei außerhalb der Übernahme-Liste → rot, kein Push, kein PR"
+assert_contains_286 "$out_24" 'EVIL.txt' "#37 AK-37c: die Meldung nennt den unerwarteten Pfad"
+mutant_37 pfad 's#comm -23 - "\$WORK/allowed.txt"#cat >/dev/null#'
+hostile_refused_37 hf2 payload_foreign_37 'unerwarteter Pfad' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Pfadprüfung ist derselbe Guard rot"
+hostile_refused_37 hs1 payload_symlink_37 'Symlink oder Submodul'; assert_exit 0 "$?" "#37 AK-37c: Symlink an erlaubtem Pfad → rot, kein Push"
+mutant_37 symlink 's#\[\[ ! "\$mode" =~ \$BUNDLE_MODE_FORBIDDEN_RE \]\]#true#'
+hostile_refused_37 hs2 payload_symlink_37 'Symlink oder Submodul' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Modusprüfung ist derselbe Guard rot"
+hostile_refused_37 ht1 payload_tamper_37 'stimmen nicht mit dem Manifest'; assert_exit 0 "$?" "#37 AK-37c: veränderte Manifest-Datei → rot, kein Push"
+mutant_37 hash 's#\[ -z "\$\(fl_diff_hashes "\$WORK/want.tsv" "\$WORK/quarantine.tsv"\)" \]#true#'
+hostile_refused_37 ht2 payload_tamper_37 'stimmen nicht mit dem Manifest' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Hash-Prüfung ist derselbe Guard rot"
+
+# Von Hand gebaute Bundles gegen den Modus publish (Token-Seite): Übergabe-Commit verfälscht
+# bundle_37 <welt> [<snippet>] – legitimes Bundle (Modus fetch im frischen Klon, ohne Token), danach <snippet> im Klon und neu gebündelt
+bundle_37() {
+  world_24 "$1"; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; VER_37=v1.1.0
+  BASE_37="$(git -C "$ORIGIN_24" rev-parse main)"; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"
+  env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN bash "$UPD_24" fetch v1.1.0 "$BASE_37" "$BUNDLE_37" >/dev/null
+  if [ -n "${2:-}" ]; then
+    ( cd "$CL_37" && eval "$2" ) >/dev/null 2>&1 || { echo "bundle_37: Snippet fehlgeschlagen: $2" >&2; exit 2; }
+    rm -f "$BUNDLE_37"; git -C "$CL_37" bundle create -q "$BUNDLE_37" "$BASE_37..HEAD"
+  fi
+}
+bundle_refused_37() { bundle_37 "$1" "$2"; pub_37 "${4:-}"; refused_ok_37 "$3"; } # <welt> <snippet> <meldung> [<skript>]
+bundle_37 pb0; pub_37
+assert_true "$([ "$rc_24" -eq 0 ] && [ "$(lock_on_branch_24)" = v1.1.0 ] && [ "$(open_prs_24)" = 1 ]; echo $?)" "#37 AK-37d (Voraussetzung): legitimes Bundle → publish pusht und legt den PR an"
+LOCKBAD_37='jq ".version=\"v9.9.9\"" factory.lock > x && mv x factory.lock && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit'
+bundle_refused_37 pb1 "$LOCKBAD_37" 'nicht das Manifest'; assert_exit 0 "$?" "#37 AK-37c: factory.lock der Übergabe ≠ frisch geholtes Manifest → rot, kein Push"
+mutant_37 lock 's#cmp -s - "\$WORK/manifest.json"#cat >/dev/null#'
+bundle_refused_37 pb2 "$LOCKBAD_37" 'nicht das Manifest' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Lock-Vergleich ist derselbe Guard rot"
+TWO_37='git -c user.email=t@x -c user.name=t commit -q --allow-empty -m zweiter'
+bundle_refused_37 pb3 "$TWO_37" 'nicht genau ein Commit'; assert_exit 0 "$?" "#37 AK-37c: zwei Commits in der Übergabe → rot, kein Push"
+mutant_37 anzahl 's#\[ "\$\(git rev-list --count "\$base..\$QUARANTINE_SHA"\)" = 1 \]#true#; s#\[ "\$\(git rev-parse "\$QUARANTINE_SHA\^"\)" = "\$base" \]#true#'
+bundle_refused_37 pb4 "$TWO_37" 'nicht genau ein Commit' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Commit-/Elternteil-Prüfung ist derselbe Guard rot"
+moved_37() { bundle_37 "$1"; git_23 -C "$C1_23" commit -q --allow-empty -m weiter && git -C "$C1_23" push -q origin main; pub_37 "${2:-}"; refused_ok_37 'bewegt'; }
+moved_37 pm1; assert_exit 0 "$?" "#37 AK-37c: main bewegt sich zwischen Abholung und Prüfung → rot, kein Push (der nächste Lauf baut neu auf)"
+mutant_37 bewegt 's#\[ "\$\(git rev-parse -q --verify "refs/remotes/origin/\$BASE_BRANCH"\)" = "\$base" \]#true#'
+moved_37 pm2 "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Prüfung der Basis ist derselbe Guard rot"
+# Autor, Nachricht und Header des Release-Codes gelangen nicht in den Branch (commit-tree mit fester Identität)
+META_37='git -c user.email=evil@x -c user.name=Boese commit -q --amend --no-edit --author="Boese <evil@x>" -m "boese Nachricht"'
+meta_ok_37() { [ "$rc_24" -eq 0 ] && [ "$(git -C "$ORIGIN_24" log -1 --format='%an|%s' "refs/heads/$BR_24")" = 'factory-update|chore: factory auf v1.1.0 heben' ]; }
+bundle_37 pc1 "$META_37"; pub_37; meta_ok_37; assert_exit 0 "$?" "#37 AK-37c: Autor und Nachricht der Übergabe werden verworfen (neuer Commit mit fester Identität)"
+mutant_37 commit 's#"\$sha:refs/heads/\$UPDATE_BRANCH"#"$QUARANTINE_SHA:refs/heads/$UPDATE_BRANCH"#'
+bundle_37 pc2 "$META_37"; pub_37 "$MUT37"; meta_ok_37; assert_exit 1 "$?" "#37 AK-37c (Mutation): wird der Commit aus dem Bundle gepusht, ist derselbe Guard rot"
+
+# craft_protected_manifest_37 – im Klon: Datei unter tasks/ (Projektbereich) hinzufügen, ins Release-Manifest und in factory.lock
+# aufnehmen (gültiger Hash), Commit ersetzen – ein Release, das die Sperre des Projektbesitzes umgehen will
+craft_protected_manifest_37() {
+  local hash
+  printf x > tasks/x.md
+  hash="$(shasum -a 256 tasks/x.md | cut -c1-64)"
+  jq --arg h "$hash" '.files += [{path: "tasks/x.md", sha256: $h}]' "$R23/v1.1.0/factory-release.json" > "$R23/m.json" \
+    && mv "$R23/m.json" "$R23/v1.1.0/factory-release.json" && cp "$R23/v1.1.0/factory-release.json" factory.lock \
+    && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit
+}
+# Manifest des Release liefert eine geschützte Stelle (Projektbereich tasks/): factory-sync.sh lehnt das ab, publish muss es ebenso tun
+PROT_37=craft_protected_manifest_37
+bundle_refused_37 pr1 "$PROT_37" 'geschützte'; assert_exit 0 "$?" "#37 AK-37c: Manifest mit geschützter Stelle (tasks/) → rot, kein Push (wie factory-sync.sh)"
+mutant_37 geschuetzt 's#fl_protected_findings "\$WORK/manifest.json"#printf ""#'
+bundle_refused_37 pr2 "$PROT_37" 'geschützte' "$MUT37"; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Prüfung geschützter Stellen ist derselbe Guard rot"
+
+# Drift-Guard: die zusammengesetzten Ziele, die publish zulässt, sind genau die von factory-sync.sh geschriebenen
+targets_ok_37() { # $1 = factory-update.sh, $2 = factory-sync.sh
+  local a b
+  a="$(sed -n 's/^COMPOSED_TARGETS=(\(.*\))$/\1/p' "$1" | tr ' ' '\n' | LC_ALL=C sort)"
+  b="$(sed -n 's/^SETTINGS_TARGET="\(.*\)"$/\1/p; s/^GITIGNORE_TARGET="\(.*\)"$/\1/p' "$2" | LC_ALL=C sort)"
+  [ -n "$a" ] && [ "$a" = "$b" ]
+}
+targets_ok_37 "$UPD_24" "$FACTORY_ROOT/scripts/factory-sync.sh"; assert_exit 0 "$?" "#37 E18: COMPOSED_TARGETS in factory-update.sh == SETTINGS_TARGET/GITIGNORE_TARGET in factory-sync.sh"
+sed 's#^COMPOSED_TARGETS=.*#COMPOSED_TARGETS=(.claude/settings.json)#' "$UPD_24" > "$T23/m37-targets-a.sh"
+targets_ok_37 "$T23/m37-targets-a.sh" "$FACTORY_ROOT/scripts/factory-sync.sh"; assert_exit 1 "$?" "#37 E18 (Mutation): fehlt ein Ziel in factory-update.sh, ist der Drift-Guard rot"
+sed 's#^GITIGNORE_TARGET=.*#GITIGNORE_TARGET=".gitignore.neu"#' "$FACTORY_ROOT/scripts/factory-sync.sh" > "$T23/m37-targets-b.sh"
+targets_ok_37 "$UPD_24" "$T23/m37-targets-b.sh"; assert_exit 1 "$?" "#37 E18 (Mutation): ändert factory-sync.sh ein Ziel, ist der Drift-Guard rot"
+
+# ── /test: Fail-closed-Zweige von fetch/publish, die Mutationsläufe als ungetestet gezeigt haben ─────────────────────────
+# mutdie_37 <name> <anfang-der-meldung> – Mutante: das `|| die "<anfang>…` wird zu `|| true "<anfang>…` (der Zweig läuft weiter statt zu enden)
+mutdie_37() { mutant_37 "$1" "s#\|\| die \"$2#|| true \"$2#"; }
+# Jeder Fall: rot mit zweigspezifischer Meldung, kein Push, kein schreibender gh-Aufruf (bzw. kein Bundle bei fetch)
+sc_handover_37() { bundle_37 "$1"; BUNDLE_37=''; pub_37 "${2:-}" ''; refused_ok_37 'Pfad des Übergabe-Bundles fehlt'; }
+sc_manifest_gone_37() { bundle_37 "$1"; rm -f "$R23/v1.1.0/factory-release.json"; pub_37 "${2:-}"; refused_ok_37 'nicht abrufbar'; }
+sc_manifest_bad_37() { bundle_37 "$1"; printf '{' > "$R23/v1.1.0/factory-release.json"; pub_37 "${2:-}"; refused_ok_37 'ungültig'; }
+sc_nocp_37() { # Liste der Anpassungsstellen fehlt → Schutzprüfung nicht möglich → fail-closed (nicht „keine Funde“)
+  local s="${2:-}"
+  bundle_37 "$1"
+  if [ -z "$s" ]; then factory_scripts_24 "$W24/nocp" "$UPD_24"; s="$W24/nocp/scripts/factory-update.sh"; fi
+  rm -f "$(dirname "$s")/checks/customization-points.txt"; pub_37 "$s"; refused_ok_37 'nicht prüfbar'
+}
+sc_missing_file_37() { bundle_37 "$1" 'git rm -q scripts/tool.sh && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit'; pub_37 "${2:-}"; refused_ok_37 'fehlt in der Übergabe'; }
+sc_newline_37() {
+  bundle_37 "$1" "$(printf '%s' "touch \"\$(printf 'zeile\\numbruch')\" && git add -A && git -c user.email=t@x -c user.name=t commit -q --amend --no-edit")"
+  pub_37 "${2:-}"; refused_ok_37 'Zeilenumbruch'
+}
+sc_push_rejected_37() { # Origin lehnt den Push ab (z. B. Branch-Schutz) → rot, PR nie angelegt
+  bundle_37 "$1"; mkdir -p "$ORIGIN_24/hooks"; printf '#!/bin/sh\nexit 1\n' > "$ORIGIN_24/hooks/pre-receive"; chmod +x "$ORIGIN_24/hooks/pre-receive"
+  pub_37 "${2:-}"; refused_ok_37 'abgelehnt'
+}
+sc_dirty_fetch_37() { # Modus fetch in einem Checkout mit unversionierter Datei → rot, kein Bundle
+  world_24 "$1"; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"; : > "$CL_37/unfertig.txt"
+  out_24="$(env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN bash "${2:-$UPD_24}" fetch v1.1.0 "$(git -C "$ORIGIN_24" rev-parse main)" "$BUNDLE_37")"; rc_24=$?
+  [ "$rc_24" -eq 1 ] && grep -qF 'Arbeitsbaum nicht sauber' <<< "$out_24" && [ ! -e "$BUNDLE_37" ]
+}
+sc_base_missing_37() { # Basis-Commit existiert im Checkout nicht → rot, kein Bundle
+  world_24 "$1"; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; CL_37="$W24/clone37"; BUNDLE_37="$W24/u.bundle"
+  git clone -q "$C1_23" "$CL_37"
+  out_24="$(env_23 "$CL_37" env -u FACTORY_SYNC_TOKEN bash "${2:-$UPD_24}" fetch v1.1.0 "$(printf '0%.0s' $(seq 40))" "$BUNDLE_37")"; rc_24=$?
+  [ "$rc_24" -eq 1 ] && grep -qF 'nicht auscheckbar' <<< "$out_24" && [ ! -e "$BUNDLE_37" ]
+}
+cov_37() { # <fall> <meldungsanfang> <beschreibung> – Fall grün, Mutante (die → weiter) rot
+  local fn="sc_$1_37"
+  "$fn" "cv-$1-a"; assert_exit 0 "$?" "#37 /test: $3 → rot, zweigspezifische Meldung, nichts gepusht"
+  mutdie_37 "cv-$1" "$2"
+  "$fn" "cv-$1-b" "$MUT37"; assert_exit 1 "$?" "#37 /test (Mutation): ohne dieses die ist derselbe Fall nicht mehr rot – der Zweig ist wirksam"
+}
+cov_37 handover 'Pfad des Übergabe-Bundles' 'leerer Bundle-Pfad (Modus publish)'
+cov_37 manifest_gone 'Release-Manifest zu \$version nicht abrufbar' 'Release-Manifest nicht abrufbar'
+cov_37 manifest_bad 'Release-Manifest zu \$version ungültig' 'Release-Manifest ungültig'
+cov_37 nocp 'Anpassungsstellen nicht prüfbar' 'Liste der Anpassungsstellen fehlt (kein „keine Funde“)'
+cov_37 missing_file 'Manifest-Datei fehlt in der Übergabe' 'Manifest-Datei fehlt im Bundle'
+cov_37 push_rejected 'Push auf \$UPDATE_BRANCH abgelehnt' 'Origin lehnt den Push ab'
+cov_37 dirty_fetch 'Arbeitsbaum nicht sauber' 'Modus fetch mit unsauberem Arbeitsbaum'
+cov_37 base_missing 'Basis \$base nicht auscheckbar' 'Modus fetch mit unbekannter Basis'
+# Zeilenumbruch im Pfad: das case-Muster endet nicht auf `|| die`, eigene Mutante
+sc_newline_37 nl-a; assert_exit 0 "$?" "#37 /test: Pfad mit Zeilenumbruch in der Übergabe → rot, zweigspezifische Meldung, nichts gepusht"
+mutant_37 nl 's#\) die "Übergabe enthält einen Pfad#) true "Übergabe enthält einen Pfad#'
+sc_newline_37 nl-b "$MUT37"; assert_exit 1 "$?" "#37 /test (Mutation): ohne dieses die ist derselbe Fall nicht mehr rot"
+# Unbekannter Modus
+out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" bash "$UPD_24" frobnicate)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'unbekannter Modus' <<< "$out_24"; echo $?)" "#37 /test: unbekannter Modus → rot mit Meldung"
+
+# ── F-37.1: Übergabe scheitert → rot, kein Push, bestehender PR unverändert ──────────────────────────────────────────
+bundle_37 pu1; pub_37 "" "$W24/gibt-es-nicht.bundle"
+refused_ok_37 'Bundle fehlt'; assert_exit 0 "$?" "#37 F-37.1: kein Bundle (Abholung abgebrochen) → rot, kein Push, kein PR"
+mutant_37 vorhanden 's#\[ -f "\$bundle" \]#true#'
+pub_37 "$MUT37" "$W24/gibt-es-nicht.bundle"; refused_ok_37 'Bundle fehlt'; assert_exit 1 "$?" "#37 F-37.1 (Mutation): ohne Existenzprüfung ist derselbe Guard rot"
+printf 'kein bundle\n' > "$W24/kaputt.bundle"; pub_37 "" "$W24/kaputt.bundle"
+refused_ok_37 'unlesbar'; assert_exit 0 "$?" "#37 F-37.1: unlesbares Bundle → rot, kein Push, kein PR"
+world_24 pu2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; upd_24 >/dev/null
+add_release_24 v1.2.0; releases_24 v1.0.0 v1.1.0 v1.2.0; BASE_37="$(git -C "$ORIGIN_24" rev-parse main)"
+branch_before_24="$(sha_24 "$BR_24")"; prs_before_24="$(cat "$GS_24/prs.json")"; : > "$GS_24/calls.log"
+VER_37=v1.2.0 pub_37 "" "$W24/gibt-es-nicht.bundle"
+assert_true "$([ "$rc_24" -eq 1 ] && [ "$branch_before_24" = "$(sha_24 "$BR_24")" ] && [ "$prs_before_24" = "$(cat "$GS_24/prs.json")" ] && [ -z "$(writes_24)" ]; echo $?)" "#37 F-37.1: bestehender Update-PR und Branch bleiben bei fehlender Übergabe unverändert"
+# neuere Version seit dem Preflight → publish wirft die Übergabe weg
+bundle_37 ps1; releases_24 v1.0.0 v1.1.0 v1.2.0; pub_37
+refused_ok_37 'inzwischen'; assert_exit 0 "$?" "#37 AK-37c: neuere Version seit dem Preflight → rot, kein Push (der nächste Lauf baut neu auf)"
+mutant_37 aktuell 's#\[ "\$TARGET_VERSION" = "\$1" \]#true#'
+bundle_37 ps2; releases_24 v1.0.0 v1.1.0 v1.2.0; pub_37 "$MUT37"; refused_ok_37 'inzwischen'; assert_exit 1 "$?" "#37 AK-37c (Mutation): ohne Versionsvergleich ist derselbe Guard rot"
+# Übergabeargumente stammen aus Job-Ausgaben: Form wird geprüft, bevor sie an git/curl gehen
+bundle_37 pa1
+for bad_37 in 'v1.1' '--upload-pack=x' ''; do
+  VER_37="$bad_37" pub_37
+  assert_true "$([ "$rc_24" -eq 1 ] && [ -z "$(sha_24 "$BR_24")" ] && [ -z "$(writes_24)" ]; echo $?)" "#37 Übergabe: Version „${bad_37}“ → rot, nichts geschrieben"
+done
+VER_37=v1.1.0; BASE_37=kein-sha pub_37
+assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'keine Commit-SHA' <<< "$out_24" && [ -z "$(writes_24)" ]; echo $?)" "#37 Übergabe: Basis ohne SHA-Form → rot, nichts geschrieben"
+
+# ── Modus guard (AK-37f, F-37.3) und preflight (F-37.2) ──────────────────────────────────────────────────────────────
+guard_37() { # <wurzel> [<skript>] – Modus guard ohne FACTORY_SYNC_TOKEN, Repository-Secret aus REPOSEC_37; setzt out_24/rc_24
+  out_24="$(env_23 "$1" env -u FACTORY_SYNC_TOKEN PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN=x "FACTORY_SYNC_TOKEN_REPO_SECRET=${REPOSEC_37-}" \
+    GITHUB_OUTPUT="$W24/gh-output" bash "${2:-$UPD_24}" guard)"; rc_24=$?
+}
+world_24 gd1; : > "$W24/gh-output"; REPOSEC_37=''; guard_37 "$C1_23"
+assert_true "$([ "$rc_24" -eq 0 ] && grep -qxF 'lock=true' "$W24/gh-output"; echo $?)" "#37 guard: Lock vorhanden, kein Repository-Secret → grün, Ausgabe lock=true"
+assert_true "$([ ! -s "$GS_24/calls.log" ]; echo $?)" "#37 guard: braucht weder Token noch gh (kein Aufruf)"
+REPOSEC_37='altes-secret'; guard_37 "$C1_23"
+assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'Repository-Secret' <<< "$out_24" && grep -qF 'OPERATING.md §0.6' <<< "$out_24"; echo $?)" "#37 AK-37f: Repository-Secret FACTORY_SYNC_TOKEN vorhanden → rot mit Verweis auf OPERATING.md §0.6"
+mutant_37 wachter 's#\[ -z "\$\{FACTORY_SYNC_TOKEN_REPO_SECRET:-\}" \]#true#'
+guard_37 "$C1_23" "$MUT37"
+assert_exit 0 "$rc_24" "#37 AK-37f (Mutation): ohne Wächter bleibt der Lauf mit Repository-Secret grün – der Wächter ist wirksam"
+world_24 gd2; : > "$W24/gh-output"; REPOSEC_37='altes-secret'; guard_37 "$C0_23"
+assert_true "$([ "$rc_24" -eq 0 ] && grep -qF 'kein factory.lock' <<< "$out_24" && grep -qxF 'lock=false' "$W24/gh-output" && [ ! -s "$GS_24/calls.log" ]; echo $?)" "#37 F-37.3: ohne Lock grüner No-op (lock=false), auch mit Repository-Secret, ohne gh-Aufruf"
+# Kurzform in CI verweigert (Token neben Release-Code)
+world_24 ci1; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+out_24="$(GITHUB_ACTIONS=true upd_24)"; rc_24=$?
+assert_true "$([ "$rc_24" -eq 1 ] && grep -qF 'nicht in CI' <<< "$out_24" && [ ! -s "$GS_24/calls.log" ]; echo $?)" "#37 E20: die Kurzform verweigert den Lauf in CI, vor jedem gh-Aufruf"
+mutant_37 ci 's#\[ "\$\{GITHUB_ACTIONS:-\}" != true \]#true#'
+world_24 ci2; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0
+out_24="$(GITHUB_ACTIONS=true upd_24 "$MUT37")"; rc_24=$?
+assert_exit 0 "$rc_24" "#37 E20 (Mutation): ohne die Prüfung läuft die Kurzform in CI – die Verweigerung ist wirksam"
+# preflight: Token fehlt im Kontext → FS-T2.3 unverändert, Meldung nennt den Kontext (F-37.2)
+pre_37() { # [<token>] – Modus preflight; setzt out_24/rc_24
+  out_24="$(env_23 "$C1_23" env PATH="$GH_STUB_24:$PATH" GH_STUB_STATE="$GS_24" GH_STUB_TOKEN="$GOOD_TOKEN_24" GITHUB_REPOSITORY=acme/consumer GITHUB_OUTPUT="$W24/gh-output" \
+    FACTORY_SYNC_TOKEN="${1-$GOOD_TOKEN_24}" bash "$UPD_24" preflight)"; rc_24=$?
+}
+world_24 pf1; : > "$W24/gh-output"; pre_37 ''
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 0 "$?" "#37 F-37.2: Token im Kontext leer → rot vor jedem weiteren Schritt (FS-T2.3)"
+assert_contains_286 "$out_24" 'Environment factory-update' "#37 F-37.2: die Meldung nennt den Kontext (Environment factory-update) als mögliche Ursache"
+world_24 pf2; : > "$W24/gh-output"; pre_37 abgelaufen
+token_refused_24 "$rc_24" "$out_24" "$GS_24/calls.log"; assert_exit 0 "$?" "#37 F-37.2: Token abgelehnt → rot, Release-Liste nie gelesen"
+assert_contains_286 "$out_24" 'Environment factory-update' "#37 F-37.2: auch bei abgelehntem Token nennt die Meldung den Kontext"
+world_24 pf3; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; : > "$W24/gh-output"; pre_37
+assert_true "$([ "$rc_24" -eq 0 ] && grep -qxF 'version=v1.1.0' "$W24/gh-output" && grep -qxF "base_sha=$(sha_24 main)" "$W24/gh-output" && [ -z "$(writes_24)" ] && [ -z "$(sha_24 "$BR_24")" ]; echo $?)" "#37 preflight: neue Version → Ausgabe version/base_sha, kein Push, kein schreibender Aufruf"
+world_24 pf4; : > "$W24/gh-output"; pre_37
+assert_true "$([ "$rc_24" -eq 0 ] && ! grep -q '^version=' "$W24/gh-output"; echo $?)" "#37 preflight: keine neuere Version → grün ohne Ausgabe version (Folge-Jobs entfallen)"
+world_24 pf5; add_release_24 v1.1.0; releases_24 v1.0.0 v1.1.0; upd_24 >/dev/null; : > "$W24/gh-output"; pre_37
+assert_true "$([ "$rc_24" -eq 0 ] && ! grep -q '^version=' "$W24/gh-output"; echo $?)" "#37 preflight: Update-PR steht schon auf der Version → grün ohne Ausgabe version"
 
 rm -rf "$T23"
 fi
