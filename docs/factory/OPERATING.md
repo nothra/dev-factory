@@ -159,19 +159,42 @@ Ohne `factory.lock` (z. B. im Factory-Repo selbst) ist der Lauf ein grüner No-o
    sich sonst nicht pushen); *Metadata: read* setzt GitHub selbst. Das öffentliche Quell-Repo liest der
    Token ohne eigenes Recht.
 4. *Expiration:* höchstens **1 Jahr**; Ablaufdatum im Team-Kalender notieren.
-5. Im Konsumenten-Repo als Repository-Secret **`FACTORY_SYNC_TOKEN`** hinterlegen
-   (*Settings* → *Secrets and variables* → *Actions*).
+5. Im Konsumenten-Repo das **Environment `factory-update`** anlegen (*Settings* → *Environments* → *New environment*):
+   *Deployment branches and tags* → *Selected branches and tags* → Regel **`main`**; keine Pflicht-Reviewer (der Lauf ist
+   täglich und unbeaufsichtigt). Darin unter *Environment secrets* das Secret **`FACTORY_SYNC_TOKEN`** hinterlegen.
+   **Kein** gleichnamiges Repository-Secret anlegen: jeder `pull_request`-Workflow des Update-PRs sähe es und ließe sich
+   von einer Release-Version, die eine Workflow-Datei ändert, auslesen. Das Environment-Secret sieht nur ein Job mit diesem
+   Environment auf `main` – PR-Workflows auf `chore/factory-update` nicht (Factory-ADR-063, Nachtrag 2026-10-31 E17–E19).
+   Voraussetzung: Environments mit Branch-Regel – für private Repos plan-abhängig, **vor der Einbindung prüfen**; wo sie
+   fehlen, bleibt nur die manuelle Abholung (`factory-sync.sh`), ein Ersatz per Organisations-Secret wäre für PR-Workflows
+   weiter sichtbar.
+
+**Bestand umziehen (Repo mit Secret aus der Zeit vor dieser Aufteilung):** Wert im Environment `factory-update` als Secret
+`FACTORY_SYNC_TOKEN` anlegen, danach das Repository-Secret gleichen Namens **löschen**. Solange es existiert, endet der Job
+`guard` rot (gewollt) – das Update läuft dann nicht. Ein Environment-Secret überstimmt das Repository-Secret nur im
+Environment-Job; PR-Workflows sähen das Repository-Secret weiter.
+
+**Test-Lauf:** nach der Einrichtung `workflow_dispatch` **auf `main`** auslösen (von einem anderen Branch lehnt das
+Environment den Lauf ab); der Lauf muss grün sein. Ob GitHub die Branch-Regel wie beschrieben durchsetzt, belegt einmal ein
+Test-PR am echten Repo, dessen Workflow `${{ secrets.FACTORY_SYNC_TOKEN }}` ausgibt: erwartet wird ein leerer (maskierter) Wert.
+
+**Aufbau des Workflows:** vier Jobs. `guard` (ohne Environment) prüft Lock und Repository-Secret, `preflight` und `publish`
+(Environment `factory-update`) tragen das Token und führen nur Code aus `main` aus, `fetch` (ohne Secret) holt die neue Version
+ab – nur dort läuft Code des noch ungeprüften Release – und übergibt das Ergebnis als `git bundle`. `publish` prüft es
+(ein Commit auf `main`, keine Symlinks, nur erwartete Pfade, `factory.lock` = Manifest, Datei-Hashes) und erzeugt den Commit
+neu. Restrisiko: ein bösartiges Release, das der Mensch im Update-PR nicht bemerkt – siehe Factory-ADR-063, Nachtrag 2026-10-31.
 
 **Warum ein PAT und nicht `GITHUB_TOKEN`:** Pushes und PRs mit dem eingebauten Token lösen keine
 `pull_request`-Workflows aus – die Gates am Update-PR liefen nie. Der eingebaute Token bleibt im
 Workflow auf `contents: read`; das Skript liest ihn nie.
 
-**Ablauf und Rotation:** Vor dem Ablauf einen neuen Token mit denselben Rechten anlegen, das Secret
-überschreiben und den alten Token löschen. Danach einmal `workflow_dispatch` auslösen: der Lauf muss grün
-sein.
+**Ablauf und Rotation:** Vor dem Ablauf einen neuen Token mit denselben Rechten anlegen, das Secret im
+Environment `factory-update` überschreiben und den alten Token löschen. Danach einmal `workflow_dispatch` auf `main`
+auslösen: der Lauf muss grün sein.
 
 **Symptom „Lauf rot: Token"** – Meldung `FACTORY_SYNC_TOKEN fehlt …`, `… wird abgelehnt …` oder
-`… hat kein Schreibrecht …`: Secret fehlt, Token abgelaufen bzw. widerrufen oder Rechte zu knapp. Das
+`… hat kein Schreibrecht …`: Secret fehlt (oder liegt im falschen Kontext – als Repository-Secret statt im Environment
+`factory-update`, oder der Lauf kam nicht von `main`), Token abgelaufen bzw. widerrufen oder Rechte zu knapp. Das
 Skript prüft das Token bei vorhandenem Lock **bei jedem Lauf zuerst**, auch ohne neue Version – ein
 abgelaufener Token fällt am nächsten Tag auf, nicht erst beim nächsten Release. Die Rechteprüfung liest
 `permissions.push` des Repos; ob GitHub dort die Rechte eines Fine-grained-Tokens oder die Rolle seines

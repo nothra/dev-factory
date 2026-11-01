@@ -1,4 +1,4 @@
-# Development Factory – Update-Workflow (Factory-ADR-063, Nachtrag 2026-10-30 E10–E16).
+# Development Factory – Update-Workflow (Factory-ADR-063, Nachtrag 2026-10-30 E10–E16, Nachtrag 2026-10-31 E17–E22).
 #
 # Täglich und per `workflow_dispatch`: erkennt eine neuere Factory-Version im Quell-Repo (`upstream.repo`),
 # holt sie über `scripts/factory-sync.sh` ab und pflegt genau einen Update-PR auf dem Branch
@@ -6,10 +6,16 @@
 # `scripts/factory-update.sh` (offline getestet). Er merged nie und aktiviert kein Auto-Merge;
 # über den PR entscheiden die Gates des Projekts und der Mensch.
 #
-# Ohne `factory.lock` (z. B. im Factory-Repo selbst) ist der Lauf ein grüner No-op ohne Token.
+# Vier Jobs, Token und Release-Code nie im selben Job (Spec #37):
+#   guard      ohne Environment: kein Lock → grüner No-op; Repository-Secret FACTORY_SYNC_TOKEN → rot
+#   preflight  Environment factory-update (Token): Prüfungen, Version und Basis für die Folge-Jobs
+#   fetch      ohne Environment, ohne Secret: hier läuft der Code des noch ungeprüften Release; Ergebnis nur als Bundle
+#   publish    Environment factory-update (Token): prüft das Bundle, pusht, pflegt den PR; führt keinen Release-Code aus
+# Alle Jobs checken den Standard-Branch aus – die Workflow-Fassung und die Skripte stammen nie aus dem Ergebnis von fetch.
 #
-# Einrichtung (einmalig, je Konsumenten-Repo): Fine-grained PAT als Repository-Secret
-# FACTORY_SYNC_TOKEN – Rechte, Laufzeit und Rotation: docs/factory/OPERATING.md §0.6.
+# Einrichtung (einmalig, je Konsumenten-Repo): Environment `factory-update` mit Deployment-Branch-Regel `main` und darin das
+# Secret FACTORY_SYNC_TOKEN (Fine-grained PAT) – bewusst KEIN Repository-Secret, damit pull_request-Workflows des Update-PRs
+# es nicht sehen. Rechte, Laufzeit, Rotation und Umzug: docs/factory/OPERATING.md §0.6.
 # Alle Schreibzugriffe laufen über diesen PAT; der eingebaute Token des Laufs bleibt lesend
 # (permissions unten), weil Pushes mit ihm keine pull_request-Workflows auslösen würden.
 
@@ -23,24 +29,100 @@ on:
 permissions:
   contents: read
 
-# Höchstens ein Lauf gleichzeitig; ein laufender wird nicht abgebrochen (er pusht ggf. gerade).
+# Höchstens ein Lauf gleichzeitig (deckt alle Jobs); ein laufender wird nicht abgebrochen (er pusht ggf. gerade).
 concurrency:
   group: factory-update
   cancel-in-progress: false
 
 jobs:
-  factory-update:
+  guard:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      lock: ${{ steps.guard.outputs.lock }}
     steps:
-      # Voller Verlauf für den Neuaufbau von origin/main; keine gespeicherte Anmeldung in .git/config –
-      # der Push meldet sich zur Laufzeit über einen Credential-Helper mit dem PAT an (E12).
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Lock und Repository-Secret prüfen
+        id: guard
+        env:
+          FACTORY_SYNC_TOKEN_REPO_SECRET: ${{ secrets.FACTORY_SYNC_TOKEN }}
+        run: bash scripts/factory-update.sh guard
+
+  preflight:
+    needs: guard
+    if: needs.guard.outputs.lock == 'true'
+    runs-on: ubuntu-latest
+    environment: factory-update
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.preflight.outputs.version }}
+      base_sha: ${{ steps.preflight.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
       - name: yq bereitstellen
         run: sudo bash scripts/install-yq.sh
-      - name: Neue Factory-Version als Update-PR anbieten
+      - name: Neue Version und Stand von Branch und PR prüfen
+        id: preflight
         env:
           FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}
-        run: bash scripts/factory-update.sh
+        run: bash scripts/factory-update.sh preflight
+
+  fetch:
+    needs: preflight
+    if: needs.preflight.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - name: Neue Factory-Version abholen
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+        run: bash scripts/factory-update.sh fetch "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/update.bundle"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: factory-update-bundle-${{ github.run_id }}
+          path: ${{ runner.temp }}/update.bundle
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [preflight, fetch]
+    runs-on: ubuntu-latest
+    environment: factory-update
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: factory-update-bundle-${{ github.run_id }}
+          path: ${{ runner.temp }}/bundle
+      - name: Übergabe prüfen und als Update-PR anbieten
+        env:
+          FACTORY_SYNC_TOKEN: ${{ secrets.FACTORY_SYNC_TOKEN }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+        run: bash scripts/factory-update.sh publish "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/bundle/update.bundle"

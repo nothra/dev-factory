@@ -2,21 +2,31 @@
 # factory-update.sh – pflegt den Update-PR eines Konsumenten-Repos auf die neueste Factory-Version
 #
 # Verwendung (in CI über .github/workflows/factory-update.yml, lokal nur für Tests):
+#   factory-update.sh guard                              Job „guard“ (ohne Environment): kein Lock → No-op; Repository-Secret → rot
+#   factory-update.sh preflight                          Job „preflight“ (Token): Prüfungen, Ausgabe version/base_sha
+#   factory-update.sh fetch   <version> <base> <bundle>  Job „fetch“ (ohne Token): Release-Code läuft, Ergebnis = Bundle
+#   factory-update.sh publish <version> <base> <bundle>  Job „publish“ (Token): Bundle prüfen, pushen, PR pflegen
 #   FACTORY_SYNC_TOKEN=<pat> GITHUB_REPOSITORY=<owner>/<repo> bash scripts/factory-update.sh
+#                                                        Kurzform (nur Tests/lokal, in CI verweigert): alle Schritte hintereinander
 #
-# Ablauf (Factory-ADR-063, Nachtrag 2026-10-30 E11 – die Reihenfolge ist Teil der Entscheidung):
+# Ablauf (Factory-ADR-063, Nachtrag 2026-10-30 E11, ergänzt um Nachtrag 2026-10-31 E17–E22):
 #   1. kein factory.lock (Factory-Repo selbst) → Hinweis, Exit 0, ohne Token und Netz; Lock ungültig → Exit 1
 #   2. FACTORY_SYNC_TOKEN leer, abgelehnt oder ohne Schreibrecht → Exit 1, vor jedem weiteren Schritt
 #   3. neueste veröffentlichte Version im Quell-Repo (kein Draft/Pre-Release, SemVer-Tag, Asset factory-release.json);
 #      Release-Liste nicht lesbar → Exit 1; keine neuere als der Lock → Hinweis, Exit 0
 #   4. offener Update-PR steht schon auf dieser Version, oder ein ohne Merge geschlossener PR trug sie → Hinweis, Exit 0
-#   5. Branch chore/factory-update von origin/main neu aufbauen, factory-sync.sh <version>, ein Commit, Push mit Lease
+#   5. Abholung (`fetch`): factory-sync.sh <version> in einem Checkout von origin/main OHNE Token, ein Commit, Übergabe
+#      ausschließlich als `git bundle`; Prüfung (`publish`): ein Commit auf origin/main, keine Symlinks/Submodule, nur erwartete
+#      Pfade, factory.lock == frisch geholtes Manifest, Hashes der Manifest-Dateien; der Commit wird mit dem geprüften Baum
+#      NEU erzeugt (commit-tree) und per SHA gepusht (Lease)
 #   6. offenen PR bearbeiten bzw. neuen anlegen (Label enhancement, kein Draft) – nie mergen, nie Auto-Merge
 #
-# Anmeldung: alle gh-Aufrufe laufen mit GH_TOKEN=$FACTORY_SYNC_TOKEN; der eingebaute Actions-Token wird nie gelesen
-# (Pushes mit ihm lösten keine pull_request-Workflows aus, AK2.4). Der Push meldet sich über einen Credential-Helper an,
-# der das Token zur Laufzeit aus der Umgebung ausgibt – es steht weder in argv noch in .git/config (E12). Git-Hooks
-# laufen bei keinem ref-schreibenden git-Aufruf (Checkout, Fetch, Commit, Push).
+# Token-Grenze (E17): Code des noch ungeprüften Release läuft nur in `fetch` – ohne Token in Job, Umgebung und Runner;
+# `preflight`/`publish` tragen das Token und führen nur Code aus `main` aus. In der Kurzform läuft `fetch` als eigener Prozess
+# ohne Token-Variablen in einem frischen Klon. Anmeldung: alle gh-Aufrufe mit GH_TOKEN=$FACTORY_SYNC_TOKEN; der eingebaute
+# Actions-Token wird nie gelesen (Pushes mit ihm lösten keine pull_request-Workflows aus, AK2.4). Der Push meldet sich über einen
+# Credential-Helper an, der das Token zur Laufzeit aus der Umgebung ausgibt – es steht weder in argv noch in .git/config (E12).
+# Git-Hooks laufen bei keinem ref-schreibenden git-Aufruf.
 #
 # Projektwurzel: FACTORY_DIR (Tests/Override), sonst eine Ebene über scripts/. Fail-closed: jedes Werkzeug oder jede
 # Antwort, die scheitert, beendet den Lauf mit Exit 1, bevor etwas gepusht wird.
@@ -24,6 +34,7 @@
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
 ROOT="${FACTORY_DIR:-$(cd "$SELF_DIR/.." && pwd)}"
 FACTORY_DIR="$ROOT"
 SYNC="$SELF_DIR/factory-sync.sh"
@@ -36,20 +47,26 @@ COMMIT_IDENTITY=(-c user.name=factory-update -c user.email=factory-update@localh
 # Gibt auf `get` Benutzer und Token aus der Umgebung aus; der Wert selbst steht nirgends.
 CREDENTIAL_HELPER='!f() { [ "$1" = get ] || return 0; printf "username=x-access-token\npassword=%s\n" "$FACTORY_SYNC_TOKEN"; }; f'
 
+# Pfade, die der Neuaufbau außer den Manifest-Dateien ändern darf: die von factory-sync.sh zusammengesetzten Ziele.
+COMPOSED_TARGETS=(.claude/settings.json .gitignore)
+BUNDLE_MODE_FORBIDDEN_RE='^(120000|160000)$'  # Symlink, Submodul
+
 WORK=""
-ORIG_REF=""  # Checkout vor dem Neuaufbau; wird am Ende wiederhergestellt, damit ein Folgelauf den Lock von dort liest
 
 die() { printf '✗ factory-update: %s\n' "$1" >&2; exit 1; }
 note() { printf 'ℹ factory-update: %s\n' "$1"; }
 
-cleanup() {
-  [ -z "$ORIG_REF" ] || git_nohooks checkout --quiet "$ORIG_REF" || echo "⚠ factory-update: Rückkehr auf $ORIG_REF fehlgeschlagen" >&2
-  [ -z "$WORK" ] || rm -rf "$WORK"
+cleanup() { [ -z "$WORK" ] || rm -rf "$WORK"; }
+
+# Ausgabe für nachfolgende Jobs (GitHub Actions); ohne $GITHUB_OUTPUT (Tests, lokal) nur auf stdout.
+emit_output() {
+  printf '%s=%s\n' "$1" "$2"
+  [ -z "${GITHUB_OUTPUT:-}" ] || printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
 }
 
 gh_token() { GH_TOKEN="$FACTORY_SYNC_TOKEN" gh "$@"; }
-# Ohne Hooks: nach der Abholung rufen die installierten Hooks Skripte des ungeprüften Release auf, mit dem Token in der
-# Umgebung – und ein rotes Gate im pre-push brächte genau den Push zu Fall, den F1 als Update-PR vorsieht.
+# Ohne Hooks: die installierten Hooks rufen Skripte des Konsumenten auf (mit dem Token in der Umgebung), und ein rotes
+# Gate im pre-push brächte genau den Push zu Fall, den F1 als Update-PR vorsieht.
 git_nohooks() { git -c core.hooksPath=/dev/null "$@"; }
 git_with_token() { git_nohooks -c credential.helper= -c "credential.helper=$CREDENTIAL_HELPER" "$@"; }
 
@@ -65,7 +82,7 @@ read_lock_version() {
 # ─── 2. Token ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 require_token() {
-  local hint="Token anlegen bzw. erneuern: docs/factory/OPERATING.md §0.6"
+  local hint="Token anlegen bzw. erneuern: Secret im Environment factory-update (Lauf auf main), nicht als Repository-Secret – docs/factory/OPERATING.md §0.6"
   [ -n "${FACTORY_SYNC_TOKEN:-}" ] || die "FACTORY_SYNC_TOKEN fehlt oder ist leer. $hint"
   printf '%s' "${GITHUB_REPOSITORY:-}" | grep -qE "$FL_SLUG_RE" || die "GITHUB_REPOSITORY ist kein <owner>/<repo>-Slug: '${GITHUB_REPOSITORY:-}'"
   local can_push
@@ -139,19 +156,72 @@ check_existing_pr() {
   fi
 }
 
-# ─── 5. Neuaufbau ────────────────────────────────────────────────────────────────────────────────────────────────────
+# ─── 5. Abholung (ohne Token) und Prüfung (mit Token, ohne Release-Code) ──────────────────────────────────────────────
 
-rebuild_branch() {
-  [ -z "$(git status --porcelain)" ] || die "Arbeitsbaum nicht sauber – kein Neuaufbau (fail-closed)"
-  ORIG_REF="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)" || die "aktueller Checkout nicht ermittelbar"
-  git_nohooks checkout --quiet -B "$UPDATE_BRANCH" "origin/$BASE_BRANCH" || die "Branch $UPDATE_BRANCH nicht von origin/$BASE_BRANCH aufbaubar"
-  # Ohne Token: factory-sync.sh ersetzt sich beim Abholen selbst und startet in der neuen Fassung aus dem Release neu –
-  # Code eines noch ungeprüften Tags soll das schreibberechtigte PAT nicht versehentlich erben (E12; Push und gh laufen
-  # erst danach). Das ist keine Grenze gegen bösartigen Release-Code im selben Job – Restrisiko und Ausbau: Issue #37.
-  env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$ROOT" bash "$SYNC" "$TARGET_VERSION" || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
-  git add -A && git_nohooks "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $TARGET_VERSION heben" \
+require_clean_tree() { [ -z "$(git -C "$1" status --porcelain)" ] || die "Arbeitsbaum nicht sauber – kein Neuaufbau (fail-closed)"; }
+
+# fetch <version> <base_sha> <bundle>: hier – und nur hier – läuft Release-Code (factory-sync.sh ersetzt sich beim Abholen
+# selbst und startet in der neuen Fassung aus dem Release neu). Der Aufrufer sorgt dafür, dass kein Token in der Umgebung steht.
+# Ergebnis ausschließlich als Bundle eines Commits auf <base_sha>.
+fetch_release() {
+  local version="$1" base="$2" bundle="$3"
+  require_clean_tree "$ROOT"
+  git_nohooks checkout --quiet --detach "$base" || die "Basis $base nicht auscheckbar (fail-closed)"
+  FACTORY_DIR="$ROOT" bash "$SYNC" "$version" || die "Abholung von $version gescheitert (Meldung oben) – nichts gepusht"
+  git add -A && git_nohooks "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $version heben" \
     || die "Commit fehlgeschlagen – nichts gepusht"
-  git_with_token push --quiet --force-with-lease="refs/heads/$UPDATE_BRANCH:$BRANCH_SHA" origin "HEAD:refs/heads/$UPDATE_BRANCH" \
+  git_nohooks bundle create --quiet "$bundle" "$base..HEAD" || die "Übergabe-Bundle nicht erzeugbar – nichts gepusht"
+}
+
+# Prüfliste des Übergabe-Commits (E18), alle fail-closed. Setzt QUARANTINE_SHA; $WORK/manifest.json ist das frisch geholte Manifest.
+verify_bundle() {
+  local repo="$1" version="$2" base="$3" bundle="$4" meta path mode unexpected
+  [ -f "$bundle" ] || die "Übergabe-Bundle fehlt: $bundle – nichts gepusht"
+  git_nohooks bundle verify --quiet "$bundle" >/dev/null 2>&1 || die "Übergabe-Bundle unlesbar oder unvollständig – nichts gepusht"
+  git_nohooks fetch --quiet --no-tags "$bundle" HEAD 2>/dev/null || die "Übergabe-Bundle nicht übernehmbar – nichts gepusht"
+  QUARANTINE_SHA="$(git rev-parse -q --verify FETCH_HEAD^{commit})" || die "Übergabe-Bundle ohne Commit – nichts gepusht"
+  [ "$(git rev-parse -q --verify "refs/remotes/origin/$BASE_BRANCH")" = "$base" ] \
+    || die "origin/$BASE_BRANCH hat sich seit der Abholung bewegt – nichts gepusht, der nächste Lauf baut neu auf"
+  [ "$(git rev-list --count "$base..$QUARANTINE_SHA")" = 1 ] && [ "$(git rev-parse "$QUARANTINE_SHA^")" = "$base" ] \
+    || die "Übergabe ist nicht genau ein Commit auf origin/$BASE_BRANCH – nichts gepusht"
+
+  fl_fetch_manifest "$repo" "$version" "$WORK/manifest.json" || die "Release-Manifest zu $version nicht abrufbar – nichts gepusht"
+  fl_validate_manifest "$WORK/manifest.json" "$repo" "$version" || die "Release-Manifest zu $version ungültig – nichts gepusht"
+  { jq -r '.files[].path' "$LOCK_FILE"; jq -r '.files[].path' "$WORK/manifest.json"; printf '%s\n' "$LOCK_FILE" "${COMPOSED_TARGETS[@]}"; } \
+    | LC_ALL=C sort -u > "$WORK/allowed.txt"
+
+  : > "$WORK/changed.txt"
+  while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+    mode="$(printf '%s' "$meta" | cut -d' ' -f2)"
+    [[ ! "$mode" =~ $BUNDLE_MODE_FORBIDDEN_RE ]] || die "Übergabe enthält Symlink oder Submodul: $path – nichts gepusht"
+    case "$path" in *$'\n'*) die "Übergabe enthält einen Pfad mit Zeilenumbruch – nichts gepusht" ;; esac
+    printf '%s\n' "$path" >> "$WORK/changed.txt"
+  done < <(git diff-tree -r --no-renames --raw -z "$base" "$QUARANTINE_SHA")
+  unexpected="$(LC_ALL=C sort -u "$WORK/changed.txt" | LC_ALL=C comm -23 - "$WORK/allowed.txt")"
+  if [ -n "$unexpected" ]; then
+    printf '%s\n' "$unexpected" | sed 's/^/✗ unerwarteter Pfad: /' >&2
+    die "Übergabe ändert Pfade außerhalb von Manifest, altem Lock und zusammengesetzten Dateien – nichts gepusht"
+  fi
+
+  git cat-file blob "$QUARANTINE_SHA:$LOCK_FILE" 2>/dev/null | cmp -s - "$WORK/manifest.json" \
+    || die "$LOCK_FILE der Übergabe ist nicht das Manifest von $version – nichts gepusht"
+  mkdir -p "$WORK/quarantine"
+  jq -r '.files[].path' "$WORK/manifest.json" > "$WORK/manifest-paths.txt"
+  while IFS= read -r path; do
+    mkdir -p "$WORK/quarantine/$(dirname -- "$path")"
+    git cat-file blob "$QUARANTINE_SHA:$path" > "$WORK/quarantine/$path" 2>/dev/null || die "Manifest-Datei fehlt in der Übergabe: $path – nichts gepusht"
+  done < "$WORK/manifest-paths.txt"
+  fl_hash_paths "$WORK/quarantine" < "$WORK/manifest-paths.txt" > "$WORK/quarantine.tsv" || die "Hashen der Übergabe fehlgeschlagen – nichts gepusht"
+  fl_manifest_tsv "$WORK/manifest.json" > "$WORK/want.tsv"
+  [ -z "$(fl_diff_hashes "$WORK/want.tsv" "$WORK/quarantine.tsv")" ] || die "Dateien der Übergabe stimmen nicht mit dem Manifest überein – nichts gepusht"
+}
+
+# Neuer Commit mit dem geprüften Baum (Autor, Nachricht, Signatur und Header des Release-Codes gelangen nicht in den Branch), per SHA gepusht.
+push_verified() {
+  local version="$1" base="$2" sha
+  sha="$(git_nohooks -c commit.gpgSign=false "${COMMIT_IDENTITY[@]}" commit-tree "$QUARANTINE_SHA^{tree}" -p "$base" \
+    -m "chore: factory auf $version heben")" || die "Commit nicht erzeugbar – nichts gepusht"
+  git_with_token push --quiet --force-with-lease="refs/heads/$UPDATE_BRANCH:$BRANCH_SHA" origin "$sha:refs/heads/$UPDATE_BRANCH" \
     || die "Push auf $UPDATE_BRANCH abgelehnt (Branch inzwischen geändert oder Token ohne Recht) – PR unverändert"
 }
 
@@ -182,34 +252,111 @@ publish_pr() {
 
 # ─── Aufruf ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-main() {
-  cd "$ROOT" 2>/dev/null || die "Projektwurzel nicht erreichbar: $ROOT"
+# Gemeinsamer Anfang der Modi mit Token: Lock, Werkzeuge, Token, Quell-Repo, Arbeitsverzeichnis. Setzt REPO.
+prepare_with_token() {
+  read_lock_version
+  command -v gh >/dev/null 2>&1 || die "gh nicht gefunden (fail-closed)"
+  require_token
+  REPO="$(fl_upstream_repo)" || die "Quell-Repo nicht ermittelbar (upstream.repo, fail-closed)"
+}
+
+# Version und Basis stammen aus Job-Ausgaben: Form prüfen, bevor sie an git/curl gehen.
+require_handover_args() { # $1 version, $2 base, $3 bundle
+  printf '%s' "$1" | grep -qE "$FL_VERSION_RE" || die "Version muss die Form vX.Y.Z haben: '$1'"
+  printf '%s' "$2" | grep -qE '^[0-9a-f]{40}$' || die "Basis ist keine Commit-SHA: '$2'"
+  [ -n "$3" ] || die "Pfad des Übergabe-Bundles fehlt"
+}
+
+mode_guard() {
   if ! has_lock; then
+    note "kein factory.lock – Repo bindet die Factory nicht per Lock ein (z. B. das Factory-Repo selbst), nichts zu tun"
+    emit_output lock false
+    exit 0
+  fi
+  read_lock_version
+  [ -z "${FACTORY_SYNC_TOKEN_REPO_SECRET:-}" ] \
+    || die "FACTORY_SYNC_TOKEN liegt als Repository-Secret – dort sieht es jeder pull_request-Workflow. Als Secret des Environments factory-update hinterlegen und das Repository-Secret löschen: docs/factory/OPERATING.md §0.6"
+  emit_output lock true
+}
+
+mode_preflight() {
+  prepare_with_token
+  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  find_newer_releases "$REPO"
+  if [ -z "$TARGET_VERSION" ]; then
+    note "keine neuere Version als $LOCK_VERSION in $REPO veröffentlicht – nichts zu tun"
+    exit 0
+  fi
+  fetch_origin
+  check_existing_pr
+  emit_output version "$TARGET_VERSION"
+  emit_output base_sha "$(git rev-parse "refs/remotes/origin/$BASE_BRANCH")"
+}
+
+mode_fetch() {
+  require_handover_args "${1:-}" "${2:-}" "${3:-}"
+  # Hier steht kein Token (eigener Job); die Kurzform ruft diesen Modus über `env -u` auf.
+  fetch_release "$1" "$2" "$3"
+}
+
+mode_publish() {
+  require_handover_args "${1:-}" "${2:-}" "${3:-}"
+  prepare_with_token
+  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  find_newer_releases "$REPO"
+  [ "$TARGET_VERSION" = "$1" ] || die "neueste Version ist inzwischen ${TARGET_VERSION:-keine}, nicht $1 – nichts gepusht, der nächste Lauf baut neu auf"
+  fetch_origin
+  check_existing_pr
+  verify_bundle "$REPO" "$1" "$2" "$3"
+  push_verified "$1" "$2"
+  publish_pr
+}
+
+# Kurzform für Tests und lokale Läufe: Abholung als eigener Prozess ohne Token-Variablen in einem frischen Klon, Übergabe per Bundle.
+mode_all() {
+  [ "${GITHUB_ACTIONS:-}" != true ] || die "die Kurzform ohne Modus läuft nicht in CI (Token neben Release-Code) – guard|preflight|fetch|publish verwenden"
+  prepare_with_token
+  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
+  find_newer_releases "$REPO"
+  if [ -z "$TARGET_VERSION" ]; then
+    note "keine neuere Version als $LOCK_VERSION in $REPO veröffentlicht – nichts zu tun"
+    exit 0
+  fi
+  fetch_origin
+  check_existing_pr
+  require_clean_tree "$ROOT"
+  local base; base="$(git rev-parse "refs/remotes/origin/$BASE_BRANCH")" || die "origin/$BASE_BRANCH nicht ermittelbar"
+  git_nohooks clone --quiet "$ROOT" "$WORK/clone" || die "frischer Klon nicht möglich (fail-closed)"
+  env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN FACTORY_DIR="$WORK/clone" bash "$SELF" fetch "$TARGET_VERSION" "$base" "$WORK/update.bundle" \
+    || die "Abholung von $TARGET_VERSION gescheitert (Meldung oben) – nichts gepusht"
+  verify_bundle "$REPO" "$TARGET_VERSION" "$base" "$WORK/update.bundle"
+  push_verified "$TARGET_VERSION" "$base"
+  publish_pr
+}
+
+main() {
+  local mode="${1:-all}"
+  [ $# -eq 0 ] || shift
+  cd "$ROOT" 2>/dev/null || die "Projektwurzel nicht erreichbar: $ROOT"
+  if [ "$mode" != guard ] && [ "$mode" != fetch ] && ! has_lock; then
     note "kein factory.lock – Repo bindet die Factory nicht per Lock ein (z. B. das Factory-Repo selbst), nichts zu tun"
     exit 0
   fi
   # shellcheck source=lib/factory-lock.sh
   source "$SELF_DIR/lib/factory-lock.sh" || die "scripts/lib/factory-lock.sh nicht ladbar (fail-closed)"
-  read_lock_version
   unset GITHUB_TOKEN
   export GIT_TERMINAL_PROMPT=0
-  command -v gh >/dev/null 2>&1 || die "gh nicht gefunden (fail-closed)"
-  require_token
-  local repo
-  repo="$(fl_upstream_repo)" || die "Quell-Repo nicht ermittelbar (upstream.repo, fail-closed)"
-  WORK="$(mktemp -d)" || die "mktemp fehlgeschlagen"
   trap cleanup EXIT
-  find_newer_releases "$repo"
-  if [ -z "$TARGET_VERSION" ]; then
-    note "keine neuere Version als $LOCK_VERSION in $repo veröffentlicht – nichts zu tun"
-    exit 0
-  fi
-  fetch_origin
-  check_existing_pr
-  rebuild_branch
-  publish_pr
+  case "$mode" in
+    guard) mode_guard ;;
+    preflight) mode_preflight ;;
+    fetch) mode_fetch "$@" ;;
+    publish) mode_publish "$@" ;;
+    all) mode_all ;;
+    *) die "unbekannter Modus: $mode (guard|preflight|fetch|publish)" ;;
+  esac
 }
 
-# Auf einer Zeile: factory-sync.sh ersetzt diese Datei im Lauf, und bash liest Skripte stückweise – ohne das exit
+# Auf einer Zeile: factory-sync.sh ersetzt diese Datei im Lauf (Modus fetch), und bash liest Skripte stückweise – ohne das exit
 # hier läse es nach main am alten Byte-Offset in der neuen Fassung weiter.
 main "$@"; exit $?

@@ -500,8 +500,8 @@ Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
      Restrisiko, weil Phase 2 nur lokale Kopien ausführt. Die anschließende Prüfung
      `--compose --check` läuft allerdings schon in der **neuen** Fassung des Skripts aus dem Release –
      Code des abgeholten Tags; wer `factory-sync.sh` automatisiert aufruft, tut das deshalb ohne
-     Anmeldedaten in der Umgebung (E12) – das schützt vor versehentlicher Weitergabe, nicht vor
-     bösartigem Release-Code im selben Job (Restrisiko, Ausbau: Issue #37). Leere Verzeichnisse nach dem Löschen bleiben
+     Anmeldedaten in der Umgebung (E12) – seit #37 läuft die Abholung in einem eigenen Job bzw. Prozess ohne
+     Token (Nachtrag 2026-10-31, E17/E20); das verbleibende Restrisiko steht dort. Leere Verzeichnisse nach dem Löschen bleiben
      (Git führt sie nicht).
 - **E5 · Gemeinsame Bibliothek `scripts/lib/factory-lock.sh`** (übernommen, gesourct relativ zum
   Skript): Hash per `shasum -a 256` bzw. `sha256sum`, Prüfung von Lock/Manifest (E4 1b), Abruf des
@@ -609,12 +609,10 @@ Widerspruch zu D1–D4, E1–E9 oder ADR-064. Die Verhaltensentscheidungen Q-24.
   *Abholung ohne Token (Security-Review):* `factory-sync.sh` ersetzt sich beim Abholen selbst und startet
   sich danach in der Fassung des Release neu – Code eines noch ungeprüften Tags. Das Skript ruft es deshalb
   mit `env -u FACTORY_SYNC_TOKEN -u GH_TOKEN -u GITHUB_TOKEN` auf; Push und `gh` laufen erst danach mit dem Token.
-  Das verhindert nur das **versehentliche** Erben (Logging, `curl` mit Umgebung), ist aber keine Grenze gegen
-  bösartigen Code des Release im selben Job und unter demselben Benutzer: er kann `.git/config` setzen
-  (`core.fsmonitor` läuft beim folgenden `git add` mit dem Token), `/proc/<ppid>/environ` lesen oder über eine
-  geänderte Workflow-Datei im Update-PR das Secret auslesen. *Restrisiko akzeptiert:* Voraussetzung ist ein
-  kompromittierter Tag in der Factory; `main` bleibt durch das Ruleset geschützt. Echte Trennung (Environment-Secret
-  mit Branch-Regel, Abholung und Push in zwei Jobs): Issue #37.
+  Das verhinderte nur das **versehentliche** Erben, war aber keine Grenze gegen bösartigen Code des Release im
+  selben Job (`core.fsmonitor`, `/proc/<ppid>/environ`, Workflow-Datei im Update-PR). **Ersetzt durch #37** (Nachtrag
+  2026-10-31, E17–E22): vier Jobs, Token nur in `preflight`/`publish`, Release-Code nur in `fetch`, Token als
+  Environment-Secret – das verbleibende Restrisiko benennt der Nachtrag ehrlich.
   *Ohne Git-Hooks (Review-Iteration 4):* Nach der Abholung rufen installierte Hooks (`install-hooks.sh`:
   `pre-commit`/`pre-push` relativ zum Arbeitsbaum) Skripte des Release auf; der `pre-push`-Hook erbte das Token,
   das der Credential-Helper aus der Umgebung liest, und ein rotes Gate darin bräche den Push ab, den F1 als
@@ -663,8 +661,7 @@ Lauf – und damit der Beleg, dass die Gates am Update-PR tatsächlich anlaufen 
 
 ## Nachtrag 2026-10-31 · Token und Release-Code trennen (Spec #37, Q-37.1–Q-37.6)
 
-Aus `/architecture` zu #37 (Security-Review zu #24); Status: Proposed, wird mit der Umsetzung in #37 auf
-Accepted gesetzt. **Ersetzt** das „Restrisiko akzeptiert" aus E4 (letzter Absatz Phase 2) und E12 (Absatz
+Aus `/architecture` zu #37 (Security-Review zu #24); Status: Accepted (2026-11-01, mit der Umsetzung in #37). **Ersetzt** das „Restrisiko akzeptiert" aus E4 (letzter Absatz Phase 2) und E12 (Absatz
 „Abholung ohne Token") und die Job-Struktur aus E10; E11 (Ablauf und Reihenfolge), E13–E16 bleiben, soweit
 unten nicht verändert. Die Verhaltensentscheidungen stehen in `docs/specs/spec-37-factory-sync-token-trennen.md`.
 
@@ -750,7 +747,10 @@ Repository-Secret für `pull_request`-Workflows des Update-PRs.
   (`core.fsmonitor` mit Marker), einen Hook, eine Datei außerhalb der Pfadliste und einen Symlink schreibt):
   Marker läuft nie, jede Abweichung → Exit 1 ohne Push (AK-37b/c, F-37.1). (c) *Mutationsbelege* je tragender
   Prüfung (Secret im `fetch`-Job, Pfadprüfung, Elternteil-Prüfung, Manifest-Gleichheit, Repository-Secret-
-  Wächter). (d) `guard`: Lock fehlt → No-op ohne Token; `FACTORY_SYNC_TOKEN_REPO_SECRET` gesetzt → rot.
+  Wächter). (d) `guard`: Lock fehlt → No-op ohne Token; `FACTORY_SYNC_TOKEN_REPO_SECRET` gesetzt → rot. (e) *Angepasste spec-24-Anker* (folgen der Mechanik, kein Verhalten
+  des Update-PRs ändert sich): die Rückkehr auf `ORIG_REF` entfällt (statt der Mutation: HEAD und lokale Branches des Konsumenten
+  bleiben unberührt), das Push-Ziel ist `<sha>:refs/heads/…` statt `HEAD:…`, der Selbst-Ersatz-Test fährt den Modus `fetch` im
+  Konsumenten-Checkout (dort ersetzt `factory-sync.sh` die laufende Datei; die Kurzform arbeitet im Klon).
 
 **Restrisiko (ehrlich):**
 1. *Das Release selbst ist bösartig und der Mensch bemerkt es im Update-PR nicht.* Die Trennung verhindert
