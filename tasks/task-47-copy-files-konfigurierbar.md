@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -104,6 +104,13 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
     `tasks/telemetry-raw-47-*.tmp.txt`. Bewusst
     weitergereicht: F5-`mkdir`-Zweig → `/test`, Quell-Elternkette → `/security-review`.
     ADR E24 und Spec F8 sind angeglichen. Tests: 2331/0 (ausgeliefert), 145/0 (Projekt).
+- Iteration 2 (2026-11-03): **APPROVED** – 0 kritisch, 0 wichtig, 4 Nitpicks
+  ([`tasks/review-47.md`](review-47.md)). W1 ist behoben und selbst nachvollzogen.
+  - Nitpicks: `copy_files: false`/`~` entfallen in `start-work.sh` ohne Warnung (das Gate lehnt sie ab). Die Pipe in
+    `_factory_cfg_eval` hängt am `pipefail` des Aufrufers (vorbestehend). Die Warnung steht doppelt, für Singular und
+    Plural (für `/refactor`). Die Wegwerf-Dateien (`scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt`) sind
+    noch nicht gelöscht.
+  - Keine Out-of-Scope-Funde (kein Issue, kein `kleinfunde.md`-Eintrag).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
