@@ -89,6 +89,11 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Iteration 1 (2026-11-02): **NEEDS_REWORK** – 0 kritisch, 1 wichtig, 6 Nitpicks
+  ([`tasks/review-47.md`](review-47.md)).
+  - W1: Nicht-String- und Steuerzeichen-Einträge entfallen in `start-work.sh` still (Filter in
+    `factory_cfg_list`), ADR E24 und Spec F8 versprechen eine Warnung. Entweder warnen oder ADR und Spec angleichen.
+  - Keine Out-of-Scope-Funde (kein Issue, kein `kleinfunde.md`-Eintrag).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
