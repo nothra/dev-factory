@@ -17,7 +17,8 @@
 #      1c. Override: der Root muss ein YAML-Mapping sein (Skalar/Bool/Sequence → fail,
 #          Task 254) — sonst liefert leaf_paths() keine oder irreführende Pfade.
 #   2. Unbekannte Keys: jeder Override-Blatt-Pfad muss in den Defaults existieren
-#      (die Defaults SIND die erlaubte Oberfläche → keine zweite Schema-Liste, ADR-010)
+#      (die Defaults SIND die erlaubte Oberfläche → keine zweite Schema-Liste, ADR-010);
+#      ein Einzelwert, wo die Defaults eine Liste führen, wird als „keine Liste" gemeldet (#47)
 #   3. schemaVersion: Integer == Defaults-Wert; weicht der Override ab → fail + Upgrade-Hinweis
 #   4. Werte-Constraints (effektive Config): tier ∈ model_tiers,
 #      max_turns Integer in [1, MAX_TURNS_CEILING]
@@ -134,8 +135,12 @@ if override_present; then
   override_paths="$(leaf_paths "$OVERRIDE")"
   while IFS= read -r path; do
     [ -z "$path" ] && continue
-    grep -qxF -- "$path" <<< "$defaults_paths" \
-      || fail "unbekannter Key im Override: '$path' (nicht in den Defaults — Tippfehler? Ein neuer Knopf gehört in factory.defaults.yml, nicht in den Override)."
+    grep -qxF -- "$path" <<< "$defaults_paths" && continue
+    # Wert statt Liste: eine leere Default-Liste führt nur '<pfad>.*' – ohne diesen Zweig hieße ein
+    # Skalar dort „unbekannter Key“, obwohl der Schlüssel existiert und nur der Typ falsch ist (#47 AK14).
+    grep -qxF -- "$path.*" <<< "$defaults_paths" \
+      && fail "'$path' ist keine Liste – die Defaults führen hier eine Liste, der Override setzt einen Einzelwert."
+    fail "unbekannter Key im Override: '$path' (nicht in den Defaults — Tippfehler? Ein neuer Knopf gehört in factory.defaults.yml, nicht in den Override)."
   done <<< "$override_paths"
 
   # 3. schemaVersion-Mismatch (nur prüfen, wenn der Override ihn setzt).

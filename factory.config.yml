@@ -23,11 +23,3 @@ commands:
   format: ""
   coverage: "bash scripts/checks/tests/run-tests.sh"
   install: ""
-
-# ── Knopf: skills.implement.max_turns ────────────────────────────────────────
-# @reason: 20 Turns reichten für Tasks mit vielen AK nicht (Task 47: dreimal Turn-Limit in /implement,
-#   Teilarbeit blieb uncommittet; Lesson „Turn-Limit" in PROJECT-CONTEXT.md).
-# @tradeoff: mehr Turns = höhere Kosten je Lauf, dafür weniger Abbrüche mit Halbstand.
-skills:
-  implement:
-    max_turns: 40

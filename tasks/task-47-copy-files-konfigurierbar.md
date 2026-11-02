@@ -1,7 +1,7 @@
 # Task 47: copy-files-konfigurierbar
 
 ## Status
-- [ ] In Bearbeitung
+- [x] In Bearbeitung
 - [ ] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
@@ -19,25 +19,25 @@ Spec: [`docs/specs/spec-47-copy-files-konfigurierbar.md`](../docs/specs/spec-47-
 
 ## Akzeptanzkriterien
 <!-- Details, GIVEN/WHEN/THEN und Fehlerszenarien F1–F8: siehe Spec -->
-- [ ] AK1 – Default `[]` kopiert nichts
-- [ ] AK2 – genau die gelisteten Dateien werden byte-identisch gespiegelt
-- [ ] AK3 – Modus der Quelle bleibt erhalten
-- [ ] AK4 – vorhandenes Ziel (Datei/Symlink) wird nie überschrieben, übrige Einträge laufen weiter; Mutationsbeleg
-- [ ] AK5 – fehlende Elternordner werden im Worktree angelegt
-- [ ] AK6 – Symlink als Quelle wird als echte Datei kopiert
-- [ ] AK7 – `FACTORY_WT_SKIP_COPY=1` unterdrückt die Spiegelung
-- [ ] AK8 – `FACTORY_WT_SKIP_ENV=1` wirkt als Alias
-- [ ] AK9 – Output nennt den Opt-out-Schalter
-- [ ] AK10 – `start_work.hint` erscheint auch ohne Kopie
-- [ ] AK11 – `start_work.hint` erscheint auch im In-Place-Modus und bei Opt-out
-- [ ] AK12 – leerer Hinweis → keine Hinweis-Zeile
-- [ ] AK13 – Config-Gate nimmt gültige Liste an
-- [ ] AK14 – Config-Gate lehnt absolut / `..` / leer / Nicht-String / Skalar statt Liste / abschließendes `/` ab
-- [ ] AK15 – Konsument mit `[".env.local"]` behält sein Verhalten (Verhaltenstest)
-- [ ] AK16 – kein Ursprungs-Wortlaut in `start-work.sh` und Testgruppe
-- [ ] AK17 – Doku (FACTORY.md Regel 8, git-workflow.md, OPERATING.md, .gitignore-Kommentare, CHANGELOG mit Migrationszeile) nachgezogen
+- [x] AK1 – Default `[]` kopiert nichts
+- [x] AK2 – genau die gelisteten Dateien werden byte-identisch gespiegelt
+- [x] AK3 – Modus der Quelle bleibt erhalten
+- [x] AK4 – vorhandenes Ziel (Datei/Symlink) wird nie überschrieben, übrige Einträge laufen weiter; Mutationsbeleg
+- [x] AK5 – fehlende Elternordner werden im Worktree angelegt
+- [x] AK6 – Symlink als Quelle wird als echte Datei kopiert
+- [x] AK7 – `FACTORY_WT_SKIP_COPY=1` unterdrückt die Spiegelung
+- [x] AK8 – `FACTORY_WT_SKIP_ENV=1` wirkt als Alias
+- [x] AK9 – Output nennt den Opt-out-Schalter
+- [x] AK10 – `start_work.hint` erscheint auch ohne Kopie
+- [x] AK11 – `start_work.hint` erscheint auch im In-Place-Modus und bei Opt-out
+- [x] AK12 – leerer Hinweis → keine Hinweis-Zeile
+- [x] AK13 – Config-Gate nimmt gültige Liste an
+- [x] AK14 – Config-Gate lehnt absolut / `..` / leer / Nicht-String / Skalar statt Liste / abschließendes `/` ab
+- [x] AK15 – Konsument mit `[".env.local"]` behält sein Verhalten (Verhaltenstest)
+- [x] AK16 – kein Ursprungs-Wortlaut in `start-work.sh` und Testgruppe
+- [x] AK17 – Doku (FACTORY.md Regel 8, git-workflow.md, OPERATING.md, .gitignore-Kommentare, CHANGELOG mit Migrationszeile) nachgezogen
 - [ ] AK18 – alle Gates grün
-- [ ] Fehlerszenarien F1–F8 getestet
+- [x] Fehlerszenarien F1–F8 getestet
 
 ## Technische Notizen
 Architektur: Nachtrag 2026-11-01 in `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md`
@@ -72,6 +72,17 @@ Implementierungs-Hinweise:
 6. **Doku (AK17):** FACTORY.md Regel 8, git-workflow.md (Secret-Hygiene, Env-Schalter), OPERATING.md
    (Abschnitt um Zeile 592), `.gitignore`/`.gitignore.project`-Kommentar, CHANGELOG mit Migrationszeile.
    `@import`-Limit im Blick behalten (FACTORY.md ist importiert).
+
+Umsetzungs-Notizen (/implement, 2026-11-02):
+- Pipeline-Lauf brach am Turn-Limit ab; Stand lag als Zwischenstand-Commit `e767f17` vor und wurde
+  manuell in Stage 2 fortgesetzt (Diff gegen die AK geprüft, kein Neustart). **Telemetrie-Lücke:** der
+  manuelle Fortsatz hat keine OTEL-Telemetrie (Factory-ADR-049).
+- Der Zwischenstand trug `skills.implement.max_turns: 40` in `factory.config.yml` – außerhalb des Scopes
+  und rot gegen den Projekt-Test #348 (das Factory-Repo setzt keine `skills.*`-Knöpfe). Zurückgenommen;
+  ein höheres Turn-Budget gehört in ein eigenes Issue.
+- AK14 „Wert statt Liste": Regel 2 (unbekannte Keys) griff vor Regel 9 und meldete „unbekannter Key",
+  weil eine leere Default-Liste nur `<pfad>.*` führt. Regel 2 meldet jetzt „ist keine Liste", wenn die
+  Defaults an der Stelle eine Liste führen – gilt generisch, also auch für `labels.aspects_extra`.
 
 ## Offene Fragen
 - [x] ADR-Trigger? → Nachtrag zu Factory-ADR-063 (E23–E27), kein neues ADR (`/architecture`, 2026-11-01).

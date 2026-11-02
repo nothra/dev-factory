@@ -4,5 +4,5 @@
 *.tmp.*
 .coverage-tmp*/
 coverage/
-# Lokale Secrets (start-work.sh spiegelt .env.local in neue Worktrees)
+# Lokale Secrets (start-work.sh spiegelt nur, was start_work.copy_files listet)
 .env.local
