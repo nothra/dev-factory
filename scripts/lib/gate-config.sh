@@ -4,9 +4,13 @@
 # Stellt bereit:
 #   factory_cfg <yq-pfad>            Wert aus der geschichteten Config (factory.defaults.yml *
 #                                    factory.config.yml); leer, wenn nicht gesetzt.
-#   factory_cfg_list <yq-pfad>       Liste aus derselben Config, ein String-Element je Zeile (andere Typen
-#                                    und Elemente mit Steuerzeichen entfallen); leer, wenn nicht gesetzt.
+#   factory_cfg_list <yq-pfad>       Liste aus derselben Config, ein String-Element je Zeile (andere Typen,
+#                                    leere Elemente, Elemente mit Steuerzeichen und ein Wert, der keine
+#                                    Liste ist, entfallen); leer, wenn nicht gesetzt.
 #                                    Der Override ersetzt die Liste, er hängt nicht an.
+#   factory_cfg_list_dropped <yq-pfad>
+#                                    Zahl der Elemente, die factory_cfg_list verwirft (keine Liste = 1), damit
+#                                    der Aufrufer sie melden kann statt sie still zu übergehen.
 #   copy_entry_problem <eintrag>     Pfadregel für start_work.copy_files (Factory-ADR-063 E24): leere
 #                                    Ausgabe = gültig, sonst der Ablehnungsgrund. Gate und start-work.sh
 #                                    rufen dieselbe Funktion.
@@ -35,9 +39,20 @@ _factory_cfg_eval() {
 
 factory_cfg() { _factory_cfg_eval ".$1 // \"\""; }
 
-# Nur String-Elemente ohne Steuerzeichen: ein null/5 käme sonst als Text "null"/"5" an, ein Element mit
-# Zeilenumbruch zerfiele in zwei scheinbar gültige Zeilen. Solche Elemente lehnt das Config-Gate ab (Regel 9).
-factory_cfg_list() { _factory_cfg_eval "(.$1 // []) | .[] | select(tag == \"!!str\") | select(test(\"[[:cntrl:]]\") | not)"; }
+# Nur nicht leere String-Elemente einer echten Liste, ohne Steuerzeichen: ein null/5 käme sonst als Text
+# "null"/"5" an, ein Element mit Zeilenumbruch zerfiele in zwei scheinbar gültige Zeilen, ein leeres Element
+# schnitte '$(…)' am Listenende lautlos ab, und '.[]' auf einer Map lieferte deren Werte als Einträge.
+# Solche Elemente lehnt das Config-Gate ab (Regel 9); factory_cfg_list_dropped zählt sie für den Aufrufer.
+_FACTORY_CFG_LIST_KEEP='select(tag == "!!str") | select(. != "") | select(test("[[:cntrl:]]") | not)'
+factory_cfg_list() { _factory_cfg_eval "(.$1 // []) | select(tag == \"!!seq\") | .[] | $_FACTORY_CFG_LIST_KEEP"; }
+
+# Zahl der Elemente, die factory_cfg_list verwirft; ein gesetzter Wert, der keine Liste ist, zählt als einer.
+# (Ohne if/then/else: die gepinnte yq-Version kennt es nicht.)
+factory_cfg_list_dropped() {
+  _factory_cfg_eval "(.$1 // []) as \$l | ([\$l | select(tag != \"!!seq\")] | length)
+    + ([\$l | select(tag == \"!!seq\") | .[]] | length)
+    - ([\$l | select(tag == \"!!seq\") | .[] | $_FACTORY_CFG_LIST_KEEP] | length)"
+}
 
 # Ein Eintrag ist ein Pfad zu einer einzelnen Datei relativ zur Repo-Wurzel. Steuerzeichen schließen
 # auch den Zeilenumbruch aus, der die zeilenweise Liste aus factory_cfg_list zerlegen würde.

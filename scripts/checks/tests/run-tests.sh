@@ -2078,8 +2078,8 @@ assert_true "$([ -d "$WT_SKIP" ]; echo $?)" "#47 AK7: der Worktree wurde angeleg
 assert_true "$?" "#47 AK7: FACTORY_WT_SKIP_COPY=1 spiegelt nichts"
 assert_contains_286 "$OUT_SKIP" "$HINT_SW" "#47 AK11: start_work.hint erscheint auch bei Opt-out"
 # AK8: der alte Name wirkt als Alias.
-WT_SKIPENV="$(wt_of "$TMP_SW/wt-47-skipenv" 783 demo-skipenv)"
-OUT_SKIPENV=$(run_start_work "$TMP_SW/wt-47-skipenv" 783 demo-skipenv "FACTORY_WT_SKIP_ENV=1"); RC_SKIPENV=$?
+WT_SKIPENV="$(wt_of "$TMP_SW/wt-47-skipenv" 802 demo-skipenv)"
+OUT_SKIPENV=$(run_start_work "$TMP_SW/wt-47-skipenv" 802 demo-skipenv "FACTORY_WT_SKIP_ENV=1"); RC_SKIPENV=$?
 assert_exit 0 "$RC_SKIPENV" "#47 AK8: FACTORY_WT_SKIP_ENV=1 → exit 0"
 assert_true "$([ -d "$WT_SKIPENV" ]; echo $?)" "#47 AK8: der Worktree wurde angelegt (Existenz-Anker)"
 [ ! -e "$WT_SKIPENV/.env.local" ]
@@ -2251,6 +2251,48 @@ assert_contains_286 "$OUT_BAD" "ungültiger Eintrag ('..'-Segment)" "#47 F8: War
 cmp -s "$REPO_SW/lokal.conf" "$WT_BAD/lokal.conf"
 assert_true "$?" "#47 F8: der gültige Eintrag wird trotzdem gespiegelt"
 
+# F8 (Elemente, die factory_cfg_list verwirft): Nicht-String, leerer String und Steuerzeichen erreichen
+# copy_into_worktree nicht – das Skript meldet sie trotzdem gesammelt, statt sie still fallen zu lassen.
+sw_config '  copy_files: [5, "", "a\nb", "lokal.conf"]'
+WT_DROP="$(wt_of "$TMP_SW/wt-47-drop" 803 demo-drop)"
+OUT_DROP=$(run_start_work "$TMP_SW/wt-47-drop" 803 demo-drop); RC_DROP=$?
+assert_exit 0 "$RC_DROP" "#47 F8: Nicht-String/leer/Steuerzeichen in copy_files → exit 0"
+assert_contains_286 "$OUT_DROP" '3 Einträge in start_work.copy_files übersprungen' \
+  "#47 F8: verworfene Elemente werden gezählt gewarnt, nicht still übergangen"
+assert_true "$([ ! -e "$WT_DROP/5" ] && [ ! -e "$WT_DROP/a" ] && [ ! -e "$WT_DROP/b" ]; echo $?)" \
+  "#47 F8: aus verworfenen Elementen entsteht keine Datei im Worktree"
+cmp -s "$REPO_SW/lokal.conf" "$WT_DROP/lokal.conf"
+assert_true "$?" "#47 F8: der gültige Eintrag neben verworfenen Elementen wird trotzdem gespiegelt"
+
+# F8 (keine Liste): eine Map liefert über '.[]' ihre Werte – ohne Typprüfung würde der Wert 'lokal.conf'
+# kopiert. Ein Skalar wird ebenso nicht gespiegelt. Beides warnt mit einem übersprungenen Eintrag.
+for case_47 in '804|{x: lokal.conf}' '805|lokal.conf'; do
+  id_47="${case_47%%|*}"; val_47="${case_47#*|}"
+  sw_config "  copy_files: $val_47"
+  wt_47="$(wt_of "$TMP_SW/wt-47-nolist" "$id_47" demo-nolist)"
+  out_47=$(run_start_work "$TMP_SW/wt-47-nolist" "$id_47" demo-nolist); rc_47=$?
+  assert_exit 0 "$rc_47" "#47 F8: copy_files $val_47 (keine Liste) → exit 0"
+  assert_true "$([ -d "$wt_47" ] && [ ! -e "$wt_47/lokal.conf" ]; echo $?)" \
+    "#47 F8: copy_files $val_47 (keine Liste) spiegelt nichts (Worktree als Anker vorhanden)"
+  assert_contains_286 "$out_47" '1 Eintrag in start_work.copy_files übersprungen' \
+    "#47 F8: copy_files $val_47 (keine Liste) wird gewarnt"
+done
+
+# Config nicht lesbar: ein yq-Stub scheitert nur an Ausdrücken über copy_files (der übrige Lauf liest seine
+# Config weiter). Ohne Warnung bliebe eine konfigurierte Kopie lautlos aus.
+REAL_YQ_47="$(command -v yq)"
+printf '#!/usr/bin/env bash\ncase "$*" in *copy_files*) echo "yq-stub: kaputt" >&2; exit 1 ;; esac\nexec "%s" "$@"\n' \
+  "$REAL_YQ_47" > "$TMP_SW/bin/yq"
+chmod +x "$TMP_SW/bin/yq"
+sw_config '  copy_files: ["lokal.conf"]'
+WT_NOREAD="$(wt_of "$TMP_SW/wt-47-noread" 806 demo-noread)"
+OUT_NOREAD=$(run_start_work "$TMP_SW/wt-47-noread" 806 demo-noread); RC_NOREAD=$?
+rm -f "$TMP_SW/bin/yq"
+assert_exit 0 "$RC_NOREAD" "#47 F8: copy_files nicht lesbar → exit 0"
+assert_contains_286 "$OUT_NOREAD" 'start_work.copy_files nicht lesbar' "#47 F8: nicht lesbare copy_files werden gewarnt"
+assert_true "$([ -d "$WT_NOREAD" ] && [ ! -e "$WT_NOREAD/lokal.conf" ]; echo $?)" \
+  "#47 F8: bei nicht lesbarer Liste wird nichts gespiegelt (Worktree als Anker vorhanden)"
+
 # AK11: In-Place-Modus – keine Spiegelung (kein neuer Baum), der Hinweis erscheint trotzdem. Config + Defaults
 # liegen untracked im Klon: der Uncommitted-Check des In-Place-Modus sieht nur getrackte Dateien.
 cp "$FACTORY_ROOT/factory.defaults.yml" "$REPO_IP/"
@@ -2268,7 +2310,7 @@ rm -f "$REPO_IP/factory.defaults.yml" "$REPO_IP/factory.config.yml"
 # Reihenfolge „Spiegelung VOR dem Install-Schritt" (die Dateien sollen auch bei fehlgeschlagener Installation
 # daliegen). Alle Läufe oben setzen FACTORY_WT_SKIP_INSTALL=1 → Positionsvergleich der beiden echten
 # Aufrufzeilen (Anker ist die exakte Kommandozeile, nie ein Fragment), fail-closed bei fehlendem Anker.
-sw_copy_line=$(grep -nxF '      done <<< "$COPY_FILES"' "$SW" | head -1 | cut -d: -f1)
+sw_copy_line=$(grep -nxF '        done <<< "$COPY_FILES"' "$SW" | head -1 | cut -d: -f1)
 sw_inst_line=$(grep -nF 'eval "$INSTALL_COMMAND"' "$SW" | head -1 | cut -d: -f1)
 { [ -n "$sw_copy_line" ] && [ -n "$sw_inst_line" ] && [ "$sw_copy_line" -lt "$sw_inst_line" ]; }
 assert_true "$?" "#47: die Spiegelung steht vor dem Install-Schritt im Worktree"

@@ -94,6 +94,16 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   - W1: Nicht-String- und Steuerzeichen-Einträge entfallen in `start-work.sh` still (Filter in
     `factory_cfg_list`), ADR E24 und Spec F8 versprechen eine Warnung. Entweder warnen oder ADR und Spec angleichen.
   - Keine Out-of-Scope-Funde (kein Issue, kein `kleinfunde.md`-Eintrag).
+  - Rework (2026-11-02): W1 nach Variante (a) behoben. `factory_cfg_list_dropped` zählt die verworfenen
+    Elemente, `start-work.sh` warnt gesammelt („N Einträge … übersprungen"). Selbstfund dabei:
+    `factory_cfg_list` lieferte bei einer Map statt Liste deren Werte als Einträge (`{x: lokal.conf}` hätte
+    `lokal.conf` kopiert). Jetzt wird nur über `!!seq` iteriert, und leere Elemente entfallen ebenfalls
+    (`$(…)` schnitt sie am Listenende still ab). Nitpicks erledigt: Warnung bei nicht lesbarer Liste
+    (yq), eigene Task-ID 802 für AK8, Steuerzeichen in OPERATING.md. Offen (gitignoret, `rm` in dieser Session
+    nicht freigegeben): `scripts/probe47.tmp.sh`, `scripts/review47.tmp.sh`,
+    `tasks/telemetry-raw-47-*.tmp.txt`. Bewusst
+    weitergereicht: F5-`mkdir`-Zweig → `/test`, Quell-Elternkette → `/security-review`.
+    ADR E24 und Spec F8 sind angeglichen. Tests: 2331/0 (ausgeliefert), 145/0 (Projekt).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

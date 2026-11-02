@@ -592,7 +592,7 @@ Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D
   `start_work.hint` (in jedem Modus) und die in neue Worktrees zu spiegelnden lokalen Dateien aus
   `start_work.copy_files` (Liste relativer Dateipfade, Default `[]`; Opt-out `FACTORY_WT_SKIP_COPY=1`);
   ohne Eintrag entfällt der jeweilige Schritt still. `config-validation-check.sh` lehnt absolute Pfade,
-  `..`-Segmente, leere Einträge, abschließendes `/` und Nicht-Strings in `copy_files` ab.
+  `..`-Segmente, leere Einträge, abschließendes `/`, Steuerzeichen und Nicht-Strings in `copy_files` ab.
 - **CI** liest `lint`/`test` weiter aus den Repo-Variablen `FACTORY_LINT_COMMAND` /
   `FACTORY_TEST_COMMAND` (`ci.yml`, Q7) – beide Quellen müssen denselben Befehl tragen.
 

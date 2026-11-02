@@ -796,7 +796,10 @@ Elternordner anlegen, nur Einzeldateien) stehen in `docs/specs/spec-47-copy-file
   und prüft in einer neuen Regel 9 Typ (Liste, Elemente `!!str`) und jeden Eintrag mit dem Validator;
   `start-work.sh` ruft denselben Validator vor jeder Kopie (Defense in depth: das Gate läuft nur im
   pre-push-Hook, nicht vor `start-work.sh`). Ein ungültiger Eintrag wird im Skript gewarnt und
-  übersprungen, nie kopiert.
+  übersprungen, nie kopiert. Elemente, die keine zeilenweise Pfadangabe sein können (kein String, leer,
+  Steuerzeichen) und ein Wert, der keine Liste ist, liefert `factory_cfg_list` gar nicht erst aus;
+  `factory_cfg_list_dropped` zählt sie, und `start-work.sh` warnt gesammelt mit dieser Zahl. Ist die Liste
+  nicht lesbar (z. B. `yq` fehlt), warnt das Skript ebenfalls und spiegelt nichts.
 - **E25 · Kein Schreiben außerhalb des Worktrees.** Vor dem Anlegen fehlender Elternordner wird die
   Elternkette des Ziels Komponente für Komponente ab der Worktree-Wurzel geprüft: Ist eine vorhandene
   Komponente ein Symlink oder kein Verzeichnis, wird der Eintrag übersprungen; fehlende Komponenten werden

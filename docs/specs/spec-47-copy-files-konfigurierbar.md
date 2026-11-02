@@ -158,7 +158,9 @@ gespiegelt. Eine Warnung im Output gibt es in allen Fällen außer F1 und F7.
   Datei): Spiegelung entfällt wirkungslos, wie heute (`-d`-Guard).
 - [ ] **F8 – Config nicht lesbar / Gate ausgelassen:** ein ungültiger Eintrag (absolut, `..`) wird
   auch von `start-work.sh` selbst nicht kopiert (Defense in depth – das Gate läuft nur im
-  pre-push-Hook, nicht vor `start-work.sh`).
+  pre-push-Hook, nicht vor `start-work.sh`). Elemente, die kein nicht leerer String ohne Steuerzeichen
+  sind, und ein Wert, der keine Liste ist, werden gezählt gewarnt („N Einträge … übersprungen");
+  eine nicht lesbare Liste (z. B. `yq` fehlt) wird gewarnt, nichts wird gespiegelt.
 
 ## Offene Fragen
 

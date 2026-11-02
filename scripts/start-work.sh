@@ -289,16 +289,30 @@ if [ "$WORKTREE_MODE" = true ]; then
   # Opt-out: FACTORY_WT_SKIP_COPY gewinnt, sonst zählt der bisherige Name FACTORY_WT_SKIP_ENV (E27).
   SKIP_COPY="${FACTORY_WT_SKIP_COPY:-${FACTORY_WT_SKIP_ENV:-0}}"
   if [ "$SKIP_COPY" != "1" ] && [ -d "$WORKDIR" ]; then
-    COPY_FILES="$(factory_cfg_list start_work.copy_files 2>/dev/null)" || COPY_FILES=""
-    if [ -n "$COPY_FILES" ]; then
+    # Lesefehler (z. B. yq fehlt) warnen statt still nichts zu kopieren – der Lauf geht trotzdem weiter.
+    if ! COPY_FILES="$(factory_cfg_list start_work.copy_files 2>/dev/null)" \
+       || ! COPY_DROPPED="$(factory_cfg_list_dropped start_work.copy_files 2>/dev/null)"; then
+      warn_copy "start_work.copy_files nicht lesbar (yq?) – keine Dateien in den Worktree gespiegelt"
+      COPY_FILES="" COPY_DROPPED=0
+    fi
+    if [ -n "$COPY_FILES" ] || [ "${COPY_DROPPED:-0}" != 0 ]; then
       # Opt-out-Hinweis in der Ankündigungszeile, nicht in der Erfolgsmeldung – so ist er auch sichtbar,
       # wenn ein Eintrag übersprungen wird oder scheitert.
       echo -e "  ${YELLOW}→${NC} Dateien aus start_work.copy_files in den Worktree spiegeln (FACTORY_WT_SKIP_COPY=1 überspringt)..."
       # Zeilenweise mit 'IFS= read -r': Leerzeichen im Pfad bleiben erhalten (factory_cfg_list liefert
-      # keine Elemente mit Zeilenumbruch).
-      while IFS= read -r entry; do
-        copy_into_worktree "$entry"
-      done <<< "$COPY_FILES"
+      # keine leeren Elemente und keine mit Zeilenumbruch). '-n'-Guard: ein leerer Here-String ergäbe
+      # sonst eine Leerzeile und damit eine falsche „leerer Pfad"-Warnung.
+      if [ -n "$COPY_FILES" ]; then
+        while IFS= read -r entry; do
+          copy_into_worktree "$entry"
+        done <<< "$COPY_FILES"
+      fi
+      # Was factory_cfg_list verworfen hat, erreicht copy_into_worktree nie – gesammelt melden (E24).
+      if [ "${COPY_DROPPED:-0}" = 1 ]; then
+        warn_copy "1 Eintrag in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
+      elif [ "${COPY_DROPPED:-0}" != 0 ]; then
+        warn_copy "$COPY_DROPPED Einträge in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
+      fi
     fi
   fi
 
