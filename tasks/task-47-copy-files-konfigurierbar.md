@@ -36,7 +36,7 @@ Spec: [`docs/specs/spec-47-copy-files-konfigurierbar.md`](../docs/specs/spec-47-
 - [x] AK15 – Konsument mit `[".env.local"]` behält sein Verhalten (Verhaltenstest)
 - [x] AK16 – kein Ursprungs-Wortlaut in `start-work.sh` und Testgruppe
 - [x] AK17 – Doku (FACTORY.md Regel 8, git-workflow.md, OPERATING.md, .gitignore-Kommentare, CHANGELOG mit Migrationszeile) nachgezogen
-- [ ] AK18 – alle Gates grün
+- [x] AK18 – alle Gates grün
 - [x] Fehlerszenarien F1–F8 getestet
 
 ## Technische Notizen
