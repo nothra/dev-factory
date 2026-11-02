@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -111,6 +111,11 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
     Plural (für `/refactor`). Die Wegwerf-Dateien (`scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt`) sind
     noch nicht gelöscht.
   - Keine Out-of-Scope-Funde (kein Issue, kein `kleinfunde.md`-Eintrag).
+
+## Test-Notizen
+- `/test` (2026-11-03): Alle AK1–AK18 und F1–F8 haben Tests (Abgleich Spec ↔ Testnamen). Keine neuen Tests nötig,
+  kein Produktionscode geändert. Suiten: 2331/0 (ausgeliefert), 145/0 (Projekt). Der `mkdir`-Fehlerzweig in
+  `ensure_parent_dirs` ist nach den davor liegenden Prüfungen praktisch nicht erreichbar und ohne Test geblieben.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
