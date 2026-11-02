@@ -777,7 +777,7 @@ des nächsten Releases.
 
 ## Nachtrag 2026-11-01 · Worktree-Dateispiegelung über `start_work.copy_files` (Spec #47)
 
-Aus `/architecture` zu #47; Status: Proposed (wird mit der Umsetzung in #47 Accepted). **Erweitert Q4**
+Aus `/architecture` zu #47; Status: Accepted (2026-11-02, mit der Umsetzung in #47). **Erweitert Q4**
 aus dem Nachtrag 2026-10-19: Neben `commands.install` und `start_work.hint` wandert auch die bisher fest
 verdrahtete `.env.local`-Kopie (nothra/tch-gastro-services#236) in die Config. Die Verhaltensentscheidungen
 (Hinweis immer bei gesetztem Wert, Opt-out `FACTORY_WT_SKIP_COPY` mit Alias `FACTORY_WT_SKIP_ENV`, fehlende

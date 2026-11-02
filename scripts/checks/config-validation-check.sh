@@ -28,6 +28,8 @@
 #   8. labels.kinds/aspects/aspects_extra sind Listen nichtleerer Strings ohne Komma/Leerraum (nothra/tch-gastro-services#431).
 #   7. commands.* und start_work.hint müssen Strings sein (nothra/tch-gastro-services#431) – ein Skalar anderen Typs
 #      (Zahl, Bool, null) wäre ein Gate-Kommando, das nie so gemeint war.
+#   9. start_work.copy_files ist eine Liste von Strings, jeder Eintrag ein relativer Pfad zu einer
+#      einzelnen Datei (#47, Factory-ADR-063 E24) – Pfadregel aus copy_entry_problem (gate-config.sh).
 #
 # MAX_TURNS_CEILING, MIN_TIER_REQUIRED und die zugehörigen Skill-Listen sind
 # Gate-Policy (ADR-009 §6 / ADR-010), bewusst NICHT in der merge-baren Config — sonst
@@ -64,6 +66,12 @@ DEFAULTS="${1:-$REPO_ROOT/factory.defaults.yml}"
 OVERRIDE="${2:-$REPO_ROOT/factory.config.yml}"
 
 fail() { echo "config-validation: $*" >&2; exit 1; }
+
+# Pfadregel für Regel 9 (copy_entry_problem). Relativ zum Skript, nicht über FACTORY_DIR: Tests
+# überschreiben FACTORY_DIR mit Wegwerf-Wurzeln (Lesson nothra/tch-gastro-services#431).
+# shellcheck source=../lib/gate-config.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/gate-config.sh" 2>/dev/null \
+  || fail "scripts/lib/gate-config.sh fehlt neben dem Gate (Pfadregel für start_work.copy_files)."
 
 # Ob überhaupt ein Override-File existiert (einmal ausgewertet, von Regel 1b/2 UND
 # Regel 6 genutzt — beide brauchen denselben Guard, Regel 6 zusätzlich $override_paths).
@@ -241,5 +249,26 @@ while IFS= read -r entry; do
     ''|*[[:space:],]*) fail "$name enthält das ungültige Label '$label' (leer oder mit Komma/Leerraum, #431)." ;;
   esac
 done < <(printf '%s' "$effective" | yq eval '(.labels // {}) | to_entries | .[] | select(.value | tag == "!!seq") | .key as $k | .value[] | "labels." + $k + "=" + tag + "|" + .' -)
+
+# 9. Worktree-Dateispiegelung (#47): start_work.copy_files ist eine Liste von Strings, jeder Eintrag
+#    besteht copy_entry_problem. Elemente einzeln per Index lesen, nicht zeilenweise: ein Eintrag mit
+#    Zeilenumbruch muss als EIN ungültiger Eintrag ankommen, nicht als zwei scheinbar gültige.
+#    Das '|' hinter dem Wert schützt abschließende Zeilenumbrüche vor der Command Substitution.
+copy_files_tag="$(printf '%s' "$effective" | yq eval '.start_work.copy_files | tag' -)"
+case "$copy_files_tag" in
+  '!!seq'|'!!null') ;;
+  *) fail "start_work.copy_files ist keine Liste (Typ: $copy_files_tag) – erwartet wird eine Liste von Dateipfaden (#47)." ;;
+esac
+copy_files_count="$(printf '%s' "$effective" | yq eval '.start_work.copy_files // [] | length' -)"
+for ((i = 0; i < copy_files_count; i++)); do
+  tag="$(printf '%s' "$effective" | yq eval ".start_work.copy_files[$i] | tag" -)"
+  [ "$tag" = "!!str" ] \
+    || fail "start_work.copy_files enthält ein Element vom Typ $tag – Einträge sind Dateipfade als Strings (#47)."
+  value="$(printf '%s' "$effective" | yq eval ".start_work.copy_files[$i] + \"|\"" -)"
+  value="${value%|}"
+  problem="$(copy_entry_problem "$value")"
+  [ -z "$problem" ] \
+    || fail "start_work.copy_files enthält den ungültigen Eintrag $(printf '%q' "$value") ($problem, #47)."
+done
 
 exit 0
