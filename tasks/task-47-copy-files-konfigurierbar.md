@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -116,6 +116,13 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
 - `/test` (2026-11-03): Alle AK1–AK18 und F1–F8 haben Tests (Abgleich Spec ↔ Testnamen). Keine neuen Tests nötig,
   kein Produktionscode geändert. Suiten: 2331/0 (ausgeliefert), 145/0 (Projekt). Der `mkdir`-Fehlerzweig in
   `ensure_parent_dirs` ist nach den davor liegenden Prüfungen praktisch nicht erreichbar und ohne Test geblieben.
+
+## Refactoring-Notizen
+- `/refactor` (2026-11-03): Die doppelte Warnung über verworfene `copy_files`-Einträge (Singular/Plural, Review-Nitpick)
+  in `start-work.sh` ist zu einer Warnung mit Wortwahl `Eintrag`/`Einträge` zusammengefasst. Ausgabe unverändert,
+  kein neues Verhalten. Suiten vorher und nachher: 2331/0 (ausgeliefert), 145/0 (Projekt).
+  Bewusst unverändert: `copy_files: false`/`~` ohne Warnung in `start-work.sh` (das Gate lehnt sie ab, Verhaltensänderung)
+  und die Pipe in `_factory_cfg_eval` (vorbestehend).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

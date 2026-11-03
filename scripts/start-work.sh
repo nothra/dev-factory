@@ -308,10 +308,9 @@ if [ "$WORKTREE_MODE" = true ]; then
         done <<< "$COPY_FILES"
       fi
       # Was factory_cfg_list verworfen hat, erreicht copy_into_worktree nie – gesammelt melden (E24).
-      if [ "${COPY_DROPPED:-0}" = 1 ]; then
-        warn_copy "1 Eintrag in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
-      elif [ "${COPY_DROPPED:-0}" != 0 ]; then
-        warn_copy "$COPY_DROPPED Einträge in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
+      if [ "${COPY_DROPPED:-0}" != 0 ]; then
+        noun="Einträge"; [ "$COPY_DROPPED" = 1 ] && noun="Eintrag"
+        warn_copy "$COPY_DROPPED $noun in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
       fi
     fi
   fi
