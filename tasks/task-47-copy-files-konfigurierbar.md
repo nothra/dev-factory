@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -123,6 +123,20 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   kein neues Verhalten. Suiten vorher und nachher: 2331/0 (ausgeliefert), 145/0 (Projekt).
   Bewusst unverändert: `copy_files: false`/`~` ohne Warnung in `start-work.sh` (das Gate lehnt sie ab, Verhaltensänderung)
   und die Pipe in `_factory_cfg_eval` (vorbestehend).
+
+## Security-Notizen
+- `/security-review` (2026-11-03): **PASSED** – 0 kritisch, 1 wichtig, mehrere Hinweise
+  ([`tasks/security-47.md`](security-47.md)).
+  - W1 (im Scope, vor dem Merge beheben): `copy_into_worktree` prüft nicht, ob der Eintrag im Worktree
+    gitignoret ist. Ein nicht ignorierter gelisteter Secret-Pfad landet untracked im Worktree, und
+    `factory-commit.sh` (`git add -A`) committet und pusht ihn im nächsten Pipeline-Schritt. Fix: vor dem `cp`
+    `git -C "$WORKDIR" check-ignore -q -- "$entry"`, sonst warnen und überspringen, plus Test und ADR-E25/E26-/Spec-Satz.
+    Repro R6 im Report. Selbst nachgeprüft: kein `check-ignore` in `start-work.sh`, `git add -A` in `factory-commit.sh`.
+  - Hinweise: `echo -e` interpretiert Backslash-Sequenzen in Einträgen (nur Bildschirmausgabe, gleiche Funktion wie W1,
+    mit beheben). Quellseitige Symlinks werden absichtlich verfolgt (im ADR benennen). Gate Regel 9 blockiert bei
+    yq-Fehler, die Meldung ist missverständlich.
+  - Keine Out-of-Scope-Funde (W1 und `echo -e` liegen in der im PR geänderten Funktion; kein Issue, kein
+    `kleinfunde.md`-Eintrag). Wegwerf-Dateien `scripts/*47*.tmp.sh` und `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
