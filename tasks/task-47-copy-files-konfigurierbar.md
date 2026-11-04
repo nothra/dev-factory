@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -139,8 +139,13 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
     `kleinfunde.md`-Eintrag). Wegwerf-Dateien `scripts/*47*.tmp.sh` und `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum.
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- `/codify` (2026-11-03): zwei Lessons in `lessons/factory-workflow.md` (Ignore-Status im Ziel bei `git add -A`-Folgeprozess;
+  `yq` `.[]` über Map) + Index-Zeilen, sechstes Wegwerf-Datei-Vorkommnis in `build-tooling`, `kleinfunde.md` um dritte
+  `echo -e`-Fundstelle erweitert. Report: [`tasks/codify-47.md`](codify-47.md).
+  **Offen: Security-W1 (`check-ignore`) ist noch nicht behoben** – Rework vor dem Merge nötig.
 
 ---
 Branch: `feature/47-copy-files-konfigurierbar`
 Erstellt: 2026-11-01 19:17
+
+Blocker 2026-11-03: Pipeline pausiert – REVIEW_CONFLICT: Merge gestoppt: Security-W1 (tasks/security-47.md) ist offen – start-work.sh copy_into_worktree prueft nicht per git check-ignore, ob der Eintrag im Worktree gitignoret ist; factory-commit.sh (git add -A) wuerde einen nicht ignorierten Secret-Pfad committen und pushen. Rework (check-ignore + Test + ADR-E25/E26/Spec-Satz, echo -e) vor dem Merge noetig. CI ist gruen, PR bleibt Draft. (/architecture ausführen, dann Pipeline neu starten)

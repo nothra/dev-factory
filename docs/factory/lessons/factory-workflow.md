@@ -1800,3 +1800,19 @@ Task 37 ließ die Kurzform von `factory-update.sh` in CI verweigern (`GITHUB_ACT
 **Regel:** (a) Führt ein Skript Zweige nach `GITHUB_ACTIONS`, `GITHUB_OUTPUT`, `CI` aus, unsetzt die Test-Datei sie am Anfang (hermetisch) und setzt sie nur in den Tests, die den Zweig prüfen; (b) Fixture-Commits immer über den Helfer mit Identität (`git_23`), nie rohes `git commit`; (c) ein CI-only-Rot mit `docker run --platform linux/amd64 ubuntu:24.04` nachstellen (git, jq, curl, wget, `install-yq.sh`) und `GITHUB_ACTIONS=true GITHUB_OUTPUT=…` setzen – so war die Ursache in einer Stunde gefunden, Raten hätte länger gedauert; Scratch-Pfade für Docker unter dem Home-Verzeichnis anlegen (`/private/tmp` ist nicht freigegeben).
 
 → `/implement`, `/test`, `/review` – bei Skript mit CI-Erkennung, dessen Tests in derselben CI laufen, und bei CI-only-Rot
+
+### Feature, das Dateien in einen Worktree legt, den der Folgeprozess per `git add -A` committet: Ignore-Status im Ziel erzwingen (aus Factory-Task #47, `/security-review`)
+
+Task 47 machte die Liste der gespiegelten lokalen Dateien frei wählbar (`start_work.copy_files`). Architektur (ADR E24–E26), Spec und zwei Review-Runden prüften Pfadregeln, Symlinks und Überschreib-Schutz – nicht, ob die gelistete Datei **im Ziel-Worktree gitignoret** ist. Ist sie es nicht (Tippfehler, Ignore-Eintrag nur im Quell-Branch), landet das Secret untracked im Worktree, und `factory-commit.sh` (`git add -A`) committet und pusht es im nächsten Pipeline-Schritt ohne Mensch. Erst `/security-review` fand es (Repro: `.env.development.local` neben ignoriertem `.env.local`). Vorher war das Risiko nicht da, weil nur eine feste, von `.gitignore.project` abgedeckte Datei kopiert wurde – die Verallgemeinerung hat die Absicherung stillschweigend entfernt. Das Config-Gate kann es nicht abfangen: das Ignore-Ergebnis hängt vom Ziel-Branch ab.
+
+**Regel:** (a) Öffnet ein Feature eine bisher feste Dateiliste für Konfiguration, im `/architecture`-Schritt fragen: „Welche Garantie hing an der Festverdrahtung?" und sie am Ort der Wirkung nachziehen; (b) schreibt ein Schritt Dateien, die ein späterer Schritt blind committet (`git add -A`), vor dem Schreiben `git -C <ziel> check-ignore -q -- <pfad>` prüfen, sonst warnen und überspringen (fail-closed); (c) Test: nicht ignorierte Quelle → keine Kopie + zweigspezifische Warnung.
+
+→ `/architecture`, `/implement`, `/security-review` – bei Feature, das Dateien (Secrets, lokale Config) in einen Worktree legt, der später automatisch committet wird, oder das eine feste Liste konfigurierbar macht
+
+### `yq` `.[]` über einen Wert, der eine Liste sein soll, liefert bei einer Map deren Werte (aus Factory-Task #47, Review-Iteration 1, Selbstfund)
+
+`factory_cfg_list` las `copy_files` zunächst mit `.[]`; bei `copy_files: {x: lokal.conf}` kamen die Map-**Werte** als Einträge heraus und `lokal.conf` wäre kopiert worden. `$(…)` schnitt zudem leere Elemente am Listenende still ab, und `//` ersetzt `false`/`null` durch `[]`. Außerdem gab Regel 2 des Config-Gates („unbekannter Key") vor Regel 9 („keine Liste") eine falsche Meldung aus, weil eine leere Default-Liste nur `<pfad>.*` führt.
+
+**Regel:** Listen aus YAML nur über `!!seq` iterieren und Nicht-Listen zählen/melden statt konsumieren; leere und Nicht-String-Elemente vor der Substitution verwerfen und zählen; bei neuer Typ-Regel in einem Gate prüfen, dass keine frühere Regel den Fall mit falscher Meldung abfängt (Test auf den Meldungstext, nicht nur rc). Die gepinnte yq-Version kennt kein `if/then/else`.
+
+→ `/implement`, `/review` – beim Lesen von Config-Listen per `yq` bzw. bei neuer Typ-Regel in `config-validation-check.sh`
