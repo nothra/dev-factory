@@ -813,9 +813,11 @@ Elternordner anlegen, nur Einzeldateien) stehen in `docs/specs/spec-47-copy-file
   `start-work.sh`, die die bestehende Schutzlogik übernimmt (`-f`-Vorbedingung der Quelle, `-e`/`-L`-Guard,
   `cp -p`, Aufräumen bei Fehlschlag mit `|| true`) und für jeden Fehlerfall zurückkehrt, ohne den Lauf
   abzubrechen. `ENV_COPIED` entfällt; der Hinweis (`start_work.hint`) hängt an keiner Kopie mehr.
-  **Nur Gitignoretes wird kopiert:** vor dem `cp` prüft `git -C "$WORKDIR" check-ignore -q -- <eintrag>`,
+  **Nur Gitignoretes wird kopiert:** vor dem `cp` prüft `git -C "$WORKDIR" check-ignore -q -- ./<eintrag>`,
   ob der Eintrag im Worktree ignoriert ist; sonst Warnung und Überspringen, jeder Git-Fehler zählt als
-  „nicht ignoriert" (fail-closed). Grund: mit der frei wählbaren Liste entfällt die Garantie, die an der
+  „nicht ignoriert" (fail-closed). Das `./` ist nötig, weil `check-ignore` sein Argument als Pathspec liest:
+  ohne Präfix würde `:x` bzw. `:(top)x` zu `x` aufgelöst und dessen Status geprüft, während `cp` wörtlich
+  `:x` schreibt (Security-Nachlauf W2). `--literal-pathspecs` scheidet aus, `check-ignore` lehnt es ab. Grund: mit der frei wählbaren Liste entfällt die Garantie, die an der
   festen `.env.local` hing (die ausgelieferte `.gitignore.project` deckt sie ab) – eine nicht ignorierte
   Kopie läge untracked im Worktree, und `factory-commit.sh` (`git add -A`) committete und pushte sie im
   nächsten Pipeline-Schritt. Geprüft wird im Ziel, nicht im Config-Gate, weil das Ergebnis vom Ziel-Branch

@@ -99,8 +99,9 @@ copy_into_worktree() {
   # Nur kopieren, was im Worktree gitignoret ist: eine nicht ignorierte Kopie läge untracked im Baum, und
   # factory-commit.sh ('git add -A') committete und pushte sie im nächsten Pipeline-Schritt. Geprüft im
   # Ziel, weil das Ignore-Ergebnis vom Ziel-Branch abhängt; jeder Git-Fehler (rc 128) gilt als „nicht
-  # ignoriert" (Factory-ADR-063 E26).
-  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then
+  # ignoriert" (Factory-ADR-063 E26). './' davor, weil check-ignore sein Argument als Pathspec liest: ':x'
+  # bzw. ':(top)x' würde zu 'x' aufgelöst und dessen Status geprüft, cp schriebe aber wörtlich ':x'.
+  if ! git -C "$WORKDIR" check-ignore -q -- "./$entry" 2>/dev/null; then
     warn_copy "$entry ist im Worktree nicht gitignoret – nicht kopiert, damit es nicht committet wird"; return 0
   fi
   # cp -p erhält den Modus – eine 600er-Quelle wird durch das Kopieren nicht breiter lesbar.

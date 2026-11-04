@@ -2329,7 +2329,7 @@ f9_unignored_refused() {
   SW_RUN="$1" run_start_work "$2" "$3" "demo-unign$3" >/dev/null
   [ -d "$wt" ] && [ ! -e "$wt/offen.txt" ]
 }
-SW_IGN_LINE='  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then'
+SW_IGN_LINE='  if ! git -C "$WORKDIR" check-ignore -q -- "./$entry" 2>/dev/null; then'
 SW_MUT_IGN="$TMP_SW/mut/scripts/start-work-ign.sh"
 awk -v g="$SW_IGN_LINE" '$0 == g { print "  if false; then"; next } { print }' "$SW" > "$SW_MUT_IGN"
 assert_true "$([ "$(grep -cxF -- "$SW_IGN_LINE" "$SW")" -eq 1 ] && ! grep -qxF -- "$SW_IGN_LINE" "$SW_MUT_IGN"; echo $?)" \
@@ -2340,6 +2340,33 @@ assert_true "$(f9_unignored_refused "$SW" "$TMP_SW/wt-47-ign" 808; echo $?)" \
 assert_true "$(! f9_unignored_refused "$SW_MUT_IGN" "$TMP_SW/wt-47-ignmut" 809; echo $?)" \
   "#47 F9 (Mutation): ohne Ignore-Guard wird er kopiert – die Prüfung oben wäre rot"
 rm -f "$REPO_SW/offen.txt"
+
+# F9 Pathspec (Security-W2): check-ignore liest sein Argument als Pathspec – ':geheim' löste Git zu 'geheim'
+# auf (ignoriert), cp schriebe aber wörtlich ':geheim' (nicht ignoriert). Mit './'-Präfix prüft der Guard
+# den wörtlichen Pfad. Das Muster 'geheim' trifft nur den aufgelösten Namen, nicht ':geheim'.
+# f9_pathspec_refused <skript> <wt-basis> <task-id> – 0 = ':geheim' fehlt im Worktree und im git status.
+f9_pathspec_refused() {
+  local wt; wt="$(wt_of "$2" "$3" "demo-pspec$3")"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-pspec$3" >/dev/null
+  local status; status="$(git -C "$wt" status --porcelain --untracked-files=all)"
+  [ -d "$wt" ] && [ ! -e "$wt/:geheim" ] && ! grep -qF -- ':geheim' <<<"$status"
+}
+printf 'geheim\n' >> "$SW_EXCLUDE"
+printf 'geheim=1\n' > "$REPO_SW/:geheim"
+sw_config '  copy_files: [":geheim"]'
+SW_IGN_LINE_BARE='  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then'
+SW_MUT_PSPEC="$TMP_SW/mut/scripts/start-work-pspec.sh"
+awk -v g="$SW_IGN_LINE" -v m="$SW_IGN_LINE_BARE" '$0 == g { print m; next } { print }' "$SW" > "$SW_MUT_PSPEC"
+assert_true "$([ "$(grep -cxF -- "$SW_IGN_LINE" "$SW")" -eq 1 ] && grep -qxF -- "$SW_IGN_LINE_BARE" "$SW_MUT_PSPEC"; echo $?)" \
+  "#47 F9 Pathspec (Mutation): der Guard prüft './\$entry' genau einmal, die Mutante den nackten Eintrag"
+OUT_PSPEC=$(run_start_work "$TMP_SW/wt-47-pspecout" 811 demo-pspecout)
+assert_contains_286 "$OUT_PSPEC" ':geheim ist im Worktree nicht gitignoret' \
+  "#47 F9 Pathspec: ein Eintrag mit führendem ':' wird als nicht gitignoret gewarnt"
+assert_true "$(f9_pathspec_refused "$SW" "$TMP_SW/wt-47-pspec" 812; echo $?)" \
+  "#47 F9 Pathspec: ':geheim' wird nicht kopiert, 'git add -A' fände es nicht (status ohne ':geheim')"
+assert_true "$(! f9_pathspec_refused "$SW_MUT_PSPEC" "$TMP_SW/wt-47-pspecmut" 813; echo $?)" \
+  "#47 F9 Pathspec (Mutation): ohne './'-Präfix wird ':geheim' kopiert und läge untracked im Worktree"
+rm -f "$REPO_SW/:geheim"
 
 # Ausgabe: ein Eintrag mit Backslash-Folge erscheint wörtlich in der Meldung ('echo -e' schnitte bei '\c' ab).
 printf 'bs=1\n' > "$REPO_SW/back\\cslash.conf"

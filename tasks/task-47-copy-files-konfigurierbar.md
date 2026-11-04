@@ -39,6 +39,7 @@ Spec: [`docs/specs/spec-47-copy-files-konfigurierbar.md`](../docs/specs/spec-47-
 - [x] AK18 – alle Gates grün
 - [x] Fehlerszenarien F1–F8 getestet
 - [x] F9 – im Worktree nicht gitignoreter Eintrag wird nicht kopiert (Security-W1, Mutationsbeleg)
+- [x] F9 Pathspec – Eintrag mit führendem `:` wird wörtlich geprüft, nicht kopiert (Security-W2, Mutationsbeleg)
 
 ## Technische Notizen
 Architektur: Nachtrag 2026-11-01 in `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md`
@@ -184,6 +185,21 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   `$0` nach einem `cd`; `rm` war nicht freigegeben. Telemetrie-Lücke: manueller Stage-2-Fortsatz ohne OTEL.
 - Hinweis: der in diesem Rework geänderte Code lag nach `/security-review` und `/codify` – ein kurzer
   Nachlauf von `/review` bzw. `/security-review` auf den Rework-Diff ist vor dem Merge sinnvoll.
+
+## Security-Rework 2 (/implement, 2026-11-05)
+- W2 behoben: `copy_into_worktree` prüft `git -C "$WORKDIR" check-ignore -q -- "./$entry"`. Das `./` verhindert,
+  dass `check-ignore` einen führenden `:` als Pathspec-Magie auflöst (`:x`/`:(top)x` → `x`).
+- Test (RED vor GREEN belegt): F9-Pathspec-Fall mit Eintrag `:geheim`, Muster `geheim` (trifft nur den aufgelösten
+  Namen). Warnung, keine Kopie, `git status` im Worktree ohne `:geheim`. Mutationsbeleg: dieselbe Prüffunktion
+  auf Original und Mutante mit nacktem `"$entry"`. Die Mutante kopiert und lässt die Datei untracked liegen. Damit ist
+  auch der Testschärfe-Hinweis aus dem Nachlauf erledigt (die Mutante prüft jetzt „würde gestaged").
+- Bewusst nicht umgesetzt: führenden `:` zusätzlich in `copy_entry_problem` ablehnen (im Report optional). Der Guard
+  ist mit `./` fail-closed. Eine weitere Validator-Regel hätte Gate, Spec F-Liste und Tests mit erweitert.
+- Doku: ADR-063 E26, Spec F9.
+- Suiten: 2347/0 (ausgeliefert), 145/0 (Projekt). Ein erster Suite-Lauf wurde abgebrochen, weil `run-tests.sh`
+  während des Laufs editiert wurde (Lesson nothra/tch-gastro-services#431). Der Neulauf ist maßgeblich.
+- Telemetrie-Lücke: manueller Stage-2-Fortsatz ohne OTEL. Vor dem Merge bleibt ein kurzer `/security-review`-Nachlauf
+  auf diesen Diff offen, ebenso das Löschen der Wegwerf-Dateien (`scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt`).
 
 ---
 Branch: `feature/47-copy-files-konfigurierbar`
