@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [x] Security-Review bestanden
+- [ ] Security-Review bestanden (Nachlauf 2026-11-04: NEEDS_FIXES, `./`-Präfix für `check-ignore`)
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -148,6 +148,17 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
     yq-Fehler, die Meldung ist missverständlich.
   - Keine Out-of-Scope-Funde (W1 und `echo -e` liegen in der im PR geänderten Funktion; kein Issue, kein
     `kleinfunde.md`-Eintrag). Wegwerf-Dateien `scripts/*47*.tmp.sh` und `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum.
+
+- `/security-review` Nachlauf (2026-11-04, Rework `ce8f89e`): **NEEDS_FIXES** – 0 kritisch, 1 wichtig
+  ([`tasks/security-47.md`](security-47.md) → „Nachlauf").
+  - W2 (im Scope, vor dem Merge beheben): `check-ignore` liest den Eintrag als Pathspec. `:secret` bzw.
+    `:(top)secret` passieren den Validator, werden als `secret` geprüft (ignoriert) und als `:secret` kopiert
+    (nicht ignoriert) → `git add -A` stagt die Kopie (Repro R8, vom Koordinator selbst gemessen). Fix gemessen:
+    `check-ignore -q -- "./$entry"` (`GIT_LITERAL_PATHSPECS` lehnt `check-ignore` mit rc 128 ab). Optional zusätzlich ein
+    führendes `:` in `copy_entry_problem` ablehnen. Dazu F9-Fall plus Mutationsbeleg und ein Satz in E26/Spec F9.
+  - Bestätigt: Negation, ignorierter Elternordner, Globs, führendes `-`, sonstige Magie (rc 128) fail-closed;
+    `printf` gibt `%`-Einträge wörtlich aus.
+  - Keine Out-of-Scope-Funde. Wegwerf-Dateien `scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum.
 
 ## Codify-Notizen
 - `/codify` (2026-11-03): zwei Lessons in `lessons/factory-workflow.md` (Ignore-Status im Ziel bei `git add -A`-Folgeprozess;

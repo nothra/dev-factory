@@ -76,7 +76,7 @@ Keine.
   manuell löschen. Die Repro-Sonde dieses Reviews hat sich selbst gelöscht.
 
 ## Ergebnis
-PASSED
+PASSED (Erstlauf 2026-11-03) → **NEEDS_FIXES** nach dem Nachlauf 2026-11-04, siehe unten
 
 > Kein Blocker. Das Wichtig-Finding (fehlender `check-ignore` vor der Kopie) sollte **in diesem PR** behoben
 > werden: Es ist eine Zeile, es ist fail-closed, und erst dieser PR öffnet den Abfluss über `git add -A`.
@@ -119,3 +119,85 @@ per EXIT-Trap samt Temp-Verzeichnis gelöscht (`git status --ignored scripts/` z
 - Das Wichtig-Finding ist **in Scope** und gehört in diesen PR, nicht in ein Issue. Falls der Orchestrator es doch
   auslagert: **Klasse A (Issue, Label `security`)**, Titel „start-work.sh: copy_files kopiert nicht gitignorete
   Dateien – Secret kann per `git add -A` committet werden", Body = Text des Wichtig-Findings inkl. Repro R6.
+
+---
+
+# Nachlauf 2026-11-04: Rework `ce8f89e` (Security-W1)
+
+> Geprüft wurde nur der Rework-Diff `git show ce8f89e`: der `check-ignore`-Guard in `copy_into_worktree`
+> (`scripts/start-work.sh:99-105`) und die Umstellung von `echo -e` auf `printf` (`:47-49`, `:108`).
+> Bedrohungsmodell wie oben. Ein Security-Agent hat den Diff analysiert, konnte aber keine Repros ausführen
+> (Berechtigungen). Den Befund unten hat der Koordinator selbst reproduziert, mit einer sich selbst löschenden
+> Sonde (`scripts/sec47r.tmp.sh`, danach entfernt), Funktionen unverändert aus `start-work.sh` extrahiert,
+> Wegwerf-Repo in `mktemp -d`.
+
+## Kritische Findings (Blocker)
+
+Keine.
+
+## Wichtige Findings
+
+- [ ] [Sensitive Data Exposure, Umgehung des W1-Fixes] `scripts/start-work.sh:103` übergibt den Eintrag als
+  **Pathspec** an `git check-ignore`. `copy_entry_problem` (`scripts/lib/gate-config.sh:60-73`) lässt einen führenden
+  `:` durch. Git löst die Kurzform `:secret` und die Form `:(top)secret` deshalb zum Pfad `secret` auf und prüft
+  **dessen** Ignore-Status. `cp` schreibt dagegen wörtlich die Datei `:secret`, und die ist nicht ignoriert. Der
+  Guard meldet dann „ignoriert", obwohl die Kopie im Worktree untracked liegt, und `git add -A`
+  (`scripts/factory-commit.sh:89`) würde sie stagen. Die Garantie aus E26 hält damit nicht für alle Einträge, die
+  Gate und Skript als gültig annehmen. Andere Magie (`:(icase)`, `:!x`) bricht mit rc 128 ab und wird
+  übersprungen, das ist fail-closed.
+  *Repro (R8):* `.gitignore` = `secret`, `.env*`, `!.env.example`, `secrets/`. Quell-Dateien existieren unter
+  den wörtlichen Namen.
+  ```
+  --- entry: :secret        check-ignore rc=0   ✓ :secret kopiert
+  --- entry: :(top)secret   check-ignore rc=0   ✓ :(top)secret kopiert
+  --- entry: :(icase)SECRET fatal: … pathspec magic not supported … rc=128
+  === git status --porcelain -uall im Worktree:
+  ?? :(top)secret
+  ?? :secret
+  === git add -A --dry-run:
+  add ':(top)secret'
+  add ':secret'
+  ```
+  **Einordnung:** Es braucht einen gelisteten Eintrag, der mit `:` beginnt, und eine lokale Datei mit genau diesem
+  Namen. Das ist eine exotische Fehlkonfiguration, kein Angriff (wer die Config schreibt, hat ohnehin
+  Code-Ausführung). Trotzdem hebelt sie genau die Zusicherung aus, für die der Rework da ist. Der Fix ist eine
+  Zeile, deshalb **im Scope, vor dem Merge beheben**.
+  **Lösung (gemessen):** Den Pfad als `./$entry` übergeben: `git -C "$WORKDIR" check-ignore -q -- "./$entry"`.
+  R8: `./:secret` → rc=1 (wird übersprungen), `./secret` → rc=0 (wird kopiert). `GIT_LITERAL_PATHSPECS=1`
+  ist **keine** Lösung, `check-ignore` lehnt es für jeden Pfad mit rc 128 ab („pathspec magic not supported …
+  'literal'"), auch für `secret`, und würde damit jede Kopie verhindern. Zusätzlich (defense in depth, optional):
+  `copy_entry_problem` lehnt einen führenden `:` ab, dann greift auch das Gate (Regel 9). Dazu ein F9-Fall:
+  Eintrag `:secret`, Muster `secret` → keine Kopie, Warnung, `git status` im Worktree leer. Mutationsbeleg
+  ohne `./`-Präfix. Satz in ADR-063 E26 und Spec F9.
+
+## Hinweise
+
+- [x] [Guard fail-closed, R8] Diese Fälle verhalten sich korrekt: das Negationsmuster `.env.example` (rc 1,
+  übersprungen), der ignorierte Elternordner `secrets/a` (rc 0, kopiert und ignoriert), die Globs `[s]ecret`
+  und `s?cret` (wörtlich geprüft, rc 1), ein führendes `-x` (dank `--` wörtlich), Pathspec-Magie außer
+  `top` (rc 128). `check-ignore` und `git add -A` lesen dieselben Ignore-Quellen (`.gitignore`, gemeinsames
+  `info/exclude`, `core.excludesFile`). Auf derselben Maschine ist das Ergebnis also konsistent.
+- [x] [Output-Injection, R8] Die `printf`-Umstellung hält: Die Einträge `a%sb` und `%n` erscheinen wörtlich in der
+  Meldung, weil der Eintrag nur als `%s`-Argument übergeben wird, nie als Formatstring. Damit ist der
+  `echo -e`-Hinweis des Erstlaufs erledigt.
+- [ ] [Restrisiko, außerhalb des Guards] Entfernt ein späterer Pipeline-Schritt das Ignore-Muster aus der
+  `.gitignore` des Feature-Branches, stagt `git add -A` die schon gespiegelte Datei. Zum Kopierzeitpunkt lässt sich
+  das nicht verhindern. Das Risiko galt vorher genauso für `.env.local`, und schließen würde es nur ein
+  Secret-Scan vor dem Commit. Das ist ein anderer Umfang, hier kein Handlungsbedarf.
+- [ ] [Testschärfe] `run-tests.sh:2325ff` (F9-Mutationsbeleg) zeigt an der Mutante nur „wird kopiert", nicht
+  „würde gestaged". Die `git status`-Prüfung (`:2322`) läuft nur gegen das Original. Das reicht, weil die
+  Gefahrenkette mit R6/R8 belegt ist. Nachschärfen ließe es sich beim Fix oben gleich mit.
+- [ ] [vorbestehend, außerhalb des Scopes] In `start-work.sh` gibt es weitere `echo -e` mit Werten, die nicht
+  aus `copy_files` stammen (`TASK_DESC` `:249`, Branch- und Schrittzeilen). Die Werte kommen aus den eigenen
+  CLI-Argumenten des Aufrufers und haben keine Sicherheitsrelevanz. Die Klasse ist in `docs/factory/kleinfunde.md`
+  („Config-Wert nicht durch `echo -e` interpretieren lassen") schon erfasst. Kein neuer Eintrag.
+- [ ] [Hygiene] `scripts/probe47.tmp.sh`, `scripts/probe47ci.tmp.sh`, `scripts/review47.tmp.sh`,
+  `scripts/review47b.tmp.sh` und `tasks/telemetry-raw-47-*.tmp.txt` liegen weiter im Baum (gitignoret). Vor dem
+  Merge löschen. Die Sonde dieses Nachlaufs hat sich selbst gelöscht.
+
+## Ergebnis (Nachlauf)
+NEEDS_FIXES
+
+> Kein Blocker im Sinne von „kritisch". Der Rework schließt W1 aber nur für Einträge ohne führenden `:`. Der
+> `./`-Präfix ist eine Zeile und gemessen. Er gehört samt Test in diesen PR, bevor `/pr-shepherd` merged.
+> Keine Out-of-Scope-Funde: kein Issue, kein neuer `kleinfunde.md`-Eintrag.
