@@ -112,6 +112,11 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
     Plural (für `/refactor`). Die Wegwerf-Dateien (`scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt`) sind
     noch nicht gelöscht.
   - Keine Out-of-Scope-Funde (kein Issue, kein `kleinfunde.md`-Eintrag).
+- Iteration 3 (2026-11-04, Nachlauf auf den Security-Rework `ce8f89e`): **APPROVED** – 0 kritisch, 0 wichtig,
+  3 Nitpicks ([`tasks/review-47.md`](review-47.md)). Der Ignore-Guard ist fail-closed, F9 samt Mutationsbeleg trifft die
+  Gefahr (`git status` im Worktree leer). Nitpicks: leere Elternordner bleiben bei einem nicht ignorierten verschachtelten
+  Eintrag zurück (harmlos); CHANGELOG und OPERATING.md nennen den Ignore-Guard nicht; die Wegwerf-Dateien liegen noch im Baum.
+  Suiten: 2343/0 (ausgeliefert), 145/0 (Projekt). Keine Out-of-Scope-Funde.
 
 ## Test-Notizen
 - `/test` (2026-11-03): Alle AK1–AK18 und F1–F8 haben Tests (Abgleich Spec ↔ Testnamen). Keine neuen Tests nötig,
