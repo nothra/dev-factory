@@ -123,6 +123,11 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   kein Produktionscode geändert. Suiten: 2331/0 (ausgeliefert), 145/0 (Projekt). Der `mkdir`-Fehlerzweig in
   `ensure_parent_dirs` ist nach den davor liegenden Prüfungen praktisch nicht erreichbar und ohne Test geblieben.
 
+- `/test` (2026-11-04, Nachlauf auf den Security-Rework `ce8f89e`): F9 (Ignore-Guard in `copy_into_worktree`) ist getestet –
+  zwei Varianten (kein Muster / Muster nur in uncommitteter Quell-`.gitignore`), Warnung, Folgeeintrag wird trotzdem
+  gespiegelt, `git status` im Worktree leer, Mutationsbeleg mit derselben Prüffunktion auf Original und Mutante.
+  Keine neuen Tests nötig, kein Produktionscode geändert. Suiten: 2343/0 (ausgeliefert), 145/0 (Projekt).
+
 ## Refactoring-Notizen
 - `/refactor` (2026-11-03): Die doppelte Warnung über verworfene `copy_files`-Einträge (Singular/Plural, Review-Nitpick)
   in `start-work.sh` ist zu einer Warnung mit Wortwahl `Eintrag`/`Einträge` zusammengefasst. Ausgabe unverändert,
