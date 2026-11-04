@@ -114,7 +114,8 @@ commands:
 #   hint       – Text, den start-work.sh im Abschluss unter Schritt 2 ausgibt, in jedem Modus. Leer = kein Hinweis.
 #   copy_files – gitignorete lokale Dateien (Pfade relativ zur Repo-Wurzel), die start-work.sh aus dem
 #                eigenen Baum in jeden neuen Worktree spiegelt. Nur einzelne Dateien, keine Ordner oder Muster;
-#                eine im Worktree vorhandene Datei wird nie überschrieben. Opt-out: FACTORY_WT_SKIP_COPY=1.
+#                eine im Worktree vorhandene Datei wird nie überschrieben, eine dort nicht gitignorete wird
+#                übersprungen (sonst committete 'git add -A' sie). Opt-out: FACTORY_WT_SKIP_COPY=1.
 # @reason: Projektspezifische Nacharbeit und lokale Konfiguration gehören nicht in das generische Skript –
 #   welche Dateien ein frischer Worktree braucht, weiß nur das Projekt.
 # @tradeoff: hint – keiner, ohne Eintrag entfällt er still. copy_files – jede gelistete Datei liegt danach in

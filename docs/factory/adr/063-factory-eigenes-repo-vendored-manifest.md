@@ -806,11 +806,21 @@ Elternordner anlegen, nur Einzeldateien) stehen in `docs/specs/spec-47-copy-file
   einzeln mit `mkdir` (ohne `-p`) angelegt. Bewusst **strenger** als „Ziel liegt außerhalb": auch ein
   Symlink, der innerhalb des Worktrees bleibt, führt zum Überspringen. Dafür braucht es kein `realpath`
   (unter macOS-Bash 3.2 nicht garantiert) und keine Pfad-Normalisierung. Das Ziel selbst schützt weiter der
-  `-e`/`-L`-Guard (nie überschreiben).
+  `-e`/`-L`-Guard (nie überschreiben). Die **Quellseite** folgt Symlinks bewusst (`[ -f ]`, `cp -p`): ein
+  lokaler Link wie `.env.local -> ~/secrets/…` ist ein legitimer Anwendungsfall; den Abfluss eines solchen
+  Inhalts über einen späteren Commit verhindert der Ignore-Guard aus E26.
 - **E26 · Schleife im Skript, keine neue Datei.** Die Kopie je Eintrag wird eine Funktion in
   `start-work.sh`, die die bestehende Schutzlogik übernimmt (`-f`-Vorbedingung der Quelle, `-e`/`-L`-Guard,
   `cp -p`, Aufräumen bei Fehlschlag mit `|| true`) und für jeden Fehlerfall zurückkehrt, ohne den Lauf
   abzubrechen. `ENV_COPIED` entfällt; der Hinweis (`start_work.hint`) hängt an keiner Kopie mehr.
+  **Nur Gitignoretes wird kopiert:** vor dem `cp` prüft `git -C "$WORKDIR" check-ignore -q -- <eintrag>`,
+  ob der Eintrag im Worktree ignoriert ist; sonst Warnung und Überspringen, jeder Git-Fehler zählt als
+  „nicht ignoriert" (fail-closed). Grund: mit der frei wählbaren Liste entfällt die Garantie, die an der
+  festen `.env.local` hing (die ausgelieferte `.gitignore.project` deckt sie ab) – eine nicht ignorierte
+  Kopie läge untracked im Worktree, und `factory-commit.sh` (`git add -A`) committete und pushte sie im
+  nächsten Pipeline-Schritt. Geprüft wird im Ziel, nicht im Config-Gate, weil das Ergebnis vom Ziel-Branch
+  abhängt (ein Muster nur in der uncommitteten `.gitignore` des Quellbaums zählt nicht). Meldungen geben den
+  Eintrag als `printf '%s'` aus, nie über `echo -e`.
 - **E27 · Opt-out.** `FACTORY_WT_SKIP_COPY` gewinnt; ist er nicht gesetzt, zählt `FACTORY_WT_SKIP_ENV`.
 
 **Alternativen:**

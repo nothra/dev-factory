@@ -79,9 +79,8 @@
 
 - **Wo:** [`scripts/checks/hooks-installed-check.sh:94`](../../scripts/checks/hooks-installed-check.sh)
   und [`scripts/install-hooks.sh:51`](../../scripts/install-hooks.sh) – beide interpolieren den
-  config-kontrollierten `core.hooksPath`-Wert in ein `echo -e`. Dritte Stelle seit Task 47:
-  [`scripts/start-work.sh:47,99`](../../scripts/start-work.sh) (`warn_copy` und die Erfolgszeile
-  interpolieren den `copy_files`-Eintrag; `x\c` schneidet die Ausgabe ab, verifiziert am 2026-11-03).
+  config-kontrollierten `core.hooksPath`-Wert in ein `echo -e`. (Eine dritte Stelle in `start-work.sh`,
+  `copy_files`-Einträge in `warn_copy` und der Erfolgszeile, ist mit Task 47 auf `printf '%s'` umgestellt.)
 - **Was:** Backslash-Escapes im Wert werden interpretiert. Kein Gate-Bypass (der Exit-Code
   bleibt unberührt), aber: ein Pfad mit Backslash-Segment wird in der Fehlermeldung
   verstümmelt dargestellt, und ein bewusst gesetzter Wert kann eine zusätzliche Zeile inkl.

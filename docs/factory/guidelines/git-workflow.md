@@ -352,7 +352,8 @@ cd <ausgegebener-worktree-pfad>                    # dort arbeiten (eigene Sessi
   Install-Schritt (`commands.install`) im neuen Worktree; `FACTORY_WT_SKIP_COPY=1` (Alias `FACTORY_WT_SKIP_ENV=1`) =
   die in `start_work.copy_files` gelisteten (gitignoreten) Dateien **nicht** in den neuen Worktree spiegeln. Die Liste
   ist per Default leer (`[]`); sie nennt einzelne Dateien relativ zur Repo-Wurzel (keine Ordner oder Muster), eine im
-  Worktree vorhandene Datei wird nie überschrieben, fehlende Unterordner werden angelegt (Factory-ADR-063 E23–E27).
+  Worktree vorhandene Datei wird nie überschrieben, fehlende Unterordner werden angelegt, und eine Datei, die im
+  Worktree nicht gitignoret ist, wird mit Warnung übersprungen – sonst committete `git add -A` sie (Factory-ADR-063 E23–E27).
   **Quelle** ist der Baum, in dem `start-work.sh` liegt (`$FACTORY_DIR`) – üblicherweise, aber nicht zwingend der
   Haupt-Baum: startet man die Task aus einem Worktree, dem eine gelistete Datei fehlt, wird sie still übersprungen.
 - **Aufräumen nach dem Merge:** `git worktree remove <pfad>` (dann `git worktree prune`), und den

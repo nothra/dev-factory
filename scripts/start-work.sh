@@ -44,7 +44,9 @@ NC='\033[0m'
 # shellcheck source=lib/gate-config.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gate-config.sh"
 
-warn_copy() { echo -e "  ${YELLOW}⚠  $*${NC}"; }
+# Der Eintrag geht als %s hinaus, nie durch 'echo -e': sonst würden Backslash-Folgen in einem gültigen
+# Eintrag (z. B. 'x\c') interpretiert und die Meldung verstümmelt oder Steuerbytes ausgegeben.
+warn_copy() { printf '  %b⚠  %s%b\n' "$YELLOW" "$*" "$NC"; }
 
 # ensure_parent_dirs <eintrag>: Elternkette des Ziels ab der Worktree-Wurzel prüfen (Factory-ADR-063 E25).
 # Eine vorhandene Komponente muss ein echtes Verzeichnis sein – auch ein Symlink, der im Worktree bleibt,
@@ -94,9 +96,16 @@ copy_into_worktree() {
   if [ -e "$dst" ] || [ -L "$dst" ]; then
     warn_copy "$entry existiert im Worktree bereits – wird nicht überschrieben"; return 0
   fi
+  # Nur kopieren, was im Worktree gitignoret ist: eine nicht ignorierte Kopie läge untracked im Baum, und
+  # factory-commit.sh ('git add -A') committete und pushte sie im nächsten Pipeline-Schritt. Geprüft im
+  # Ziel, weil das Ignore-Ergebnis vom Ziel-Branch abhängt; jeder Git-Fehler (rc 128) gilt als „nicht
+  # ignoriert" (Factory-ADR-063 E26).
+  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then
+    warn_copy "$entry ist im Worktree nicht gitignoret – nicht kopiert, damit es nicht committet wird"; return 0
+  fi
   # cp -p erhält den Modus – eine 600er-Quelle wird durch das Kopieren nicht breiter lesbar.
   if cp -p "$src" "$dst"; then
-    echo -e "  ${GREEN}✓${NC} $entry kopiert (Quelle: ${FACTORY_DIR})"
+    printf '  %b✓%b %s kopiert (Quelle: %s)\n' "$GREEN" "$NC" "$entry" "$FACTORY_DIR"
   else
     # Selbst erzeugten Rest wegräumen: scheitert cp erst NACH dem Anlegen des Ziels (Abbruch mitten im
     # Schreiben, oder nur das -p misslingt), konservierte der Guard oben die unvollständige Datei bei jedem

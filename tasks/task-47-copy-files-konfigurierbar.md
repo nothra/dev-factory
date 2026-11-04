@@ -38,6 +38,7 @@ Spec: [`docs/specs/spec-47-copy-files-konfigurierbar.md`](../docs/specs/spec-47-
 - [x] AK17 – Doku (FACTORY.md Regel 8, git-workflow.md, OPERATING.md, .gitignore-Kommentare, CHANGELOG mit Migrationszeile) nachgezogen
 - [x] AK18 – alle Gates grün
 - [x] Fehlerszenarien F1–F8 getestet
+- [x] F9 – im Worktree nicht gitignoreter Eintrag wird nicht kopiert (Security-W1, Mutationsbeleg)
 
 ## Technische Notizen
 Architektur: Nachtrag 2026-11-01 in `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md`
@@ -143,6 +144,25 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   `yq` `.[]` über Map) + Index-Zeilen, sechstes Wegwerf-Datei-Vorkommnis in `build-tooling`, `kleinfunde.md` um dritte
   `echo -e`-Fundstelle erweitert. Report: [`tasks/codify-47.md`](codify-47.md).
   **Offen: Security-W1 (`check-ignore`) ist noch nicht behoben** – Rework vor dem Merge nötig.
+
+## Security-Rework (/implement, 2026-11-04)
+- W1 behoben: `copy_into_worktree` prüft nach dem `-e`/`-L`-Guard `git -C "$WORKDIR" check-ignore -q -- "$entry"`;
+  nicht ignoriert oder Git-Fehler → Warnung + Überspringen. Reihenfolge bewusst nach `ensure_parent_dirs`:
+  `check-ignore` endet bei einem Symlink in der Elternkette mit rc 128 („beyond a symbolic link") und
+  hätte die genauere F6-Meldung verdeckt; nach dem `-e`/`-L`-Guard, weil ein getracktes Ziel rc 1 liefert und
+  sonst die AK4-Meldung verdeckt würde. `check-ignore` nimmt den Pfad wörtlich (`*`, Leerzeichen, `\`,
+  `-rf.conf` per Sonde geprüft); `--literal-pathspecs` lehnt der Befehl ab (rc 128).
+- `echo -e` → `printf '%s'` in `warn_copy` und der Erfolgszeile; `kleinfunde.md` entsprechend gekürzt.
+- Tests: Fixture-Ignore-Muster im gemeinsamen `info/exclude` (kein Commit auf `main` der Fixture, am Gruppenende
+  zurückgesetzt), F9 mit zwei Varianten (kein Muster / Muster nur in uncommitteter Quell-`.gitignore`),
+  Mutationsbeleg nach Lesson Factory-Task #23, Backslash-Eintrag wörtlich in der Meldung.
+  Suite: 2343/0 (ausgeliefert).
+- Doku: ADR-063 E25 (Quellseite folgt Symlinks bewusst) und E26 (Ignore-Guard), Spec F9, `git-workflow.md`,
+  `factory.defaults.yml`.
+- Wegwerf-Sonde `scripts/probe47ci.tmp.sh` (gitignoret) blieb liegen – ihr Selbst-Lösch-Trap nutzte relatives
+  `$0` nach einem `cd`; `rm` war nicht freigegeben. Telemetrie-Lücke: manueller Stage-2-Fortsatz ohne OTEL.
+- Hinweis: der in diesem Rework geänderte Code lag nach `/security-review` und `/codify` – ein kurzer
+  Nachlauf von `/review` bzw. `/security-review` auf den Rework-Diff ist vor dem Merge sinnvoll.
 
 ---
 Branch: `feature/47-copy-files-konfigurierbar`

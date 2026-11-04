@@ -161,6 +161,10 @@ gespiegelt. Eine Warnung im Output gibt es in allen Fällen außer F1 und F7.
   pre-push-Hook, nicht vor `start-work.sh`). Elemente, die kein nicht leerer String ohne Steuerzeichen
   sind, und ein Wert, der keine Liste ist, werden gezählt gewarnt („N Einträge … übersprungen");
   eine nicht lesbare Liste (z. B. `yq` fehlt) wird gewarnt, nichts wird gespiegelt.
+- [ ] **F9 – Eintrag ist im Worktree nicht gitignoret** (nachgezogen aus `/security-review` W1, 2026-11-04):
+  Warnung, Eintrag übersprungen, kein Ziel entsteht – sonst committete `factory-commit.sh` (`git add -A`)
+  die Kopie. Maßgeblich ist das Ignore-Ergebnis im Worktree (`git check-ignore`); ein Muster nur in der
+  uncommitteten `.gitignore` des Quellbaums zählt nicht (Factory-ADR-063 E26).
 
 ## Offene Fragen
 

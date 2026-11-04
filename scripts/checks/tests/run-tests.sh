@@ -1951,6 +1951,12 @@ printf 'nicht gelistet\n' > "$REPO_SW/nicht-gelistet.conf"
 printf 'dritte=3\n' > "$REPO_SW/dritte.conf"
 mkdir -p "$REPO_SW/config"
 printf 'local: yes\n' > "$REPO_SW/config/local.yml"
+# Gespiegelt wird nur, was im Worktree gitignoret ist (E26). Die Muster stehen im gemeinsamen info/exclude
+# (gilt für alle Worktrees, ohne einen Commit auf main der Fixture); am Gruppenende zurückgesetzt.
+SW_EXCLUDE="$REPO_SW/.git/info/exclude"
+[ -f "$SW_EXCLUDE" ] && cp "$SW_EXCLUDE" "$TMP_SW/exclude-vorher"
+mkdir -p "$(dirname "$SW_EXCLUDE")"
+printf '.env.local\n*.conf\nconfig/local.yml\n' >> "$SW_EXCLUDE"
 
 # AK1 + AK10: Default [] → nichts gespiegelt, obwohl eine .env.local daliegt; der Hinweis erscheint trotzdem.
 sw_config ''
@@ -2293,6 +2299,59 @@ assert_contains_286 "$OUT_NOREAD" 'start_work.copy_files nicht lesbar' "#47 F8: 
 assert_true "$([ -d "$WT_NOREAD" ] && [ ! -e "$WT_NOREAD/lokal.conf" ]; echo $?)" \
   "#47 F8: bei nicht lesbarer Liste wird nichts gespiegelt (Worktree als Anker vorhanden)"
 
+# F9: ein Eintrag, der im Worktree NICHT gitignoret ist, wird nicht kopiert – sonst committete
+# factory-commit.sh ('git add -A') die Kopie im nächsten Schritt (Factory-ADR-063 E26, Security-W1).
+# Zwei Varianten: gar kein Ignore-Muster, und ein Muster, das nur in einer uncommitteten .gitignore des
+# Quellbaums steht (der Worktree sieht sie nicht). Der Folge-Eintrag läuft weiter.
+printf 'offen=1\n' > "$REPO_SW/offen.txt"
+printf 'quelle=1\n' > "$REPO_SW/nur-quelle.txt"
+printf 'nur-quelle.txt\n' > "$REPO_SW/.gitignore"
+sw_config '  copy_files: ["offen.txt", "nur-quelle.txt", "lokal.conf"]'
+WT_UNIGN="$(wt_of "$TMP_SW/wt-47-unign" 807 demo-unign)"
+OUT_UNIGN=$(run_start_work "$TMP_SW/wt-47-unign" 807 demo-unign); RC_UNIGN=$?
+assert_exit 0 "$RC_UNIGN" "#47 F9: nicht gitignorete Einträge → exit 0"
+assert_true "$([ -d "$WT_UNIGN" ] && [ ! -e "$WT_UNIGN/offen.txt" ]; echo $?)" \
+  "#47 F9: ein im Worktree nicht gitignoreter Eintrag wird nicht kopiert (Worktree als Anker vorhanden)"
+assert_contains_286 "$OUT_UNIGN" 'offen.txt ist im Worktree nicht gitignoret' "#47 F9: der nicht ignorierte Eintrag wird gewarnt"
+[ ! -e "$WT_UNIGN/nur-quelle.txt" ]
+assert_true "$?" "#47 F9: ein Ignore-Muster nur in der uncommitteten .gitignore des Quellbaums zählt nicht"
+assert_contains_286 "$OUT_UNIGN" 'nur-quelle.txt ist im Worktree nicht gitignoret' "#47 F9: auch dieser Eintrag wird gewarnt"
+cmp -s "$REPO_SW/lokal.conf" "$WT_UNIGN/lokal.conf"
+assert_true "$?" "#47 F9: der folgende, gitignorete Eintrag wird trotzdem gespiegelt"
+assert_true "$([ -z "$(git -C "$WT_UNIGN" status --porcelain --untracked-files=all -- offen.txt nur-quelle.txt lokal.conf)" ]; echo $?)" \
+  "#47 F9: 'git add -A' fände im Worktree keine der gespiegelten Dateien (status leer)"
+rm -f "$REPO_SW/.gitignore" "$REPO_SW/nur-quelle.txt"
+
+# F9 Mutationsbeleg (Lesson Factory-Task #23): dieselbe Prüffunktion auf Original und Mutante ohne Ignore-Guard.
+# f9_unignored_refused <skript> <wt-basis> <task-id> – 0 = der nicht ignorierte Eintrag fehlt im Worktree.
+f9_unignored_refused() {
+  local wt; wt="$(wt_of "$2" "$3" "demo-unign$3")"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-unign$3" >/dev/null
+  [ -d "$wt" ] && [ ! -e "$wt/offen.txt" ]
+}
+SW_IGN_LINE='  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then'
+SW_MUT_IGN="$TMP_SW/mut/scripts/start-work-ign.sh"
+awk -v g="$SW_IGN_LINE" '$0 == g { print "  if false; then"; next } { print }' "$SW" > "$SW_MUT_IGN"
+assert_true "$([ "$(grep -cxF -- "$SW_IGN_LINE" "$SW")" -eq 1 ] && ! grep -qxF -- "$SW_IGN_LINE" "$SW_MUT_IGN"; echo $?)" \
+  "#47 F9 (Mutation): der Ignore-Guard steht genau einmal im Skript und fehlt in der Mutante"
+sw_config '  copy_files: ["offen.txt"]'
+assert_true "$(f9_unignored_refused "$SW" "$TMP_SW/wt-47-ign" 808; echo $?)" \
+  "#47 F9 (Mutation): Original – der nicht ignorierte Eintrag wird nicht kopiert"
+assert_true "$(! f9_unignored_refused "$SW_MUT_IGN" "$TMP_SW/wt-47-ignmut" 809; echo $?)" \
+  "#47 F9 (Mutation): ohne Ignore-Guard wird er kopiert – die Prüfung oben wäre rot"
+rm -f "$REPO_SW/offen.txt"
+
+# Ausgabe: ein Eintrag mit Backslash-Folge erscheint wörtlich in der Meldung ('echo -e' schnitte bei '\c' ab).
+printf 'bs=1\n' > "$REPO_SW/back\\cslash.conf"
+sw_config "  copy_files: ['back\\cslash.conf']"
+WT_BS="$(wt_of "$TMP_SW/wt-47-bs" 810 demo-bs)"
+OUT_BS=$(run_start_work "$TMP_SW/wt-47-bs" 810 demo-bs)
+cmp -s "$REPO_SW/back\\cslash.conf" "$WT_BS/back\\cslash.conf"
+assert_true "$?" "#47: ein Eintrag mit Backslash im Namen wird gespiegelt"
+assert_contains_286 "$OUT_BS" 'back\cslash.conf kopiert (Quelle:' \
+  "#47: die Erfolgsmeldung gibt den Eintrag wörtlich aus (keine Backslash-Interpretation)"
+rm -f "$REPO_SW/back\\cslash.conf"
+
 # AK11: In-Place-Modus – keine Spiegelung (kein neuer Baum), der Hinweis erscheint trotzdem. Config + Defaults
 # liegen untracked im Klon: der Uncommitted-Check des In-Place-Modus sieht nur getrackte Dateien.
 cp "$FACTORY_ROOT/factory.defaults.yml" "$REPO_IP/"
@@ -2359,8 +2418,9 @@ assert_true "$([ -z "$(origin_terms_47 "$GROUP_47")" ]; echo $?)" \
 assert_true "$([ -n "$(origin_terms_47 "$TMP_SW/start-work-mut-47.sh")" ]; echo $?)" \
   "#47 AK16 (Mutation): ein eingeschleuster Ursprungs-Begriff macht den Guard rot"
 
-# Fixture-Config für die folgenden Gruppen zurücksetzen (committeter Stand ohne copy_files).
+# Fixture-Config für die folgenden Gruppen zurücksetzen (committeter Stand ohne copy_files, info/exclude wie vorher).
 git -C "$REPO_SW" checkout -q -- factory.config.yml
+if [ -f "$TMP_SW/exclude-vorher" ]; then cp "$TMP_SW/exclude-vorher" "$SW_EXCLUDE"; else rm -f "$SW_EXCLUDE"; fi
 
 # ─── nothra/tch-gastro-services#267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
 # Läuft hier (vor dem TMP_SW-Aufräumen unten), weil AK5 die gh-Stub/REPO_SW-Fixtures aus dem

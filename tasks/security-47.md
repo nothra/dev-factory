@@ -15,7 +15,9 @@ Keine.
 
 ## Wichtige Findings
 
-- [ ] [Sensitive Data Exposure] `scripts/start-work.sh:91-99` (`copy_into_worktree`) kopiert jede gelistete
+- [x] **Behoben 2026-11-04** (Rework nach `/codify`: `check-ignore`-Guard in `copy_into_worktree`, Tests F9 samt
+  Mutationsbeleg, ADR E25/E26, Spec F9; `echo -e` mit erledigt).
+  [Sensitive Data Exposure] `scripts/start-work.sh:91-99` (`copy_into_worktree`) kopiert jede gelistete
   Datei, ohne zu prüfen, ob sie im **Ziel-Worktree** gitignoret ist. Die Doku nennt die Einträge „gitignorete
   lokale Dateien" (`factory.defaults.yml`, `git-workflow.md:353`), erzwungen wird das aber nirgends. Ist eine
   gelistete Datei nicht ignoriert (Tippfehler, `.env.development.local` neben `.env.local` im `.gitignore`,
