@@ -588,8 +588,12 @@ Die Git-Gates und die Pipeline kennen **keinen Paketmanager** (Factory-ADR-063 D
   Scheitert eines, ist das Gate rot und nennt den Skriptnamen; eine nicht ausführbare Datei ist
   ebenfalls rot (`chmod +x`). Fehlt das Verzeichnis oder ist es leer, läuft das Gate normal weiter;
   Punkt-Dateien (`.gitkeep`) zählen nicht.
-- **`start-work.sh`** liest den Install-Schritt aus `commands.install` und den Seed-Hinweis aus
-  `start_work.hint`; ohne Eintrag entfällt beides still.
+- **`start-work.sh`** liest den Install-Schritt aus `commands.install`, den Abschluss-Hinweis aus
+  `start_work.hint` (in jedem Modus) und die in neue Worktrees zu spiegelnden lokalen Dateien aus
+  `start_work.copy_files` (Liste relativer Dateipfade, Default `[]`; Opt-out `FACTORY_WT_SKIP_COPY=1`;
+  kopiert wird nur, was im Worktree gitignoret ist, sonst Warnung und Überspringen);
+  ohne Eintrag entfällt der jeweilige Schritt still. `config-validation-check.sh` lehnt absolute Pfade,
+  `..`-Segmente, leere Einträge, abschließendes `/`, Steuerzeichen und Nicht-Strings in `copy_files` ab.
 - **CI** liest `lint`/`test` weiter aus den Repo-Variablen `FACTORY_LINT_COMMAND` /
   `FACTORY_TEST_COMMAND` (`ci.yml`, Q7) – beide Quellen müssen denselben Befehl tragen.
 

@@ -22,11 +22,12 @@
 #   FACTORY_NO_WORKTREE=1     altes In-Place-Verhalten (Branch im aktuellen Baum)
 #   FACTORY_WORKTREE_BASE=…   Basisverzeichnis der Worktrees (Default: Geschwister-Ordner)
 #   FACTORY_WT_SKIP_INSTALL=1 kein Install-Schritt (commands.install) im neuen Worktree
-#   FACTORY_WT_SKIP_ENV=1     kein Kopieren der '.env.local' in den neuen Worktree
+#   FACTORY_WT_SKIP_COPY=1    keine Spiegelung der Dateien aus start_work.copy_files in den neuen
+#                             Worktree (Alias: FACTORY_WT_SKIP_ENV=1, bisheriger Name)
 #   FACTORY_DIR=…             Repo-Wurzel überschreiben (v. a. für Tests)
 #   FACTORY_ISSUE_LABEL=…     Art-Label für ein neu angelegtes Issue erzwingen
 #                             (Default aus dem Branch-Typ abgeleitet)
-#   FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels (CSV: security,tech-debt,test,factory-pipeline)
+#   FACTORY_ASPECT_LABELS=…   optionale Aspekt-Labels (CSV, z. B. security,tech-debt,test)
 #                             für ein neu angelegtes Issue; via --labels a,b übersteuerbar
 
 set -euo pipefail
@@ -38,9 +39,112 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Install-Kommando (commands.install) und Seed-Hinweis (start_work.hint) kommen aus der Config (nothra/tch-gastro-services#431).
+# Install-Kommando (commands.install), Abschluss-Hinweis (start_work.hint) und die zu spiegelnden Dateien
+# (start_work.copy_files) kommen aus der Config (nothra/tch-gastro-services#431, Factory-ADR-063 E23).
 # shellcheck source=lib/gate-config.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gate-config.sh"
+
+# Der Eintrag geht als %s hinaus, nie durch 'echo -e': sonst würden Backslash-Folgen in einem gültigen
+# Eintrag (z. B. 'x\c') interpretiert und die Meldung verstümmelt oder Steuerbytes ausgegeben.
+warn_copy() { printf '  %b⚠  %s%b\n' "$YELLOW" "$*" "$NC"; }
+
+# ensure_parent_dirs <eintrag>: Elternkette des Ziels ab der Worktree-Wurzel prüfen (Factory-ADR-063 E25).
+# Eine vorhandene Komponente muss ein echtes Verzeichnis sein – auch ein Symlink, der im Worktree bleibt,
+# führt zum Überspringen; so wird ohne realpath nie außerhalb des Worktrees geschrieben. Fehlende
+# Komponenten einzeln per mkdir (ohne -p), damit jede gerade geprüft ist. Rückgabe 1 = überspringen.
+ensure_parent_dirs() {
+  local entry="$1" dir="$WORKDIR" rest component
+  case "$entry" in */*) rest="${entry%/*}" ;; *) return 0 ;; esac
+  while [ -n "$rest" ]; do
+    component="${rest%%/*}"
+    if [ "$component" = "$rest" ]; then rest=""; else rest="${rest#*/}"; fi
+    case "$component" in ''|.) continue ;; esac
+    dir="$dir/$component"
+    if [ -L "$dir" ]; then
+      warn_copy "$entry übersprungen – $component ist im Worktree ein Symlink"; return 1
+    elif [ -d "$dir" ]; then
+      continue
+    elif [ -e "$dir" ]; then
+      warn_copy "$entry übersprungen – $component ist im Worktree kein Verzeichnis"; return 1
+    elif ! mkdir "$dir" 2>/dev/null; then
+      warn_copy "$entry übersprungen – Ordner $component ließ sich nicht anlegen"; return 1
+    fi
+  done
+  return 0
+}
+
+# copy_into_worktree <eintrag>: eine gelistete Datei aus FACTORY_DIR nach WORKDIR spiegeln (E24–E26).
+# Quelle ist der Baum, in dem dieses Skript liegt – beim Aufruf aus einem bestehenden Worktree eben dieser,
+# nicht zwingend der Haupt-Baum. Jede Abweichung warnt und kehrt mit 0 zurück: die Spiegelung ist Komfort
+# und darf weder den Lauf noch die übrigen Einträge abbrechen.
+copy_into_worktree() {
+  local entry="$1" problem src dst
+  # Derselbe Validator wie im Config-Gate (Defense in depth: das Gate läuft nur im pre-push-Hook).
+  problem="$(copy_entry_problem "$entry")"
+  if [ -n "$problem" ]; then
+    warn_copy "$(printf '%q' "$entry") übersprungen – ungültiger Eintrag ($problem)"; return 0
+  fi
+  src="$FACTORY_DIR/$entry"
+  dst="$WORKDIR/$entry"
+  if [ -d "$src" ]; then
+    warn_copy "$entry ist ein Verzeichnis – gespiegelt werden nur einzelne Dateien"; return 0
+  fi
+  # Fehlende Quelle (auch ein defekter Symlink) still überspringen: nicht jeder hat jede gelistete Datei.
+  [ -f "$src" ] || return 0
+  ensure_parent_dirs "$entry" || return 0
+  # -e ODER -L: auch ein (defekter) Symlink zählt als vorhandene lokale Konfiguration – nie überschreiben.
+  if [ -e "$dst" ] || [ -L "$dst" ]; then
+    warn_copy "$entry existiert im Worktree bereits – wird nicht überschrieben"; return 0
+  fi
+  # Nur kopieren, was im Worktree gitignoret ist: eine nicht ignorierte Kopie läge untracked im Baum, und
+  # factory-commit.sh ('git add -A') committete und pushte sie im nächsten Pipeline-Schritt. Geprüft im
+  # Ziel, weil das Ignore-Ergebnis vom Ziel-Branch abhängt; jeder Git-Fehler (rc 128) gilt als „nicht
+  # ignoriert" (Factory-ADR-063 E26). './' davor, weil check-ignore sein Argument als Pathspec liest: ':x'
+  # bzw. ':(top)x' würde zu 'x' aufgelöst und dessen Status geprüft, cp schriebe aber wörtlich ':x'.
+  if ! git -C "$WORKDIR" check-ignore -q -- "./$entry" 2>/dev/null; then
+    warn_copy "$entry ist im Worktree nicht gitignoret – nicht kopiert, damit es nicht committet wird"; return 0
+  fi
+  # cp -p erhält den Modus – eine 600er-Quelle wird durch das Kopieren nicht breiter lesbar.
+  if cp -p "$src" "$dst"; then
+    printf '  %b✓%b %s kopiert (Quelle: %s)\n' "$GREEN" "$NC" "$entry" "$FACTORY_DIR"
+  else
+    # Selbst erzeugten Rest wegräumen: scheitert cp erst NACH dem Anlegen des Ziels (Abbruch mitten im
+    # Schreiben, oder nur das -p misslingt), konservierte der Guard oben die unvollständige Datei bei jedem
+    # Folgelauf. Sicher, weil der Guard ein vorbestehendes Ziel bereits ausgeschlossen hat. '|| true': das
+    # Aufräumen ist Kür – scheitert es, bleibt es bei der Warnung, statt dass 'set -e' den Lauf beendet.
+    rm -f "$dst" 2>/dev/null || true
+    warn_copy "$entry konnte nicht kopiert werden – im Worktree manuell nachziehen"
+  fi
+  return 0
+}
+
+# mirror_copy_files: alle Einträge aus start_work.copy_files spiegeln und verworfene gesammelt melden (E24).
+mirror_copy_files() {
+  local entries dropped noun entry
+  # Lesefehler (z. B. yq fehlt) warnen statt still nichts zu kopieren – der Lauf geht trotzdem weiter.
+  if ! entries="$(factory_cfg_list start_work.copy_files 2>/dev/null)" \
+     || ! dropped="$(factory_cfg_list_dropped start_work.copy_files 2>/dev/null)"; then
+    warn_copy "start_work.copy_files nicht lesbar (yq?) – keine Dateien in den Worktree gespiegelt"
+    return 0
+  fi
+  [ -n "$entries" ] || [ "${dropped:-0}" != 0 ] || return 0
+  # Opt-out-Hinweis in der Ankündigungszeile, nicht in der Erfolgsmeldung – so ist er auch sichtbar,
+  # wenn ein Eintrag übersprungen wird oder scheitert.
+  echo -e "  ${YELLOW}→${NC} Dateien aus start_work.copy_files in den Worktree spiegeln (FACTORY_WT_SKIP_COPY=1 überspringt)..."
+  # Zeilenweise mit 'IFS= read -r': Leerzeichen im Pfad bleiben erhalten (factory_cfg_list liefert
+  # keine leeren Elemente und keine mit Zeilenumbruch). '-n'-Guard: ein leerer Here-String ergäbe
+  # sonst eine Leerzeile und damit eine falsche „leerer Pfad"-Warnung.
+  if [ -n "$entries" ]; then
+    while IFS= read -r entry; do
+      copy_into_worktree "$entry"
+    done <<< "$entries"
+  fi
+  # Was factory_cfg_list verworfen hat, erreicht copy_into_worktree nie.
+  if [ "${dropped:-0}" != 0 ]; then
+    noun="Einträge"; [ "$dropped" = 1 ] && noun="Eintrag"
+    warn_copy "$dropped $noun in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
+  fi
+}
 
 # ─── Argumente & Modus ───────────────────────────────────────────────────────
 # Zwei Modi (ADR-013 – Task-ID = GitHub-Issue-Nummer):
@@ -119,12 +223,6 @@ ISSUE_LABEL="${FACTORY_ISSUE_LABEL:-$ISSUE_LABEL}"
 
 # Worktree-Default (Kern-Vorkehrung, nothra/tch-gastro-services#74). Ausschalten via FACTORY_NO_WORKTREE=1.
 if [ "${FACTORY_NO_WORKTREE:-0}" = "1" ]; then WORKTREE_MODE=false; else WORKTREE_MODE=true; fi
-
-# Wurde eine .env.local in den Worktree kopiert? Steuert den db:seed-Hinweis im Abschluss
-# (nothra/tch-gastro-services#236). Vorbelegt, weil kein Zweig die Zuweisung garantiert erreicht: weder der In-Place-Modus
-# noch Opt-out, fehlende Quelle, vorhandene Zieldatei oder ein fehlgeschlagenes cp kommen dort
-# vorbei – unter set -u wäre der Abschluss-Output sonst ein harter Abbruch.
-ENV_COPIED=false
 
 # ─── Uncommitted Changes prüfen (nur In-Place-Modus) ──────────────────────────
 # Der Worktree-Modus fasst den aktuellen Baum nicht an (kein checkout/rebase dort)
@@ -221,40 +319,15 @@ if [ "$WORKTREE_MODE" = true ]; then
     echo -e "  ${GREEN}✓${NC} Worktree + Branch angelegt"
   fi
 
-  # .env.local mitspiegeln (nothra/tch-gastro-services#236): die Datei ist gitignored und wandert beim 'worktree add'
-  # nicht mit, alle DEV-Skripte laden ihre Konfiguration aber daraus (dotenv -e .env.local).
-  # Ohne sie scheitert der erste 'pnpm test:e2e' im frischen Worktree mit einem irreführenden
-  # CredentialsSignin (nothra/tch-gastro-services#228). Vor dem pnpm install, damit die Datei auch bei fehlgeschlagener
-  # Installation da ist. Fail-safe: eine vorhandene Zieldatei wird nie überschrieben.
-  # '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der
-  # Wiederverwendungs-Zweig und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte
-  # dann aber mit ENOTDIR. Ohne diesen Guard wäre der Kopier-Block der neue (frühere)
-  # Abbruchpunkt des Skripts; so bleibt er wirkungslos statt schädlich.
-  if [ "${FACTORY_WT_SKIP_ENV:-0}" != "1" ] && [ -d "$WORKDIR" ] && [ -f "$FACTORY_DIR/.env.local" ]; then
-    # Opt-out-Hinweis in der Ankündigungszeile (wie im pnpm-Block unten), nicht in der
-    # Erfolgsmeldung – so ist er auch sichtbar, wenn der Kopiervorgang selbst übersprungen
-    # wird (vorhandene Zieldatei) oder fehlschlägt.
-    echo -e "  ${YELLOW}→${NC} .env.local in den Worktree spiegeln (FACTORY_WT_SKIP_ENV=1 überspringt)..."
-    # -e ODER -L: auch ein (defekter) Symlink zählt als vorhandene lokale Konfiguration.
-    if [ -e "$WORKDIR/.env.local" ] || [ -L "$WORKDIR/.env.local" ]; then
-      echo -e "  ${YELLOW}⚠  .env.local existiert im Worktree bereits – wird nicht überschrieben${NC}"
-    elif cp -p "$FACTORY_DIR/.env.local" "$WORKDIR/.env.local"; then
-      # cp -p erhält den Modus – eine 600er-Quelle wird durch das Kopieren nicht breiter lesbar.
-      # Quelle ist FACTORY_DIR (der Baum, in dem dieses Skript liegt) – beim üblichen Aufruf aus
-      # einem bestehenden Worktree ist das eben dieser, nicht zwingend der Haupt-Baum.
-      echo -e "  ${GREEN}✓${NC} .env.local kopiert (Quelle: ${FACTORY_DIR})"
-      ENV_COPIED=true
-    else
-      # Selbst erzeugten Rest wegräumen: scheitert cp erst NACH dem Anlegen des Ziels (Abbruch
-      # mitten im Schreiben, oder nur das -p misslingt), bliebe eine unvollständige Datei liegen –
-      # und der Guard oben konservierte sie bei jedem Folgelauf dauerhaft. Sicher, weil der
-      # -e/-L-Guard eine vorbestehende Zieldatei bereits ausgeschlossen hat.
-      # '|| true': das Aufräumen ist Kür, kein Muss – scheitert es (schreibgeschütztes
-      # Zielverzeichnis o. Ä.), bleibt es bei der Warnung. Ohne die Absicherung beendete
-      # 'set -e' den Lauf hier wortlos, genau das verbietet Fehlerszenario 1 der Spec.
-      rm -f "$WORKDIR/.env.local" 2>/dev/null || true
-      echo -e "  ${YELLOW}⚠  .env.local konnte nicht kopiert werden – im Worktree manuell nachziehen${NC}"
-    fi
+  # Gitignorete lokale Dateien mitspiegeln (Factory-ADR-063 E23–E27): sie wandern beim 'worktree add'
+  # nicht mit. Vor dem Install-Schritt, damit sie auch bei fehlgeschlagener Installation daliegen.
+  # '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der Wiederverwendungs-Zweig
+  # und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte dann mit ENOTDIR. Ohne diesen Guard
+  # wäre die Spiegelung der neue (frühere) Abbruchpunkt des Skripts.
+  # Opt-out: FACTORY_WT_SKIP_COPY gewinnt, sonst zählt der bisherige Name FACTORY_WT_SKIP_ENV (E27).
+  SKIP_COPY="${FACTORY_WT_SKIP_COPY:-${FACTORY_WT_SKIP_ENV:-0}}"
+  if [ "$SKIP_COPY" != "1" ] && [ -d "$WORKDIR" ]; then
+    mirror_copy_files
   fi
 
   # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.
@@ -413,15 +486,11 @@ echo "     (oder: /requirements ${TASK_ID} in Claude Code, weiterhin in dieser S
 echo "  2. Implementieren starten: /implement ${TASK_ID} in Claude Code"
 echo "     Empfehlung (keine Pflicht): dafür eine neue Claude-Session in diesem Arbeitsbaum"
 echo "     öffnen – Kontext-Hygiene, siehe git-workflow.md → 'Eine Task = Eine Session'."
-if [ "$ENV_COPIED" = true ]; then
-  # Bewusst als Zusatz UNTER Schritt 2 statt als eigener Schritt 3: der Hinweis muss vor dem
-  # ersten 'pnpm test:e2e' greifen, und das findet innerhalb von Schritt 2 statt. Die lokale
-  # DEV-DB ist über alle Worktrees geteilt und kennt die gerade kopierten SEED_ADMIN_*-
-  # Zugangsdaten evtl. noch nicht → sonst E2E-Login mit CredentialsSignin (nothra/tch-gastro-services#228).
-  # Der Wortlaut kommt aus start_work.hint (Q4, nothra/tch-gastro-services#431); ohne Eintrag entfällt der Hinweis still.
-  START_WORK_HINT="$(factory_cfg start_work.hint 2>/dev/null)" || START_WORK_HINT=""
-  [ -z "$START_WORK_HINT" ] || printf '%s\n' "$START_WORK_HINT" | sed 's/^/     /'
-fi
+# Projektspezifischer Hinweis als Zusatz UNTER Schritt 2: er betrifft die Arbeit im Arbeitsbaum, die dort
+# beginnt. Wortlaut aus start_work.hint (Q4, nothra/tch-gastro-services#431); in jedem Modus, unabhängig von
+# einer Kopie (#47) – ohne Eintrag entfällt er still.
+START_WORK_HINT="$(factory_cfg start_work.hint 2>/dev/null)" || START_WORK_HINT=""
+[ -z "$START_WORK_HINT" ] || printf '%s\n' "$START_WORK_HINT" | sed 's/^/     /'
 echo ""
 echo -e "${YELLOW}⚡ Eigener Arbeitsbaum: parallele Sessions kollidieren nicht (kein geteilter HEAD).${NC}"
 echo ""

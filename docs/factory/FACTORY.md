@@ -145,7 +145,7 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 5. **Commit-Message:** `<typ>: <kurze Beschreibung im Imperativ>` mit `typ` ∈ `feat` `fix` `docs` `refactor` `test` `chore`. Kein „WIP", kein „asdf". (Kein Hook prüft das Format – der `commit-msg`-Hook lehnt nur `--help`/`-h` als Message ab.)
 6. **Task-ID = GitHub-Issue-Nummer** (Factory-ADR-013): jede `tasks/task-<id>-*.md` hat ein Issue #`<id>`; Anlage Issue-first über `scripts/start-work.sh`.
 7. **Labels, Issue-Anlage und die Schwelle „Issue oder `kleinfunde.md`" nie aus dem Gedächtnis** – sie stehen **kanonisch in** `git-workflow.md` → „GitHub-Labels" bzw. „Zentraler Anlage-Weg (Factory-ADR-018)" (Schwelle: Factory-ADR-043) und werden dort von einem Drift-Guard bewacht. Vor jeder Issue-Anlage dort nachlesen; hier steht bewusst keine Kopie.
-8. **Nach dem Merge aufräumen:** `git worktree remove <pfad>` + `git worktree prune`, lokale Branches via `git gone` – der Worktree enthält in der Regel eine Kopie von `.env.local` (Secret-Hygiene, nicht nur Plattenplatz; Ausnahmen: `FACTORY_WT_SKIP_ENV=1`, oder die Quelle hatte selbst keine).
+8. **Nach dem Merge aufräumen:** `git worktree remove <pfad>` + `git worktree prune`, lokale Branches via `git gone` – der Worktree enthält Kopien der in `start_work.copy_files` gelisteten lokalen Dateien, oft Secrets (Secret-Hygiene, nicht nur Plattenplatz; nicht bei `FACTORY_WT_SKIP_COPY=1` oder fehlender Quelle).
 
 ---
 

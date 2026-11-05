@@ -1812,13 +1812,15 @@ git -C "$REPO_SW" init -q -b main >/dev/null 2>&1
 git -C "$REPO_SW" config user.email t@t
 git -C "$REPO_SW" config user.name t
 git -C "$REPO_SW" commit -q --allow-empty -m init
-# Config der Fixture (nothra/tch-gastro-services#431): start-work liest commands.install / start_work.hint aus dem Quellbaum.
+# Config der Fixture (nothra/tch-gastro-services#431, #47): start-work liest commands.install, start_work.hint und
+# start_work.copy_files aus dem Quellbaum. Committet ohne copy_files (Default []), die Spiegelungs-Gruppe unten setzt
+# die Liste je Fall.
 cp "$FACTORY_ROOT/factory.defaults.yml" "$REPO_SW/"
 cat > "$REPO_SW/factory.config.yml" <<'SWCFG'
 start_work:
   hint: |
-    Vor dem ersten 'pnpm test:e2e': pnpm db:seed
-    (.env.local wurde kopiert – die geteilte lokale DB kennt die SEED_ADMIN_*-Daten evtl. noch nicht)
+    Hinweis aus der Fixture-Config
+    zweite Zeile des Hinweises
 SWCFG
 git -C "$REPO_SW" add factory.defaults.yml factory.config.yml
 git -C "$REPO_SW" commit -q -m "chore: config der Fixture"
@@ -1914,247 +1916,256 @@ assert_exit 1 "$asp_rc" "#82: start-work --labels ohne Wert → exit 1 (kein wor
 printf '%s' "$asp_err" | grep -q -- '--labels erwartet einen Wert'
 assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
 
-# ─── nothra/tch-gastro-services#236: .env.local in den neuen Worktree spiegeln ─────────────────────────
-# Die Datei ist gitignored und wandert beim 'worktree add' nicht mit, alle DEV-Skripte
-# laden sie aber per 'dotenv -e .env.local' (nothra/tch-gastro-services#228). Fixtures von oben werden bewusst
+# ─── Worktree-Dateispiegelung über start_work.copy_files (#47, Ursprung nothra/tch-gastro-services#236) ─────────
+# Gitignorete lokale Dateien wandern beim 'worktree add' nicht mit; start-work.sh spiegelt die in
+# start_work.copy_files gelisteten (Factory-ADR-063 E23–E27). Fixtures von oben werden bewusst
 # wiederverwendet (gh-Stub, Wegwerf-Repo REPO_SW/REPO_IP, FACTORY_WT_SKIP_INSTALL=1).
 echo ""
-echo "#236 .env.local-Spiegelung in neue Worktrees:"
+echo "#47 Worktree-Dateispiegelung (start_work.copy_files):"
 
-# run_start_work <worktree-basis> <task-id> <desc> [extra-env]
+# run_start_work <worktree-basis> <task-id> <desc> [extra-env…]
 # start-work.sh im Worktree-Default gegen REPO_SW; gibt stdout+stderr zurück, damit die
-# Output-Kriterien (Kopier-/Überspringen-Meldung, db:seed-Hinweis) prüfbar sind.
+# Output-Kriterien (Kopier-/Überspringen-Meldung, Hinweis) prüfbar sind. SW_RUN wählt das Skript
+# (Default: das echte; der Mutationsbeleg zu AK4 setzt eine Mutante).
 run_start_work() {
   # "${@:4}" statt ${4:-}: das gewollte Word-Splitting bleibt, die zusätzliche (ungewollte)
   # Pathname-Expansion des Werts entfällt.
   ( cd "$REPO_SW" && env "${@:4}" PATH="$TMP_SW/bin:$PATH" \
       FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
       FACTORY_WORKTREE_BASE="$1" FACTORY_WT_SKIP_INSTALL=1 \
-      bash "$SW" "$2" "$3" ) 2>&1
+      bash "${SW_RUN:-$SW}" "$2" "$3" ) 2>&1
 }
 
-# AK2/AK7: bewusst VOR dem Anlegen der Quelle – so ist „Quelle fehlt" echt und nicht
-# nur ein Nebeneffekt einer späteren Testreihenfolge.
-WT_NOENV="$TMP_SW/wt-236-noenv/feature-780-demo-noenv"
-OUT_NOENV=$(run_start_work "$TMP_SW/wt-236-noenv" 780 demo-noenv); RC_NOENV=$?
-assert_exit 0 "$RC_NOENV" "#236 AK2: fehlende .env.local im Quellbaum (\$FACTORY_DIR) → start-work endet mit exit 0"
+# sw_config <yaml-zeilen unter start_work> – Config des Quellbaums für die folgenden Läufe. Uncommittet:
+# der Worktree-Modus prüft den Haupt-Baum nicht auf Änderungen; am Gruppenende wird sie zurückgesetzt.
+HINT_SW='Hinweis aus der Fixture-Config'
+sw_config() { printf 'start_work:\n  hint: "%s"\n%s\n' "$HINT_SW" "$1" > "$REPO_SW/factory.config.yml"; }
+# wt_of <basis> <id> <desc> – Worktree-Pfad nach dem Slug-Schema von start-work.sh.
+wt_of() { printf '%s/feature-%s-%s' "$1" "$2" "$3"; }
+
+# Quelldateien im Quellbaum ($FACTORY_DIR, hier zugleich der Haupt-Baum), je eindeutiger Inhalt.
+printf 'SCHLUESSEL=wert-demo\n' > "$REPO_SW/.env.local"
+chmod 600 "$REPO_SW/.env.local"
+printf 'lokal=1\n' > "$REPO_SW/lokal.conf"
+printf 'nicht gelistet\n' > "$REPO_SW/nicht-gelistet.conf"
+printf 'dritte=3\n' > "$REPO_SW/dritte.conf"
+mkdir -p "$REPO_SW/config"
+printf 'local: yes\n' > "$REPO_SW/config/local.yml"
+# Gespiegelt wird nur, was im Worktree gitignoret ist (E26). Die Muster stehen im gemeinsamen info/exclude
+# (gilt für alle Worktrees, ohne einen Commit auf main der Fixture); am Gruppenende zurückgesetzt.
+SW_EXCLUDE="$REPO_SW/.git/info/exclude"
+[ -f "$SW_EXCLUDE" ] && cp "$SW_EXCLUDE" "$TMP_SW/exclude-vorher"
+mkdir -p "$(dirname "$SW_EXCLUDE")"
+printf '.env.local\n*.conf\nconfig/local.yml\n' >> "$SW_EXCLUDE"
+
+# AK1 + AK10: Default [] → nichts gespiegelt, obwohl eine .env.local daliegt; der Hinweis erscheint trotzdem.
+sw_config ''
+WT_DEF="$(wt_of "$TMP_SW/wt-47-default" 780 demo-default)"
+OUT_DEF=$(run_start_work "$TMP_SW/wt-47-default" 780 demo-default); RC_DEF=$?
+assert_exit 0 "$RC_DEF" "#47 AK1: Default copy_files [] → start-work endet mit exit 0"
 # Existenz-Anker vor jeder Abwesenheits-Prüfung: „keine Datei unter <pfad>" ist auch dann wahr,
-# wenn es <pfad> gar nicht gibt – ein Tippfehler oder ein geändertes Slug-Schema in start-work.sh
-# (WORKDIR="$WT_BASE/${BRANCH_NAME//\//-}") entwertete die Assertion sonst lautlos.
-assert_true "$([ -d "$WT_NOENV" ]; echo $?)" \
-  "#236 AK2: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
-[ ! -e "$WT_NOENV/.env.local" ]
-assert_true "$?" "#236 AK2: ohne Quelle entsteht keine .env.local im Worktree"
-assert_absent "$OUT_NOENV" 'pnpm db:seed' "#236 AK7: ohne Kopie kein db:seed-Hinweis im Abschluss-Output"
+# wenn es <pfad> gar nicht gibt – ein geändertes Slug-Schema entwertete die Assertion sonst lautlos.
+assert_true "$([ -d "$WT_DEF" ]; echo $?)" "#47 AK1: der Worktree wurde angelegt (Existenz-Anker)"
+[ ! -e "$WT_DEF/.env.local" ]
+assert_true "$?" "#47 AK1: ohne Eintrag entsteht keine .env.local im Worktree"
+assert_absent "$OUT_DEF" 'in den Worktree spiegeln' "#47 AK1: ohne Eintrag keine Kopier-Ankündigung"
+assert_absent "$OUT_DEF" 'kopiert (Quelle:' "#47 AK1: ohne Eintrag keine Kopier-Meldung"
+assert_contains_286 "$OUT_DEF" "$HINT_SW" "#47 AK10: start_work.hint erscheint auch ohne gespiegelte Datei"
 
-# Quelle im Quellbaum ($FACTORY_DIR, in dieser Fixture zugleich der Haupt-Baum):
-# Modus 600 (AK5) + eindeutiger Inhalt (AK1 prüft byte-identisch).
-printf 'DATABASE_URL=postgres://demo\nSEED_ADMIN_EMAIL=a@b\n' > "$REPO_SW/.env.local"
-chmod 600 "$REPO_SW/.env.local"
+# AK2 + AK9 + AK15 + F1: zwei gelistete Dateien (eine davon die .env.local eines Konsumenten, der
+# migriert) plus ein Eintrag ohne Quelle; eine dritte, nicht gelistete Datei bleibt draußen.
+sw_config '  copy_files: [".env.local", "fehlt.conf", "lokal.conf"]'
+WT_TWO="$(wt_of "$TMP_SW/wt-47-two" 781 demo-two)"
+OUT_TWO=$(run_start_work "$TMP_SW/wt-47-two" 781 demo-two); RC_TWO=$?
+assert_exit 0 "$RC_TWO" "#47 AK2: Spiegelung mehrerer Einträge → exit 0"
+cmp -s "$REPO_SW/.env.local" "$WT_TWO/.env.local"
+assert_true "$?" "#47 AK15: copy_files [\".env.local\"] spiegelt die .env.local wie bisher (byte-identisch, echte Config-Schicht)"
+cmp -s "$REPO_SW/lokal.conf" "$WT_TWO/lokal.conf"
+assert_true "$?" "#47 AK2: der zweite gelistete Eintrag liegt byte-identisch im Worktree"
+[ ! -e "$WT_TWO/nicht-gelistet.conf" ]
+assert_true "$?" "#47 AK2: eine nicht gelistete Datei wird nicht gespiegelt"
+assert_contains_286 "$OUT_TWO" '.env.local kopiert (Quelle:' "#47 AK2: der Output nennt die erste kopierte Datei"
+assert_contains_286 "$OUT_TWO" 'lokal.conf kopiert (Quelle:' "#47 AK2: der Output nennt die zweite kopierte Datei"
+assert_contains_286 "$OUT_TWO" 'FACTORY_WT_SKIP_COPY=1' "#47 AK9: der Output nennt den Opt-out-Schalter"
+[ ! -e "$WT_TWO/fehlt.conf" ]
+assert_true "$?" "#47 F1: ein Eintrag ohne Quelle erzeugt kein Ziel"
+assert_absent "$OUT_TWO" 'fehlt.conf' "#47 F1: ein Eintrag ohne Quelle wird still übersprungen (keine Warnung)"
+assert_true "$(ls_mode_matches "$WT_TWO/.env.local" '-rw-------'; echo $?)" "#47 AK3: die Kopie behält Modus 600"
+assert_contains_286 "$OUT_TWO" "$HINT_SW" "#47 AK10: start_work.hint erscheint auch nach einer Kopie"
 
-OUT_COPY=$(run_start_work "$TMP_SW/wt-236-env" 781 demo-env)
-WT_ENV="$TMP_SW/wt-236-env/feature-781-demo-env/.env.local"
-cmp -s "$REPO_SW/.env.local" "$WT_ENV"
-assert_true "$?" "#236 AK1: .env.local liegt byte-identisch im neuen Worktree"
-printf '%s' "$OUT_COPY" | grep -qF '.env.local kopiert (Quelle:'
-assert_true "$?" "#236 AK1: der Output nennt das Kopieren der .env.local"
-assert_true "$(ls_mode_matches "$WT_ENV" '-rw-------'; echo $?)" \
-  "#236 AK5: die Kopie behält Modus 600"
-printf '%s' "$OUT_COPY" | grep -qF 'pnpm db:seed'
-assert_true "$?" "#236 AK6: nach der Kopie nennt der Abschluss-Output pnpm db:seed"
-# AK6 fordert Direktive UND Begründung („die geteilte lokale DB kennt die SEED_ADMIN_*-Daten
-# evtl. noch nicht"). Ohne eigene Assertion ließe sich die Begründungszeile ersatzlos löschen,
-# ohne dass die Suite es merkt (Lesson nothra/tch-gastro-services#117: je separierbaren AK-Teil eine eigene Assertion).
-printf '%s' "$OUT_COPY" | grep -qF 'SEED_ADMIN_*-Daten evtl. noch nicht'
-assert_true "$?" "#236 AK6: der db:seed-Hinweis nennt auch seine Begründung (SEED_ADMIN_*-Daten)"
-
-# Diskriminierung für 'cp -p': bei einer 600er-Quelle liefert auch ein 'cp' OHNE -p am Ziel 600
-# (die umask kann nur Bits entfernen) – erst eine 664er-Quelle trennt die beiden Varianten.
-# Das 'umask 022' macht die Trennung umgebungsunabhängig: unter einer laxen umask (002/000)
-# legte auch die -p-lose Variante 664 an und der Test bliebe grün, obwohl '-p' entfernt wurde.
+# AK3: Diskriminierung für 'cp -p' – bei einer 600er-Quelle liefert auch ein 'cp' OHNE -p am Ziel 600
+# (die umask kann nur Bits entfernen); erst eine 664er-Quelle unter 'umask 022' trennt die Varianten.
 chmod 664 "$REPO_SW/.env.local"
-( umask 022; run_start_work "$TMP_SW/wt-236-mode" 786 demo-envmode >/dev/null )
-assert_true "$(ls_mode_matches "$TMP_SW/wt-236-mode/feature-786-demo-envmode/.env.local" '-rw-rw-r--'; echo $?)" \
-  "#236 AK5: cp -p überträgt den Quellmodus (664 bleibt 664, wird nicht umask-reduziert)"
+sw_config '  copy_files: [".env.local"]'
+( umask 022; run_start_work "$TMP_SW/wt-47-mode" 786 demo-mode >/dev/null )
+assert_true "$(ls_mode_matches "$(wt_of "$TMP_SW/wt-47-mode" 786 demo-mode)/.env.local" '-rw-rw-r--'; echo $?)" \
+  "#47 AK3: cp -p überträgt den Quellmodus (664 bleibt 664, wird nicht umask-reduziert)"
 chmod 600 "$REPO_SW/.env.local"
 
-# AK3: derselbe Branch/dieselbe Basis erneut → Worktree wird wiederverwendet, die dort
-# abweichende Datei bleibt unangetastet (fail-safe: nie fremde Konfiguration zerstören).
-# Referenzdatei statt String-Vergleich: 'cmp -s' belegt „unverändert" byte-genau, eine Command
-# Substitution schluckte den Trailing-Newline (wie AK1 oben).
-printf 'LOKAL_ANGEPASST=1\n' | tee "$WT_ENV" > "$TMP_SW/env-lokal-referenz"
-OUT_KEEP=$(run_start_work "$TMP_SW/wt-236-env" 781 demo-env)
-cmp -s "$TMP_SW/env-lokal-referenz" "$WT_ENV"
-assert_true "$?" "#236 AK3: vorhandene .env.local im Worktree bleibt byte-identisch erhalten"
-printf '%s' "$OUT_KEEP" | grep -qF '.env.local existiert im Worktree bereits'
-assert_true "$?" "#236 AK3: der Output weist auf das Überspringen hin"
-# Pfadgenau auf das Spec-Fehlerszenario „wiederverwendeter Worktree": der zweite Lauf legt nichts
-# neu an, sondern nimmt einen der beiden Wiederverwendungs-Zweige (start-work.sh:208/210).
-# Bewusst NICHT auf „Worktree existiert bereits" festgenagelt: welcher der beiden greift, hängt an
-# einem exakten String-Vergleich gegen `git worktree list --porcelain`, und git meldet dort den
-# AUFGELÖSTEN Pfad. Unter einem symlink-behafteten Pfad (macOS: mktemp -d unter /var/folders →
-# /private/var/folders) greift deshalb der Nachbar-Zweig. Vorbestehende Fragilität aus nothra/tch-gastro-services#74,
-# außerhalb dieses Scopes (Task-Notiz nothra/tch-gastro-services#236).
-printf '%s' "$OUT_KEEP" | grep -qF 'wird wiederverwendet'
-assert_true "$?" "#236 AK3: der zweite Lauf verwendet den vorhandenen Worktree wieder"
-assert_absent "$OUT_KEEP" 'Worktree + Branch angelegt' "#236 AK3: der zweite Lauf legt keinen Worktree neu an"
-# Diskriminierung beider Assertions: der ERSTE Lauf gegen dieselbe Basis meldet genau umgekehrt.
-# Ohne ihn blieben sie auch bei einem Output-Umbau grün, der beide Meldungen entfernt.
-printf '%s' "$OUT_COPY" | grep -qF 'Worktree + Branch angelegt'
-assert_true "$?" "#236 AK3: Diskriminierung – der erste Lauf meldet die Neuanlage"
-assert_absent "$OUT_COPY" 'wird wiederverwendet' "#236 AK3: Diskriminierung – der erste Lauf meldet keine Wiederverwendung"
+# AK4: Ziel vorhanden (reguläre Datei bzw. defekter Symlink) → bleibt unverändert, je Eintrag eine Warnung,
+# ein weiterer Eintrag wird trotzdem gespiegelt. Zweiter Lauf auf den Worktree aus AK2 (Wiederverwendung).
+printf 'LOKAL_ANGEPASST=1\n' | tee "$WT_TWO/.env.local" > "$TMP_SW/env-lokal-referenz"
+rm -f "$WT_TWO/lokal.conf"
+# Defekter Symlink: für -e unsichtbar, aber vorhandene lokale Konfiguration (Lesson nothra/tch-gastro-services#258:
+# OR-Fragment mit nie feuernder Alternative). Eigener Sentinel, den kein anderer Fall anlegt.
+ln -s "$TMP_SW/existiert-nicht-ziel" "$WT_TWO/lokal.conf"
+sw_config '  copy_files: [".env.local", "lokal.conf", "dritte.conf"]'
+OUT_KEEP=$(run_start_work "$TMP_SW/wt-47-two" 781 demo-two); RC_KEEP=$?
+assert_exit 0 "$RC_KEEP" "#47 AK4: vorhandene Ziele → exit 0"
+cmp -s "$TMP_SW/env-lokal-referenz" "$WT_TWO/.env.local"
+assert_true "$?" "#47 AK4: eine vorhandene Zieldatei bleibt byte-identisch erhalten"
+{ [ -L "$WT_TWO/lokal.conf" ] && [ "$(readlink "$WT_TWO/lokal.conf")" = "$TMP_SW/existiert-nicht-ziel" ]; }
+assert_true "$?" "#47 AK4: ein defekter Ziel-Symlink bleibt derselbe Link"
+assert_contains_286 "$OUT_KEEP" '.env.local existiert im Worktree bereits' "#47 AK4: Warnung für die vorhandene Zieldatei"
+assert_contains_286 "$OUT_KEEP" 'lokal.conf existiert im Worktree bereits' "#47 AK4: Warnung für den vorhandenen Ziel-Symlink"
+cmp -s "$REPO_SW/dritte.conf" "$WT_TWO/dritte.conf"
+assert_true "$?" "#47 AK4: die übrigen Einträge werden trotzdem gespiegelt"
+assert_contains_286 "$OUT_KEEP" 'wird wiederverwendet' "#47 AK4: der zweite Lauf verwendet den vorhandenen Worktree wieder"
+rm -f "$WT_TWO/lokal.conf"
 
-# Der Ziel-Guard prüft '-e ODER -L': ein DEFEKTER Symlink ist für -e unsichtbar, ist aber
-# vorhandene lokale Konfiguration. Ohne die -L-Alternative ersetzte cp ihn und zerstörte genau
-# das, was AK3 schützt (Lesson nothra/tch-gastro-services#258: OR-Fragment mit nie feuernder Alternative).
-run_start_work "$TMP_SW/wt-236-symtgt" 787 demo-symtgt >/dev/null
-WT_SYMTGT="$TMP_SW/wt-236-symtgt/feature-787-demo-symtgt/.env.local"
-rm -f "$WT_SYMTGT"
-# Eigener Sentinel je Test (nicht mit dem Quell-Symlink-Fall weiter unten geteilt): entstünde die
-# geteilte Datei durch eine Regression doch, prüfte der andere Test in Wahrheit einen INTAKTEN
-# Symlink und würde mit irreführender Ursache rot.
-ln -s "$TMP_SW/existiert-nicht-ziel" "$WT_SYMTGT"
-OUT_SYMTGT=$(run_start_work "$TMP_SW/wt-236-symtgt" 787 demo-symtgt)
-{ [ -L "$WT_SYMTGT" ] && [ ! -e "$WT_SYMTGT" ]; }
-assert_true "$?" "#236 AK3: defekter Ziel-Symlink bleibt Symlink (wird nicht durch die Kopie ersetzt)"
-printf '%s' "$OUT_SYMTGT" | grep -qF '.env.local existiert im Worktree bereits'
-assert_true "$?" "#236 AK3: defekter Ziel-Symlink erzeugt die Überspringen-Meldung"
-rm -f "$WT_SYMTGT"
+# AK4 Mutationsbeleg (Lesson Factory-Task #23): dieselbe Prüffunktion auf Original und Mutante ohne
+# Überschreib-Schutz. Die Mutante liegt mit den Libs in einer Wegwerf-Wurzel (sie sourct lib/ relativ zu sich).
+# ak4_target_kept <skript> <wt-basis> <task-id> – 0 = eine lokal geänderte Zieldatei überlebt den Folgelauf.
+ak4_target_kept() {
+  local wt; wt="$(wt_of "$2" "$3" "demo-keep$3")"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-keep$3" >/dev/null
+  printf 'LOKAL_ANGEPASST=1\n' | tee "$wt/.env.local" > "$TMP_SW/keep-ref-$3"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-keep$3" >/dev/null
+  cmp -s "$TMP_SW/keep-ref-$3" "$wt/.env.local"
+}
+SW_GUARD_LINE='  if [ -e "$dst" ] || [ -L "$dst" ]; then'
+mkdir -p "$TMP_SW/mut/scripts/lib"
+cp "$CHECKS_DIR/../lib/"*.sh "$TMP_SW/mut/scripts/lib/"
+SW_MUT="$TMP_SW/mut/scripts/start-work.sh"
+awk -v g="$SW_GUARD_LINE" '$0 == g { print "  if false; then"; next } { print }' "$SW" > "$SW_MUT"
+assert_true "$([ "$(grep -cxF -- "$SW_GUARD_LINE" "$SW")" -eq 1 ] && ! grep -qxF -- "$SW_GUARD_LINE" "$SW_MUT"; echo $?)" \
+  "#47 AK4 (Mutation): der Überschreib-Schutz steht genau einmal im Skript und fehlt in der Mutante"
+sw_config '  copy_files: [".env.local"]'
+assert_true "$(ak4_target_kept "$SW" "$TMP_SW/wt-47-keep" 793; echo $?)" \
+  "#47 AK4 (Mutation): Original – die lokal geänderte Zieldatei überlebt den Folgelauf"
+assert_true "$(! ak4_target_kept "$SW_MUT" "$TMP_SW/wt-47-keepmut" 794; echo $?)" \
+  "#47 AK4 (Mutation): ohne Überschreib-Schutz wird die Zieldatei ersetzt – die Prüfung oben wäre rot"
 
-# AK4: Opt-out. Diskriminierung ist durch AK1 oben belegt – dieselbe Quelle wird dort
-# kopiert, hier nicht.
-WT_SKIP="$TMP_SW/wt-236-skipenv/feature-782-demo-skipenv"
-OUT_SKIP=$(run_start_work "$TMP_SW/wt-236-skipenv" 782 demo-skipenv "FACTORY_WT_SKIP_ENV=1")
-# „Der Lauf ist wirklich durchgelaufen"-Anker: ohne ihn wären die Abwesenheits-Assertions auch
-# dann grün, wenn start-work vor dem Kopier-Schritt abgebrochen wäre (Lesson nothra/tch-gastro-services#214).
-printf '%s' "$OUT_SKIP" | grep -q 'Bereit!'
-assert_true "$?" "#236 AK4: der Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
-assert_true "$([ -d "$WT_SKIP" ]; echo $?)" \
-  "#236 AK4: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
+# AK5: Unterordner, der im neuen Worktree fehlt, wird angelegt.
+sw_config '  copy_files: ["config/local.yml"]'
+WT_SUB="$(wt_of "$TMP_SW/wt-47-sub" 795 demo-sub)"
+run_start_work "$TMP_SW/wt-47-sub" 795 demo-sub >/dev/null
+{ [ -d "$WT_SUB/config" ] && [ ! -L "$WT_SUB/config" ] && cmp -s "$REPO_SW/config/local.yml" "$WT_SUB/config/local.yml"; }
+assert_true "$?" "#47 AK5: der fehlende Ordner config/ wird im Worktree angelegt und die Datei byte-identisch kopiert"
+
+# AK6: Quelle ist ein Symlink AUF EINE DATEI → im Worktree entsteht eine echte Datei-Kopie (gepinnt, damit
+# ein späterer Wechsel auf 'cp -a' o. Ä. auffällt).
+printf 'echt=1\n' > "$TMP_SW/quelle-echt"
+ln -s "$TMP_SW/quelle-echt" "$REPO_SW/verlinkt.conf"
+sw_config '  copy_files: ["verlinkt.conf"]'
+WT_SYMSRC="$(wt_of "$TMP_SW/wt-47-symsrc" 788 demo-symsrc)/verlinkt.conf"
+run_start_work "$TMP_SW/wt-47-symsrc" 788 demo-symsrc >/dev/null
+{ [ -f "$WT_SYMSRC" ] && [ ! -L "$WT_SYMSRC" ] && cmp -s "$TMP_SW/quelle-echt" "$WT_SYMSRC"; }
+assert_true "$?" "#47 AK6: Symlink als Quelle wird als echte Datei-Kopie materialisiert (kein Symlink im Worktree)"
+# F1, zweite Hälfte: ein DEFEKTER Symlink als Quelle fällt durch '-f' und wird wie „Quelle fehlt" behandelt.
+rm "$REPO_SW/verlinkt.conf"
+ln -s "$TMP_SW/existiert-nicht-quelle" "$REPO_SW/verlinkt.conf"
+WT_SYMDEAD="$(wt_of "$TMP_SW/wt-47-symdead" 789 demo-symdead)"
+OUT_SYMDEAD=$(run_start_work "$TMP_SW/wt-47-symdead" 789 demo-symdead); RC_SYMDEAD=$?
+assert_exit 0 "$RC_SYMDEAD" "#47 F1: defekter Symlink als Quelle → exit 0"
+assert_true "$([ -d "$WT_SYMDEAD" ]; echo $?)" "#47 F1: der Worktree wurde angelegt (Existenz-Anker)"
+{ [ ! -e "$WT_SYMDEAD/verlinkt.conf" ] && [ ! -L "$WT_SYMDEAD/verlinkt.conf" ]; }
+assert_true "$?" "#47 F1: defekter Symlink als Quelle wird nicht kopiert"
+assert_absent "$OUT_SYMDEAD" 'verlinkt.conf' "#47 F1: defekter Symlink als Quelle ohne Warnung (wie fehlende Quelle)"
+rm "$REPO_SW/verlinkt.conf"
+
+# AK7 + AK11: neuer Opt-out – nichts gespiegelt, der Hinweis erscheint trotzdem.
+sw_config '  copy_files: [".env.local"]'
+WT_SKIP="$(wt_of "$TMP_SW/wt-47-skip" 782 demo-skip)"
+OUT_SKIP=$(run_start_work "$TMP_SW/wt-47-skip" 782 demo-skip "FACTORY_WT_SKIP_COPY=1"); RC_SKIP=$?
+assert_exit 0 "$RC_SKIP" "#47 AK7: FACTORY_WT_SKIP_COPY=1 → exit 0"
+assert_true "$([ -d "$WT_SKIP" ]; echo $?)" "#47 AK7: der Worktree wurde angelegt (Existenz-Anker)"
 [ ! -e "$WT_SKIP/.env.local" ]
-assert_true "$?" "#236 AK4: FACTORY_WT_SKIP_ENV=1 kopiert die .env.local nicht"
-assert_absent "$OUT_SKIP" 'pnpm db:seed' "#236 AK4: Opt-out erzeugt auch keinen db:seed-Hinweis"
+assert_true "$?" "#47 AK7: FACTORY_WT_SKIP_COPY=1 spiegelt nichts"
+assert_contains_286 "$OUT_SKIP" "$HINT_SW" "#47 AK11: start_work.hint erscheint auch bei Opt-out"
+# AK8: der alte Name wirkt als Alias.
+WT_SKIPENV="$(wt_of "$TMP_SW/wt-47-skipenv" 802 demo-skipenv)"
+OUT_SKIPENV=$(run_start_work "$TMP_SW/wt-47-skipenv" 802 demo-skipenv "FACTORY_WT_SKIP_ENV=1"); RC_SKIPENV=$?
+assert_exit 0 "$RC_SKIPENV" "#47 AK8: FACTORY_WT_SKIP_ENV=1 → exit 0"
+assert_true "$([ -d "$WT_SKIPENV" ]; echo $?)" "#47 AK8: der Worktree wurde angelegt (Existenz-Anker)"
+[ ! -e "$WT_SKIPENV/.env.local" ]
+assert_true "$?" "#47 AK8: FACTORY_WT_SKIP_ENV=1 wirkt als Alias und spiegelt nichts"
+# E27: FACTORY_WT_SKIP_COPY gewinnt gegen den Alias.
+WT_PREC="$(wt_of "$TMP_SW/wt-47-prec" 796 demo-prec)"
+run_start_work "$TMP_SW/wt-47-prec" 796 demo-prec "FACTORY_WT_SKIP_COPY=0" "FACTORY_WT_SKIP_ENV=1" >/dev/null
+cmp -s "$REPO_SW/.env.local" "$WT_PREC/.env.local"
+assert_true "$?" "#47 AK8: FACTORY_WT_SKIP_COPY=0 gewinnt gegen FACTORY_WT_SKIP_ENV=1 (Factory-ADR-063 E27)"
 
-# Fehlerszenario: Quelle ist ein Verzeichnis → der reguläre Datei-Test (-f) greift nicht,
-# behandelt wird der Fall wie „Quelle fehlt" (kein Sonderfall-Handling).
-mv "$REPO_SW/.env.local" "$TMP_SW/env-backup"
-mkdir "$REPO_SW/.env.local"
-WT_ENVDIR="$TMP_SW/wt-236-envdir/feature-784-demo-envdir"
-run_start_work "$TMP_SW/wt-236-envdir" 784 demo-envdir >/dev/null
-assert_exit 0 "$?" "#236 Fehlerfall: Verzeichnis als Quelle → exit 0 (wie fehlende Quelle)"
-assert_true "$([ -d "$WT_ENVDIR" ]; echo $?)" \
-  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
-[ ! -e "$WT_ENVDIR/.env.local" ]
-assert_true "$?" "#236 Fehlerfall: Verzeichnis als Quelle wird nicht kopiert"
-rmdir "$REPO_SW/.env.local"
-mv "$TMP_SW/env-backup" "$REPO_SW/.env.local"
+# AK12: leerer Hinweis → keine Hinweis-Zeile, mit und ohne Kopie. Gemessen an der Zeile nach dem
+# Abschluss von Schritt 2: dort folgt ohne Hinweis direkt die Leerzeile. Diskriminierung: mit Hinweis
+# steht dort dessen Wortlaut (OUT_DEF/OUT_TWO oben).
+line_after_step2() { printf '%s\n' "$1" | awk 'f { print; exit } /Kontext-Hygiene/ { f = 1 }'; }
+assert_contains_286 "$(line_after_step2 "$OUT_TWO")" "$HINT_SW" \
+  "#47 AK12 (Diskriminierung): mit gesetztem Hinweis folgt er direkt auf Schritt 2"
+for case_47 in '797|[]' '801|[".env.local"]'; do
+  id_47="${case_47%%|*}"; copy_47="${case_47#*|}"
+  printf 'start_work:\n  hint: ""\n  copy_files: %s\n' "$copy_47" > "$REPO_SW/factory.config.yml"
+  out_47=$(run_start_work "$TMP_SW/wt-47-nohint-$id_47" "$id_47" demo-nohint)
+  assert_contains_286 "$out_47" 'Bereit!' "#47 AK12: leerer Hinweis, copy_files $copy_47 – der Lauf erreicht den Abschluss (Anker)"
+  assert_true "$([ -z "$(line_after_step2 "$out_47")" ]; echo $?)" \
+    "#47 AK12: leerer Hinweis, copy_files $copy_47 – keine Hinweis-Zeile nach Schritt 2"
+done
 
-# Quelle ist ein Symlink AUF EINE DATEI: '-f' dereferenziert, und 'cp -p' folgt dem Link (kein
-# -P/-d) → im Worktree entsteht eine vollwertige Datei-Kopie. Das ist gewolltes Verhalten (Spec:
-# „regulärer Datei-Test als Vorbedingung"), hier gepinnt, damit ein späterer Wechsel auf 'cp -a'
-# o. Ä. auffällt. NUR ein defekter Symlink fällt durch '-f' (Fall darunter).
-mv "$REPO_SW/.env.local" "$TMP_SW/env-real"
-ln -s "$TMP_SW/env-real" "$REPO_SW/.env.local"
-WT_SYMSRC="$TMP_SW/wt-236-symsrc/feature-788-demo-symsrc/.env.local"
-run_start_work "$TMP_SW/wt-236-symsrc" 788 demo-symsrc >/dev/null
-{ [ -f "$WT_SYMSRC" ] && [ ! -L "$WT_SYMSRC" ] && cmp -s "$TMP_SW/env-real" "$WT_SYMSRC"; }
-assert_true "$?" "#236: Symlink als Quelle wird als echte Datei-Kopie materialisiert (kein Symlink im Worktree)"
+# F2: Quelle ist ein Verzeichnis → Warnung, kein Ziel; der folgende Eintrag wird trotzdem gespiegelt.
+mkdir -p "$REPO_SW/ein-ordner"
+sw_config '  copy_files: ["ein-ordner", "lokal.conf"]'
+WT_DIR="$(wt_of "$TMP_SW/wt-47-dir" 784 demo-dir)"
+OUT_DIR=$(run_start_work "$TMP_SW/wt-47-dir" 784 demo-dir); RC_DIR=$?
+assert_exit 0 "$RC_DIR" "#47 F2: Verzeichnis als Quelle → exit 0"
+assert_true "$([ -d "$WT_DIR" ]; echo $?)" "#47 F2: der Worktree wurde angelegt (Existenz-Anker)"
+[ ! -e "$WT_DIR/ein-ordner" ]
+assert_true "$?" "#47 F2: Verzeichnis als Quelle wird nicht kopiert"
+assert_contains_286 "$OUT_DIR" 'ein-ordner ist ein Verzeichnis' "#47 F2: Verzeichnis als Quelle erzeugt eine Warnung"
+cmp -s "$REPO_SW/lokal.conf" "$WT_DIR/lokal.conf"
+assert_true "$?" "#47 F2: der folgende Eintrag wird trotzdem gespiegelt"
+rmdir "$REPO_SW/ein-ordner"
 
-# Quelle ist ein DEFEKTER Symlink → fällt durch '-f' und wird wie „Quelle fehlt" behandelt.
-rm "$REPO_SW/.env.local"
-ln -s "$TMP_SW/existiert-nicht-quelle" "$REPO_SW/.env.local"
-WT_SYMDEAD="$TMP_SW/wt-236-symdead/feature-789-demo-symdead"
-run_start_work "$TMP_SW/wt-236-symdead" 789 demo-symdead >/dev/null
-assert_exit 0 "$?" "#236 Fehlerfall: defekter Symlink als Quelle → exit 0 (wie fehlende Quelle)"
-assert_true "$([ -d "$WT_SYMDEAD" ]; echo $?)" \
-  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
-[ ! -e "$WT_SYMDEAD/.env.local" ]
-assert_true "$?" "#236 Fehlerfall: defekter Symlink als Quelle wird nicht kopiert"
-rm "$REPO_SW/.env.local"
-mv "$TMP_SW/env-real" "$REPO_SW/.env.local"
-
-# Fehlerszenario: Kopieren schlägt fehl (Quelle nicht lesbar) → Warnung, KEIN Abbruch;
-# unter 'set -euo pipefail' darf start-work nicht wortlos enden. Als root ist chmod 000
-# wirkungslos (Lesetest würde gelingen) → dann lautes Skip statt falsch-grün.
+# F3: Quelle nicht lesbar → Warnung, kein Ziel, KEIN Abbruch unter 'set -euo pipefail'. Als root ist
+# chmod 000 wirkungslos (Lesetest gelänge) → dann lautes Skip statt falsch-grün.
+sw_config '  copy_files: [".env.local"]'
 if [ "$(id -u)" != "0" ]; then
   chmod 000 "$REPO_SW/.env.local"
-  OUT_FAIL=$(run_start_work "$TMP_SW/wt-236-envfail" 785 demo-envfail); RC_FAIL=$?
+  WT_FAIL="$(wt_of "$TMP_SW/wt-47-fail" 785 demo-fail)"
+  OUT_FAIL=$(run_start_work "$TMP_SW/wt-47-fail" 785 demo-fail); RC_FAIL=$?
   chmod 600 "$REPO_SW/.env.local"
-  assert_exit 0 "$RC_FAIL" "#236 Fehlerfall: unlesbare Quelle → start-work läuft weiter (exit 0)"
-  printf '%s' "$OUT_FAIL" | grep -qF '.env.local konnte nicht kopiert werden'
-  assert_true "$?" "#236 Fehlerfall: unlesbare Quelle erzeugt eine Warnung"
-  printf '%s' "$OUT_FAIL" | grep -q 'Bereit!'
-  assert_true "$?" "#236 Fehlerfall: der Abschluss-Output wird trotz Kopier-Fehler erreicht"
-  assert_absent "$OUT_FAIL" 'pnpm db:seed' "#236 Fehlerfall: fehlgeschlagene Kopie erzeugt keinen db:seed-Hinweis"
+  assert_exit 0 "$RC_FAIL" "#47 F3: unlesbare Quelle → start-work läuft weiter (exit 0)"
+  assert_contains_286 "$OUT_FAIL" '.env.local konnte nicht kopiert werden' "#47 F3: unlesbare Quelle erzeugt eine Warnung"
+  assert_contains_286 "$OUT_FAIL" 'Bereit!' "#47 F3: der Abschluss-Output wird trotz Kopier-Fehler erreicht"
+  [ ! -e "$WT_FAIL/.env.local" ]
+  assert_true "$?" "#47 F3: nach unlesbarer Quelle bleibt kein Ziel zurück"
 else
-  echo "  • #236 Fehlerfall unlesbare Quelle – übersprungen (Suite läuft als root)"
+  echo "  • #47 F3 unlesbare Quelle – übersprungen (Suite läuft als root)"
 fi
 
-# Fehlerszenario: 'cp' scheitert, NACHDEM das Ziel entstanden ist – Abbruch mitten im Schreiben
-# (ENOSPC/EIO) oder nur das '-p' (chmod/utimes) misslingt (exFAT/SMB). Ohne Aufräumen bliebe ein
-# Rest liegen, den der AK3-Guard („existiert bereits – wird nicht überschrieben") bei JEDEM
-# Folgelauf konservierte: der kaputte Zustand wäre permanent, Symptom wieder CredentialsSignin
-# (nothra/tch-gastro-services#228). Der bereits unlesbar getestete Fall deckt das nicht ab – dort scheitert cp am open()
-# der Quelle, das Ziel entsteht nie. Ein echtes cp lässt sich nicht zum Teilabbruch zwingen;
-# der PATH-Stub (dieselbe Mechanik wie der gh-Stub dieses Blocks) stellt genau diesen Zustand her.
+# F4: 'cp' scheitert, NACHDEM das Ziel entstanden ist (Abbruch mitten im Schreiben, oder nur das '-p'
+# misslingt). Ohne Aufräumen konservierte der AK4-Guard den Rest bei jedem Folgelauf. Ein echtes cp lässt
+# sich nicht zum Teilabbruch zwingen; der PATH-Stub (dieselbe Mechanik wie der gh-Stub) stellt ihn her.
 cat > "$TMP_SW/bin/cp" << 'CPSTUB'
 #!/usr/bin/env bash
 printf 'HALB_KOPIERT=' > "${@: -1}"   # Ziel angelegt, Inhalt unvollständig
 exit 1
 CPSTUB
 chmod +x "$TMP_SW/bin/cp"
-WT_PARTIAL="$TMP_SW/wt-236-envpartial/feature-790-demo-envpartial"
-OUT_PARTIAL=$(run_start_work "$TMP_SW/wt-236-envpartial" 790 demo-envpartial); RC_PARTIAL=$?
+WT_PARTIAL="$(wt_of "$TMP_SW/wt-47-partial" 790 demo-partial)"
+OUT_PARTIAL=$(run_start_work "$TMP_SW/wt-47-partial" 790 demo-partial); RC_PARTIAL=$?
 rm -f "$TMP_SW/bin/cp"
-assert_exit 0 "$RC_PARTIAL" "#236 Fehlerfall: cp-Teilabbruch → start-work läuft weiter (exit 0)"
-assert_true "$([ -d "$WT_PARTIAL" ]; echo $?)" \
-  "#236 Fehlerfall: der Worktree wurde angelegt (Existenz-Anker für die Abwesenheits-Prüfung)"
-printf '%s' "$OUT_PARTIAL" | grep -qF '.env.local konnte nicht kopiert werden'
-assert_true "$?" "#236 Fehlerfall: cp-Teilabbruch erzeugt eine Warnung"
+assert_exit 0 "$RC_PARTIAL" "#47 F4: cp-Teilabbruch → start-work läuft weiter (exit 0)"
+assert_true "$([ -d "$WT_PARTIAL" ]; echo $?)" "#47 F4: der Worktree wurde angelegt (Existenz-Anker)"
+assert_contains_286 "$OUT_PARTIAL" '.env.local konnte nicht kopiert werden' "#47 F4: cp-Teilabbruch erzeugt eine Warnung"
 [ ! -e "$WT_PARTIAL/.env.local" ]
-assert_true "$?" "#236 Fehlerfall: der halb kopierte Rest wird entfernt, nicht liegengelassen"
-# Diskriminierung: derselbe Worktree, diesmal mit echtem cp – der Zustand ist reparierbar und
-# nicht durch den AK3-Guard eingefroren. Ohne das Aufräumen oben bliebe hier der Rest stehen.
-run_start_work "$TMP_SW/wt-236-envpartial" 790 demo-envpartial >/dev/null
+assert_true "$?" "#47 F4: der halb kopierte Rest wird entfernt, nicht liegengelassen"
+# Diskriminierung: derselbe Worktree, diesmal mit echtem cp – ohne das Aufräumen bliebe hier der Rest stehen.
+run_start_work "$TMP_SW/wt-47-partial" 790 demo-partial >/dev/null
 cmp -s "$REPO_SW/.env.local" "$WT_PARTIAL/.env.local"
-assert_true "$?" "#236 Fehlerfall: der Folgelauf kopiert vollständig (Teilabbruch ist nicht permanent)"
+assert_true "$?" "#47 F4: der Folgelauf kopiert vollständig (Teilabbruch ist nicht permanent)"
 
-# Fehlerszenario: am Worktree-Pfad liegt eine REGULÄRE DATEI. start-work nimmt dann den
-# Wiederverwendungs-Zweig (:210) und läuft weiter – der Kopier-Block darf diesen Ablauf nicht
-# verkürzen. Ohne den '-d'-Guard scheitern dort cp UND rm mit ENOTDIR ('rm -f' unterdrückt nur
-# ENOENT); die rm-Zeile steht in keiner Bedingung, also bricht 'set -e' den Lauf WORTLOS ab –
-# ohne Warnung und ohne die Schritte 3–5, die vor diesem PR noch erreicht wurden.
-# Referenzpunkt ist bewusst „Schritt 3 wird erreicht", nicht 'Bereit!': dass Schritt 3 an
-# seinem eigenen 'mkdir -p' scheitert, ist vorbestehendes nothra/tch-gastro-services#74-Verhalten (der :210-Zweig kennt
-# keinen Nicht-Verzeichnis-Pfad) und außerhalb dieses Scopes – gemessen wird nur, dass der
-# Kopier-Block den Abbruchpunkt nicht nach vorne zieht.
-WT_NOTDIR_BASE="$TMP_SW/wt-236-notdir"
-mkdir -p "$WT_NOTDIR_BASE"
-: > "$WT_NOTDIR_BASE/feature-791-demo-notdir"
-OUT_NOTDIR=$(run_start_work "$WT_NOTDIR_BASE" 791 demo-notdir)
-# Existenz-Anker: der Pfad ist wirklich eine reguläre Datei – ein geändertes Slug-Schema in
-# start-work.sh entwertete den ganzen Testfall sonst lautlos (er liefe gegen einen freien Pfad).
-assert_true "$([ -f "$WT_NOTDIR_BASE/feature-791-demo-notdir" ]; echo $?)" \
-  "#236 Fehlerfall: am Worktree-Pfad liegt eine reguläre Datei (Anker für den Nicht-Verzeichnis-Fall)"
-printf '%s' "$OUT_NOTDIR" | grep -qF 'wird wiederverwendet'
-assert_true "$?" "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad nimmt den Wiederverwendungs-Zweig"
-printf '%s' "$OUT_NOTDIR" | grep -qF '3/5  Task-Datei anlegen'
-assert_true "$?" "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad bricht den Lauf nicht im Kopier-Block ab"
-assert_absent "$OUT_NOTDIR" '.env.local in den Worktree spiegeln' \
-  "#236 Fehlerfall: der Kopier-Block wird bei einem Nicht-Verzeichnis gar nicht erst betreten"
-# Bewusst auf die Kommando-Präfixe der beiden Aufrufe des Blocks verankert und NICHT auf den
-# Fehlertext 'Not a directory': den erzeugt in Schritt 3 auch das vorbestehende
-# 'mkdir -p "$WORKDIR/tasks"' – eine Assertion darauf wäre aus dem falschen Grund rot.
-assert_absent "$OUT_NOTDIR" 'cp: ' \
-  "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad erzeugt keine rohe cp-Fehlerzeile"
-assert_absent "$OUT_NOTDIR" 'rm: ' \
-  "#236 Fehlerfall: Nicht-Verzeichnis am Worktree-Pfad erzeugt keine rohe rm-Fehlerzeile"
-
-# Fehlerszenario: das Aufräumen selbst scheitert (nicht nur das cp). Ein schreibgeschütztes
-# Zielverzeichnis, ein Fremd-'rm' auf PATH – der Grund ist egal, die Zeile darf den Lauf nie
-# beenden. start-work.sh ruft 'rm' an genau EINER Stelle auf (der Aufräumzeile), der PATH-Stub
-# trifft also präzise sie und nichts sonst. Die Kombination aus beiden Stubs ist nötig: ohne
-# den cp-Stub wird die Aufräumzeile gar nicht erreicht.
+# F4, Aufräumen scheitert selbst (Fremd-'rm' auf PATH, schreibgeschütztes Ziel …): die Zeile darf den
+# Lauf nie beenden. Ohne den cp-Stub würde die Aufräumzeile gar nicht erreicht.
 cat > "$TMP_SW/bin/cp" << 'CPSTUB'
 #!/usr/bin/env bash
 printf 'HALB_KOPIERT=' > "${@: -1}"
@@ -2165,57 +2176,278 @@ cat > "$TMP_SW/bin/rm" << 'RMSTUB'
 exit 1
 RMSTUB
 chmod +x "$TMP_SW/bin/cp" "$TMP_SW/bin/rm"
-OUT_RMFAIL=$(run_start_work "$TMP_SW/wt-236-rmfail" 792 demo-rmfail); RC_RMFAIL=$?
+OUT_RMFAIL=$(run_start_work "$TMP_SW/wt-47-rmfail" 792 demo-rmfail); RC_RMFAIL=$?
 rm -f "$TMP_SW/bin/cp" "$TMP_SW/bin/rm"
-assert_exit 0 "$RC_RMFAIL" "#236 Fehlerfall: fehlgeschlagenes Aufräumen → start-work läuft weiter (exit 0)"
-printf '%s' "$OUT_RMFAIL" | grep -qF '.env.local konnte nicht kopiert werden'
-assert_true "$?" "#236 Fehlerfall: fehlgeschlagenes Aufräumen erzeugt trotzdem die Warnung"
-printf '%s' "$OUT_RMFAIL" | grep -q 'Bereit!'
-assert_true "$?" "#236 Fehlerfall: der Abschluss-Output wird trotz fehlgeschlagenem Aufräumen erreicht"
+assert_exit 0 "$RC_RMFAIL" "#47 F4: fehlgeschlagenes Aufräumen → start-work läuft weiter (exit 0)"
+assert_contains_286 "$OUT_RMFAIL" '.env.local konnte nicht kopiert werden' "#47 F4: fehlgeschlagenes Aufräumen erzeugt trotzdem die Warnung"
+assert_contains_286 "$OUT_RMFAIL" 'Bereit!' "#47 F4: der Abschluss-Output wird trotz fehlgeschlagenem Aufräumen erreicht"
 
-# AK8: In-Place-Modus – der Arbeitsbaum IST der Haupt-Baum, es gibt nichts zu kopieren.
-printf 'DATABASE_URL=postgres://demo\n' > "$REPO_IP/.env.local"
+# F5: Elternordner lässt sich nicht anlegen (am Pfad liegt eine Datei) → Warnung, übersprungen, Folge-Eintrag
+# läuft. Zweiter Lauf auf einen vorhandenen Worktree, in dem die blockierende Datei liegt.
+mkdir -p "$REPO_SW/blockiert"
+printf 'b=1\n' > "$REPO_SW/blockiert/x.conf"
+sw_config ''
+WT_BLOCK="$(wt_of "$TMP_SW/wt-47-block" 798 demo-block)"
+run_start_work "$TMP_SW/wt-47-block" 798 demo-block >/dev/null
+: > "$WT_BLOCK/blockiert"
+sw_config '  copy_files: ["blockiert/x.conf", "lokal.conf"]'
+OUT_BLOCK=$(run_start_work "$TMP_SW/wt-47-block" 798 demo-block); RC_BLOCK=$?
+assert_exit 0 "$RC_BLOCK" "#47 F5: Elternordner nicht anlegbar → exit 0"
+assert_true "$([ -f "$WT_BLOCK/blockiert" ] && [ ! -s "$WT_BLOCK/blockiert" ]; echo $?)" \
+  "#47 F5: die blockierende Datei bleibt unverändert"
+assert_contains_286 "$OUT_BLOCK" 'blockiert/x.conf übersprungen' "#47 F5: der Eintrag wird mit Warnung übersprungen"
+cmp -s "$REPO_SW/lokal.conf" "$WT_BLOCK/lokal.conf"
+assert_true "$?" "#47 F5: der folgende Eintrag wird trotzdem gespiegelt"
+
+# F6: Symlink in der Elternkette – egal wohin er zeigt (nach draußen bzw. innerhalb des Worktrees) –, der
+# Eintrag wird nicht kopiert, außerhalb des Worktrees entsteht nichts (Factory-ADR-063 E25).
+mkdir -p "$REPO_SW/aussen-link" "$REPO_SW/innen-link" "$TMP_SW/draussen"
+printf 'a=1\n' > "$REPO_SW/aussen-link/x.conf"
+printf 'i=1\n' > "$REPO_SW/innen-link/x.conf"
+sw_config ''
+WT_LINK="$(wt_of "$TMP_SW/wt-47-link" 799 demo-link)"
+run_start_work "$TMP_SW/wt-47-link" 799 demo-link >/dev/null
+ln -s "$TMP_SW/draussen" "$WT_LINK/aussen-link"
+ln -s tasks "$WT_LINK/innen-link"
+sw_config '  copy_files: ["aussen-link/x.conf", "innen-link/x.conf", "lokal.conf"]'
+OUT_LINK=$(run_start_work "$TMP_SW/wt-47-link" 799 demo-link); RC_LINK=$?
+assert_exit 0 "$RC_LINK" "#47 F6: Symlink in der Elternkette → exit 0"
+[ ! -e "$TMP_SW/draussen/x.conf" ]
+assert_true "$?" "#47 F6: über einen Symlink nach draußen wird nichts außerhalb des Worktrees geschrieben"
+[ ! -e "$WT_LINK/tasks/x.conf" ]
+assert_true "$?" "#47 F6: auch ein Symlink innerhalb des Worktrees führt zum Überspringen"
+assert_contains_286 "$OUT_LINK" 'aussen-link/x.conf übersprungen' "#47 F6: Warnung für den Symlink nach draußen"
+assert_contains_286 "$OUT_LINK" 'innen-link/x.conf übersprungen' "#47 F6: Warnung für den Symlink nach innen"
+cmp -s "$REPO_SW/lokal.conf" "$WT_LINK/lokal.conf"
+assert_true "$?" "#47 F6: der folgende Eintrag wird trotzdem gespiegelt"
+
+# F7: am Worktree-Pfad liegt eine REGULÄRE DATEI. start-work nimmt den Wiederverwendungs-Zweig und läuft
+# weiter – die Spiegelung darf diesen Ablauf nicht verkürzen ('-d'-Guard). Referenzpunkt ist „Schritt 3 wird
+# erreicht", nicht 'Bereit!': dass Schritt 3 an seinem eigenen 'mkdir -p' scheitert, ist vorbestehendes
+# nothra/tch-gastro-services#74-Verhalten und außerhalb dieses Scopes.
+sw_config '  copy_files: [".env.local"]'
+WT_NOTDIR_BASE="$TMP_SW/wt-47-notdir"
+mkdir -p "$WT_NOTDIR_BASE"
+: > "$WT_NOTDIR_BASE/feature-791-demo-notdir"
+OUT_NOTDIR=$(run_start_work "$WT_NOTDIR_BASE" 791 demo-notdir)
+assert_true "$([ -f "$WT_NOTDIR_BASE/feature-791-demo-notdir" ]; echo $?)" \
+  "#47 F7: am Worktree-Pfad liegt eine reguläre Datei (Anker für den Nicht-Verzeichnis-Fall)"
+assert_contains_286 "$OUT_NOTDIR" 'wird wiederverwendet' "#47 F7: Nicht-Verzeichnis am Worktree-Pfad nimmt den Wiederverwendungs-Zweig"
+assert_contains_286 "$OUT_NOTDIR" '3/5  Task-Datei anlegen' "#47 F7: der Lauf bricht nicht in der Spiegelung ab"
+assert_absent "$OUT_NOTDIR" 'in den Worktree spiegeln' "#47 F7: die Spiegelung wird bei einem Nicht-Verzeichnis gar nicht erst betreten"
+# Auf die Kommando-Präfixe verankert, NICHT auf 'Not a directory': den erzeugt in Schritt 3 auch das
+# vorbestehende 'mkdir -p "$WORKDIR/tasks"' – eine Assertion darauf wäre aus dem falschen Grund rot.
+assert_absent "$OUT_NOTDIR" 'cp: ' "#47 F7: keine rohe cp-Fehlerzeile"
+assert_absent "$OUT_NOTDIR" 'rm: ' "#47 F7: keine rohe rm-Fehlerzeile"
+
+# F8: ungültige Einträge (Gate ausgelassen) werden auch vom Skript nicht kopiert (Defense in depth, E24).
+printf 'absolut=1\n' > "$TMP_SW/absolut.conf"
+printf 'eltern=1\n' > "$TMP_SW/eltern.conf"   # = $FACTORY_DIR/../eltern.conf
+sw_config "  copy_files: [\"$TMP_SW/absolut.conf\", \"../eltern.conf\", \"lokal.conf\"]"
+WT_BAD_BASE="$TMP_SW/wt-47-bad"
+WT_BAD="$(wt_of "$WT_BAD_BASE" 800 demo-bad)"
+OUT_BAD=$(run_start_work "$WT_BAD_BASE" 800 demo-bad); RC_BAD=$?
+assert_exit 0 "$RC_BAD" "#47 F8: ungültige Einträge → exit 0"
+[ ! -e "$WT_BAD$TMP_SW/absolut.conf" ]
+assert_true "$?" "#47 F8: ein absoluter Eintrag wird nicht kopiert"
+[ ! -e "$WT_BAD_BASE/eltern.conf" ]
+assert_true "$?" "#47 F8: ein Eintrag mit '..' schreibt nicht außerhalb des Worktrees"
+assert_contains_286 "$OUT_BAD" 'ungültiger Eintrag (absoluter Pfad)' "#47 F8: Warnung für den absoluten Eintrag"
+assert_contains_286 "$OUT_BAD" "ungültiger Eintrag ('..'-Segment)" "#47 F8: Warnung für den '..'-Eintrag"
+cmp -s "$REPO_SW/lokal.conf" "$WT_BAD/lokal.conf"
+assert_true "$?" "#47 F8: der gültige Eintrag wird trotzdem gespiegelt"
+
+# F8 (Elemente, die factory_cfg_list verwirft): Nicht-String, leerer String und Steuerzeichen erreichen
+# copy_into_worktree nicht – das Skript meldet sie trotzdem gesammelt, statt sie still fallen zu lassen.
+sw_config '  copy_files: [5, "", "a\nb", "lokal.conf"]'
+WT_DROP="$(wt_of "$TMP_SW/wt-47-drop" 803 demo-drop)"
+OUT_DROP=$(run_start_work "$TMP_SW/wt-47-drop" 803 demo-drop); RC_DROP=$?
+assert_exit 0 "$RC_DROP" "#47 F8: Nicht-String/leer/Steuerzeichen in copy_files → exit 0"
+assert_contains_286 "$OUT_DROP" '3 Einträge in start_work.copy_files übersprungen' \
+  "#47 F8: verworfene Elemente werden gezählt gewarnt, nicht still übergangen"
+assert_true "$([ ! -e "$WT_DROP/5" ] && [ ! -e "$WT_DROP/a" ] && [ ! -e "$WT_DROP/b" ]; echo $?)" \
+  "#47 F8: aus verworfenen Elementen entsteht keine Datei im Worktree"
+cmp -s "$REPO_SW/lokal.conf" "$WT_DROP/lokal.conf"
+assert_true "$?" "#47 F8: der gültige Eintrag neben verworfenen Elementen wird trotzdem gespiegelt"
+
+# F8 (keine Liste): eine Map liefert über '.[]' ihre Werte – ohne Typprüfung würde der Wert 'lokal.conf'
+# kopiert. Ein Skalar wird ebenso nicht gespiegelt. Beides warnt mit einem übersprungenen Eintrag.
+for case_47 in '804|{x: lokal.conf}' '805|lokal.conf'; do
+  id_47="${case_47%%|*}"; val_47="${case_47#*|}"
+  sw_config "  copy_files: $val_47"
+  wt_47="$(wt_of "$TMP_SW/wt-47-nolist" "$id_47" demo-nolist)"
+  out_47=$(run_start_work "$TMP_SW/wt-47-nolist" "$id_47" demo-nolist); rc_47=$?
+  assert_exit 0 "$rc_47" "#47 F8: copy_files $val_47 (keine Liste) → exit 0"
+  assert_true "$([ -d "$wt_47" ] && [ ! -e "$wt_47/lokal.conf" ]; echo $?)" \
+    "#47 F8: copy_files $val_47 (keine Liste) spiegelt nichts (Worktree als Anker vorhanden)"
+  assert_contains_286 "$out_47" '1 Eintrag in start_work.copy_files übersprungen' \
+    "#47 F8: copy_files $val_47 (keine Liste) wird gewarnt"
+done
+
+# Config nicht lesbar: ein yq-Stub scheitert nur an Ausdrücken über copy_files (der übrige Lauf liest seine
+# Config weiter). Ohne Warnung bliebe eine konfigurierte Kopie lautlos aus.
+REAL_YQ_47="$(command -v yq)"
+printf '#!/usr/bin/env bash\ncase "$*" in *copy_files*) echo "yq-stub: kaputt" >&2; exit 1 ;; esac\nexec "%s" "$@"\n' \
+  "$REAL_YQ_47" > "$TMP_SW/bin/yq"
+chmod +x "$TMP_SW/bin/yq"
+sw_config '  copy_files: ["lokal.conf"]'
+WT_NOREAD="$(wt_of "$TMP_SW/wt-47-noread" 806 demo-noread)"
+OUT_NOREAD=$(run_start_work "$TMP_SW/wt-47-noread" 806 demo-noread); RC_NOREAD=$?
+rm -f "$TMP_SW/bin/yq"
+assert_exit 0 "$RC_NOREAD" "#47 F8: copy_files nicht lesbar → exit 0"
+assert_contains_286 "$OUT_NOREAD" 'start_work.copy_files nicht lesbar' "#47 F8: nicht lesbare copy_files werden gewarnt"
+assert_true "$([ -d "$WT_NOREAD" ] && [ ! -e "$WT_NOREAD/lokal.conf" ]; echo $?)" \
+  "#47 F8: bei nicht lesbarer Liste wird nichts gespiegelt (Worktree als Anker vorhanden)"
+
+# F9: ein Eintrag, der im Worktree NICHT gitignoret ist, wird nicht kopiert – sonst committete
+# factory-commit.sh ('git add -A') die Kopie im nächsten Schritt (Factory-ADR-063 E26, Security-W1).
+# Zwei Varianten: gar kein Ignore-Muster, und ein Muster, das nur in einer uncommitteten .gitignore des
+# Quellbaums steht (der Worktree sieht sie nicht). Der Folge-Eintrag läuft weiter.
+printf 'offen=1\n' > "$REPO_SW/offen.txt"
+printf 'quelle=1\n' > "$REPO_SW/nur-quelle.txt"
+printf 'nur-quelle.txt\n' > "$REPO_SW/.gitignore"
+sw_config '  copy_files: ["offen.txt", "nur-quelle.txt", "lokal.conf"]'
+WT_UNIGN="$(wt_of "$TMP_SW/wt-47-unign" 807 demo-unign)"
+OUT_UNIGN=$(run_start_work "$TMP_SW/wt-47-unign" 807 demo-unign); RC_UNIGN=$?
+assert_exit 0 "$RC_UNIGN" "#47 F9: nicht gitignorete Einträge → exit 0"
+assert_true "$([ -d "$WT_UNIGN" ] && [ ! -e "$WT_UNIGN/offen.txt" ]; echo $?)" \
+  "#47 F9: ein im Worktree nicht gitignoreter Eintrag wird nicht kopiert (Worktree als Anker vorhanden)"
+assert_contains_286 "$OUT_UNIGN" 'offen.txt ist im Worktree nicht gitignoret' "#47 F9: der nicht ignorierte Eintrag wird gewarnt"
+[ ! -e "$WT_UNIGN/nur-quelle.txt" ]
+assert_true "$?" "#47 F9: ein Ignore-Muster nur in der uncommitteten .gitignore des Quellbaums zählt nicht"
+assert_contains_286 "$OUT_UNIGN" 'nur-quelle.txt ist im Worktree nicht gitignoret' "#47 F9: auch dieser Eintrag wird gewarnt"
+cmp -s "$REPO_SW/lokal.conf" "$WT_UNIGN/lokal.conf"
+assert_true "$?" "#47 F9: der folgende, gitignorete Eintrag wird trotzdem gespiegelt"
+assert_true "$([ -z "$(git -C "$WT_UNIGN" status --porcelain --untracked-files=all -- offen.txt nur-quelle.txt lokal.conf)" ]; echo $?)" \
+  "#47 F9: 'git add -A' fände im Worktree keine der gespiegelten Dateien (status leer)"
+rm -f "$REPO_SW/.gitignore" "$REPO_SW/nur-quelle.txt"
+
+# F9 Mutationsbeleg (Lesson Factory-Task #23): dieselbe Prüffunktion auf Original und Mutante ohne Ignore-Guard.
+# f9_unignored_refused <skript> <wt-basis> <task-id> – 0 = der nicht ignorierte Eintrag fehlt im Worktree.
+f9_unignored_refused() {
+  local wt; wt="$(wt_of "$2" "$3" "demo-unign$3")"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-unign$3" >/dev/null
+  [ -d "$wt" ] && [ ! -e "$wt/offen.txt" ]
+}
+SW_IGN_LINE='  if ! git -C "$WORKDIR" check-ignore -q -- "./$entry" 2>/dev/null; then'
+SW_MUT_IGN="$TMP_SW/mut/scripts/start-work-ign.sh"
+awk -v g="$SW_IGN_LINE" '$0 == g { print "  if false; then"; next } { print }' "$SW" > "$SW_MUT_IGN"
+assert_true "$([ "$(grep -cxF -- "$SW_IGN_LINE" "$SW")" -eq 1 ] && ! grep -qxF -- "$SW_IGN_LINE" "$SW_MUT_IGN"; echo $?)" \
+  "#47 F9 (Mutation): der Ignore-Guard steht genau einmal im Skript und fehlt in der Mutante"
+sw_config '  copy_files: ["offen.txt"]'
+assert_true "$(f9_unignored_refused "$SW" "$TMP_SW/wt-47-ign" 808; echo $?)" \
+  "#47 F9 (Mutation): Original – der nicht ignorierte Eintrag wird nicht kopiert"
+assert_true "$(! f9_unignored_refused "$SW_MUT_IGN" "$TMP_SW/wt-47-ignmut" 809; echo $?)" \
+  "#47 F9 (Mutation): ohne Ignore-Guard wird er kopiert – die Prüfung oben wäre rot"
+rm -f "$REPO_SW/offen.txt"
+
+# F9 Pathspec (Security-W2): check-ignore liest sein Argument als Pathspec – ':geheim' löste Git zu 'geheim'
+# auf (ignoriert), cp schriebe aber wörtlich ':geheim' (nicht ignoriert). Mit './'-Präfix prüft der Guard
+# den wörtlichen Pfad. Das Muster 'geheim' trifft nur den aufgelösten Namen, nicht ':geheim'.
+# f9_pathspec_refused <skript> <wt-basis> <task-id> – 0 = ':geheim' fehlt im Worktree und im git status.
+f9_pathspec_refused() {
+  local wt; wt="$(wt_of "$2" "$3" "demo-pspec$3")"
+  SW_RUN="$1" run_start_work "$2" "$3" "demo-pspec$3" >/dev/null
+  local status; status="$(git -C "$wt" status --porcelain --untracked-files=all)"
+  [ -d "$wt" ] && [ ! -e "$wt/:geheim" ] && ! grep -qF -- ':geheim' <<<"$status"
+}
+printf 'geheim\n' >> "$SW_EXCLUDE"
+printf 'geheim=1\n' > "$REPO_SW/:geheim"
+sw_config '  copy_files: [":geheim"]'
+SW_IGN_LINE_BARE='  if ! git -C "$WORKDIR" check-ignore -q -- "$entry" 2>/dev/null; then'
+SW_MUT_PSPEC="$TMP_SW/mut/scripts/start-work-pspec.sh"
+awk -v g="$SW_IGN_LINE" -v m="$SW_IGN_LINE_BARE" '$0 == g { print m; next } { print }' "$SW" > "$SW_MUT_PSPEC"
+assert_true "$([ "$(grep -cxF -- "$SW_IGN_LINE" "$SW")" -eq 1 ] && grep -qxF -- "$SW_IGN_LINE_BARE" "$SW_MUT_PSPEC"; echo $?)" \
+  "#47 F9 Pathspec (Mutation): der Guard prüft './\$entry' genau einmal, die Mutante den nackten Eintrag"
+OUT_PSPEC=$(run_start_work "$TMP_SW/wt-47-pspecout" 811 demo-pspecout)
+assert_contains_286 "$OUT_PSPEC" ':geheim ist im Worktree nicht gitignoret' \
+  "#47 F9 Pathspec: ein Eintrag mit führendem ':' wird als nicht gitignoret gewarnt"
+assert_true "$(f9_pathspec_refused "$SW" "$TMP_SW/wt-47-pspec" 812; echo $?)" \
+  "#47 F9 Pathspec: ':geheim' wird nicht kopiert, 'git add -A' fände es nicht (status ohne ':geheim')"
+assert_true "$(! f9_pathspec_refused "$SW_MUT_PSPEC" "$TMP_SW/wt-47-pspecmut" 813; echo $?)" \
+  "#47 F9 Pathspec (Mutation): ohne './'-Präfix wird ':geheim' kopiert und läge untracked im Worktree"
+rm -f "$REPO_SW/:geheim"
+
+# Ausgabe: ein Eintrag mit Backslash-Folge erscheint wörtlich in der Meldung ('echo -e' schnitte bei '\c' ab).
+printf 'bs=1\n' > "$REPO_SW/back\\cslash.conf"
+sw_config "  copy_files: ['back\\cslash.conf']"
+WT_BS="$(wt_of "$TMP_SW/wt-47-bs" 810 demo-bs)"
+OUT_BS=$(run_start_work "$TMP_SW/wt-47-bs" 810 demo-bs)
+cmp -s "$REPO_SW/back\\cslash.conf" "$WT_BS/back\\cslash.conf"
+assert_true "$?" "#47: ein Eintrag mit Backslash im Namen wird gespiegelt"
+assert_contains_286 "$OUT_BS" 'back\cslash.conf kopiert (Quelle:' \
+  "#47: die Erfolgsmeldung gibt den Eintrag wörtlich aus (keine Backslash-Interpretation)"
+rm -f "$REPO_SW/back\\cslash.conf"
+
+# AK11: In-Place-Modus – keine Spiegelung (kein neuer Baum), der Hinweis erscheint trotzdem. Config + Defaults
+# liegen untracked im Klon: der Uncommitted-Check des In-Place-Modus sieht nur getrackte Dateien.
+cp "$FACTORY_ROOT/factory.defaults.yml" "$REPO_IP/"
+printf 'start_work:\n  hint: "%s"\n  copy_files: [".env.local"]\n' "$HINT_SW" > "$REPO_IP/factory.config.yml"
+printf 'SCHLUESSEL=ip\n' > "$REPO_IP/.env.local"
 OUT_IP=$( cd "$REPO_IP" && PATH="$TMP_SW/bin:$PATH" \
     FACTORY_DIR="$REPO_IP" FACTORY_REPO="acme/demo" FACTORY_NO_WORKTREE=1 \
     bash "$SW" 783 demo-ip 2>&1 )
-# „Der Lauf ist wirklich durchgelaufen"-Anker vor den Abwesenheits-Assertions (Lesson nothra/tch-gastro-services#214):
-# der In-Place-Zweig macht zusätzlich checkout/rebase gegen das Bare-Remote und könnte davor enden.
-printf '%s' "$OUT_IP" | grep -q 'Bereit!'
-assert_true "$?" "#236 AK8: der In-Place-Lauf erreicht den Abschluss-Output (Anker für die Abwesenheits-Prüfungen)"
-assert_absent "$OUT_IP" '.env.local kopiert (Quelle:' "#236 AK8: In-Place-Modus führt keine Kopieraktion aus"
-assert_absent "$OUT_IP" 'pnpm db:seed' "#236 AK8: In-Place-Modus gibt keinen db:seed-Hinweis"
+# „Der Lauf ist wirklich durchgelaufen"-Anker vor den Abwesenheits-Assertions (Lesson nothra/tch-gastro-services#214).
+assert_contains_286 "$OUT_IP" 'Bereit!' "#47 AK11: der In-Place-Lauf erreicht den Abschluss-Output (Anker)"
+assert_absent "$OUT_IP" 'in den Worktree spiegeln' "#47: In-Place-Modus führt keine Spiegelung aus"
+assert_contains_286 "$OUT_IP" "$HINT_SW" "#47 AK11: start_work.hint erscheint auch im In-Place-Modus"
+rm -f "$REPO_IP/factory.defaults.yml" "$REPO_IP/factory.config.yml"
 
-# Reihenfolge „Kopie VOR pnpm install" (Spec-Hinweis: die Datei soll auch bei fehlgeschlagener
-# Installation daliegen). Alle Läufe oben setzen FACTORY_WT_SKIP_INSTALL=1 und decken sie nicht
-# ab → Positionsvergleich der beiden echten Aufrufzeilen (Lesson „Reihenfolge-/Präsenz-Guards":
-# Anker ist die exakte Kommandozeile, nie ein Fragment), fail-closed bei fehlendem Anker.
-sw_cp_line=$(grep -nF 'cp -p "$FACTORY_DIR/.env.local" "$WORKDIR/.env.local"' "$SW" | head -1 | cut -d: -f1)
+# Reihenfolge „Spiegelung VOR dem Install-Schritt" (die Dateien sollen auch bei fehlgeschlagener Installation
+# daliegen). Alle Läufe oben setzen FACTORY_WT_SKIP_INSTALL=1 → Positionsvergleich der beiden echten
+# Aufrufzeilen (Anker ist die exakte Kommandozeile, nie ein Fragment), fail-closed bei fehlendem Anker.
+sw_copy_line=$(grep -nxF '    mirror_copy_files' "$SW" | head -1 | cut -d: -f1)
 sw_inst_line=$(grep -nF 'eval "$INSTALL_COMMAND"' "$SW" | head -1 | cut -d: -f1)
-{ [ -n "$sw_cp_line" ] && [ -n "$sw_inst_line" ] && [ "$sw_cp_line" -lt "$sw_inst_line" ]; }
-assert_true "$?" "#236: der .env.local-Kopierschritt steht vor dem Install-Schritt im Worktree"
+{ [ -n "$sw_copy_line" ] && [ -n "$sw_inst_line" ] && [ "$sw_copy_line" -lt "$sw_inst_line" ]; }
+assert_true "$?" "#47: die Spiegelung steht vor dem Install-Schritt im Worktree"
 
-# AK9: Doku-Drift im selben PR nachgezogen. Die Mehrwort-Prosa-Anker laufen über flat_286()
-# (Definition am Dateikopf): ein Doku-Reflow bräche einen zeilengebundenen `grep -qF`-Anker
-# sonst lautlos – den Präsenz-Guard rot, den Abwesenheits-Guard grün (Lesson nothra/tch-gastro-services#240/#249/#286).
+# Doku-Drift im selben PR (AK17-Anteil der ausgelieferten Doku). Mehrwort-Anker über flat_286() (Lesson
+# nothra/tch-gastro-services#240/#249/#286).
 sw_header=$(awk '/^set -euo pipefail/{exit} {print}' "$SW")
-# Die Extraktion selbst belegen (nothra/tch-gastro-services#255, hier in Fail-open-Richtung): ändert sich der Sentinel
-# (z. B. 'set -Eeuo pipefail'), liefert awk die GANZE Datei – der Guard darunter fände
-# FACTORY_WT_SKIP_ENV dann im Produktionscode (:228) und bliebe grün, obwohl der Kopf-Kommentar,
-# also der Prüfgegenstand von AK9(d), gelöscht sein kann.
+# Die Extraktion selbst belegen: ändert sich der Sentinel, liefert awk die GANZE Datei – der Guard darunter
+# fände den Schalter dann im Produktionscode und bliebe grün, obwohl der Kopf-Kommentar gelöscht sein kann.
 { [ "$(printf '%s\n' "$sw_header" | wc -l)" -lt "$(wc -l < "$SW")" ]; }
-assert_true "$?" "#236 AK9(d): die Kopf-Extraktion bricht am Sentinel ab (kein Fail-open auf die ganze Datei)"
-# Auf die Kommentarform ankern, nicht auf das nackte Wort: der Prüfgegenstand ist die
-# Schalter-Zeile im Kopf, nicht irgendeine Erwähnung.
-printf '%s\n' "$sw_header" | grep -q '^#   FACTORY_WT_SKIP_ENV=1'
-assert_true "$?" "#236 AK9(d): start-work.sh nennt FACTORY_WT_SKIP_ENV im Kopf-Kommentar"
+assert_true "$?" "#47 AK17: die Kopf-Extraktion bricht am Sentinel ab (kein Fail-open auf die ganze Datei)"
+printf '%s\n' "$sw_header" | grep -q '^#   FACTORY_WT_SKIP_COPY=1'
+assert_true "$?" "#47 AK17: start-work.sh nennt FACTORY_WT_SKIP_COPY im Kopf-Kommentar"
+assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_COPY=1` (Alias `FACTORY_WT_SKIP_ENV=1`)' \
+  "#47 AK17: git-workflow.md listet FACTORY_WT_SKIP_COPY samt Alias in der Env-Schalter-Liste"
+FACTORY_MD_47="$FACTORY_ROOT/docs/factory/FACTORY.md"
+fmd_rule8_47="$(grep -F '8. **Nach dem Merge aufräumen:**' "$FACTORY_MD_47")"
+assert_contains_286 "$fmd_rule8_47" 'start_work.copy_files' "#47 AK17: FACTORY.md Kern-Kurzregel 8 nennt start_work.copy_files"
+assert_contains_286 "$fmd_rule8_47" 'FACTORY_WT_SKIP_COPY=1' "#47 AK17: FACTORY.md Kern-Kurzregel 8 nennt den neuen Opt-out"
+assert_absent "$fmd_rule8_47" 'Kopie von `.env.local`' "#47 AK17: FACTORY.md Kern-Kurzregel 8 beschreibt keine feste .env.local-Kopie mehr"
+assert_absent "$(flat_286 "$GITWF")" 'automatischen `.env.local`-Kopie' "#47 AK17: git-workflow.md beschreibt keine feste .env.local-Kopie mehr"
 
-# AK9(c) fordert die Env-Schalter-LISTE, nicht eine beliebige Erwähnung → Mehrwort-Anker über
-# flat_286 gegen $GITWF (bereits oben definiert), symmetrisch zur Isolation in AK9(d).
-assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_ENV=1` = die (gitignorete) `.env.local`' \
-  "#236 AK9(c): git-workflow.md listet FACTORY_WT_SKIP_ENV in der Env-Schalter-Liste"
+# AK16: kein Ursprungs-Wortlaut in start-work.sh und in dieser Testgruppe. Die Suchbegriffe werden zur
+# Laufzeit zusammengesetzt – als Literal stünden sie in der gescannten Gruppe selbst (Lesson nothra/tch-gastro-services#319).
+# origin_terms_47 <datei> – gibt jeden gefundenen Begriff aus; leer = sauber.
+origin_terms_47() {
+  local term
+  for term in "pn""pm" "db"":seed" "dot""env" "Credentials""Signin" "SEED""_ADMIN" "factory""-pipeline"; do
+    grep -qF -- "$term" "$1" && printf '%s\n' "$term"
+  done
+  return 0
+}
+SELF_47="$CHECKS_DIR/tests/run-tests.sh"
+GROUP_47="$TMP_SW/gruppe-47.txt"
+awk '/^# ─── Worktree-Dateispiegelung über start_work.copy_files/ { f = 1; print; next }
+     f && /^# ─── / { exit } f { print }' "$SELF_47" > "$GROUP_47"
+# Fail-closed: die Extraktion muss die Gruppe treffen (nicht leer) und vor dem Dateiende abbrechen.
+{ [ "$(wc -l < "$GROUP_47")" -gt 100 ] && [ "$(wc -l < "$GROUP_47")" -lt "$(wc -l < "$SELF_47")" ]; }
+assert_true "$?" "#47 AK16: die Extraktion der Testgruppe trifft die Gruppe und endet vor dem Dateiende"
+assert_true "$([ -z "$(origin_terms_47 "$SW")" ]; echo $?)" \
+  "#47 AK16: start-work.sh enthält keinen Ursprungs-Wortlaut (gefunden: $(origin_terms_47 "$SW" | tr '\n' ' '))"
+assert_true "$([ -z "$(origin_terms_47 "$GROUP_47")" ]; echo $?)" \
+  "#47 AK16: die Testgruppe enthält keinen Ursprungs-Wortlaut (gefunden: $(origin_terms_47 "$GROUP_47" | tr '\n' ' '))"
+# Mutationsbeleg: dieselbe Funktion auf einer Kopie mit eingeschleustem Begriff wird fündig.
+{ cat "$SW"; printf '# %s\n' "db"":seed"; } > "$TMP_SW/start-work-mut-47.sh"
+assert_true "$([ -n "$(origin_terms_47 "$TMP_SW/start-work-mut-47.sh")" ]; echo $?)" \
+  "#47 AK16 (Mutation): ein eingeschleuster Ursprungs-Begriff macht den Guard rot"
 
-# (AK9(a)/(b) – Lesson und Index-Zeile zur .env.local-Spiegelung – entfallen im Factory-Repo: die Lesson
-# gehört dem adoptierenden Projekt, nicht der Factory-Auslieferung.)
+# Fixture-Config für die folgenden Gruppen zurücksetzen (committeter Stand ohne copy_files, info/exclude wie vorher).
+git -C "$REPO_SW" checkout -q -- factory.config.yml
+if [ -f "$TMP_SW/exclude-vorher" ]; then cp "$TMP_SW/exclude-vorher" "$SW_EXCLUDE"; else rm -f "$SW_EXCLUDE"; fi
 
 # ─── nothra/tch-gastro-services#267 AK5: start-work.sh trennt Worktree-Fakt und Session-Empfehlung ─────
 # Läuft hier (vor dem TMP_SW-Aufräumen unten), weil AK5 die gh-Stub/REPO_SW-Fixtures aus dem
@@ -8455,6 +8687,33 @@ CFG
   printf 'start_work:\n  hint: 5\n' > "$TMP_H5/bad.yml"
   bash "$CVC_431" "$FACTORY_ROOT/factory.defaults.yml" "$TMP_H5/bad.yml" >/dev/null 2>&1
   assert_true "$([ "$?" -ne 0 ]; echo $?)" "#431 AK-H5: start_work.hint als Zahl → abgelehnt"
+
+  # #47 AK13/AK14: start_work.copy_files (Regel 9). Je Ablehnungsgrund ein eigener Negativtest, der Schlüssel UND
+  # Grund in der Meldung nachweist – nur der Exit-Code bewiese nicht, dass Regel 9 (und nicht eine andere) greift.
+  printf 'start_work:\n  copy_files: [".env.local", "config/local.yml"]\n' > "$TMP_H5/ok.yml"
+  bash "$CVC_431" "$FACTORY_ROOT/factory.defaults.yml" "$TMP_H5/ok.yml" >/dev/null 2>&1
+  assert_exit 0 "$?" "#47 AK13: start_work.copy_files mit gültigen Pfaden → gültig"
+  printf 'start_work:\n  copy_files: ["mit leerzeichen/datei.conf"]\n' > "$TMP_H5/ok.yml"
+  bash "$CVC_431" "$FACTORY_ROOT/factory.defaults.yml" "$TMP_H5/ok.yml" >/dev/null 2>&1
+  assert_exit 0 "$?" "#47 AK13: ein Pfad mit Leerzeichen ist gültig"
+  while IFS='|' read -r val_47 reason_47; do
+    printf 'start_work:\n  copy_files: %s\n' "$val_47" > "$TMP_H5/bad.yml"
+    out_431="$(bash "$CVC_431" "$FACTORY_ROOT/factory.defaults.yml" "$TMP_H5/bad.yml" 2>&1)"; rc_431=$?
+    assert_true "$([ "$rc_431" -ne 0 ]; echo $?)" "#47 AK14: copy_files $val_47 → abgelehnt (exit $rc_431)"
+    assert_contains_286 "$out_431" 'start_work.copy_files' "#47 AK14: copy_files $val_47 – die Meldung nennt den Schlüssel"
+    assert_contains_286 "$out_431" "$reason_47" "#47 AK14: copy_files $val_47 – die Meldung nennt den Grund ($reason_47)"
+  done <<'BAD47'
+["/etc/passwd"]|absoluter Pfad
+["../x"]|'..'-Segment
+["a/../../x"]|'..'-Segment
+[""]|leerer Pfad
+[5]|vom Typ !!int
+[true]|vom Typ !!bool
+[null]|vom Typ !!null
+".env.local"|keine Liste
+["config/"]|abschließendes '/'
+["a\nb"]|Steuerzeichen
+BAD47
   rm -rf "$TMP_H5"
 else
   skip_yq "#431 AK-H1…H5: commands.* (Config, Gates, Validierung)"
@@ -8466,7 +8725,7 @@ if [ "$HAS_YQ" = 1 ]; then
   REPO_H6="$(mk_start_work_fixture_431 "$TMP_H6" $'commands:\n  install: "touch install-ran.marker"\nstart_work:\n  hint: "Eigener Hinweis aus der Config"')"
   OUT_H6="$(run_start_work_431 "$TMP_H6" "$REPO_H6" wt 931 hint-test)"
   assert_true "$([ -f "$TMP_H6/wt/feature-931-hint-test/install-ran.marker" ]; echo $?)" "#431 AK-H6: start-work führt commands.install im Worktree aus"
-  assert_contains_286 "$OUT_H6" 'Eigener Hinweis aus der Config' "#431 AK-H6: start-work gibt start_work.hint nach dem Kopieren der .env.local aus"
+  assert_contains_286 "$OUT_H6" 'Eigener Hinweis aus der Config' "#431 AK-H6: start-work gibt start_work.hint aus (seit #47 unabhängig von einer Kopie)"
   assert_absent "$OUT_H6" 'db:seed' "#431 AK-H6: kein hartkodierter db:seed-Hinweis mehr im Skript"
   # Ohne Eintrag: kein Install-Schritt, kein Hinweis, kein Fehler.
   printf 'schemaVersion: 1\n' > "$REPO_H6/factory.config.yml"

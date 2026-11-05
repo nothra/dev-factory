@@ -7,6 +7,15 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ### Geändert
 
+- **Worktree-Dateispiegelung konfigurierbar (Factory-ADR-063 Nachtrag 2026-11-01, #47):** `start-work.sh` spiegelt nicht
+  mehr fest die `.env.local`, sondern genau die Dateien aus dem neuen Schlüssel `start_work.copy_files` (Liste relativer
+  Dateipfade, Default `[]`; Schutzlogik unverändert: nie überschreiben, Modus erhalten, kein Abbruch; neu: kopiert
+  wird nur, was im Worktree gitignoret ist, sonst Warnung und Überspringen). Das Config-Gate
+  prüft die Einträge (Regel 9). Opt-out heißt jetzt `FACTORY_WT_SKIP_COPY=1`, `FACTORY_WT_SKIP_ENV=1` bleibt als Alias.
+  `start_work.hint` erscheint immer, wenn gesetzt – auch ohne Kopie und im In-Place-Modus. **Migration:** wer die
+  bisherige Kopie behalten will, setzt in `factory.config.yml` `start_work.copy_files: [".env.local"]`; ohne den Eintrag
+  entfällt die Kopie nach dem Update still.
+
 - **Token und Release-Code getrennt (Factory-ADR-063 Nachtrag 2026-10-31, #37):** `factory-update.yml` besteht aus vier Jobs
   (`guard`, `preflight`, `fetch`, `publish`); das Token liegt nur in `preflight`/`publish` als Secret des Environments
   `factory-update` (Branch-Regel `main`), der Code des abgeholten Release läuft nur in `fetch` ohne Secret, das Ergebnis

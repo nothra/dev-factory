@@ -110,11 +110,19 @@ commands:
   coverage: ""
   install: ""
 
-# Hinweis, den start-work.sh nach dem Kopieren der .env.local ausgibt (Q4, nothra/tch-gastro-services#431). Leer = kein Hinweis.
-# @reason: Projektspezifische Nacharbeit (z. B. DB-Seed) gehört nicht in das generische Skript.
-# @tradeoff: keiner – ohne Eintrag entfällt der Hinweis still.
+# start-work.sh (Q4, nothra/tch-gastro-services#431; Factory-ADR-063 E23–E27, #47):
+#   hint       – Text, den start-work.sh im Abschluss unter Schritt 2 ausgibt, in jedem Modus. Leer = kein Hinweis.
+#   copy_files – gitignorete lokale Dateien (Pfade relativ zur Repo-Wurzel), die start-work.sh aus dem
+#                eigenen Baum in jeden neuen Worktree spiegelt. Nur einzelne Dateien, keine Ordner oder Muster;
+#                eine im Worktree vorhandene Datei wird nie überschrieben, eine dort nicht gitignorete wird
+#                übersprungen (sonst committete 'git add -A' sie). Opt-out: FACTORY_WT_SKIP_COPY=1.
+# @reason: Projektspezifische Nacharbeit und lokale Konfiguration gehören nicht in das generische Skript –
+#   welche Dateien ein frischer Worktree braucht, weiß nur das Projekt.
+# @tradeoff: hint – keiner, ohne Eintrag entfällt er still. copy_files – jede gelistete Datei liegt danach in
+#   jedem Worktree; enthält sie Secrets, gehört das Entfernen des Worktrees nach dem Merge zur Secret-Hygiene.
 start_work:
   hint: ""
+  copy_files: []
 
 # GitHub-Labels (ADR-063 D3, nothra/tch-gastro-services#431): `kinds` = Art-Labels (genau eines je Issue), `aspects` = generische
 # Aspekt-Labels (null bis mehrere). Projekteigene Aspekte trägt das Projekt in factory.config.yml unter
