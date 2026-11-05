@@ -118,6 +118,11 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   Gefahr (`git status` im Worktree leer). Nitpicks: leere Elternordner bleiben bei einem nicht ignorierten verschachtelten
   Eintrag zurück (harmlos); CHANGELOG und OPERATING.md nennen den Ignore-Guard nicht; die Wegwerf-Dateien liegen noch im Baum.
   Suiten: 2343/0 (ausgeliefert), 145/0 (Projekt). Keine Out-of-Scope-Funde.
+- Iteration 4 (2026-11-05, Nachlauf auf den Security-Rework 2 `392e31f`): **APPROVED** – 0 kritisch, 0 wichtig,
+  4 Nitpicks ([`tasks/review-47.md`](review-47.md)). Das `./`-Präfix ist per Sonde nachvollzogen: `:x` und `:(top)x`
+  liefern rc 1, das verankerte Muster `/.env.local` greift weiter. Neu: ADR-063 Zeile 820 ist nicht umbrochen.
+  Offen aus Iteration 3: CHANGELOG/OPERATING.md ohne Ignore-Guard, Wegwerf-Dateien, leerer Elternordner.
+  Suiten: 2347/0 (ausgeliefert), 145/0 (Projekt). Keine Out-of-Scope-Funde.
 
 ## Test-Notizen
 - `/test` (2026-11-03): Alle AK1–AK18 und F1–F8 haben Tests (Abgleich Spec ↔ Testnamen). Keine neuen Tests nötig,

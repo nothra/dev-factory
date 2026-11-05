@@ -1,11 +1,11 @@
 # Review: Task 47
 
-> Iteration 3 (Nachlauf auf den Security-Rework) · Schwerpunkt Commit `ce8f89e` (9 Dateien, +116/−10) im Kontext
-> `origin/main...HEAD` · Spec `docs/specs/spec-47-copy-files-konfigurierbar.md` (F9), Factory-ADR-063 E25/E26,
-> `tasks/security-47.md` W1. Suiten in dieser Session selbst gelaufen: ausgeliefert 2343/0, Projekt 145/0.
-> Iteration 1: NEEDS_REWORK (W1), Iteration 2: APPROVED, siehe Task-Datei. Neuer Code seit Iteration 2 ist nur der
-> Rework – der Circuit Breaker (3. Review auf denselben Code) greift deshalb nicht, ein weiteres NEEDS_REWORK
-> ginge aber an den Menschen.
+> Iteration 4 (Nachlauf auf den Security-Rework 2) · Schwerpunkt Commit `392e31f` (5 Dateien, +54/−6) im Kontext
+> `origin/main...HEAD` · Spec `docs/specs/spec-47-copy-files-konfigurierbar.md` (F9), Factory-ADR-063 E26,
+> `tasks/security-47.md` → „Nachlauf" W2. Suiten in dieser Session selbst gelaufen: ausgeliefert 2347/0, Projekt 145/0.
+> Iteration 1: NEEDS_REWORK (W1), Iteration 2 und 3: APPROVED, siehe Task-Datei. Neu seit Iteration 3 ist nur der
+> Rework `392e31f`. Der Circuit Breaker (3. Review auf denselben Code) greift deshalb nicht. Ein NEEDS_REWORK ginge
+> hier aber an den Menschen.
 
 ## Kritische Findings (müssen behoben werden)
 
@@ -13,47 +13,45 @@ _(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
 
-_(keine)_ – Security-W1 ist behoben und selbst nachvollzogen: `copy_into_worktree`
-(`scripts/start-work.sh:103`) prüft vor dem `cp` per `git -C "$WORKDIR" check-ignore -q -- "$entry"`, ein
-nicht ignorierter Eintrag und jeder Git-Fehler führen zu Warnung + Überspringen (fail-closed). Die Reihenfolge
-(nach `ensure_parent_dirs` und dem `-e`/`-L`-Guard) ist begründet und lässt die genaueren F6-/AK4-Meldungen
-stehen. `info/exclude` liegt im gemeinsamen Git-Verzeichnis und gilt damit auch im Worktree – die Fixture-Wahl
-ist korrekt; `REPO_SW` hat keine getrackte `.gitignore`, das `rm -f "$REPO_SW/.gitignore"` am Ende von F9
-löscht also nur die eigene Testdatei.
+_(keine)_. Security-W2 ist behoben und selbst nachvollzogen. `copy_into_worktree` (`scripts/start-work.sh:104`)
+prüft `git -C "$WORKDIR" check-ignore -q -- "./$entry"`. Die Sonde in dieser Session lief in einem Wegwerf-Repo mit
+den Mustern `/.env.local`, `conf/*.local`, `*.secret` und `geheim`. Ergebnisse:
+- `:geheim` und `:(top)geheim` → rc 1 (nicht ignoriert, fail-closed).
+- Das verankerte Muster `/.env.local` greift weiter mit `./`-Präfix (rc 0). Damit ist der Konsumentenfall AK15 unverändert.
+- Verschachtelte Pfade, Leerzeichen, ein führendes `-` und ein Eintrag, der selbst mit `./` beginnt (`./y.secret` → `././y.secret`), werden korrekt als ignoriert erkannt.
+- Ein getracktes Ziel liefert rc 1 und wird übersprungen.
+- Ein nicht ignorierter Eintrag liefert rc 1.
+
+Die Sonde hat sich selbst gelöscht. Ihr Wegwerf-Repo liegt außerhalb des Baums in `$TMPDIR`.
 
 ## Nitpicks (optional)
 
-- [ ] [scripts/start-work.sh:94/103] `ensure_parent_dirs` legt fehlende Elternordner **vor** dem Ignore-Guard an.
-  Ein nicht ignorierter verschachtelter Eintrag (`sub/x.txt`) hinterlässt deshalb ein leeres `sub/` im Worktree.
-  Harmlos (Git trackt keine leeren Ordner, `git add -A` committet nichts), die Reihenfolge ist wegen der
-  F6-Meldung bewusst gewählt. Höchstens als Satz in E26 oder als Aufräumschritt erwähnenswert, kein Rework-Grund.
-- [ ] [CHANGELOG.md:9-15, docs/factory/OPERATING.md:591-595] Beide Beschreibungen von `copy_files` nennen den neuen
-  Ignore-Guard nicht. ADR E26, Spec F9, `git-workflow.md` und `factory.defaults.yml` sind nachgezogen. Für
-  Konsumenten ist der CHANGELOG die Stelle, an der sie erfahren, dass eine nicht ignorierte gelistete Datei jetzt mit
-  Warnung übersprungen wird – ein Halbsatz („nur im Worktree gitignorete Dateien") genügt. Doku-Drift im eigenen PR,
-  daher im Scope und kein `kleinfunde.md`-Eintrag.
-- [ ] [scripts/*47*.tmp.sh, tasks/telemetry-raw-47-*.tmp.txt] Die Wegwerf-Dateien liegen weiter im Baum
-  (`probe47.tmp.sh`, `probe47ci.tmp.sh`, `review47.tmp.sh`, `review47b.tmp.sh`, zwei Telemetrie-Rohdateien). Sie
-  sind gitignoret (`git status --ignored`), sollten aber vor dem Merge gelöscht werden (Lesson build-tooling).
-  Diese Iteration hat keine neue Sonde angelegt.
+- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:820] Die neue Zeile ist nicht umbrochen: Der Satz
+  „Grund: mit der frei wählbaren Liste …" hängt an der W2-Ergänzung, und die Zeile ist rund 170 Zeichen lang. Umbrechen
+  wie im übrigen Absatz.
+- [ ] [CHANGELOG.md:9-15, docs/factory/OPERATING.md:591-595] Offen aus Iteration 3: Beide Beschreibungen von
+  `copy_files` nennen den Ignore-Guard nicht. Ein Halbsatz genügt („nur im Worktree gitignorete Dateien, sonst Warnung").
+  Doku-Drift im eigenen PR, daher im Scope.
+- [ ] [scripts/*47*.tmp.sh, tasks/telemetry-raw-47-*.tmp.txt] Offen aus Iteration 3: Diese Wegwerf-Dateien liegen
+  weiter im Baum (gitignoret): `probe47.tmp.sh`, `probe47ci.tmp.sh`, `review47.tmp.sh`, `review47b.tmp.sh` und zwei
+  Telemetrie-Rohdateien. Vor dem Merge löschen (Lesson build-tooling). Diese Iteration hat keine liegen gelassen.
+- [ ] [scripts/start-work.sh:94/104] Aus Iteration 3, unverändert und harmlos: Ein leerer Elternordner bleibt zurück,
+  wenn ein nicht ignorierter verschachtelter Eintrag vorkommt.
 
 ## Positives
 
-- **Fail-closed sauber umgesetzt:** `2>/dev/null` plus `!` behandelt rc 1 (nicht ignoriert) und rc 128 (Fehler,
-  z. B. „beyond a symbolic link") gleich. Der Kommentar nennt den Grund (Folgeschritt `git add -A`) und die ADR-Stelle.
-- **Test trifft die eigentliche Gefahr:** F9 prüft nicht nur, dass die Datei fehlt, sondern zusätzlich, dass
-  `git status --porcelain --untracked-files=all` im Worktree leer ist – genau das, was `git add -A` sehen würde.
-- **Zweite Variante deckt den Denkfehler ab**, den ein Gate-seitiger Check hätte (Muster nur in der uncommitteten
-  `.gitignore` des Quellbaums). Das begründet auch, warum die Prüfung im Ziel und nicht im Config-Gate steht (E26).
-- **Mutationsbeleg nach Lesson Factory-Task #23:** dieselbe Funktion `f9_unignored_refused` läuft auf Original und
-  Mutante, die Mutante ersetzt die exakte Aufrufzeile (Anker auf die volle Zeile, `grep -cxF … -eq 1`).
-- **Zwei-Einträge-Regel eingehalten:** der folgende, ignorierte Eintrag `lokal.conf` wird nach den abgelehnten
-  trotzdem gespiegelt – assertiert.
-- **`echo -e` → `printf '%s'` mitgezogen**, mit Regressionstest (`back\cslash.conf` erscheint wörtlich), und
-  `kleinfunde.md` ist ehrlich gekürzt statt still gelöscht. Kein weiteres `echo -e` interpoliert noch einen Eintrag
-  (`grep` über `start-work.sh` geprüft).
-- **Doku-Drift im selben Commit:** ADR E25 (Quellseite folgt Symlinks bewusst) und E26, Spec F9, `git-workflow.md`,
-  `factory.defaults.yml` und der Security-Report (W1 als behoben markiert) passen zum Code.
+- **Minimaler, gezielter Fix:** Ein Präfix an genau der Aufrufzeile. Der WHY-Kommentar nennt den Mechanismus
+  (Pathspec-Magie, `:x` wird zu `x`) und den Grund, warum `--literal-pathspecs` ausscheidet. Der Validator bleibt
+  unverändert. Die Entscheidung gegen eine zusätzliche `:`-Regel ist in der Task-Datei begründet.
+- **Test trifft die Gefahr:** `f9_pathspec_refused` prüft das fehlende Ziel und zusätzlich `git status`. Das Muster
+  `geheim` ist so gewählt, dass es nur den aufgelösten Namen trifft. Damit wird genau die Pathspec-Verwechslung
+  geprüft und nicht ein beliebiger nicht ignorierter Fall.
+- **Mutationsbeleg nach Lesson Factory-Task #23:** Dieselbe Funktion läuft auf Original und Mutante. Die Mutante
+  stellt die exakte Vor-Fix-Zeile wieder her. Der Anker ist die volle Zeile mit `grep -cxF … -eq 1`.
+  `SW_IGN_LINE` des bestehenden F9-Mutationsbelegs ist mitgezogen, sonst wäre der F9-Beleg still unwirksam geworden.
+- **Aufräumen:** `:geheim` wird am Ende entfernt. Der `info/exclude`-Eintrag fällt mit dem bestehenden Reset am
+  Gruppenende (`run-tests.sh:2450`). Jeder Lauf hat eine eigene Task-ID (811–813).
+- **Doku-Drift im selben Commit:** ADR E26 und Spec F9 sind nachgezogen und passen zum Code.
 
 ## Empfehlung
 
