@@ -2396,7 +2396,7 @@ rm -f "$REPO_IP/factory.defaults.yml" "$REPO_IP/factory.config.yml"
 # Reihenfolge „Spiegelung VOR dem Install-Schritt" (die Dateien sollen auch bei fehlgeschlagener Installation
 # daliegen). Alle Läufe oben setzen FACTORY_WT_SKIP_INSTALL=1 → Positionsvergleich der beiden echten
 # Aufrufzeilen (Anker ist die exakte Kommandozeile, nie ein Fragment), fail-closed bei fehlendem Anker.
-sw_copy_line=$(grep -nxF '        done <<< "$COPY_FILES"' "$SW" | head -1 | cut -d: -f1)
+sw_copy_line=$(grep -nxF '    mirror_copy_files' "$SW" | head -1 | cut -d: -f1)
 sw_inst_line=$(grep -nF 'eval "$INSTALL_COMMAND"' "$SW" | head -1 | cut -d: -f1)
 { [ -n "$sw_copy_line" ] && [ -n "$sw_inst_line" ] && [ "$sw_copy_line" -lt "$sw_inst_line" ]; }
 assert_true "$?" "#47: die Spiegelung steht vor dem Install-Schritt im Worktree"

@@ -118,6 +118,34 @@ copy_into_worktree() {
   return 0
 }
 
+# mirror_copy_files: alle Einträge aus start_work.copy_files spiegeln und verworfene gesammelt melden (E24).
+mirror_copy_files() {
+  local entries dropped noun entry
+  # Lesefehler (z. B. yq fehlt) warnen statt still nichts zu kopieren – der Lauf geht trotzdem weiter.
+  if ! entries="$(factory_cfg_list start_work.copy_files 2>/dev/null)" \
+     || ! dropped="$(factory_cfg_list_dropped start_work.copy_files 2>/dev/null)"; then
+    warn_copy "start_work.copy_files nicht lesbar (yq?) – keine Dateien in den Worktree gespiegelt"
+    return 0
+  fi
+  [ -n "$entries" ] || [ "${dropped:-0}" != 0 ] || return 0
+  # Opt-out-Hinweis in der Ankündigungszeile, nicht in der Erfolgsmeldung – so ist er auch sichtbar,
+  # wenn ein Eintrag übersprungen wird oder scheitert.
+  echo -e "  ${YELLOW}→${NC} Dateien aus start_work.copy_files in den Worktree spiegeln (FACTORY_WT_SKIP_COPY=1 überspringt)..."
+  # Zeilenweise mit 'IFS= read -r': Leerzeichen im Pfad bleiben erhalten (factory_cfg_list liefert
+  # keine leeren Elemente und keine mit Zeilenumbruch). '-n'-Guard: ein leerer Here-String ergäbe
+  # sonst eine Leerzeile und damit eine falsche „leerer Pfad"-Warnung.
+  if [ -n "$entries" ]; then
+    while IFS= read -r entry; do
+      copy_into_worktree "$entry"
+    done <<< "$entries"
+  fi
+  # Was factory_cfg_list verworfen hat, erreicht copy_into_worktree nie.
+  if [ "${dropped:-0}" != 0 ]; then
+    noun="Einträge"; [ "$dropped" = 1 ] && noun="Eintrag"
+    warn_copy "$dropped $noun in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
+  fi
+}
+
 # ─── Argumente & Modus ───────────────────────────────────────────────────────
 # Zwei Modi (ADR-013 – Task-ID = GitHub-Issue-Nummer):
 #   Beschreibungs-Modus: start-work.sh <kurzbeschreibung> [branch-typ]
@@ -291,38 +319,15 @@ if [ "$WORKTREE_MODE" = true ]; then
     echo -e "  ${GREEN}✓${NC} Worktree + Branch angelegt"
   fi
 
-  # Gitignorete lokale Dateien aus start_work.copy_files mitspiegeln (Factory-ADR-063 E23–E27): sie wandern
-  # beim 'worktree add' nicht mit. Vor dem Install-Schritt, damit sie auch bei fehlgeschlagener Installation
-  # daliegen. '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der
-  # Wiederverwendungs-Zweig und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte dann mit
-  # ENOTDIR. Ohne diesen Guard wäre die Spiegelung der neue (frühere) Abbruchpunkt des Skripts.
+  # Gitignorete lokale Dateien mitspiegeln (Factory-ADR-063 E23–E27): sie wandern beim 'worktree add'
+  # nicht mit. Vor dem Install-Schritt, damit sie auch bei fehlgeschlagener Installation daliegen.
+  # '-d "$WORKDIR"': liegt am Worktree-Pfad eine reguläre Datei, greift oben der Wiederverwendungs-Zweig
+  # und der Lauf geht weiter – jeder Dateizugriff darunter scheiterte dann mit ENOTDIR. Ohne diesen Guard
+  # wäre die Spiegelung der neue (frühere) Abbruchpunkt des Skripts.
   # Opt-out: FACTORY_WT_SKIP_COPY gewinnt, sonst zählt der bisherige Name FACTORY_WT_SKIP_ENV (E27).
   SKIP_COPY="${FACTORY_WT_SKIP_COPY:-${FACTORY_WT_SKIP_ENV:-0}}"
   if [ "$SKIP_COPY" != "1" ] && [ -d "$WORKDIR" ]; then
-    # Lesefehler (z. B. yq fehlt) warnen statt still nichts zu kopieren – der Lauf geht trotzdem weiter.
-    if ! COPY_FILES="$(factory_cfg_list start_work.copy_files 2>/dev/null)" \
-       || ! COPY_DROPPED="$(factory_cfg_list_dropped start_work.copy_files 2>/dev/null)"; then
-      warn_copy "start_work.copy_files nicht lesbar (yq?) – keine Dateien in den Worktree gespiegelt"
-      COPY_FILES="" COPY_DROPPED=0
-    fi
-    if [ -n "$COPY_FILES" ] || [ "${COPY_DROPPED:-0}" != 0 ]; then
-      # Opt-out-Hinweis in der Ankündigungszeile, nicht in der Erfolgsmeldung – so ist er auch sichtbar,
-      # wenn ein Eintrag übersprungen wird oder scheitert.
-      echo -e "  ${YELLOW}→${NC} Dateien aus start_work.copy_files in den Worktree spiegeln (FACTORY_WT_SKIP_COPY=1 überspringt)..."
-      # Zeilenweise mit 'IFS= read -r': Leerzeichen im Pfad bleiben erhalten (factory_cfg_list liefert
-      # keine leeren Elemente und keine mit Zeilenumbruch). '-n'-Guard: ein leerer Here-String ergäbe
-      # sonst eine Leerzeile und damit eine falsche „leerer Pfad"-Warnung.
-      if [ -n "$COPY_FILES" ]; then
-        while IFS= read -r entry; do
-          copy_into_worktree "$entry"
-        done <<< "$COPY_FILES"
-      fi
-      # Was factory_cfg_list verworfen hat, erreicht copy_into_worktree nie – gesammelt melden (E24).
-      if [ "${COPY_DROPPED:-0}" != 0 ]; then
-        noun="Einträge"; [ "$COPY_DROPPED" = 1 ] && noun="Eintrag"
-        warn_copy "$COPY_DROPPED $noun in start_work.copy_files übersprungen – keine Liste, kein Text, leer oder mit Steuerzeichen"
-      fi
-    fi
+    mirror_copy_files
   fi
 
   # Abhängigkeiten im Worktree bereitstellen, damit die Gates (lint/test) dort laufen.

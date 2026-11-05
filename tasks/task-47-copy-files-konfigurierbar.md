@@ -145,6 +145,12 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   Bewusst unverändert: `copy_files: false`/`~` ohne Warnung in `start-work.sh` (das Gate lehnt sie ab, Verhaltensänderung)
   und die Pipe in `_factory_cfg_eval` (vorbestehend).
 
+- `/refactor` (2026-11-05, nach Security-Rework 2): Der verschachtelte Spiegel-Block in `start-work.sh` ist als
+  `mirror_copy_files` ausgelagert (lokale Variablen statt Globals, Early Returns). Ausgabe und Verhalten unverändert.
+  Der Reihenfolge-Test (Spiegelung vor Install) ankert jetzt an der Aufrufzeile `    mirror_copy_files`; der alte Anker
+  stand im verschobenen Rumpf. Suiten: 2347/0 (ausgeliefert), 145/0 (Projekt). Offen bleibt der
+  `/security-review`-Nachlauf und das Löschen der Wegwerf-Dateien (`scripts/*47*.tmp.sh`, `tasks/*47*.tmp.txt`).
+
 ## Security-Notizen
 - `/security-review` (2026-11-03): **PASSED** – 0 kritisch, 1 wichtig, mehrere Hinweise
   ([`tasks/security-47.md`](security-47.md)).
