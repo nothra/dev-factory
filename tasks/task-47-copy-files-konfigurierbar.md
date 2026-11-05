@@ -134,6 +134,10 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   gespiegelt, `git status` im Worktree leer, Mutationsbeleg mit derselben Prüffunktion auf Original und Mutante.
   Keine neuen Tests nötig, kein Produktionscode geändert. Suiten: 2343/0 (ausgeliefert), 145/0 (Projekt).
 
+- `/test` (2026-11-05, Nachlauf auf den Security-Rework 2 `392e31f`): F9-Pathspec (Eintrag `:geheim`, `./`-Präfix) ist getestet –
+  Warnung, keine Kopie, `git status` im Worktree sauber, Mutationsbeleg mit derselben Prüffunktion auf Original und Mutante.
+  Keine neuen Tests nötig, kein Produktionscode geändert. Suiten: 2347/0 (ausgeliefert), 145/0 (Projekt).
+
 ## Refactoring-Notizen
 - `/refactor` (2026-11-03): Die doppelte Warnung über verworfene `copy_files`-Einträge (Singular/Plural, Review-Nitpick)
   in `start-work.sh` ist zu einer Warnung mit Wortwahl `Eintrag`/`Einträge` zusammengefasst. Ausgabe unverändert,
