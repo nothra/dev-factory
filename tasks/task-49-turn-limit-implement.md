@@ -41,11 +41,22 @@ Volltext (GIVEN/WHEN/THEN) und Fehlerszenarien F1–F6: Spec.
 - [ ] AK21: Doku (`factory.config.yml.example`, `configure-factory.md`, `OPERATING.md`) beschreibt Staffelung; Example nennt Obergrenze 80
 
 ## Technische Notizen
-<!-- Von /architecture befüllt oder eigene Notizen -->
+Entscheidung: [Factory-ADR-065](../docs/factory/adr/065-turn-budget-nach-ak-zahl.md) (Proposed → beim Umsetzen Accepted).
+
+- Config: `skills.implement.max_turns_by_size: { signal: proxy, mid: {from: 6, max_turns: 40}, high: {from: 12, max_turns: 60} }`;
+  `max_turns: 20` bleibt Basis (1–5 AK).
+- Lib `scripts/lib/tier-select.sh`: neue reine Funktionen `select_max_turns` (Fail-Safe: `high`) und
+  `spec_file_for` (eine Spec-Auflösung für Preflight, Modell- und Turn-Wahl, F4); Kopfkommentar mitpflegen.
+- `run-pipeline.sh`: `get_max_turns <skill> [task_id]`; `preflight_checks` stoppt bei fehlender Spec,
+  fehlendem AK-Abschnitt oder 0 AK mit je eigener Meldung. Kein Interrupt.
+- Gate `config-validation-check.sh`: Regel 4d (Signal, `mid.from >= 2`, `high.from > mid.from`, Budgets in `[1, 80]`).
+- Doku: `factory.config.yml.example` (auch Obergrenze 80), `configure-factory.md`, `OPERATING.md`,
+  `CHANGELOG.md` (Breaking: Stopp ohne Spec); Notizen in ADR-038/ADR-010.
+- Reihenfolge: (1) Spec-Fixture-Helfer für die Test-Scaffolds, Suite grün → (2) Lib + Gate →
+  (3) Preflight + `get_max_turns` → (4) Doku/ADR-Pflege. In getrennten Skill-Läufen, nicht `run-pipeline.sh`.
 
 ## Offene Fragen
-- [ ] Q1–Q3 an `/architecture` (Config-Darstellung der Stufen + Bezug zu `tier_by_size`/ADR-038,
-  Interrupt beim Stopp ja/nein, Struktur-Prüfung der Stufen im Gate) – siehe Spec.
+- [x] Q1–Q3 durch Factory-ADR-065 beantwortet (siehe Spec).
 - Hinweis: Rund 116 `run-pipeline.sh`-Aufrufe in der Self-Test-Suite laufen ohne Spec und brauchen eine
   Spec-Fixture (Teil dieser Task). Laut Lesson „Turn-Limit“ (> 10 AK) die Umsetzung in getrennten
   Skill-Läufen fahren.

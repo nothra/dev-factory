@@ -131,11 +131,11 @@ Doku und Begründung:
 
 ## Offene Fragen
 
-- [ ] Q1 (an `/architecture`): Wie wird die Staffelung in der Config dargestellt, und hängt sie mit
-  `tier_by_size` zusammen (gemeinsames Signal, getrennte Schwellen)? Die Entscheidung erweitert
-  ADR-038 und braucht deshalb eine ADR.
-- [ ] Q2 (an `/architecture`): Löst der Stopp aus AK8–AK10 einen Interrupt über `raise-interrupt.sh`
-  aus (dann neuer Typ samt Eintrag in der Interrupt-Tabelle von `OPERATING.md`), oder genügt der
-  Preflight-Abbruch wie bei den übrigen Preflight-Fehlern?
-- [ ] Q3 (an `/architecture`): Prüft das Gate die Stufen-Struktur (F6) selbst, oder ist die Struktur
-  so gebaut, dass Überlappung und Lücken gar nicht ausdrückbar sind?
+Beantwortet durch [Factory-ADR-065](../factory/adr/065-turn-budget-nach-ak-zahl.md):
+
+- [x] Q1: Eigenes Feld `skills.implement.max_turns_by_size` mit den benannten Stufen `mid`/`high` über
+  dem Basiswert `max_turns`. Es nutzt dieselbe Messung wie `tier_by_size`, die Schwellen sind getrennt.
+- [x] Q2: Kein Interrupt. Der Stopp ist ein Preflight-Fehler wie die übrigen (Exit ≠ 0, im
+  Async-Betrieb `factory::failed`).
+- [x] Q3: Lücken lassen sich mit der gewählten Struktur nicht ausdrücken. Das Gate (Regel 4d) prüft
+  `mid.from >= 2`, `high.from > mid.from` und die Budgets in `[1, 80]`.
