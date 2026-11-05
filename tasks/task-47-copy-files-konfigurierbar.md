@@ -232,3 +232,5 @@ Branch: `feature/47-copy-files-konfigurierbar`
 Erstellt: 2026-11-01 19:17
 
 Blocker 2026-11-03: Pipeline pausiert – REVIEW_CONFLICT: Merge gestoppt: Security-W1 (tasks/security-47.md) ist offen – start-work.sh copy_into_worktree prueft nicht per git check-ignore, ob der Eintrag im Worktree gitignoret ist; factory-commit.sh (git add -A) wuerde einen nicht ignorierten Secret-Pfad committen und pushen. Rework (check-ignore + Test + ADR-E25/E26/Spec-Satz, echo -e) vor dem Merge noetig. CI ist gruen, PR bleibt Draft. (/architecture ausführen, dann Pipeline neu starten)
+
+PR-Shepherd 2026-11-05: Merge freigegeben – alle Gates grün (CI grün, keine offenen Kommentare, main nicht voraus).
