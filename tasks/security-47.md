@@ -201,3 +201,58 @@ NEEDS_FIXES
 > Kein Blocker im Sinne von „kritisch". Der Rework schließt W1 aber nur für Einträge ohne führenden `:`. Der
 > `./`-Präfix ist eine Zeile und gemessen. Er gehört samt Test in diesen PR, bevor `/pr-shepherd` merged.
 > Keine Out-of-Scope-Funde: kein Issue, kein neuer `kleinfunde.md`-Eintrag.
+
+---
+
+# Nachlauf 2 2026-11-05: Security-Rework 2 `392e31f` + Refactor `e9d1b64`
+
+> Geprüft wurde `git diff 806a751..HEAD`: der `./`-Präfix am `check-ignore`-Guard
+> (`scripts/start-work.sh:104`), der neue F9-Pathspec-Test (`scripts/checks/tests/run-tests.sh:2344-2369`),
+> ADR-063 E26 und Spec F9 sowie die Auslagerung `mirror_copy_files` (`scripts/start-work.sh:121-147`).
+> Bedrohungsmodell wie im Erstlauf. Durchgeführt direkt im Koordinator-Kontext (kein Sub-Agent), mit einer sich
+> selbst löschenden Sonde (`scripts/sec47probe.tmp.sh`, danach nachweislich entfernt) in einem Wegwerf-Repo
+> unter `mktemp -d`.
+
+## Kritische Findings (Blocker)
+
+Keine.
+
+## Wichtige Findings
+
+Keine. **W2 aus Nachlauf 1 ist behoben** – siehe Repro R9.
+
+## Hinweise
+
+- [x] [W2 behoben, R9] `git check-ignore -q -- "./<eintrag>"` mit `info/exclude` = `secret`, `foo?`, `*.env`,
+  `/.env.local`, `sub/`:
+  ```
+  [:secret] rc 1      [:(top)secret] rc 1   [:(glob)secret] rc 1   [secret] rc 0
+  [x*] rc 1           [*] rc 1              [[s]ecret] rc 1        [secret ] rc 1
+  [a.env] rc 0        [.env.local] rc 0     [sub/x] rc 0           [./secret] rc 0
+  GIT_GLOB_PATHSPECS=1  ./x*     → rc 128
+  GIT_ICASE_PATHSPECS=1 ./Secret → rc 128
+  git -C <repo> von / aus, ./.env.local → rc 0
+  ```
+  Pathspec-Magie greift hinter `./` nicht mehr, Glob-Zeichen im Eintrag werden wörtlich gegen die Muster
+  geprüft (kein Pathspec-Glob), das verankerte Muster `/.env.local` und ignorierte Elternordner greifen weiter.
+  Umgebungsvariablen, die Pathspecs global umdeuten, führen zu rc 128 und damit zum Überspringen (fail-closed).
+- [x] [Konsistenz, R9] `[Secret] rc 0` auf macOS: `core.ignorecase=true` auf einem case-insensitiven
+  Dateisystem. `git add -A` liest dieselbe Einstellung und ignoriert die Kopie dort ebenso – kein Auseinanderlaufen
+  von Guard und Commit-Pfad.
+- [x] [Testschärfe] Der F9-Pathspec-Test prüft an Original **und** Mutante, ob `:geheim` im `git status` des
+  Worktrees auftaucht (`f9_pathspec_refused`), und die Mutante entsteht aus derselben Ankerzeile, die genau einmal
+  im Skript stehen muss. Damit ist der Testschärfe-Hinweis aus Nachlauf 1 erledigt.
+- [x] [Refactor ohne Sicherheitswirkung] `mirror_copy_files` übernimmt den Block unverändert: Lesefehler
+  → Warnung + `return 0`, alle Variablen `local` (keine Globals `COPY_FILES`/`COPY_DROPPED`/`entry` mehr im
+  Skript), `set -euo pipefail`-verträglich (Exit-Status der Zuweisung im `if !` erhalten, `||`/`&&`-Listen sind
+  von `errexit` ausgenommen, `${dropped:-0}` gegen `set -u`). Aufruf bleibt hinter `SKIP_COPY` und `-d "$WORKDIR"`.
+- [ ] [Restrisiko, unverändert] Entfernt ein späterer Schritt das Ignore-Muster im Feature-Branch, stagt
+  `git add -A` die gespiegelte Datei (siehe Nachlauf 1). Kein Handlungsbedarf in diesem PR.
+- [ ] [Hygiene] `scripts/probe47.tmp.sh`, `scripts/probe47ci.tmp.sh`, `scripts/review47.tmp.sh`,
+  `scripts/review47b.tmp.sh`, `tasks/run47.tmp.txt` und `tasks/telemetry-raw-47-*.tmp.txt` liegen weiter im Baum
+  (gitignoret, kein Commit-Risiko). Vor dem Worktree-Abbau ohnehin weg; vorher löschen ist sauberer.
+
+## Ergebnis (Nachlauf 2)
+PASSED
+
+> W1 und W2 sind behoben und gemessen. Keine Out-of-Scope-Funde: kein Issue, kein neuer `kleinfunde.md`-Eintrag.

@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden (Nachlauf 2026-11-04: NEEDS_FIXES, `./`-Präfix für `check-ignore`)
+- [x] Security-Review bestanden (Nachlauf 2 2026-11-05: PASSED, W1 und W2 behoben)
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -175,6 +175,14 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
   - Bestätigt: Negation, ignorierter Elternordner, Globs, führendes `-`, sonstige Magie (rc 128) fail-closed;
     `printf` gibt `%`-Einträge wörtlich aus.
   - Keine Out-of-Scope-Funde. Wegwerf-Dateien `scripts/*47*.tmp.sh`, `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum.
+
+- `/security-review` Nachlauf 2 (2026-11-05, Security-Rework 2 `392e31f` + Refactor `e9d1b64`): **PASSED** – 0 kritisch,
+  0 wichtig ([`tasks/security-47.md`](security-47.md) → „Nachlauf 2").
+  - W2 behoben und per Sonde gemessen (R9): `./:secret`, `./:(top)secret`, `./:(glob)secret` → rc 1; Globs im Eintrag
+    wörtlich; `GIT_GLOB_PATHSPECS`/`GIT_ICASE_PATHSPECS` → rc 128 (fail-closed); `/.env.local` und `sub/` greifen weiter.
+  - `mirror_copy_files` ohne Sicherheitswirkung (nur `local`, `set -euo pipefail`-verträglich).
+  - Keine Out-of-Scope-Funde. Die Sonde hat sich selbst gelöscht; die älteren Wegwerf-Dateien (`scripts/*47*.tmp.sh`,
+    `tasks/*47*.tmp.txt`) liegen noch im Baum.
 
 ## Codify-Notizen
 - `/codify` (2026-11-03): zwei Lessons in `lessons/factory-workflow.md` (Ignore-Status im Ziel bei `git add -A`-Folgeprozess;
