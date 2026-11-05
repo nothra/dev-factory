@@ -1807,6 +1807,8 @@ Task 47 machte die Liste der gespiegelten lokalen Dateien frei wählbar (`start_
 
 **Regel:** (a) Öffnet ein Feature eine bisher feste Dateiliste für Konfiguration, im `/architecture`-Schritt fragen: „Welche Garantie hing an der Festverdrahtung?" und sie am Ort der Wirkung nachziehen; (b) schreibt ein Schritt Dateien, die ein späterer Schritt blind committet (`git add -A`), vor dem Schreiben `git -C <ziel> check-ignore -q -- <pfad>` prüfen, sonst warnen und überspringen (fail-closed); (c) Test: nicht ignorierte Quelle → keine Kopie + zweigspezifische Warnung.
 
+**Nachtrag (Security-Nachlauf W2, derselbe PR):** Der W1-Fix selbst hatte eine Lücke. `git check-ignore` liest sein Argument als **Pathspec**, `--` schützt davor nicht: Ein Eintrag `:secret` (auch `:(top)secret`) wurde als `secret` aufgelöst, `cp` schrieb aber die Datei `:secret` – Guard meldet „ignoriert“, die Kopie wird committet. Fix: Pfad als `"./$entry"` übergeben (`GIT_LITERAL_PATHSPECS=1` und `--literal-pathspecs` scheiden hier aus, im Nachlauf gemessen). Allgemein: gibt ein Guard einen Dateinamen an ein git-Kommando, das Pfade als Pathspec liest, muss er und das schreibende Kommando **denselben Pfad** meinen – Gegenprobe mit Namen, die mit `:` beginnen; und der Nachlauf-`/security-review` auf einen Sicherheits-Fix ist kein Formalismus.
+
 → `/architecture`, `/implement`, `/security-review` – bei Feature, das Dateien (Secrets, lokale Config) in einen Worktree legt, der später automatisch committet wird, oder das eine feste Liste konfigurierbar macht
 
 ### `yq` `.[]` über einen Wert, der eine Liste sein soll, liefert bei einer Map deren Werte (aus Factory-Task #47, Review-Iteration 1, Selbstfund)
@@ -1816,3 +1818,11 @@ Task 47 machte die Liste der gespiegelten lokalen Dateien frei wählbar (`start_
 **Regel:** Listen aus YAML nur über `!!seq` iterieren und Nicht-Listen zählen/melden statt konsumieren; leere und Nicht-String-Elemente vor der Substitution verwerfen und zählen; bei neuer Typ-Regel in einem Gate prüfen, dass keine frühere Regel den Fall mit falscher Meldung abfängt (Test auf den Meldungstext, nicht nur rc). Die gepinnte yq-Version kennt kein `if/then/else`.
 
 → `/implement`, `/review` – beim Lesen von Config-Listen per `yq` bzw. bei neuer Typ-Regel in `config-validation-check.sh`
+
+### Pipeline-Abbruch an der Verdict-Wache bei inhaltlich fertigem Stand (aus Factory-Task #47)
+
+Nach dem Rework eines Security-Findings lief der Nachlauf-`/security-review` manuell durch und stand für `HEAD` auf PASSED (committet, gepusht). Der anschließende Pipeline-Neustart bei `/implement` kam wieder bis `/security-review`; der Skill erkannte den Stand als geprüft, startete keinen Neulauf, und die Frische-Wache (kein eindeutiger Verdict aus *diesem* Aufruf) wertete das als Fehlschlag – drei Versuche, Abbruch. Der Neustart war überflüssig, die Pipeline kann nicht mitten im Ablauf einsteigen.
+
+**Regel:** Vor `run-pipeline.sh` nach einem Abbruch `tasks/review-<id>.md` und `tasks/security-<id>.md` auf den Verdict für `HEAD` prüfen. Sind sie schon APPROVED/PASSED, die verbleibenden Skills (`/codify`, `/pr-shepherd`) einzeln fahren, statt neu zu starten.
+
+→ `/pipeline` – nach Abbruch an der Verdict-Wache bei bereits geprüftem Stand

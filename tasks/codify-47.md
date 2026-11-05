@@ -17,10 +17,17 @@
 - CLAUDE.md, Guidelines: kein Kandidat für eine generische Regel; beide Lessons haben einen engen „Laden bei"-Trigger.
 - Kein neuer Check: das W1-Muster ist ohne Kenntnis des Ziel-Branches nicht statisch prüfbar (Gate kann es nicht abfangen).
 
+### Nachlauf nach dem Security-Rework (2026-11-05)
+- `lessons/factory-workflow.md` + Index-Zeile – **W2**: `git check-ignore` liest den Eintrag als Pathspec (`:secret` → `secret`), der
+  W1-Fix selbst hatte die Lücke; Fix `./`-Präfix. Nachtrag an der W1-Lesson – wegen: Security-Nachlauf W2.
+- `lessons/factory-workflow.md` + Index-Zeile – **Pipeline-Abbruch an der Verdict-Wache** bei bereits geprüftem Stand; Pipeline kann nicht
+  mitten im Ablauf einsteigen, Rest manuell fahren – wegen: zwei überflüssigen Neustarts bei Task 47.
+- `PROJECT-CONTEXT.md` (Index `build-tooling.md`) – siebtes Vorkommnis Wegwerf-Dateien (Review-Läufe, trotz Regel).
+- `CHANGELOG.md`, `OPERATING.md` – Ignore-Guard genannt (Doku-Drift aus Review-Iteration 3/4, Nitpick im Scope).
+- W1 und W2 sind behoben, Security-Nachlauf 2: PASSED; kein neuer Out-of-Scope-Fund, kein Issue, kein `kleinfunde.md`-Eintrag.
+
 ### Offen vor dem Merge
-- **Security-W1 ist noch nicht behoben** (`copy_into_worktree` ohne `git check-ignore`, plus Test und ADR-E25/E26-/Spec-Satz,
-  `echo -e` in derselben Funktion). `/codify` ändert keinen Produktionscode – Rework in `/implement`, danach `/security-review`.
-- Wegwerf-Dateien `tasks/telemetry-raw-47-*.tmp.txt` liegen noch im Baum (gitignoret; `rm` in dieser Session nicht freigegeben).
+- Wegwerf-Dateien (gitignoret, nicht im Commit): `scripts/probe47*.tmp.sh`, `scripts/review47*.tmp.sh`, `tasks/*.tmp.txt` – `rm` braucht Freigabe.
 
 ### Empfehlung für nächste Features
 - Bei jeder Verallgemeinerung einer festverdrahteten Liste in `/architecture` explizit „welche Garantie hing an der Festverdrahtung?" notieren.

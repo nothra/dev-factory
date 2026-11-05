@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden (Nachlauf 2 2026-11-05: PASSED, W1 und W2 behoben)
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Die feste `.env.local`-Spiegelung in `start-work.sh` wird durch den Config-Schlüssel
@@ -188,7 +188,10 @@ Umsetzungs-Notizen (/implement, 2026-11-02):
 - `/codify` (2026-11-03): zwei Lessons in `lessons/factory-workflow.md` (Ignore-Status im Ziel bei `git add -A`-Folgeprozess;
   `yq` `.[]` über Map) + Index-Zeilen, sechstes Wegwerf-Datei-Vorkommnis in `build-tooling`, `kleinfunde.md` um dritte
   `echo -e`-Fundstelle erweitert. Report: [`tasks/codify-47.md`](codify-47.md).
-  **Offen: Security-W1 (`check-ignore`) ist noch nicht behoben** – Rework vor dem Merge nötig.
+  Security-W1 und W2 sind inzwischen behoben (Security-Nachlauf 2: PASSED).
+- `/codify` Nachlauf (2026-11-05): Lesson W1 um den Pathspec-Nachtrag (W2, `./`-Präfix) ergänzt, neue Lesson „Pipeline-Abbruch an der
+  Verdict-Wache bei inhaltlich fertigem Stand“, siebtes Wegwerf-Datei-Vorkommnis im Index; Doku-Drift (CHANGELOG/OPERATING nennen
+  den Ignore-Guard) behoben. Report: [`tasks/codify-47.md`](codify-47.md).
 
 ## Security-Rework (/implement, 2026-11-04)
 - W1 behoben: `copy_into_worktree` prüft nach dem `-e`/`-L`-Guard `git -C "$WORKDIR" check-ignore -q -- "$entry"`;
