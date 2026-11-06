@@ -117,6 +117,24 @@ mk_feature_repo() {
   git -C "$1" -c user.email=t@t.com -c user.name=t commit -q --allow-empty -m init
 }
 
+# mk_spec_fixture <repo-root> <task_id> [ak_zahl=3] – legt docs/specs/spec-<id>-fixture.md mit
+# <ak_zahl> offenen AK-Checkboxen im Abschnitt "## Akzeptanzkriterien" an. run-pipeline.sh stoppt im
+# Preflight ohne Spec mit AK (Factory-ADR-065 §3); jedes Wegwerf-Repo, das die Pipeline startet, braucht
+# darum eine. 3 AK = unterste Turn-Stufe (20) und Modell-Tier light. Einziger Ort für den Fixture-Aufbau
+# (Lesson testing.md: kein paralleler Scaffold-Zweitaufbau).
+mk_spec_fixture() {
+  local root="$1" task_id="$2" count="${3:-3}" i=1
+  mkdir -p "$root/docs/specs"
+  {
+    printf '# Spec %s (Fixture)\n\n## Akzeptanzkriterien\n\n' "$task_id"
+    while [ "$i" -le "$count" ]; do
+      printf -- '- [ ] AK%s\n' "$i"
+      i=$((i + 1))
+    done
+    printf '\n## Fehlerszenarien\n\n- [ ] F1: nicht als AK zaehlen\n'
+  } > "$root/docs/specs/spec-${task_id}-fixture.md"
+}
+
 # ls_mode_matches <datei> <modus-präfix, z. B. '-rw-------'>
 # Modus-Vergleich über `ls -l` (die `stat`-Flags sind zwischen BSD und GNU unvereinbar).
 # Präfix-Match, weil macOS bei ACLs/xattrs ein '+'/'@' an die Modus-Spalte anhängt.

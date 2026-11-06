@@ -282,7 +282,12 @@ PR-Lifecycle bis zum (Auto-)Merge. **Eigenschaften:**
   Kein stiller Durchlauf.
 - **Kosten-Hebel** (Env-Vars): `CLAUDE_MODEL_HEAVY`, `CLAUDE_MODEL_LIGHT`, `CLAUDE_MODEL` (globaler
   Override), `MAX_TURNS`. Tier/Turns pro Skill aus `factory.defaults.yml` (optional
-  `factory.config.yml`, ADR-009).
+  `factory.config.yml`, ADR-009). Das Turn-Budget von `/implement` ist nach der AK-Zahl der Spec
+  gestaffelt (`skills.implement.max_turns_by_size`, Factory-ADR-065) – auch für die
+  Rework-Iterationen nach `/review`; `MAX_TURNS` sticht die Staffelung.
+- **Spec ist Vorbedingung (Factory-ADR-065):** Fehlt `docs/specs/spec-<id>-*.md`, fehlt dort der
+  Abschnitt `## Akzeptanzkriterien` oder enthält er keine Checkbox-Zeile, bricht der Lauf im
+  Preflight ab (Exit ≠ 0, auch mit `--dry-run` und `MAX_TURNS`) – vorher `/requirements <id>`.
 
 > **Kosten:** Der Lauf fährt 6+ Claude-Sessions pro Feature hintereinander – deutlich mehr Token als
 > interaktive Nutzung. Die **Task-Datei** wird von der Automatik abgeschlossen; die letzte Checkbox

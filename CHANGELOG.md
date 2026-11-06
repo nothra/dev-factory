@@ -7,6 +7,14 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ### Geändert
 
+- **Turn-Budget von `/implement` nach AK-Zahl gestaffelt (Factory-ADR-065, #49):** `run-pipeline.sh` gibt
+  `/implement` bei 1–5 AK 20 Turns, bei 6–11 AK 40, ab 12 AK 60 – auch in den Rework-Iterationen nach `/review`.
+  Neuer Knopf `skills.implement.max_turns_by_size` (Gate-Regel 4d: Budgets in `[1, 80]`, `mid.from >= 2`,
+  `high.from > mid.from`). `MAX_TURNS` sticht die Staffelung weiterhin. **Breaking:** ohne Spec
+  `docs/specs/spec-<id>-*.md`, ohne Abschnitt `## Akzeptanzkriterien` oder mit 0 AK bricht die Pipeline jetzt im
+  Preflight ab (vorher nur Warnung) – auch mit `--dry-run`. **Migration:** vor dem Lauf `/requirements <id>`
+  ausführen.
+
 - **Worktree-Dateispiegelung konfigurierbar (Factory-ADR-063 Nachtrag 2026-11-01, #47):** `start-work.sh` spiegelt nicht
   mehr fest die `.env.local`, sondern genau die Dateien aus dem neuen Schlüssel `start_work.copy_files` (Liste relativer
   Dateipfade, Default `[]`; Schutzlogik unverändert: nie überschreiben, Modus erhalten, kein Abbruch; neu: kopiert
