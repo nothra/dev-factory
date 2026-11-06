@@ -269,8 +269,23 @@ cfg_skill_field() {
   printf '%s' "$FACTORY_CFG" | yq eval ".skills.\"$1\".$2 // .default.$2" - 2>/dev/null
 }
 
+# get_max_turns <skill> [task_id]
+# Statisches max_turns; trägt der Skill max_turns_by_size (Factory-ADR-065), wählt select_max_turns
+# die Stufe nach derselben Messung wie tier_by_size. MAX_TURNS aus der Umgebung sticht beim Aufrufer.
 get_max_turns() {
-  cfg_skill_field "$1" max_turns
+  local skill="$1" task_id="${2:-}"
+  local base signal
+  base="$(cfg_skill_field "$skill" max_turns)"
+  signal="$(cfg_skill_field "$skill" max_turns_by_size.signal)"
+  if [ -z "$signal" ] || [ "$signal" = "null" ]; then
+    echo "$base"
+    return
+  fi
+  select_max_turns "$(measure_size "$signal" "$task_id" "$FACTORY_DIR")" "$base" \
+    "$(cfg_skill_field "$skill" max_turns_by_size.mid.from)" \
+    "$(cfg_skill_field "$skill" max_turns_by_size.mid.max_turns)" \
+    "$(cfg_skill_field "$skill" max_turns_by_size.high.from)" \
+    "$(cfg_skill_field "$skill" max_turns_by_size.high.max_turns)"
 }
 
 # get_model <skill> [task_id]
@@ -303,6 +318,22 @@ get_model() {
   esac
 }
 
+# spec_precondition_problem <task_id> – Ursache, warum die Spec der Task den Lauf nicht trägt
+# (leer = Spec vorhanden mit mindestens einem AK). Dieselbe Spec-Datei und Zählung wie die
+# Modell-/Turn-Wahl (spec_file_for/measure_size, F4).
+spec_precondition_problem() {
+  local task_id="$1"
+  if [ -z "$(spec_file_for "$task_id" "$FACTORY_DIR")" ]; then
+    printf 'Spec fehlt (docs/specs/spec-%s-*.md)' "$task_id"
+    return 0
+  fi
+  case "$(measure_size proxy "$task_id" "$FACTORY_DIR")" in
+    '') printf 'Abschnitt Akzeptanzkriterien fehlt in der Spec' ;;
+    0)  printf '0 Akzeptanzkriterien in der Spec' ;;
+  esac
+  return 0
+}
+
 preflight_checks() {
   local errors=0
 
@@ -314,12 +345,14 @@ preflight_checks() {
     errors=$((errors + 1))
   fi
 
-  # 2. Spec-Datei prüfen (Warnung, kein Abbruch)
-  local spec_file
-  spec_file=$(find "$FACTORY_DIR/docs/specs" -name "spec-${TASK_ID}-*.md" 2>/dev/null | head -1 || true)
-  if [ -z "$spec_file" ]; then
-    echo -e "${YELLOW}⚠${NC}  No spec file found for task ${TASK_ID}."
-    echo "  → Recommended: run /requirements ${TASK_ID} first."
+  # 2. Spec mit Akzeptanzkriterien ist Vorbedingung des Laufs (Factory-ADR-065 §3): ohne sie
+  #    weder Modell- noch Turn-Wahl und keine Abnahme. Gilt für jeden Modus (--dry-run, MAX_TURNS).
+  local spec_problem
+  spec_problem="$(spec_precondition_problem "$TASK_ID")"
+  if [ -n "$spec_problem" ]; then
+    echo -e "${RED}✗${NC} Task ${TASK_ID}: ${spec_problem}."
+    echo "  → Run /requirements ${TASK_ID} first."
+    errors=$((errors + 1))
   fi
 
   # 3. Git Working Tree prüfen
@@ -394,7 +427,7 @@ report_is_fresh_and_valid() {
 run_skill() {
   local skill="$1"
   local task_id="$2"
-  local turns="${MAX_TURNS:-$(get_max_turns "$skill")}"
+  local turns="${MAX_TURNS:-$(get_max_turns "$skill" "$task_id")}"
   local model
   model="$(get_model "$skill" "$task_id")"
   echo -e "${YELLOW}→ Starte: /${skill} ${task_id} (model: ${model}, max ${turns} turns)${NC}"

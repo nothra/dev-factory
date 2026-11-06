@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-11-06)
 
 > Erweitert **ADR-038** (größenabhängige Modellwahl) um das Turn-Budget und **ADR-010** um eine
 > Gate-Regel. Obergrenze (`MAX_TURNS_CEILING = 80`, ADR-051), Merge-Semantik der Config (ADR-009)

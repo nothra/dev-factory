@@ -139,6 +139,7 @@ if [ "$HAS_YQ" = 1 ]; then
   echo "# Project" > "$TMP_PF/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 55: cleanup-test" > "$TMP_PF/tasks/task-55-cleanup-test.md"
   echo "# INTERRUPT – Task 55" > "$TMP_PF/tasks/INTERRUPT-55.md"
+  mk_spec_fixture "$TMP_PF" 55
   git -C "$TMP_PF" init -q
   git -C "$TMP_PF" add .
   git -C "$TMP_PF" -c user.email="test@test.com" -c user.name="test" commit -q -m "init"
@@ -1271,6 +1272,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp_pipeline_libs "$TMP_261"
   echo "# ctx" > "$TMP_261/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 3: codify-regelzeilen-ac" > "$TMP_261/tasks/task-3-codify-regelzeilen-ac.md"
+  mk_spec_fixture "$TMP_261" 3
   printf '## Empfehlung\nAPPROVED\n' > "$TMP_261/tasks/review-3.md"
   git -C "$TMP_261" init -q
   git -C "$TMP_261" add .
@@ -1340,16 +1342,17 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
   cp_pipeline_libs "$TMP_CFG"
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
+  mk_spec_fixture "$TMP_CFG" 1   # 3 AK → Tier light, unterste Turn-Stufe (Factory-ADR-065)
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   cfg_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$cfg_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5-5, max 20 turns)'
-  assert_true "$?" "Phase 1b: run-pipeline löst implement aus der Config zu opus/20 auf (end-to-end)"
+  printf '%s' "$cfg_out" | grep -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 20 turns)'
+  assert_true "$?" "Phase 1b: run-pipeline löst implement (3 AK) aus der Config zu sonnet/20 auf (end-to-end)"
   # Team-Override greift: factory.config.yml setzt implement auf 5 Turns → 5 statt 20
   printf 'skills:\n  implement: { max_turns: 5 }\n' > "$TMP_CFG/factory.config.yml"
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m override
   ovr_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-opus-5-5, max 5 turns)'
+  printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
 
   rm -rf "$TMP_CFG"
@@ -1362,6 +1365,7 @@ if [ "$HAS_YQ" = 1 ]; then
   cp_pipeline_libs "$TMP_DRY91"
   echo "# ctx" > "$TMP_DRY91/docs/factory/PROJECT-CONTEXT.md"
   echo "# Task 2: budget-dry" > "$TMP_DRY91/tasks/task-2-budget-dry.md"
+  mk_spec_fixture "$TMP_DRY91" 2
   printf '## Empfehlung\nAPPROVED\n' > "$TMP_DRY91/tasks/review-2.md"
   git -C "$TMP_DRY91" init -q; git -C "$TMP_DRY91" add .
   git -C "$TMP_DRY91" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -3317,6 +3321,7 @@ if [ "$HAS_YQ" = 1 ]; then
   echo "# ctx" > "$TMP_G101/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_G101/.claude/commands/implement.md"
   echo "# Task 101: gate" > "$TMP_G101/tasks/task-101-gate.md"
+  mk_spec_fixture "$TMP_G101" 101
   printf '#!/bin/sh\nexit 0\n' > "$TMP_G101/bin/claude"; chmod +x "$TMP_G101/bin/claude"
   git -C "$TMP_G101" init -q; git -C "$TMP_G101" add .
   git -C "$TMP_G101" -c user.email="t@t.com" -c user.name="t" commit -q -m init
@@ -3355,6 +3360,7 @@ if [ "$HAS_YQ" = 1 ]; then
   echo "# ctx" > "$TMP_H431/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_H431/.claude/commands/implement.md"
   echo "# Task 431: gate" > "$TMP_H431/tasks/task-431-gate.md"
+  mk_spec_fixture "$TMP_H431" 431
   CLAUDE_CALLED_H431="$TMP_H431/claude-called.marker"
   printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$CLAUDE_CALLED_H431" > "$TMP_H431/bin/claude"; chmod +x "$TMP_H431/bin/claude"
   git -C "$TMP_H431" init -q
@@ -3543,6 +3549,31 @@ assert_true "$([[ -z "$(msize proxy 404 "$PXR")" ]]; echo $?)" "#197 F2: keine S
 assert_true "$([[ -z "$(msize bogus 7 "$PXR")" ]]; echo $?)" "#197: unbekanntes Signal → leer (Fail-Safe)"
 rm -rf "$PXR"
 
+# ─── #49: Turn-Budget nach AK-Zahl (Factory-ADR-065) – reine Lib-Funktionen ─────────────────────
+echo ""
+echo "#49 select_max_turns / spec_file_for (tier-select.sh):"
+tturns() { ( source "$TIER_LIB"; select_max_turns "$@" ); }
+specfor() { ( source "$TIER_LIB"; spec_file_for "$@" ); }
+for case_49 in "1:20" "5:20" "6:40" "11:40" "12:60" "18:60"; do
+  assert_true "$([[ "$(tturns "${case_49%%:*}" 20 6 40 12 60)" = "${case_49#*:}" ]]; echo $?)" \
+    "#49: select_max_turns ${case_49%%:*} AK → ${case_49#*:} (Stufen 20/6:40/12:60)"
+done
+assert_true "$([[ "$(tturns '' 20 6 40 12 60)" = "60" ]]; echo $?)" "#49: leere Größe → Fail-Safe oberste Stufe (60)"
+assert_true "$([[ "$(tturns abc 20 6 40 12 60)" = "60" ]]; echo $?)" "#49: nicht-numerische Größe → Fail-Safe oberste Stufe (60)"
+SPR49="$(mktemp -d)"; mkdir -p "$SPR49/docs/specs"
+assert_true "$([[ -z "$(specfor 49 "$SPR49")" ]]; echo $?)" "#49 F1: keine Spec → spec_file_for leer"
+printf '# B\n## Akzeptanzkriterien\n- [ ] A\n' > "$SPR49/docs/specs/spec-49-b.md"
+printf '# A\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n' > "$SPR49/docs/specs/spec-49-a.md"
+assert_true "$([[ "$(specfor 49 "$SPR49")" = "$SPR49/docs/specs/spec-49-a.md" ]]; echo $?)" \
+  "#49 F4: mehrere Specs → spec_file_for wählt deterministisch die erste in sortierter Reihenfolge"
+assert_true "$([[ "$(msize proxy 49 "$SPR49")" = "2" ]]; echo $?)" \
+  "#49 F4: measure_size proxy misst dieselbe Spec wie spec_file_for (2 AK aus spec-49-a)"
+rm -rf "$SPR49"
+# Fixture-Helfer: genau <n> AK im Abschnitt, Fehlerszenarien zählen nicht mit.
+SPF49="$(mktemp -d)"; mk_spec_fixture "$SPF49" 7 4
+assert_true "$([[ "$(msize proxy 7 "$SPF49")" = "4" ]]; echo $?)" "#49: mk_spec_fixture legt genau die verlangte AK-Zahl an (4)"
+rm -rf "$SPF49"
+
 # measure_size diff: added+deleted gegen origin/main; misst NUR die Branch-eigenen Änderungen.
 DFR="$(mktemp -d)"
 git init -q --bare "$DFR/origin.git"
@@ -3590,6 +3621,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git init -q --bare "$RVO/origin.git"
   _mk_pipe_repo "$RVW"
   echo "# Task 3: review-tier" > "$RVW/tasks/task-3-review-tier.md"
+  mk_spec_fixture "$RVW" 3
   printf '## Empfehlung\nAPPROVED\n' > "$RVW/tasks/review-3.md"   # Review-Loop endet sofort
   git -C "$RVW" init -q
   git -C "$RVW" remote add origin "$RVO/origin.git"
@@ -3634,9 +3666,103 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n- [ ] G\n- [ ] H\n' > "$IML/docs/specs/spec-5-large.md"
   git -C "$IML" init -q; git -C "$IML" add .; git -C "$IML" -c user.email=t@t -c user.name=t commit -q -m init
   iml_out=$(bash "$IML/scripts/run-pipeline.sh" 5 --dry-run 2>&1 || true)
-  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-5-5, max 20 turns)'
+  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-5-5, max 40 turns)'
   assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy"
   rm -rf "$IML"
+
+  # ─── #49 E2E: Turn-Budget von /implement nach AK-Zahl, gegen die ECHTE factory.defaults.yml ───
+  # (Lesson nothra/tch-gastro-services#348: ein Gate-Test beweist nicht, dass der Konsument den Wert nutzt.)
+  echo ""
+  echo "#49 E2E: Turn-Budget /implement nach AK-Zahl (Factory-ADR-065):"
+  # run_dry_49 <repo> [env-Zuweisungen…] – --dry-run-Lauf für Task 49; Ausgabe OUT_49, Exit RC_49.
+  run_dry_49() {
+    local dir="$1"; shift
+    OUT_49=$(cd "$dir" && env -u PR_SHEPHERD -u FACTORY_STAGE -u MAX_TURNS "$@" \
+      bash "$dir/scripts/run-pipeline.sh" 49 --dry-run 2>&1); RC_49=$?
+  }
+  # mk_repo_49 <repo> <ak_zahl> – Pipeline-Repo mit Task-Datei und Spec-Fixture, committet.
+  mk_repo_49() {
+    _mk_pipe_repo "$1"
+    echo "# Task 49: turns" > "$1/tasks/task-49-turns.md"
+    mk_spec_fixture "$1" 49 "$2"
+    git -C "$1" init -q; git -C "$1" add .; git -C "$1" -c user.email=t@t -c user.name=t commit -q -m init
+  }
+  for case_49 in "5:20:AK1" "6:40:AK2" "11:40:AK3" "12:60:AK4" "18:60:AK5"; do
+    ak_49="${case_49%%:*}"; rest_49="${case_49#*:}"; want_49="${rest_49%%:*}"
+    R49="$(mktemp -d)"; mk_repo_49 "$R49" "$ak_49"
+    run_dry_49 "$R49"
+    assert_contains_286 "$OUT_49" "Starte: /implement 49 (model: " "#49 ${rest_49#*:}: /implement startet bei ${ak_49} AK"
+    printf '%s' "$OUT_49" | grep -qE "Starte: /implement 49 \(model: [^,]+, max ${want_49} turns\)"
+    assert_true "$?" "#49 ${rest_49#*:}: Spec mit ${ak_49} AK → /implement mit max ${want_49} turns"
+    rm -rf "$R49"
+  done
+
+  # AK7: abgehakte und offene AK zählen gleich – 3 offen + 3 abgehakt = 6 → mittlere Stufe.
+  R49="$(mktemp -d)"; _mk_pipe_repo "$R49"
+  echo "# Task 49: turns" > "$R49/tasks/task-49-turns.md"
+  printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [x] B\n- [ ] C\n- [x] D\n- [ ] E\n- [x] F\n## Fehlerszenarien\n- [ ] F1\n' \
+    > "$R49/docs/specs/spec-49-mixed.md"
+  git -C "$R49" init -q; git -C "$R49" add .; git -C "$R49" -c user.email=t@t -c user.name=t commit -q -m init
+  run_dry_49 "$R49"
+  assert_contains_286 "$OUT_49" "Starte: /implement 49 (model: claude-opus-5-5, max 40 turns)" \
+    "#49 AK7: 3 offene + 3 abgehakte AK → 6 AK, dieselbe Zählung wie die Modellwahl (heavy, 40 turns)"
+  rm -rf "$R49"
+
+  # AK13: MAX_TURNS aus der Umgebung sticht die Staffelung (Bestand).
+  R49="$(mktemp -d)"; mk_repo_49 "$R49" 18
+  run_dry_49 "$R49" MAX_TURNS=50
+  assert_contains_286 "$OUT_49" "Starte: /implement 49 (model: claude-opus-5-5, max 50 turns)" \
+    "#49 AK13: 18 AK + MAX_TURNS=50 → max 50 turns (Umgebungsvariable vor Staffelung)"
+
+  # AK17: die übrigen Skills behalten ihr Budget (review-Loop endet sofort über APPROVED-Report).
+  printf '## Empfehlung\nAPPROVED\n' > "$R49/tasks/review-49.md"
+  git -C "$R49" add .; git -C "$R49" -c user.email=t@t -c user.name=t commit -q -m review
+  run_dry_49 "$R49"
+  for case_49 in "review:30" "security-review:30" "test:20" "refactor:20" "codify:8"; do
+    printf '%s' "$OUT_49" | grep -qE "Starte: /${case_49%%:*} 49 \(model: [^,]+, max ${case_49#*:} turns\)"
+    assert_true "$?" "#49 AK17: /${case_49%%:*} behält max ${case_49#*:} turns bei einer 18-AK-Spec"
+  done
+  # pr-shepherd läuft im Dry-Run nur mit PR_SHEPHERD=true – sein Budget prüft der Config-Wert direkt.
+  assert_true "$([ "$(yq '.skills."pr-shepherd".max_turns' "$DEFAULTS")" = "8" ]; echo $?)" \
+    "#49 AK17: pr-shepherd behält max_turns 8 (Defaults)"
+
+  # AK14: Stufen-Override in factory.config.yml wirkt (ab 12 AK → 70).
+  printf 'skills:\n  implement:\n    max_turns_by_size:\n      high: { max_turns: 70 }\n' > "$R49/factory.config.yml"
+  git -C "$R49" add .; git -C "$R49" -c user.email=t@t -c user.name=t commit -q -m override
+  run_dry_49 "$R49"
+  assert_contains_286 "$OUT_49" "Starte: /implement 49 (model: claude-opus-5-5, max 70 turns)" \
+    "#49 AK14: Stufen-Override high.max_turns=70 → /implement mit max 70 turns"
+  rm -rf "$R49"
+
+  # ─── #49 AK8–AK12: Preflight stoppt ohne Spec mit AK – in jedem Modus ───────────────────────
+  # assert_stop_49 <label> <ursache> – Exit ≠ 0, Ursache + Task-ID + /requirements-Hinweis, kein /implement.
+  assert_stop_49() {
+    assert_exit 1 "$RC_49" "#49 $1: Exit 1"
+    assert_contains_286 "$OUT_49" "Task 49: $2" "#49 $1: Meldung nennt Task-ID und Ursache „$2“"
+    assert_contains_286 "$OUT_49" "/requirements 49" "#49 $1: Meldung verweist auf /requirements 49"
+    assert_contains_286 "$OUT_49" "Pre-flight failed" "#49 $1: Abbruch im Preflight"
+    assert_absent "$OUT_49" "Starte: /implement" "#49 $1: /implement startet nicht"
+  }
+  # mk_stop_repo_49 <repo> <lage> – none | nosection | zero
+  mk_stop_repo_49() {
+    _mk_pipe_repo "$1"
+    echo "# Task 49: turns" > "$1/tasks/task-49-turns.md"
+    case "$2" in
+      nosection) printf '# Spec\n## Kontext\n- [ ] keine AK\n' > "$1/docs/specs/spec-49-x.md" ;;
+      zero)      printf '# Spec\n## Akzeptanzkriterien\n(folgen)\n## Fehlerszenarien\n- [ ] F1\n' > "$1/docs/specs/spec-49-x.md" ;;
+    esac
+    git -C "$1" init -q; git -C "$1" add .; git -C "$1" -c user.email=t@t -c user.name=t commit -q -m init
+  }
+  for case_49 in "none:Spec fehlt:AK8" "nosection:Abschnitt Akzeptanzkriterien fehlt:AK9" "zero:0 Akzeptanzkriterien:AK10"; do
+    lage_49="${case_49%%:*}"; rest_49="${case_49#*:}"; why_49="${rest_49%%:*}"; ak_49="${rest_49#*:}"
+    R49="$(mktemp -d)"; mk_stop_repo_49 "$R49" "$lage_49"
+    run_dry_49 "$R49"
+    assert_stop_49 "$ak_49/AK11 (--dry-run, $lage_49)" "$why_49"
+    run_dry_49 "$R49" MAX_TURNS=50
+    assert_stop_49 "AK12 (MAX_TURNS=50, $lage_49)" "$why_49"
+    rm -rf "$R49"
+  done
+  # Echte Läufe (AK6, AK8 ohne --dry-run) stehen hinter dem #310-Block: sie nutzen dessen Helfer.
 
   # AK9 + F3: Config-Gate akzeptiert reale tier_by_size-Defaults, lehnt ungültige Werte ab.
   G4="$(mktemp -d)"
@@ -3655,6 +3781,77 @@ if [ "$HAS_YQ" = 1 ]; then
   bash "$GATE" "$DEFAULTS" "$G4/sig.yml" >/dev/null 2>&1; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "#197 F3: ungültiges tier_by_size.signal → fail-closed"
   rm -rf "$G4"
+
+  # ─── #49 Gate-Regel 4d: max_turns_by_size (Factory-ADR-065 §4) ───────────────────────────────
+  # gate_49 <stufen-yaml unter skills.implement.max_turns_by_size> – Override prüfen; GATE_OUT_49 = stderr.
+  # Je Negativfall wird die regelspezifische Meldung geprüft, damit kein anderer Fail-Pfad den Test grün färbt.
+  G49="$(mktemp -d)"
+  gate_49() {
+    printf 'skills:\n  implement:\n    max_turns_by_size:\n%s\n' "$1" > "$G49/ovr.yml"
+    GATE_OUT_49="$(bash "$GATE" "$DEFAULTS" "$G49/ovr.yml" 2>&1 >/dev/null)"; GATE_RC_49=$?
+  }
+  bash "$GATE" "$DEFAULTS" >/dev/null 2>&1
+  assert_exit 0 "$?" "#49: Defaults mit max_turns_by_size bestehen das Gate (Regel 4d)"
+  gate_49 '      high: { max_turns: 70 }'
+  assert_exit 0 "$GATE_RC_49" "#49 AK14: gültiger Stufen-Override (high.max_turns 70) besteht das Gate"
+  gate_49 '      mid: { max_turns: 80 }'
+  assert_exit 0 "$GATE_RC_49" "#49: Stufen-Budget an der Obergrenze (80) besteht das Gate"
+  gate_49 '      high: { max_turns: 81 }'
+  assert_exit 1 "$GATE_RC_49" "#49 AK15: Stufen-Budget 81 → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.high.max_turns bei 'implement' = 81 liegt außerhalb [1, 80]" \
+    "#49 AK15: Meldung nennt Stufe, Wert und Obergrenze 80"
+  gate_49 '      mid: { max_turns: 0 }'
+  assert_exit 1 "$GATE_RC_49" "#49 AK16: Stufen-Budget 0 → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.mid.max_turns bei 'implement' = 0 liegt außerhalb" \
+    "#49 AK16: Meldung für Budget 0 nennt die Stufe"
+  gate_49 '      mid: { max_turns: viele }'
+  assert_exit 1 "$GATE_RC_49" "#49 AK16: Nicht-Integer-Stufen-Budget → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.mid.max_turns bei 'implement' ist kein positiver Integer: 'viele'" \
+    "#49 AK16: Meldung für Nicht-Integer nennt den Wert"
+  gate_49 '      mid: { from: 1 }'
+  assert_exit 1 "$GATE_RC_49" "#49 F6: mid.from = 1 (Basis ohne AK) → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.mid.from bei 'implement' = 1 muss >= 2 sein" \
+    "#49 F6: Meldung für fehlende unterste Stufe"
+  gate_49 '      high: { from: 6 }'
+  assert_exit 1 "$GATE_RC_49" "#49 F6: high.from = mid.from (Überlappung) → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.high.from bei 'implement' = 6 muss größer als mid.from (6) sein" \
+    "#49 F6: Meldung für überlappende Stufen"
+  gate_49 '      mid: { from: 13 }'
+  assert_exit 1 "$GATE_RC_49" "#49 F6: mid.from > high.from (vertauschte Stufen) → Gate lehnt ab"
+  gate_49 '      high: { from: zwoelf }'
+  assert_exit 1 "$GATE_RC_49" "#49 F6: Nicht-Integer-Grenze → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.high.from bei 'implement' ist kein positiver Integer" \
+    "#49 F6: Meldung für Nicht-Integer-Grenze"
+  gate_49 '      signal: bogus'
+  assert_exit 1 "$GATE_RC_49" "#49: ungültiges max_turns_by_size.signal → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "ungültiges max_turns_by_size.signal 'bogus'" "#49: Meldung nennt das Signal"
+  # Struktur über Regel 2: keine vierte Stufe, keine Staffelung an bug-fix (AK18).
+  gate_49 '      top: { from: 20, max_turns: 70 }'
+  assert_exit 1 "$GATE_RC_49" "#49: zusätzliche Stufe (unbekannter Key) → Gate lehnt ab (Regel 2)"
+  printf 'skills:\n  bug-fix:\n    max_turns_by_size: { signal: proxy }\n' > "$G49/bf.yml"
+  bash "$GATE" "$DEFAULTS" "$G49/bf.yml" >/dev/null 2>&1
+  assert_exit 1 "$?" "#49 AK18: max_turns_by_size an bug-fix → Gate lehnt ab (Regel 2)"
+  rm -rf "$G49"
+  # Mutationsbeleg zu 4d: ohne die Regel besteht ein Budget von 81 das Gate – der Test oben ist kausal.
+  G49M="$(mktemp -d)"; mkdir -p "$G49M/scripts/checks" "$G49M/scripts/lib"
+  cp "$SCRIPTS_DIR/lib/gate-config.sh" "$G49M/scripts/lib/"
+  awk '/^# 4d\. max_turns_by_size/{skip=1} skip && /^# 5\. Mindest-Tier/{skip=0} !skip' "$GATE" > "$G49M/scripts/checks/gate.sh"
+  printf 'skills:\n  implement:\n    max_turns_by_size:\n      high: { max_turns: 81 }\n' > "$G49M/ovr.yml"
+  assert_true "$([ "$(grep -c 'turns_by_size_budget' "$G49M/scripts/checks/gate.sh")" -eq 0 ]; echo $?)" \
+    "#49 Mutation: Regel 4d aus der Gate-Kopie entfernt (wirksam)"
+  bash "$G49M/scripts/checks/gate.sh" "$DEFAULTS" "$G49M/ovr.yml" >/dev/null 2>&1
+  assert_exit 0 "$?" "#49 Mutation: ohne Regel 4d besteht Stufen-Budget 81 das Gate"
+  rm -rf "$G49M"
+
+  # AK18/AK20: Struktur der Defaults – bug-fix ohne Staffelung, Begründung an der Staffelung.
+  assert_true "$([ "$(yq '.skills."bug-fix".max_turns' "$DEFAULTS")" = "20" ] && [ "$(yq '.skills."bug-fix" | has("max_turns_by_size")' "$DEFAULTS")" = "false" ]; echo $?)" \
+    "#49 AK18: bug-fix behält festes max_turns 20 ohne max_turns_by_size"
+  assert_true "$([ "$(yq '.skills.implement.max_turns_by_size | [.signal, .mid.from, .mid.max_turns, .high.from, .high.max_turns] | join(",")' "$DEFAULTS")" = "proxy,6,40,12,60" ]; echo $?)" \
+    "#49: Defaults-Staffelung = proxy, ab 6 → 40, ab 12 → 60"
+  tbs_block_49="$(awk '/^    max_turns: 20 .*Basis/{f=1} f && /^    max_turns_by_size:/{print; exit} f' "$DEFAULTS")"
+  assert_contains_286 "$tbs_block_49" "@reason: Ein festes Budget von 20 Turns riss" "#49 AK20: @reason an der Staffelung nennt den Anlass (Turn-Limit-Abbrüche)"
+  assert_contains_286 "$tbs_block_49" "@tradeoff: Kosten" "#49 AK20: @tradeoff an der Staffelung benennt die Kosten-Wirkung"
+  assert_contains_286 "$tbs_block_49" "bis zum" "#49 AK20: @tradeoff beziffert den Mehrverbrauch"
 
   # AK7: übrige pipeline-getriebene Skills + default bleiben light UND tragen KEIN tier_by_size
   # (keine Tier-Änderung durch nothra/tch-gastro-services#197).
@@ -3864,6 +4061,7 @@ if [ "$HAS_YQ" = 1 ]; then
   echo "# ctx" > "$TMP_INT/docs/factory/PROJECT-CONTEXT.md"
   echo "# implement mock" > "$TMP_INT/.claude/commands/implement.md"
   echo "# Task 77: interrupt" > "$TMP_INT/tasks/task-77-interrupt.md"
+  mk_spec_fixture "$TMP_INT" 77
   # Mock claude: signalisiert beim implement-Aufruf einen Interrupt (schreibt Sentinel), exit 0.
   cat > "$TMP_INT/bin/claude" <<'CLEOF'
 #!/bin/sh
@@ -3913,6 +4111,7 @@ if [ "$HAS_YQ" = 1 ]; then
     printf '# SKILL-%s mock\n' "$s" > "$TMP_E2E/.claude/commands/$s.md"
   done
   echo "# Task 78: e2e" > "$TMP_E2E/tasks/task-78-e2e.md"
+  mk_spec_fixture "$TMP_E2E" 78
   # Der Stub schreibt die Reports IM Aufruf (seit nothra/tch-gastro-services#312 gilt ein report-erzeugendes Skill nur
   # so als erfolgreich – ein vorab abgelegter APPROVED wäre stale und bräche den Lauf schon
   # in Phase 2 ab). Der Zähler variiert den Inhalt, damit auch der zweite und dritte Lauf
@@ -5598,6 +5797,7 @@ scaffold_310() {
     printf '# SKILL-%s mock\n' "$s" > "$dir/.claude/commands/$s.md"
   done
   printf '# Task %s: report-guard\n' "$task_id" > "$dir/tasks/task-${task_id}-guard.md"
+  mk_spec_fixture "$dir" "$task_id"
   printf '#!/bin/sh\nexit 0\n' > "$dir/bin/sleep"; chmod +x "$dir/bin/sleep"
   # gh immer fehlschlagen lassen (nothra/tch-gastro-services#314-Nitpick, Review-Runde-1-Finding): run_310() setzt
   # "$dir/bin" vor den Rest von PATH, damit reicht ein Stub, um den ambienten System-`gh`
@@ -5642,6 +5842,45 @@ FRESH_CMP_PIPE='[ "$(report_fingerprint "$skill" "$task_id")" != "$fingerprint_b
 VERDICT_CHK_PIPE='[ -n "$(report_verdict "$skill" "$task_id")" ] || return 1'
 GUARD_CALL_PIPE='report_is_fresh_and_valid "$skill" "$task_id" "$report_fingerprint_before"'
 IC_CALL_PIPE='stop_if_interrupted "$task_id"'
+
+# ─── #49 (Factory-ADR-065): echte Pipeline-Läufe über die #310-Helfer ─────────────────────────────
+# assert_stop_49/OUT_49/RC_49 stammen aus dem #49-E2E-Block im #197-Abschnitt (ebenfalls HAS_YQ).
+if [ "$HAS_YQ" = 1 ]; then
+  # AK6: auch die Rework-Iteration nach /review nutzt die Stufe (8 AK → 40).
+  # claude-Stub: Review 1 = NEEDS_REWORK → Rework-/implement, Review 2 = APPROVED.
+  R49="$(mktemp -d)"; scaffold_310 "$R49" 49
+  rm -f "$R49/docs/specs/spec-49-fixture.md"; mk_spec_fixture "$R49" 49 8
+  cat > "$R49/bin/claude" <<'STUB49'
+#!/bin/sh
+n=$(cat "$PWD/.stub-reviews" 2>/dev/null || echo 0)
+case "$*" in
+  *SKILL-security-review*) printf '## Ergebnis\nPASSED\n' > "$PWD/tasks/security-49.md" ;;
+  *SKILL-review*)
+    n=$((n + 1)); echo "$n" > "$PWD/.stub-reviews"
+    if [ "$n" -eq 1 ]; then v=NEEDS_REWORK; else v=APPROVED; fi
+    printf '## Empfehlung\n%s\nRunde %s\n' "$v" "$n" > "$PWD/tasks/review-49.md" ;;
+esac
+exit 0
+STUB49
+  chmod +x "$R49/bin/claude"
+  commit_310 "$R49"
+  run_310 "$R49" 49
+  assert_contains_286 "$OUT_310" "Phase 2b: Rework" "#49 AK6: der Lauf erreicht die Rework-Iteration"
+  assert_true "$([ "$(printf '%s\n' "$OUT_310" | grep -cF 'Starte: /implement 49 (model: claude-opus-5-5, max 40 turns)')" -eq 2 ]; echo $?)" \
+    "#49 AK6: Erst- und Rework-/implement (8 AK) melden beide max 40 turns"
+  rm -rf "$R49"
+
+  # AK8 ohne --dry-run: echter Lauf mit claude-Stub, der jeden Aufruf markiert – er darf nie laufen.
+  R49="$(mktemp -d)"; scaffold_310 "$R49" 49
+  rm -f "$R49/docs/specs/spec-49-fixture.md"
+  printf '#!/bin/sh\ntouch "$PWD/claude-called.marker"\nexit 0\n' > "$R49/bin/claude"; chmod +x "$R49/bin/claude"
+  commit_310 "$R49"
+  run_310 "$R49" 49
+  OUT_49="$OUT_310"; RC_49="$RC_310"
+  assert_stop_49 "AK8 (ohne --dry-run)" "Spec fehlt"
+  assert_true "$([ ! -f "$R49/claude-called.marker" ]; echo $?)" "#49 AK8: claude wird ohne Spec nie aufgerufen"
+  rm -rf "$R49"
+fi
 
 if [ "$HAS_YQ" = 1 ]; then
   # ── AK1/AK6/AK7 (Kern nothra/tch-gastro-services#310): Verdict aus Review-Iteration 1, Iteration 2 reißt das
@@ -6559,6 +6798,7 @@ STUB_314C
   TMP_314D="$(mktemp -d)"
   _mk_pipe_repo "$TMP_314D"
   echo "# Task 903: dry" > "$TMP_314D/tasks/task-903-dry.md"
+  mk_spec_fixture "$TMP_314D" 903
   git -C "$TMP_314D" init -q
   git -C "$TMP_314D" config user.email t@t; git -C "$TMP_314D" config user.name t
   git -C "$TMP_314D" add . >/dev/null 2>&1; git -C "$TMP_314D" commit -q -m init
@@ -7639,6 +7879,7 @@ CSV341
   TMP_334J="$(mktemp -d)"; TMP_334J_ORIGIN="$(mktemp -d)"
   scaffold_310 "$TMP_334J" 913
   printf '# Task 914: zweiter Lauf\n' > "$TMP_334J/tasks/task-914-zweiter-lauf.md"
+  mk_spec_fixture "$TMP_334J" 914
   cp "$TELE_FIXTURE" "$TMP_334J/bin/otel-fixture.txt"
   # EIN Stub für BEIDE Task-IDs, einmal geschrieben und committet: würde der Stub zwischen
   # den beiden Läufen erneut geschrieben (mk_tele_stub_334 ein zweites Mal), stünde

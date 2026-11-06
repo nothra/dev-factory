@@ -1,0 +1,51 @@
+diff --git a/.claude/commands/configure-factory.md b/.claude/commands/configure-factory.md
+index 030539f..f0bb947 100644
+--- a/.claude/commands/configure-factory.md
++++ b/.claude/commands/configure-factory.md
+@@ -33,8 +33,18 @@ Knopf-Liste aus den Defaults ableiten (yq, da Prerequisite):
+ yq eval '.skills | keys | .[]' factory.defaults.yml
+ # Modell-Tiers (heavy/light → Modell-ID):
+ yq eval '.model_tiers | keys | .[]' factory.defaults.yml
++# Turn-Staffelung von /implement nach AK-Zahl (Factory-ADR-065):
++yq eval '.skills.implement.max_turns_by_size' factory.defaults.yml
+ ```
+
++**Turn-Budget von `/implement`:** gestaffelt nach der AK-Zahl der Spec (Factory-ADR-065).
++`max_turns` ist die Basis für die kleinsten Specs, ab `max_turns_by_size.mid.from` AK gilt
++`mid.max_turns`, ab `high.from` AK gilt `high.max_turns` – aktuelle Werte aus den Defaults
++zeigen, nicht von hier übernehmen. Jede Grenze und jedes Budget ist ein eigener Knopf (z. B.
++`skills.implement.max_turns_by_size.high.max_turns`). Das Gate verlangt Budgets in `[1, 80]`,
++`mid.from >= 2` und `high.from > mid.from`. Eine weitere Stufe oder eine Staffelung an einem
++anderen Skill ist kein Knopf.
++
+ ### 2. Begründung aus der einen Quelle zeigen
+
+ Bevor ein Knopf geändert wird, die Begründung **aus den Defaults extrahieren** und zeigen.
+diff --git a/factory.config.yml.example b/factory.config.yml.example
+--- a/factory.config.yml.example
++++ b/factory.config.yml.example
+@@ -36,9 +36,22 @@
+ #
+ # ── Knopf: skills.<name> (tier → Modell, max_turns → Kosten-Deckel) ───────────
+ # Begründung/Trade-off: siehe factory.defaults.yml → skills.<name> (Tags @reason, @tradeoff)
+-# max_turns muss ein Integer in [1, 50] sein (Gate-Policy, ADR-009 §6); tier ∈ model_tiers.
+-# Beispiel: implement enger deckeln (Default 20 → 10):
++# max_turns muss ein Integer in [1, 80] sein (Gate-Policy, ADR-009 §6, Obergrenze ADR-051);
++# tier ∈ model_tiers.
++# Beispiel: implement enger deckeln (Basis 20 → 10):
+ # skills:
+ #   implement: { max_turns: 10 }
++#
++# ── Knopf: skills.implement.max_turns_by_size (Turn-Staffelung nach AK-Zahl) ──
++# Begründung/Trade-off: siehe factory.defaults.yml → skills.implement.max_turns_by_size
++# Das Turn-Budget von /implement richtet sich nach der AK-Zahl der Spec (Factory-ADR-065):
++# unterhalb mid.from gilt max_turns (Basis), ab mid.from gilt mid.max_turns, ab high.from
++# gilt high.max_turns. Jedes Stufen-Budget ist ein Integer in [1, 80]; das Gate verlangt
++# mid.from >= 2 und high.from > mid.from. MAX_TURNS aus der Umgebung sticht die Staffelung.
++# Beispiel: große Tasks (ab high.from AK) mit 70 statt 60 Turns:
++# skills:
++#   implement:
++#     max_turns_by_size:
++#       high: { max_turns: 70 }
+ #
+ # ── Knopf: default (Fallback für Skills ohne eigenen Eintrag) ─────────────────

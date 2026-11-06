@@ -3,6 +3,12 @@
 ## Status
 Accepted (2026-07-22)
 
+> **Erweitert durch [Factory-ADR-065](065-turn-budget-nach-ak-zahl.md) (#49):** dieselbe Messung
+> (Signal `proxy`, eine Spec-Auflösung `spec_file_for` in `scripts/lib/tier-select.sh`) wählt jetzt
+> auch das Turn-Budget von `/implement` (`max_turns_by_size`, eigene Schwellen). Der Fail-Safe auf
+> `heavy` greift für `/implement` nicht mehr, weil die Pipeline ohne Spec mit AK im Preflight stoppt;
+> für `/bug-fix` bleibt er wirksam.
+
 ## Kontext
 
 Spec nothra/tch-gastro-services#197 (`docs/specs/spec-197-modell-tiers-gezielter-vergeben.md`) verlangt, die

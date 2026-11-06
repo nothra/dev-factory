@@ -9,6 +9,10 @@ Accepted (2026-06-24)
 > JSON-Schema-Validator hat. Sie ändert keine Entscheidung von ADR-009, sondern füllt eine
 > offene Umsetzungsfrage (siehe Task nothra/tch-gastro-services#36 „Offene Fragen").
 
+> **Erweitert durch [Factory-ADR-065](065-turn-budget-nach-ak-zahl.md) (#49):** Regel 4d prüft
+> `max_turns_by_size` (Signal ∈ {diff, proxy}, `mid.from >= 2`, `high.from > mid.from`, Stufen-Budgets
+> Integer in `[1, MAX_TURNS_CEILING]` wie Regel 4b).
+
 ## Date
 2026-06-24
 

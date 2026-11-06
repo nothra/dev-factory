@@ -155,6 +155,8 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$PIPELINE" "$TMP_CFG/scripts/"; cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_CFG/scripts/checks/"; cp "$DEFAULTS" "$TMP_CFG/"
   cp_pipeline_libs "$TMP_CFG"
   echo "# ctx" > "$TMP_CFG/docs/factory/PROJECT-CONTEXT.md"; echo "# Task 1: x" > "$TMP_CFG/tasks/task-1-x.md"
+  # 18 AK (Größe Task 47) → oberste Turn-Stufe der Defaults (#49, Factory-ADR-065).
+  mk_spec_fixture "$TMP_CFG" 1 18
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   # Der REALE Team-Override des Factory-Repos setzt keine skills.*-Knöpfe: die effektive Config löst
@@ -163,9 +165,11 @@ if [ "$HAS_YQ" = 1 ]; then
   cp "$FACTORY_ROOT/factory.config.yml" "$TMP_CFG/factory.config.yml"
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m real-override
   real_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  def_turns_348="$(yq '.skills.implement.max_turns' "$DEFAULTS")"
+  def_turns_348="$(yq '.skills.implement.max_turns_by_size.high.max_turns' "$DEFAULTS")"
   printf '%s' "$real_out" | grep -qE "Starte: /implement 1 \(model: [^,]+, max ${def_turns_348} turns\)"
-  assert_true "$?" "#348: realer Repo-Override löst implement end-to-end auf den Default (max ${def_turns_348} turns) auf"
+  assert_true "$?" "#348/#49 AK19: realer Repo-Override löst implement (18 AK) end-to-end auf die Default-Staffelung (max ${def_turns_348} turns) auf"
+  assert_true "$([ "$(yq 'has("skills")' "$FACTORY_ROOT/factory.config.yml")" = "false" ]; echo $?)" \
+    "#348/#49 AK19: factory.config.yml dieses Repos setzt keine skills.*-Werte (Dogfooding-Garantie)"
   rm -rf "$TMP_CFG"
 else
   skip_yq "#348 realer Repo-Override"
