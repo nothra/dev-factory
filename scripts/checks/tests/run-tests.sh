@@ -3667,7 +3667,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$IML" init -q; git -C "$IML" add .; git -C "$IML" -c user.email=t@t -c user.name=t commit -q -m init
   iml_out=$(bash "$IML/scripts/run-pipeline.sh" 5 --dry-run 2>&1 || true)
   printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-5-5, max 40 turns)'
-  assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy"
+  assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy und mittlere Turn-Stufe (40)"
   rm -rf "$IML"
 
   # ─── #49 E2E: Turn-Budget von /implement nach AK-Zahl, gegen die ECHTE factory.defaults.yml ───
@@ -3818,6 +3818,8 @@ if [ "$HAS_YQ" = 1 ]; then
     "#49 F6: Meldung für überlappende Stufen"
   gate_49 '      mid: { from: 13 }'
   assert_exit 1 "$GATE_RC_49" "#49 F6: mid.from > high.from (vertauschte Stufen) → Gate lehnt ab"
+  assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.high.from bei 'implement' = 12 muss größer als mid.from (13) sein" \
+    "#49 F6: Meldung für vertauschte Stufen nennt beide Grenzen"
   gate_49 '      high: { from: zwoelf }'
   assert_exit 1 "$GATE_RC_49" "#49 F6: Nicht-Integer-Grenze → Gate lehnt ab"
   assert_contains_286 "$GATE_OUT_49" "max_turns_by_size.high.from bei 'implement' ist kein positiver Integer" \
