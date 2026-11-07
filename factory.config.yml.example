@@ -36,10 +36,23 @@
 #
 # ── Knopf: skills.<name> (tier → Modell, max_turns → Kosten-Deckel) ───────────
 # Begründung/Trade-off: siehe factory.defaults.yml → skills.<name> (Tags @reason, @tradeoff)
-# max_turns muss ein Integer in [1, 50] sein (Gate-Policy, ADR-009 §6); tier ∈ model_tiers.
-# Beispiel: implement enger deckeln (Default 20 → 10):
+# max_turns muss ein Integer in [1, 80] sein (Gate-Policy, ADR-009 §6, Obergrenze ADR-051);
+# tier ∈ model_tiers.
+# Beispiel: implement enger deckeln (Basis 20 → 10):
 # skills:
 #   implement: { max_turns: 10 }
+#
+# ── Knopf: skills.implement.max_turns_by_size (Turn-Staffelung nach AK-Zahl) ──
+# Begründung/Trade-off: siehe factory.defaults.yml → skills.implement.max_turns_by_size
+# Das Turn-Budget von /implement richtet sich nach der AK-Zahl der Spec (Factory-ADR-065):
+# unterhalb mid.from gilt max_turns (Basis), ab mid.from gilt mid.max_turns, ab high.from
+# gilt high.max_turns. Jedes Stufen-Budget ist ein Integer in [1, 80]; das Gate verlangt
+# mid.from >= 2 und high.from > mid.from. MAX_TURNS aus der Umgebung sticht die Staffelung.
+# Beispiel: große Tasks (ab high.from AK) mit 70 statt 60 Turns:
+# skills:
+#   implement:
+#     max_turns_by_size:
+#       high: { max_turns: 70 }
 #
 # ── Knopf: default (Fallback für Skills ohne eigenen Eintrag) ─────────────────
 # Begründung: siehe factory.defaults.yml → default (Tag @reason)

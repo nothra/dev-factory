@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -38,7 +38,7 @@ Volltext (GIVEN/WHEN/THEN) und Fehlerszenarien F1–F6: Spec.
 - [x] AK18: `bug-fix` behält festes `max_turns: 20`
 - [x] AK19: Repo-Config setzt keine `skills.*`; Budget kommt end-to-end aus den Defaults (#348)
 - [x] AK20: `@reason` + `@tradeoff` (Kosten-Wirkung) an der Staffelung in `factory.defaults.yml`
-- [ ] AK21: Doku (`factory.config.yml.example`, `configure-factory.md`, `OPERATING.md`) beschreibt Staffelung; Example nennt Obergrenze 80 – `OPERATING.md` erledigt, Rest im Patch (siehe Blocker)
+- [x] AK21: Doku (`factory.config.yml.example`, `configure-factory.md`, `OPERATING.md`) beschreibt Staffelung; Example nennt Obergrenze 80
 
 ## Technische Notizen
 Entscheidung: [Factory-ADR-065](../docs/factory/adr/065-turn-budget-nach-ak-zahl.md) (Accepted 2026-11-06).
@@ -69,7 +69,8 @@ Entscheidung: [Factory-ADR-065](../docs/factory/adr/065-turn-budget-nach-ak-zahl
 
 Blocker 2026-11-06: Edit/Write auf `.claude/commands/configure-factory.md` und `factory.config.yml.example`
 ist für den Agenten gesperrt. Die Änderung liegt als `tasks/patch-49.diff` bei (`git apply --check` grün).
-Mensch: `git apply tasks/patch-49.diff`, committen, danach `tasks/patch-49.diff` entfernen und AK21 abhaken.
+Aufgelöst 2026-11-07: Patch mit Freigabe des Menschen angewendet, `patch-49.diff` entfernt, AK21 abgehakt.
+Offen (Nitpick aus /review, `.claude/` für Edit gesperrt): `.claude/commands/pipeline.md:12` – Spec-Muster `spec-$ARGUMENTS-*.md` und Vorbedingung „mindestens ein AK“ nachziehen (Mensch).
 
 ## Offene Fragen
 - [x] Q1–Q3 durch Factory-ADR-065 beantwortet (siehe Spec).
