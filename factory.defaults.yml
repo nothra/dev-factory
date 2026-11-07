@@ -66,7 +66,18 @@ skills:
   implement:
     tier: heavy                                    # @reason: Fail-Safe, wenn die Proxy-Größe nicht bestimmbar ist (F2).
     tier_by_size: { signal: proxy, threshold: 6 }  # @reason: AK-Zahl der Spec als Aufwand-Proxy; < 6 → light, >= 6 → heavy. @tradeoff: misst Spec-Detailtiefe, nicht garantiert Implementierungsaufwand (kalibrierbar, ADR-038).
-    max_turns: 20                                  # @reason: TDD-Zyklen, schreibt Code.
+    max_turns: 20                                  # @reason: Basis für kleine Tasks (unterhalb der ersten Stufe, 1–5 AK): TDD-Zyklen, schreibt Code.
+    # Turn-Budget nach AK-Zahl der Spec (Factory-ADR-065): 1–5 AK → max_turns, ab mid.from → mid,
+    # ab high.from → high. Gleiche Messung wie tier_by_size (signal proxy), eigene Schwellen.
+    # @reason: Ein festes Budget von 20 Turns riss bei großen Tasks wiederholt (Task 47 mit 18 AK
+    #   dreimal in Folge, Lesson „Turn-Limit"); die Pipeline brach ab und die Teilarbeit lag uncommittet.
+    # @tradeoff: Kosten – ein /implement-Lauf darf ab 6 AK bis zum Doppelten, ab 12 AK bis zum
+    #   Dreifachen des Basisbudgets verbrauchen. Höhere Stufen = weniger Abbrüche, aber teurere Läufe;
+    #   niedrigere sparen, lassen große Tasks wieder am Limit scheitern.
+    max_turns_by_size:
+      signal: proxy
+      mid:  { from: 6,  max_turns: 40 }            # @reason: 6–11 AK.
+      high: { from: 12, max_turns: 60 }            # @reason: ab 12 AK (Größe Task 47).
   review:
     tier: heavy                                    # @reason: Fail-Safe, wenn die Diff-Größe nicht bestimmbar ist (F1).
     tier_by_size: { signal: diff, threshold: 150 } # @reason: reine Lese-Analyse, läuft pro Feature ggf. mehrfach → kleiner Diff (< 150 Zeilen) rechtfertigt light. @tradeoff: Richtwert ~150, kalibrierbar (ADR-038).

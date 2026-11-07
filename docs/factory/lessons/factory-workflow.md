@@ -1826,3 +1826,11 @@ Nach dem Rework eines Security-Findings lief der Nachlauf-`/security-review` man
 **Regel:** Vor `run-pipeline.sh` nach einem Abbruch `tasks/review-<id>.md` und `tasks/security-<id>.md` auf den Verdict für `HEAD` prüfen. Sind sie schon APPROVED/PASSED, die verbleibenden Skills (`/codify`, `/pr-shepherd`) einzeln fahren, statt neu zu starten.
 
 → `/pipeline` – nach Abbruch an der Verdict-Wache bei bereits geprüftem Stand
+
+### Turn-Limit: Gegenmaßnahme umgesetzt (gestaffeltes Budget), Fortsetzung nach Netz-Abbruch per Bestandsaufnahme (aus Factory-Task #49)
+
+Die Serie der Turn-Limit-Vorkommnisse (Task 47: 18 AK, 3×20 Turns; Task 37: 12 AK) ist mit Factory-ADR-065 an der Ursache behandelt: das Budget von `/implement` wird nach AK-Zahl der Spec gestaffelt (1–5 → 20, 6–11 → 40, ab 12 → 60), und eine fehlende Spec bzw. 0 AK stoppt die Pipeline vor `/implement`. Die Task selbst lief wegen ihrer Größe wie empfohlen manuell in getrennten Skill-Läufen. Ein Abbruch durch fehlende Internetverbindung mitten im Lauf kostete nichts, weil der Stand in Git und Task-Datei lag.
+
+**Regel:** (a) Nach einem Abbruch (Netz, Turn-Limit) zuerst Bestandsaufnahme – `git status`/`git log`, `tasks/review-<id>.md`/`security-<id>.md`, offene Checkboxen, `gh pr list` – und beim ersten offenen Schritt weitermachen, nicht neu starten; (b) ein Aufräum-`rm -rf` nie mit einem Schritt kombinieren, der Arbeit trägt (`git apply`): der Auto-Mode-Classifier lehnt die Kette als Ganzes ab, und der Guardrails-Hook markiert jeden rekursiven Löschbefehl erneut; (c) ein Patch-Weg ist nur für Pfade berechtigt, die wirklich gesperrt sind (`.claude/**`) – `factory.config.yml.example` lag nur nicht in der Freigabe, der Edit-Weg war offen (Rezidiv der Lesson zu nothra/tch-gastro-services#291).
+
+→ `/pipeline`, `/implement`, jeder Skill – bei Fortsetzung nach Pipeline-Abbruch bzw. vor dem Anlegen eines `patch-<id>.diff`

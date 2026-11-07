@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# tier-select.sh – sourcebare Lib: größenabhängige Modell-Tier-Wahl (ADR-038).
+# tier-select.sh – sourcebare Lib: größenabhängige Modell-Tier- und Turn-Budget-Wahl
+# (ADR-038, Factory-ADR-065).
 #
-# Zwei reine, testbare Funktionen (Muster: scripts/lib/report-verdict.sh) – so lässt
-# sich die Größen→Tier-Logik OHNE echten claude-Lauf im Test-Harness prüfen:
+# Vier reine, testbare Funktionen (Muster: scripts/lib/report-verdict.sh) – so lässt
+# sich die Größen→Tier/Turns-Logik OHNE echten claude-Lauf im Test-Harness prüfen:
 #
 #   select_tier <size> <threshold> <fallback_tier>
 #     → druckt "heavy"/"light" bzw. den Fallback-Tier auf stdout:
@@ -22,6 +23,17 @@
 #       Nicht bestimmbar (git-/fetch-Fehler, fehlende Spec/fehlender Abschnitt) → leerer
 #       stdout → der Aufrufer fällt über select_tier auf den Fail-Safe-Tier zurück.
 #     → Exit immer 0; der Aufrufer entscheidet am (nicht-)leeren stdout.
+#
+#   select_max_turns <size> <base> <mid_from> <mid_turns> <high_from> <high_turns>
+#     → druckt das Turn-Budget der Stufe (Factory-ADR-065 §2):
+#         - size leer/nicht-numerisch → high_turns (Fail-Safe: kein stilles Downgrade)
+#         - size >= high_from         → high_turns
+#         - size >= mid_from          → mid_turns
+#         - sonst                     → base
+#
+#   spec_file_for <task_id> [repo_dir]
+#     → druckt den Pfad der Spec docs/specs/spec-<id>-*.md, sonst NICHTS. Einzige
+#       Spec-Auflösung für Preflight, Modell- und Turn-Wahl: alle messen dieselbe Datei (F4).
 #
 # Nur POSIX-Regex/awk, portabel macOS/BSD + GNU/Alpine (clean-code.md „Portabilität").
 
@@ -64,11 +76,35 @@ _measure_diff() {
   return 0
 }
 
+# Reine Entscheidung: size + Stufen → Turn-Budget, mit Fail-Safe auf die oberste Stufe.
+select_max_turns() {
+  local size="$1" base="$2" mid_from="$3" mid_turns="$4" high_from="$5" high_turns="$6"
+  case "$size" in
+    ''|*[!0-9]*) printf '%s' "$high_turns"; return 0 ;;
+  esac
+  if [ "$size" -ge "$high_from" ]; then
+    printf '%s' "$high_turns"
+  elif [ "$size" -ge "$mid_from" ]; then
+    printf '%s' "$mid_turns"
+  else
+    printf '%s' "$base"
+  fi
+  return 0
+}
+
+# Spec-Datei der Task (erste Fundstelle in sortierter Reihenfolge, damit die Wahl bei mehreren
+# Treffern nicht von der Verzeichnis-Reihenfolge des Dateisystems abhängt).
+spec_file_for() {
+  local task_id="$1" repo_dir="${2:-${FACTORY_DIR:-.}}"
+  find "$repo_dir/docs/specs" -name "spec-${task_id}-*.md" 2>/dev/null | LC_ALL=C sort | head -1
+  return 0
+}
+
 # Proxy-Größe: Anzahl AK-Checkboxen im Akzeptanzkriterien-Abschnitt der Spec.
 _measure_proxy() {
   local task_id="$1" repo_dir="$2"
   local spec
-  spec="$(find "$repo_dir/docs/specs" -name "spec-${task_id}-*.md" 2>/dev/null | head -1)"
+  spec="$(spec_file_for "$task_id" "$repo_dir")"
   # Keine Spec-Datei → leerer stdout → Fail-Safe heavy (F2).
   { [ -n "$spec" ] && [ -f "$spec" ]; } || return 0
   # Zählt "- ["-Zeilen zwischen "## Akzeptanzkriterien" und der nächsten "## "-Überschrift.

@@ -21,7 +21,8 @@
 #      ein Einzelwert, wo die Defaults eine Liste führen, wird als „keine Liste" gemeldet (#47)
 #   3. schemaVersion: Integer == Defaults-Wert; weicht der Override ab → fail + Upgrade-Hinweis
 #   4. Werte-Constraints (effektive Config): tier ∈ model_tiers,
-#      max_turns Integer in [1, MAX_TURNS_CEILING]
+#      max_turns Integer in [1, MAX_TURNS_CEILING]; 4c tier_by_size, 4d max_turns_by_size
+#      (Stufen-Grenzen steigend, Stufen-Budgets ebenfalls in [1, MAX_TURNS_CEILING], Factory-ADR-065)
 #   5. Mindest-Tier für sicherheitsrelevante Skills (effektive Config): security-review
 #      und review müssen tier == MIN_TIER_REQUIRED behalten; security-review darf zudem
 #      kein tier_by_size tragen (Task 241, s.u.).
@@ -198,6 +199,41 @@ while IFS= read -r entry; do
   [ "$threshold" -ge 1 ] \
     || fail "tier_by_size.threshold bei '$name' = $threshold muss >= 1 sein (Gate-Policy, ADR-038)."
 done < <(printf '%s' "$effective" | yq eval '.skills | to_entries | .[] | select(.value.tier_by_size) | .key + "=" + (.value.tier_by_size.signal // "") + "|" + (.value.tier_by_size.threshold | tostring)' -)
+
+# 4d. max_turns_by_size (nur wo gesetzt, Factory-ADR-065 §4): signal ∈ {diff, proxy}; mid.from und
+#     high.from Integer mit mid.from >= 2 (die Basis max_turns deckt mindestens 1 AK ab) und
+#     high.from > mid.from (keine Überlappung; Lücken sind in der Struktur nicht ausdrückbar);
+#     mid.max_turns und high.max_turns Integer in [1, MAX_TURNS_CEILING] wie Regel 4b.
+#     Format je Zeile: <skill>=<signal>|<mid.from>|<mid.max_turns>|<high.from>|<high.max_turns>;
+#     fehlende Felder kommen als "null" an und fallen in die Integer-Ablehnung (F5/F6).
+turns_by_size_int() { # <skill> <feld> <wert>
+  case "$3" in
+    ''|*[!0-9]*) fail "max_turns_by_size.$2 bei '$1' ist kein positiver Integer: '$3'." ;;
+  esac
+}
+turns_by_size_budget() { # <skill> <feld> <wert>
+  turns_by_size_int "$@"
+  if [ "$3" -lt 1 ] || [ "$3" -gt "$MAX_TURNS_CEILING" ]; then
+    fail "max_turns_by_size.$2 bei '$1' = $3 liegt außerhalb [1, $MAX_TURNS_CEILING] (Gate-Policy, ADR-009 §6)."
+  fi
+}
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  name="${entry%%=*}"
+  IFS='|' read -r signal mid_from mid_turns high_from high_turns <<< "${entry#*=}"
+  case "$signal" in
+    diff|proxy) ;;
+    *) fail "ungültiges max_turns_by_size.signal '$signal' bei '$name' (erlaubt: diff, proxy)." ;;
+  esac
+  turns_by_size_int "$name" mid.from "$mid_from"
+  turns_by_size_int "$name" high.from "$high_from"
+  [ "$mid_from" -ge 2 ] \
+    || fail "max_turns_by_size.mid.from bei '$name' = $mid_from muss >= 2 sein (die Basis max_turns deckt mindestens 1 AK ab, Factory-ADR-065)."
+  [ "$high_from" -gt "$mid_from" ] \
+    || fail "max_turns_by_size.high.from bei '$name' = $high_from muss größer als mid.from ($mid_from) sein (Stufen dürfen nicht überlappen, Factory-ADR-065)."
+  turns_by_size_budget "$name" mid.max_turns "$mid_turns"
+  turns_by_size_budget "$name" high.max_turns "$high_turns"
+done < <(printf '%s' "$effective" | yq eval '.skills | to_entries | .[] | select(.value.max_turns_by_size) | .value.max_turns_by_size as $s | .key + "=" + ($s.signal // "") + "|" + ($s.mid.from | tostring) + "|" + ($s.mid.max_turns | tostring) + "|" + ($s.high.from | tostring) + "|" + ($s.high.max_turns | tostring)' -)
 
 # 5. Mindest-Tier für sicherheitsrelevante Skills (Task 241). Läuft NACH 4a, damit ein
 #    strukturell ungültiges tier (z.B. 'medium') zuerst die passende 4a-Meldung erhält
