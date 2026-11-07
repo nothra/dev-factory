@@ -6,8 +6,8 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Das Turn-Budget von `/implement` wird nach der AK-Zahl der Spec gestaffelt: 1–5 AK → 20, 6–11 → 40,
@@ -85,7 +85,7 @@ Offen (Nitpick aus /review, `.claude/` für Edit gesperrt): `.claude/commands/pi
 - Diff `origin/main...HEAD` gegen die Clean-Code-Checkliste geprüft: keine Duplikation (Fixture-Helfer und `spec_file_for` zentral), keine Magic Numbers, flache Verschachtelung. `select_max_turns` hat 6 Parameter, bleibt aber bewusst eine reine Wertetabelle im Muster von `select_tier`. Keine Codeänderung; Suiten unverändert grün (2444/146).
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Siehe `tasks/codify-49.md`: Lesson „Turn-Limit: Gegenmaßnahme umgesetzt“ (factory-workflow.md) + Index-Zeile.
 
 ---
 Branch: `improvement/49-turn-limit-implement`
