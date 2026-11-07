@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -80,6 +80,9 @@ Offen (Nitpick aus /review, `.claude/` für Edit gesperrt): `.claude/commands/pi
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+
+### Refactoring-Notizen (/refactor, 2026-11-07)
+- Diff `origin/main...HEAD` gegen die Clean-Code-Checkliste geprüft: keine Duplikation (Fixture-Helfer und `spec_file_for` zentral), keine Magic Numbers, flache Verschachtelung. `select_max_turns` hat 6 Parameter, bleibt aber bewusst eine reine Wertetabelle im Muster von `select_tier`. Keine Codeänderung; Suiten unverändert grün (2444/146).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
