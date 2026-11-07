@@ -87,6 +87,8 @@ Offen (Nitpick aus /review, `.claude/` für Edit gesperrt): `.claude/commands/pi
 ## Codify-Notizen
 Siehe `tasks/codify-49.md`: Lesson „Turn-Limit: Gegenmaßnahme umgesetzt“ (factory-workflow.md) + Index-Zeile.
 
+PR-Shepherd 2026-11-07: Merge freigegeben – alle Gates grün (CI 7/7, keine Review-Kommentare, Branch auf aktuellem main).
+
 ---
 Branch: `improvement/49-turn-limit-implement`
 Erstellt: 2026-11-05 11:05
