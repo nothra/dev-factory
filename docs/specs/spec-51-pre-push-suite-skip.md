@@ -107,6 +107,6 @@ ist und nur erlaubte Pfade enthält (fail-closed).
   von `commands.test` (Entwickler, 2026-11-09).
 - [x] Q2: Override zum Erzwingen des vollen Laufs? → **Ja**, per Umgebungsvariable; den Namen legen
   `/architecture` bzw. `/implement` fest (Entwickler, 2026-11-09).
-- [ ] Q3 (für `/architecture`, falls ADR-Trigger): Braucht die Abweichung vom Grundsatz „pre-push
-  führt `commands.test` vollständig aus" eine Projekt-ADR, oder reicht der Kommentar in
-  `factory.config.yml` plus die Spec?
+- [x] Q3: Projekt-ADR nötig? → **Nein** – kein ADR-Trigger, umkehrbar, kein passender Ablageort;
+  Begründung und Alternativen in `tasks/task-51-pre-push-suite-skip.md` → „Technische Notizen"
+  (`/architecture`, 2026-11-09). Override-Variable: `FACTORY_FORCE_FULL_SUITE`.
