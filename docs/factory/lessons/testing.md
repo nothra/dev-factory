@@ -780,3 +780,11 @@ Der erste „Hostile-Release"-Test für die Kurzform war grün, weil der feindli
 **Regel:** Test gegen feindlichen Code braucht (a) einen Zähler/Marker, der sein Laufen belegt, (b) die Gegenprobe im Zustand, in dem er das Geschützte sehen **müsste**; fehlt eines, ist das Grün Zufall. Gleiche Familie wie die Positivkontrolle bei Mutations-Fixtures.
 
 → `/implement`, `/test`, `/security-review` – bei Tests, die Schadcode aus Fremdquelle simulieren
+
+## Git-nutzendes Gate: Verhaltenstest im echten Hook-Kontext eines Worktrees (aus Factory-Task #51, `/review` Iteration 1)
+
+Ein Gate-Skript, das `git`-Befehle auf dem Repo ausführt (Merge-Base, Diff, ls-files), wurde zunächst nur in Wegwerf-Repos mit `update-ref` als `origin/main` getestet – alles grün. Der echte Einsatzfall ist aber der pre-push-Hook **aus einem Task-Worktree**: dort ist `.git` eine Datei, und Git exportiert `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` in den Hook. Erst `/review` fand die Lücke (Wichtig).
+
+**Regel:** Ein Gate, das im pre-push-/pre-commit-Hook läuft und Git befragt, bekommt einen Test, der **echt pusht**: Bare-Remote, `git worktree add`, Einzeiler-Hook über `core.hooksPath`, beide Richtungen (Skip/voller Lauf) mit Exit-Code des Pushs. Mutationsbeleg: eine Prüfung `[ -d "$ROOT/.git" ]` muss nur diese Assertions rot machen. Fixture-Repos vorher `GIT_*` unsetzen und mit lokaler Identität committen.
+
+→ `/implement`, `/test`, `/review` – bei neuem oder geändertem Skript, das im Git-Hook läuft und Git-Zustand liest

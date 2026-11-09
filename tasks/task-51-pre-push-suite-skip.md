@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -135,6 +135,8 @@ Verworfene Alternativen:
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- Lesson „Git-nutzendes Gate: Verhaltenstest im echten Hook-Kontext eines Worktrees“ (`lessons/testing.md` + Index);
+  Kleinfund ADR-063 D9 in `docs/factory/kleinfunde.md`. Report: `tasks/codify-51.md`.
 
 ---
 Branch: `feature/51-pre-push-suite-skip`

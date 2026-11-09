@@ -271,3 +271,10 @@
 - **Was:** Ein Lock-Pfad mit Zeilenumbruch (`\n`) wird zu mehreren Pfaden (Repro: Pfad `evil.sh\nREADME.md` ergibt `README.md: Anpassungsstelle steht im Lock`, Exit 1). Kein Rechtegewinn, fail-closed bleibt erhalten; der Pfad ist aber ungültig und sollte als ungültiger Lock gelten (Exit 2).
 - **Fix:** im `jq`-Gate von `lock_require_inputs` `(.path | test("[\\n\\r]") | not)` ergänzen, dazu ein Test mit Zeilenumbruch-Pfad (Exit 2). Etwa vier Zeilen.
 - **Herkunft:** `/review` (Iteration 1, Runde 1) und `/security-review` zu Task 22, PR #25.
+
+### ADR-063 D9 nennt `commands.test` = `run-tests.sh`, Stand überholt
+
+- **Wo:** `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:181` (`commands.test` = `run-tests.sh`), verifiziert am 2026-11-10.
+- **Was:** Seit Task 51 ist `commands.test` des Factory-Repos der Wrapper `scripts/project/checks/factory-suite-gate.sh` (überspringt die Suite bei reinem `tasks/`-/`docs/specs/`-Diff). Die ADR-Beschreibung nennt noch die Suite direkt. Datei gehört der Seite `factory`, daher außerhalb von AK7 des Tasks 51.
+- **Fix:** Halbsatz in D9 ergänzen („`commands.test` = Wrapper um `run-tests.sh`, siehe Task 51“). Eine Zeile.
+- **Herkunft:** `/review` zu Task 51 (Iteration 1/2, Nitpick), `/codify`.
