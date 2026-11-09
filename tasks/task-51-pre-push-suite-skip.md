@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Das `commands.test`-Kommando des Factory-Repos überspringt die ausgelieferte Suite (~9,5 min lokal),
@@ -137,6 +137,8 @@ Verworfene Alternativen:
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
 - Lesson „Git-nutzendes Gate: Verhaltenstest im echten Hook-Kontext eines Worktrees“ (`lessons/testing.md` + Index);
   Kleinfund ADR-063 D9 in `docs/factory/kleinfunde.md`. Report: `tasks/codify-51.md`.
+
+PR-Shepherd 2026-11-10: Merge freigegeben – alle Gates grün.
 
 ---
 Branch: `feature/51-pre-push-suite-skip`
