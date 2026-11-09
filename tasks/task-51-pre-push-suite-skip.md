@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -117,6 +117,8 @@ Verworfene Alternativen:
   `.git`-Datei dort ebenfalls auf, er ist also kein Bruch. Nitpicks: F1/F3-Grund assertiert, Grenze „geprüft wird HEAD,
   nicht die gepushten Refs“ im Kopfkommentar, `main "$@"` → `main`. Nitpick ADR-063 D9 bleibt offen (Seite `factory`,
   AK7). Projekt-Suite: 197 grün, 0 rot.
+- Iteration 2 (2026-11-09): APPROVED – 0 kritisch, 0 wichtig, 2 Nitpicks (ADR-063 D9 bewusst offen; Exit-Code des
+  zweiten Worktree-Pushs nicht assertiert). Details: `tasks/review-51.md`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

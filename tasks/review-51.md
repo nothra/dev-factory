@@ -1,8 +1,10 @@
 # Review: Task 51
 
-> Stand: `b66c121` gegen `origin/main` (`7153bd6`), 2026-11-09. Alle drei Runden (Logik, Code-Qualität,
-> Architektur) liefen direkt im Orchestrator-Kontext; bei einem Diff dieser Größe lohnte die Fork-Delegation nicht
-> (vgl. Lessons nothra/tch-gastro-services#298/#267). Projekt-Suite lokal: 191 grün, 0 rot (davon 45 Assertions im Block `#51`).
+> Stand: `f1e1bbb` gegen `origin/main`, 2026-11-09 – **Iteration 2** (nach Rework 1). Alle drei Runden (Logik,
+> Code-Qualität, Architektur) liefen direkt im Orchestrator-Kontext; bei einem Rework-Diff von ~30 Zeilen lohnte die
+> Fork-Delegation nicht (vgl. Lessons nothra/tch-gastro-services#298/#267). Projekt-Suite lokal: 197 grün, 0 rot.
+> `git status --ignored`: nur die gitignorete Telemetrie-Rohdatei `tasks/telemetry-raw-51-*.tmp.txt`, kein
+> Scratch-Artefakt im Baum.
 
 ## Kritische Findings (müssen behoben werden)
 
@@ -10,64 +12,44 @@ _(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
 
-- [ ] [scripts/project/tests/run-tests.sh:773] **Der Wrapper ist im Hook-Kontext eines Worktrees nicht als Verhalten
-  getestet.** Das ist der eigentliche Anwendungsfall der Task: `start-work.sh` legt jede Task per Default in einem Worktree an,
-  und der erste Push nach `/requirements` ist dort der typische reine Spec-/Task-Push. Git exportiert im pre-push-Hook eines
-  Worktrees `GIT_DIR` und weitere Variablen (`assert-helpers.sh:20`). Alle `#51`-Tests laufen aber ohne diese Variablen,
-  denn `assert-helpers.sh:23` unsetzt sie global. AK6 belegt per Grep nur, dass beide Aufrufer das Kommando über
-  `gate_command` auflösen. Im Hook-Kontext gelaufen ist der Wrapper bisher nur beim Push dieses Branchs, also im Pfad
-  „voller Lauf“. Ein dortiges Scheitern von `merge-base`/`diff`/`ls-files` wäre unsichtbar geblieben, weil auch der Fehlerpfad
-  voll läuft. Das Risiko ist fail-closed (schlimmstenfalls bewirkt das Feature nichts), aber die Kernaussage bleibt unbelegt.
-  Das ist dieselbe Fehlerklasse wie Lesson nothra/tch-gastro-services#348 und das Rezidiv nothra/tch-gastro-services#431
-  („je Konsument ein eigener Test“). **Fix (~15 Zeilen):** Wegwerf-Repo mit Bare-Remote und `git worktree add` aufsetzen,
-  im gemeinsamen `.git/hooks/pre-push` den Wrapper mit `FACTORY_DIR="$PWD"` aufrufen und aus dem Worktree pushen. Dann
-  (a) einen Commit nur unter `tasks/` pushen → Ausgabe enthält die Skip-Meldung und kein `SUITE_RAN_51`, und (b) eine
-  untracked Datei außerhalb anlegen → voller Lauf mit Grund „außerhalb“. Den Hook im Fixture **nicht** über
-  `install-hooks.sh` installieren, sondern als Einzeiler: Geprüft wird der Git-Hook-Kontext, nicht `pre-push.sh`. Eine
-  Sonde dafür ließ sich in dieser Review-Session nicht ausführen, weil die Shell-Guardrails sie blockierten. Das Ergebnis
-  ist also offen und nicht negativ.
+_(keine)_
+
+Das wichtige Finding aus Iteration 1 (Wrapper im pre-push-Hook eines Worktrees nicht als Verhalten getestet) ist behoben.
+`scripts/project/tests/run-tests.sh:774-796` setzt ein Bare-Remote und `git worktree add` auf und installiert einen
+Einzeiler-Hook über `core.hooksPath`. Danach pusht der Test echt aus dem Worktree:
+(a) ein reiner Task-Commit führt zum Skip, die Suite startet nicht, Exit 0;
+(b) eine untracked Datei außerhalb führt zum vollen Lauf mit dem Grund `neu-wt.txt`. Damit ist der eigentliche
+Anwendungsfall (erster Push nach `/requirements` aus dem Task-Worktree) in beiden Richtungen belegt. Laut Task-Datei
+macht ein Mutant `[ -d "$ROOT/.git" ]` nur die neuen Assertions rot. Das bestätigt, dass der Test die
+Worktree-Eigenheit (`.git` ist eine Datei) wirklich erreicht.
 
 ## Nitpicks (optional)
 
-- [ ] [scripts/project/tests/run-tests.sh:718] Der Test „F1/F3: kein Git-Repo“ prüft nur `SUITE_RAN_51`, nicht den Grund.
-  Damit bleibt offen, welcher Fail-Pfad greift. Laut Kommentar soll es der Merge-Base-Pfad sein. Eine Zeile
-  `assert_contains_286 "$out_51" "Merge-Base mit origin/main nicht bestimmbar" …` isoliert den Pfad (AK9, Lesson
-  „Negativ-Test mit mehreren Fail-Pfaden isolieren“, nothra/tch-gastro-services#214).
-- [ ] [scripts/project/checks/factory-suite-gate.sh:63] Der Wrapper prüft `HEAD` und den Working Tree, nicht die Refs, die
-  gerade gepusht werden. `git push origin anderer-branch` von einem reinen Spec-/Task-Stand aus überspringt die Suite deshalb,
-  obwohl ein Branch mit Code gepusht wird. Das passt zum bisherigen Verhalten aller pre-push-Checks, die ebenfalls den
-  Working Tree prüfen, und CI bleibt fail-closed. Ein Satz im Kopfkommentar würde die Grenze trotzdem sichtbar machen.
-- [ ] [scripts/project/checks/factory-suite-gate.sh:81] `main "$@"` reicht Argumente weiter, die `main` nicht auswertet.
-  `main` genügt, oder `exec bash "$SUITE" "$@"`, falls Argumente zur Suite durchgereicht werden sollen.
-- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:182] D9 nennt `commands.test` = `run-tests.sh`. Das
-  stimmt nach diesem PR nicht mehr (`commands.lint` = ShellCheck war schon vorher überholt). Die Datei gehört der Seite
-  `factory`, und AK7 schließt Änderungen dort in diesem PR aus. Auch `docs/factory/kleinfunde.md` ist Seite `factory`. Der
-  Fund steht deshalb nach der Regel im Dateikopf von `kleinfunde.md` nur hier. Es geht um Doku-Drift in einer Beschreibung
-  des Ist-Stands, unterhalb der Schwelle (Factory-ADR-043). Mitnehmen, wenn ADR-063 ohnehin angefasst wird.
+- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:182] Unverändert aus Iteration 1, bewusst offen.
+  D9 nennt `commands.test` = `run-tests.sh`, der Stand ist nach diesem PR überholt. Die Datei gehört der Seite `factory`
+  und liegt damit außerhalb von AK7. Auch `docs/factory/kleinfunde.md` ist Seite `factory`. Doku-Drift unterhalb der
+  Schwelle (Factory-ADR-043): mitnehmen, wenn ADR-063 ohnehin angefasst wird.
+- [ ] [scripts/project/tests/run-tests.sh:793] Der zweite Worktree-Push prüft weder den Exit-Code noch, ob der Push
+  gelingt. Da der Suite-Stub Exit 0 liefert, ist das Ergebnis vorhersehbar. Ein `assert_exit 0` würde die Symmetrie zu
+  Fall (a) herstellen. Kein Verhaltensrisiko.
+
+Erledigt aus Iteration 1: F1/F3-Grund assertiert (`run-tests.sh:723`), Grenze „HEAD statt gepushte Refs“ im
+Kopfkommentar (`factory-suite-gate.sh:21-22`), `main "$@"` → `main` (`factory-suite-gate.sh:84`).
 
 ## Positives
 
-- **Fail-closed konsequent umgesetzt:** Override, fehlende Merge-Base, `mktemp`-Fehler, jeder einzelne Git-Schritt und
-  eine leere Änderungsmenge führen zum vollen Lauf, jeweils mit eigener Meldung. Kein Pfad liest einen Fehler als Skip.
-- **F3 bricht die Messung, nicht den Input:** Ein `git`-Stub im `PATH` lässt jeden der drei Schritte einzeln scheitern
-  und prüft die schrittspezifische Meldung sowie die Abwesenheit der Skip-Meldung. Das setzt die Lesson
-  nothra/tch-gastro-services#319 direkt um. Das Stub-Muster für den committeten Diff (`--no-renames [0-9a-f]*HEAD`) trifft
-  den Working-Tree-Aufruf nachweislich nicht.
-- **NUL-getrennt von Anfang bis Ende** (`-z` bei allen drei Quellen, `read -d ''`). F4 deckt Leerzeichen und Zeilenumbruch
-  im Pfad ab. Die F5-Muster mit Schrägstrich sind gegen beide Präfix-Varianten getestet.
-- **Exit-Code per `exec` durchgereicht** und mit Rot (Exit 3) und Grün belegt (AK2). Der Wrapper braucht keinen eigenen
-  Exit-Pfad nach der Suite.
-- **AK7 eingehalten:** `ownership-check.sh --list factory` listet keine der geänderten Dateien. `OWNERSHIP.md`,
-  `PROJECT-CONTEXT.md`, `factory.config.yml` und `scripts/project/**` sind Seite `project`. Die neue Datei ist durch den
-  bestehenden Glob `scripts/project/**` gedeckt (AK8), und die Beschreibung der Zeile wurde nachgezogen.
-- **Mitzuziehende Stellen vollständig:** Pin-Test `#431 AK-H1`, der Config-Kommentar und der `PROJECT-CONTEXT.md`-Build-Block
-  sind aktualisiert. `commands.coverage` bleibt bewusst die volle Suite. Die Aussage im Kopfkommentar „`factory-self-test`
-  führt die Suite immer aus“ ist geprüft: `factory-ci.yml` triggert auf jedes `pull_request` ohne Pfadfilter, der Job hat
-  kein `if:`, und ADR-029 führt ihn als Required Check.
-- **Tests nutzen die vorhandenen Helfer** (`mk_feature_repo`, `assert_contains_286`, `assert_absent`, `skip_yq`) und bauen
-  keinen Scaffold parallel auf. Fixture-Commits laufen mit expliziter Git-Identität (Lesson nothra/tch-gastro-services#265).
-- **Architektur-Entscheidung tragfähig:** Option A (Projekt-Wrapper als `commands.test`) deckt beide Aufrufer mit einer
-  Regel ab und lässt ausgelieferte Dateien unberührt. Die Begründung „kein ADR“ ist nachvollziehbar dokumentiert.
+- **Rework zielgenau:** Der neue Test folgt dem Vorschlag aus Iteration 1. Der Einzeiler-Hook prüft den
+  Git-Hook-Kontext, nicht `pre-push.sh`, und das Bare-Remote liefert ein echtes `origin/main` statt `update-ref`.
+  Zusätzlich ist der Mutationsbeleg in der Task-Datei dokumentiert, einschließlich des überlebenden Mutanten
+  `--git-dir="$ROOT/.git"` und der Begründung, warum er kein Bruch ist.
+- **Test-Hygiene:** `push_51` wird nach Gebrauch per `unset -f` entfernt, das Wegwerf-Verzeichnis gelöscht. Der
+  Override wird per `env -u` aus dem Push-Kontext genommen, damit eine exportierte Variable der aufrufenden Shell den
+  Test nicht verfälscht (vgl. Lesson nothra/tch-gastro-services#262). Fixture-Commits laufen mit expliziter Identität.
+- **Bestehende Helfer wiederverwendet** (`mk_gate_repo_51`, `commit_51`, `SKIP_MSG_51`, `assert_*`), kein paralleler
+  Scaffold.
+- Alle Stärken aus Iteration 1 bleiben bestehen: fail-closed auf jedem Pfad mit eigener Meldung, NUL-Trennung von
+  Anfang bis Ende, F3 bricht die Messung per `git`-Stub, Exit-Code per `exec`, AK7 eingehalten (nur Seite `project`
+  geändert), Mitzieh-Stellen vollständig.
 
 ## Empfehlung
-NEEDS_REWORK
+APPROVED
