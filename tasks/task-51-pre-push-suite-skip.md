@@ -108,6 +108,15 @@ Verworfene Alternativen:
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Iteration 1 (2026-11-09): NEEDS_REWORK – 0 kritisch, 1 wichtig (Wrapper im pre-push-Hook eines Worktrees nicht als
+  Verhalten getestet), 4 Nitpicks. Details: `tasks/review-51.md`.
+- Rework 1 (2026-11-09): W1 behoben – Verhaltenstest im echten pre-push-Hook eines Worktrees (Bare-Remote,
+  `git worktree add`, Einzeiler-Hook über `core.hooksPath`): reiner Task-Commit → Skip, untracked Datei außerhalb →
+  voller Lauf. Mutationsbeleg: eine Repo-Prüfung `[ -d "$ROOT/.git" ]` (im Worktree ist `.git` eine Datei) macht nur
+  die neuen Worktree-Assertions rot, AK1 bleibt grün. Ein Mutant mit `--git-dir="$ROOT/.git"` überlebte – Git löst die
+  `.git`-Datei dort ebenfalls auf, er ist also kein Bruch. Nitpicks: F1/F3-Grund assertiert, Grenze „geprüft wird HEAD,
+  nicht die gepushten Refs“ im Kopfkommentar, `main "$@"` → `main`. Nitpick ADR-063 D9 bleibt offen (Seite `factory`,
+  AK7). Projekt-Suite: 197 grün, 0 rot.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

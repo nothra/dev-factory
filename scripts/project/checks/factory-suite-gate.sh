@@ -17,6 +17,9 @@
 # Umbenennungen zählen mit Quell- und Zielpfad. Im Zweifel läuft die Suite: fehlende Merge-Base, jeder
 # Git-Fehler und eine leere Änderungsmenge führen zum vollen Lauf. FACTORY_FORCE_FULL_SUITE (nicht leer)
 # erzwingt ihn. Die Suite wird per exec gestartet – ihr Exit-Code ist der des Wrappers.
+#
+# Grenze: geprüft wird HEAD samt Working Tree, nicht die Refs, die gerade gepusht werden (wie alle pre-push-Checks).
+# `git push origin anderer-branch` von einem reinen Spec-/Task-Stand aus überspringt die Suite also; CI bleibt fail-closed.
 
 set -uo pipefail
 
@@ -78,4 +81,4 @@ main() {
   exit 0
 }
 
-main "$@"
+main

@@ -720,6 +720,7 @@ d_51="$(mktemp -d)"; mkdir -p "$d_51/scripts/checks/tests"
 printf '#!/usr/bin/env bash\necho SUITE_RAN_51\n' > "$d_51/scripts/checks/tests/run-tests.sh"
 out_51="$(run_gate_51 "$d_51" GIT_CEILING_DIRECTORIES="$(dirname "$d_51")")"
 assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F1/F3: kein Git-Repo → Suite läuft"
+assert_contains_286 "$out_51" "Merge-Base mit origin/main nicht bestimmbar" "#51 F1/F3: kein Git-Repo – es greift der Merge-Base-Pfad"
 rm -rf "$d_51"
 
 # F2: leere Änderungsmenge (HEAD = origin/main) → voller Lauf
@@ -769,6 +770,30 @@ for p_51 in tasks-old/x.md docs/specs-archive/x.md; do
   assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: $p_51" "#51 F5: die Ausgabe nennt $p_51"
   rm -rf "$d_51"
 done
+
+# AK6 (Verhalten): Wrapper im echten pre-push-Hook eines Worktrees – dort exportiert Git GIT_DIR u. a.; der Hook ist ein
+# Einzeiler (geprüft wird der Git-Hook-Kontext, nicht pre-push.sh). Bare-Remote liefert ein echtes origin/main.
+r_51="$(mktemp -d)"; mkdir -p "$r_51/main"; mk_gate_repo_51 "$r_51/main"
+git init -q --bare "$r_51/origin.git"
+git -C "$r_51/main" remote add origin "$r_51/origin.git"
+git -C "$r_51/main" push -q origin main && git -C "$r_51/main" fetch -q origin
+mkdir -p "$r_51/hooks"
+printf '#!/usr/bin/env bash\nFACTORY_DIR="$PWD" exec bash "%s"\n' "$GATE_51" > "$r_51/hooks/pre-push"; chmod +x "$r_51/hooks/pre-push"
+git -C "$r_51/main" config core.hooksPath "$r_51/hooks"
+git -C "$r_51/main" worktree add -q -b feature/51-wt "$r_51/wt"
+wt_51="$r_51/wt"
+push_51() { (cd "$wt_51" && env -u FACTORY_FORCE_FULL_SUITE git push origin feature/51-wt 2>&1); }
+printf 't\n' > "$wt_51/tasks/task-wt.md"; commit_51 "$wt_51" "wt spec"
+out_51="$(push_51)"; rc_51=$?
+assert_exit 0 "$rc_51" "#51 AK6: Push eines reinen Task-Commits aus einem Worktree gelingt"
+assert_contains_286 "$out_51" "$SKIP_MSG_51" "#51 AK6: pre-push-Hook im Worktree → Skip-Meldung"
+assert_absent "$out_51" SUITE_RAN_51 "#51 AK6: pre-push-Hook im Worktree → die Suite startet nicht"
+printf 'u\n' > "$wt_51/neu-wt.txt"; printf 't2\n' > "$wt_51/tasks/task-wt2.md"; git -C "$wt_51" add tasks
+git -C "$wt_51" -c user.email=t@t.com -c user.name=t commit -q -m "wt spec 2"
+out_51="$(push_51)"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK6: untracked Datei außerhalb im Worktree → Suite läuft im Hook"
+assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: neu-wt.txt" "#51 AK6: Hook im Worktree – Grund ist die Datei außerhalb"
+unset -f push_51; rm -rf "$r_51"
 
 # AK6: pre-push.sh und run-pipeline.sh lösen commands.test über dieselbe gate_command-Funktion auf → beide erhalten den Wrapper
 if [ "$HAS_YQ" = 1 ]; then
