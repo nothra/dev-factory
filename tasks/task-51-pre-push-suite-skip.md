@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -119,6 +119,13 @@ Verworfene Alternativen:
   AK7). Projekt-Suite: 197 grün, 0 rot.
 - Iteration 2 (2026-11-09): APPROVED – 0 kritisch, 0 wichtig, 2 Nitpicks (ADR-063 D9 bewusst offen; Exit-Code des
   zweiten Worktree-Pushs nicht assertiert). Details: `tasks/review-51.md`.
+
+## Test-Notizen
+<!-- /test, 2026-11-09 -->
+- AK1–AK9 und F1–F5 sind durch Tests belegt (Block `#51` in `scripts/project/tests/run-tests.sh`). Die Suite hat keine
+  Coverage-Messung (Bash); Zeilen des Wrappers sind durch die Szenarien je `run_full_suite`-Grund abgedeckt.
+- Lücke aus Review-Iteration 2 geschlossen: Exit-Code des zweiten Worktree-Pushs wird assertiert.
+- Projekt-Suite: 198 grün, 0 rot. Kein Produktionscode geändert.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

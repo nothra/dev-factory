@@ -790,7 +790,8 @@ assert_contains_286 "$out_51" "$SKIP_MSG_51" "#51 AK6: pre-push-Hook im Worktree
 assert_absent "$out_51" SUITE_RAN_51 "#51 AK6: pre-push-Hook im Worktree → die Suite startet nicht"
 printf 'u\n' > "$wt_51/neu-wt.txt"; printf 't2\n' > "$wt_51/tasks/task-wt2.md"; git -C "$wt_51" add tasks
 git -C "$wt_51" -c user.email=t@t.com -c user.name=t commit -q -m "wt spec 2"
-out_51="$(push_51)"
+out_51="$(push_51)"; rc_51=$?
+assert_exit 0 "$rc_51" "#51 AK6: Push mit grüner Suite-Attrappe im Worktree-Hook gelingt (Exit der Suite durchgereicht)"
 assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK6: untracked Datei außerhalb im Worktree → Suite läuft im Hook"
 assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: neu-wt.txt" "#51 AK6: Hook im Worktree – Grund ist die Datei außerhalb"
 unset -f push_51; rm -rf "$r_51"
