@@ -8,7 +8,9 @@
 # ── Knöpfe: commands.* ───────────────────────────────────────────────────────
 # Die Gate-Kommandos des Factory-Repos. Es gibt weder pnpm noch Node noch eine Datenbank:
 #   lint      Syntaxprüfung `bash -n` über alle getrackten Shell-Skripte (ShellCheck folgt als Issue).
-#   test      Self-Test-Suite der Factory.
+#   test      Self-Test-Suite der Factory über den Wrapper scripts/project/checks/factory-suite-gate.sh: er
+#             überspringt die Suite, wenn der Branch nur tasks/ und docs/specs/ ändert (Factory-Issue #51;
+#             voller Lauf erzwingbar per FACTORY_FORCE_FULL_SUITE=1). CI ruft die Suite direkt auf.
 #   typecheck Shell kennt keinen Typecheck – die Syntaxprüfung steht stellvertretend, damit das
 #             Pflicht-Kommando des pre-push-Gates gesetzt ist.
 #   coverage  Eine Abdeckungsmessung gibt es nicht – die Self-Test-Suite steht stellvertretend
@@ -18,7 +20,7 @@
 # Env-Overrides FACTORY_*_COMMAND haben Vorrang. CI liest lint aus ci.yml (gleicher Wortlaut).
 commands:
   lint: "git ls-files -z '*.sh' | xargs -0 -n1 bash -n"
-  test: "bash scripts/checks/tests/run-tests.sh"
+  test: "bash scripts/project/checks/factory-suite-gate.sh"
   typecheck: "git ls-files -z '*.sh' | xargs -0 -n1 bash -n"
   format: ""
   coverage: "bash scripts/checks/tests/run-tests.sh"

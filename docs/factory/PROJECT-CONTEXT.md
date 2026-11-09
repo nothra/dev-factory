@@ -30,7 +30,8 @@
 ## Build, Test, Lint
 
 ```bash
-bash scripts/checks/tests/run-tests.sh                 # ausgelieferte Self-Test-Suite (commands.test)
+bash scripts/checks/tests/run-tests.sh                 # ausgelieferte Self-Test-Suite
+bash scripts/project/checks/factory-suite-gate.sh      # commands.test: Suite, außer bei reinem tasks/-/docs/specs/-Diff
 bash scripts/project/tests/run-tests.sh                # Projekt-Suite: Prüfungen, die dieses Repo voraussetzen
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n          # Syntaxprüfung (commands.lint)
 bash scripts/install-hooks.sh                          # Git-Hooks einmalig installieren

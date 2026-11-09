@@ -1,7 +1,7 @@
 # Task 51: pre-push-suite-skip
 
 ## Status
-- [ ] In Bearbeitung
+- [x] In Bearbeitung
 - [ ] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
@@ -18,16 +18,16 @@ Spec: `docs/specs/spec-51-pre-push-suite-skip.md`
 
 ## Akzeptanzkriterien
 <!-- Von /requirements befüllt – Volltext in der Spec -->
-- [ ] AK1 – Skip bei nur `tasks/`/`docs/specs/`, Exit 0, Meldung mit Grund
-- [ ] AK2 – Voller Lauf bei anderer Datei, Exit-Code durchgereicht
-- [ ] AK3 – Uncommittete/untracked Dateien zählen mit
-- [ ] AK4 – Umbenennung über die Pfadgrenze → voller Lauf
-- [ ] AK5 – Override-Env erzwingt vollen Lauf, Meldung nennt Override
-- [ ] AK6 – Gleiches Verhalten für pre-push und `run-pipeline.sh`
-- [ ] AK7 – Keine Änderung an Dateien der Seite `factory`
-- [ ] AK8 – Ownership-Zeile (Seite `project`) für neue Dateien, Check grün
-- [ ] AK9 – Tests in der Projekt-Suite für AK1–AK5 und F1–F3
-- [ ] Fehlerszenarien F1–F5 (fail-closed, Sonderzeichen, Präfix-Verwechslung) abgedeckt
+- [x] AK1 – Skip bei nur `tasks/`/`docs/specs/`, Exit 0, Meldung mit Grund
+- [x] AK2 – Voller Lauf bei anderer Datei, Exit-Code durchgereicht
+- [x] AK3 – Uncommittete/untracked Dateien zählen mit
+- [x] AK4 – Umbenennung über die Pfadgrenze → voller Lauf
+- [x] AK5 – Override-Env erzwingt vollen Lauf, Meldung nennt Override
+- [x] AK6 – Gleiches Verhalten für pre-push und `run-pipeline.sh`
+- [x] AK7 – Keine Änderung an Dateien der Seite `factory`
+- [x] AK8 – Ownership-Zeile (Seite `project`) für neue Dateien, Check grün
+- [x] AK9 – Tests in der Projekt-Suite für AK1–AK5 und F1–F3
+- [x] Fehlerszenarien F1–F5 (fail-closed, Sonderzeichen, Präfix-Verwechslung) abgedeckt
 
 ## Technische Notizen
 <!-- /architecture, 2026-11-09 -->
@@ -89,6 +89,19 @@ Verworfene Alternativen:
 - **Unberührt:** Die ausgelieferte Suite stubbt `FACTORY_TEST_COMMAND=true` selbst
   (`run-tests.sh:84`) und ist vom neuen Wert nicht betroffen; CI ruft die Suite direkt auf
   (`factory-ci.yml:112`).
+
+### Umsetzung (`/implement`, 2026-11-09)
+
+- Wrapper `scripts/project/checks/factory-suite-gate.sh`, `commands.test` umgestellt; nachgezogen: Pin-Test
+  `#431 AK-H1`, `factory.config.yml`-Kommentar, `PROJECT-CONTEXT.md` (Build-Block) und die Beschreibung der
+  `scripts/project/**`-Zeile in `OWNERSHIP.md` (der Glob deckt die neue Datei bereits ab).
+- Tests: Block `#51` in `scripts/project/tests/run-tests.sh` (Wegwerf-Repos mit Suite-Stub, `origin/main` per
+  `update-ref`, kein Remote). F3 bricht die **Messung** per `git`-Stub im `PATH`, je Schritt einzeln (committeter
+  diff, Working-Tree-diff, ls-files), und prüft die schrittspezifische Meldung.
+- Mutationsbeleg (Wegwerf-Sonde, löscht sich selbst): ohne Schrägstrich im Muster → F5 rot; ohne `--no-renames` →
+  AK4 rot; ohne ls-files → AK3 rot; ohne Leer-Prüfung → F2 rot; ohne NUL-Trennung → AK2/AK3 rot.
+- AK7: geändert sind nur Dateien der Seite `project` (`factory.config.yml`, `PROJECT-CONTEXT.md`, `OWNERSHIP.md`,
+  `scripts/project/**`, `tasks/`).
 
 ## Offene Fragen
 - [x] Q3: Projekt-ADR nötig? → Nein, siehe Technische Notizen (`/architecture`, 2026-11-09)

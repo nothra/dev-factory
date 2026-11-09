@@ -425,8 +425,9 @@ fi
 if [ "$HAS_YQ" = 1 ]; then
   # Die Werte des Factory-Repos (ADR-063 D9): Syntaxprüfung per `bash -n`, Self-Test-Suite, kein install, kein pnpm.
   cfg_431="$FACTORY_ROOT/factory.config.yml"
-  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/checks/tests/run-tests.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep -v '^[[:space:]]*#' "$cfg_431" | grep -q pnpm; echo $?)" \
-    "#431 AK-H1: commands.* tragen die Werte des Factory-Repos (bash -n, Self-Test-Suite, kein install, kein pnpm)"
+  # commands.test ist seit Factory-Issue #51 der Suite-Gate-Wrapper (überspringt die Suite bei reinem Spec-/Task-Diff).
+  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/project/checks/factory-suite-gate.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep -v '^[[:space:]]*#' "$cfg_431" | grep -q pnpm; echo $?)" \
+    "#431 AK-H1: commands.* tragen die Werte des Factory-Repos (bash -n, Suite-Gate-Wrapper, kein install, kein pnpm)"
 else
   skip_yq "#431 AK-H1 Werte"
 fi
@@ -622,6 +623,164 @@ if [ "$HAS_YQ" = 1 ]; then
 else
   skip_yq "#28 AK5: Label-Drift-Guard gegen die echte PROJECT-CONTEXT.md"
 fi
+
+# ─── Factory-Issue #51: Suite-Gate – ausgelieferte Suite bei reinem Spec-/Task-Diff überspringen ───
+# Der Wrapper läuft gegen Wegwerf-Repos (FACTORY_DIR), in denen ein Stub am Pfad der ausgelieferten Suite liegt:
+# SUITE_RAN_51 belegt den Start, STUB_RC_51 steuert ihren Exit-Code. Kein echter Suite-Lauf in der Projekt-Suite.
+echo ""
+echo "#51 Suite-Gate (Skip bei reinem Spec-/Task-Diff):"
+GATE_51="$FACTORY_ROOT/scripts/project/checks/factory-suite-gate.sh"
+REAL_GIT_51="$(command -v git)"
+SKIP_MSG_51='nur Spec-/Task-Dateien geändert'
+commit_51() { git -C "$1" add -A && git -C "$1" -c user.email=t@t.com -c user.name=t commit -q -m "$2"; }
+# mk_gate_repo_51 <dir> – main mit Suite-Stub, src.txt, tasks/old.md und .gitignore (*.log); origin/main als Ref
+# auf main (kein Remote nötig); danach Feature-Branch ohne eigene Änderungen.
+mk_gate_repo_51() {
+  local d="$1"
+  mk_feature_repo "$d" main
+  mkdir -p "$d/scripts/checks/tests" "$d/tasks"
+  printf '#!/usr/bin/env bash\necho SUITE_RAN_51\nexit "${STUB_RC_51:-0}"\n' > "$d/scripts/checks/tests/run-tests.sh"
+  printf 'x\n' > "$d/src.txt"; printf 'alt\n' > "$d/tasks/old.md"; printf '*.log\n' > "$d/.gitignore"
+  commit_51 "$d" base
+  git -C "$d" update-ref refs/remotes/origin/main HEAD
+  git -C "$d" checkout -q -b feature/51-fixture
+}
+# mk_spec_only_51 <dir> – Repo wie oben plus ein Commit nur unter tasks/ und docs/specs/ (Ausgangslage AK1)
+mk_spec_only_51() {
+  mk_gate_repo_51 "$1"
+  mkdir -p "$1/docs/specs"; printf 't\n' > "$1/tasks/task-1.md"; printf 's\n' > "$1/docs/specs/spec-1.md"
+  commit_51 "$1" spec
+}
+# run_gate_51 <dir> [VAR=wert …] – Wrapper gegen das Wegwerf-Repo; Override nur, wenn der Test ihn übergibt
+run_gate_51() { local d="$1"; shift; (cd "$d" && env -u FACTORY_FORCE_FULL_SUITE FACTORY_DIR="$d" "$@" bash "$GATE_51" 2>&1); }
+
+# AK1: nur tasks/ + docs/specs/ → kein Suite-Start, Exit 0, Grund in der Ausgabe
+d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
+out_51="$(run_gate_51 "$d_51")"; rc_51=$?
+assert_exit 0 "$rc_51" "#51 AK1: reiner Spec-/Task-Diff → Exit 0"
+assert_absent "$out_51" SUITE_RAN_51 "#51 AK1: die ausgelieferte Suite startet nicht"
+assert_contains_286 "$out_51" "übersprungen" "#51 AK1: die Ausgabe nennt den Skip"
+assert_contains_286 "$out_51" "$SKIP_MSG_51" "#51 AK1: die Ausgabe nennt den Grund (nur Spec-/Task-Dateien)"
+# Gegenprobe: ignorierte Dateien zählen nicht (--exclude-standard) – Skip bleibt
+printf 'l\n' > "$d_51/debug.log"
+out_51="$(run_gate_51 "$d_51")"
+assert_absent "$out_51" SUITE_RAN_51 "#51 AK3: ignorierte Datei (*.log) zählt nicht zur Änderungsmenge – Skip bleibt"
+
+# AK5: Override erzwingt den vollen Lauf trotz AK1-Lage
+out_51="$(run_gate_51 "$d_51" FACTORY_FORCE_FULL_SUITE=1)"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK5: FACTORY_FORCE_FULL_SUITE=1 → Suite läuft"
+assert_contains_286 "$out_51" "Override FACTORY_FORCE_FULL_SUITE" "#51 AK5: die Ausgabe nennt den Override als Grund"
+rm -rf "$d_51"
+
+# AK2: Datei außerhalb → voller Lauf, Exit-Code der Suite unverändert (grün und rot)
+d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
+printf 'y\n' > "$d_51/code.sh"; commit_51 "$d_51" code
+out_51="$(run_gate_51 "$d_51")"; rc_51=$?
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK2: Datei außerhalb der erlaubten Pfade → Suite läuft"
+assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: code.sh" "#51 AK2: die Ausgabe nennt die Datei außerhalb als Grund"
+assert_exit 0 "$rc_51" "#51 AK2: grüne Suite → Exit 0 durchgereicht"
+out_51="$(run_gate_51 "$d_51" STUB_RC_51=3)"; rc_51=$?
+assert_exit 3 "$rc_51" "#51 AK2: rote Suite (Exit 3) → Exit 3 unverändert durchgereicht"
+rm -rf "$d_51"
+
+# AK3: uncommittet (unstaged, staged) und untracked außerhalb zählen mit
+for case_51 in untracked unstaged staged; do
+  d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
+  case "$case_51" in
+    untracked) printf 'n\n' > "$d_51/neu.txt" ;;
+    unstaged)  printf 'geändert\n' > "$d_51/src.txt" ;;
+    staged)    printf 'geändert\n' > "$d_51/src.txt"; git -C "$d_51" add src.txt ;;
+  esac
+  out_51="$(run_gate_51 "$d_51")"
+  assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK3: $case_51 Datei außerhalb bei committet reinem Spec-/Task-Diff → Suite läuft"
+  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/:" "#51 AK3: $case_51 – Grund ist die Datei außerhalb"
+  rm -rf "$d_51"
+done
+
+# AK4: Umbenennung über die Pfadgrenze, in beide Richtungen
+for case_51 in hinein heraus; do
+  d_51="$(mktemp -d)"; mk_gate_repo_51 "$d_51"
+  if [ "$case_51" = hinein ]; then git -C "$d_51" mv src.txt tasks/src.txt; else git -C "$d_51" mv tasks/old.md old.md; fi
+  commit_51 "$d_51" "mv $case_51"
+  out_51="$(run_gate_51 "$d_51")"
+  assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK4: Umbenennung $case_51 (tasks/ ↔ außerhalb) → Suite läuft"
+  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/:" "#51 AK4: Umbenennung $case_51 – Grund ist der Pfad außerhalb"
+  rm -rf "$d_51"
+done
+
+# F1: origin/main fehlt → voller Lauf mit Grund
+d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
+git -C "$d_51" update-ref -d refs/remotes/origin/main
+out_51="$(run_gate_51 "$d_51")"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F1: origin/main fehlt → Suite läuft"
+assert_contains_286 "$out_51" "Merge-Base mit origin/main nicht bestimmbar" "#51 F1: die Ausgabe nennt die fehlende Merge-Base"
+rm -rf "$d_51"
+# F1/F3: gar kein Git-Repo → voller Lauf (Merge-Base-Pfad greift zuerst)
+d_51="$(mktemp -d)"; mkdir -p "$d_51/scripts/checks/tests"
+printf '#!/usr/bin/env bash\necho SUITE_RAN_51\n' > "$d_51/scripts/checks/tests/run-tests.sh"
+out_51="$(run_gate_51 "$d_51" GIT_CEILING_DIRECTORIES="$(dirname "$d_51")")"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F1/F3: kein Git-Repo → Suite läuft"
+rm -rf "$d_51"
+
+# F2: leere Änderungsmenge (HEAD = origin/main) → voller Lauf
+d_51="$(mktemp -d)"; mk_gate_repo_51 "$d_51"
+out_51="$(run_gate_51 "$d_51")"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F2: leere Änderungsmenge → Suite läuft"
+assert_contains_286 "$out_51" "leere Änderungsmenge" "#51 F2: die Ausgabe nennt die leere Änderungsmenge"
+rm -rf "$d_51"
+
+# F3: jeder Git-Befehl der Änderungsmenge scheitert einzeln (Stub im PATH bricht die Messung, nicht den Input)
+# Der Stub scheitert, wenn die Argumentzeile auf das Glob-Muster FAIL_GIT_51 passt, sonst ruft er das echte git.
+# Je Muster genau ein Aufruf: committeter diff (Basis-SHA hinter --no-renames), Working-Tree-diff (HEAD dahinter),
+# ls-files (--others) – die Meldung muss den jeweiligen Schritt nennen, nie einen Skip.
+bin_51="$(mktemp -d)"
+cat > "$bin_51/git" <<EOF
+#!/usr/bin/env bash
+case "\$*" in *\$FAIL_GIT_51*) echo "git-stub: scheitert" >&2; exit 128 ;; esac
+exec "$REAL_GIT_51" "\$@"
+EOF
+chmod +x "$bin_51/git"
+for case_51 in "--no-renames [0-9a-f]*HEAD|git diff (committet)" "--no-renames HEAD|git diff (Working Tree)" "--others|git ls-files (untracked)"; do
+  fail_51="${case_51%%|*}"; step_51="${case_51#*|}"
+  d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
+  out_51="$(run_gate_51 "$d_51" PATH="$bin_51:$PATH" FAIL_GIT_51="$fail_51")"
+  assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F3: $step_51 scheitert → Suite läuft"
+  assert_contains_286 "$out_51" "Git-Fehler bei $step_51" "#51 F3: die Ausgabe nennt den gescheiterten Schritt ($step_51)"
+  assert_absent "$out_51" "übersprungen" "#51 F3: $step_51 – ein Fehler wird nie als Skip gelesen"
+  rm -rf "$d_51"
+done
+rm -rf "$bin_51"
+
+# F4: Sonderzeichen – Zeilenumbruch/Leerzeichen in tasks/ bleibt erlaubt, Leerzeichen-Pfad außerhalb nicht
+d_51="$(mktemp -d)"; mk_gate_repo_51 "$d_51"
+printf 't\n' > "$d_51/tasks/a b"$'\n'"c.md"; commit_51 "$d_51" sonderzeichen
+out_51="$(run_gate_51 "$d_51")"
+assert_absent "$out_51" SUITE_RAN_51 "#51 F4: Datei mit Leerzeichen und Zeilenumbruch unter tasks/ → Skip (NUL-getrennt gelesen)"
+printf 'x\n' > "$d_51/my tasks"; out_51="$(run_gate_51 "$d_51")"
+assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F4: Datei 'my tasks' außerhalb → Suite läuft"
+rm -rf "$d_51"
+
+# F5: Präfix-Verwechslung – tasks-old/ und docs/specs-archive/ sind nicht erlaubt
+for p_51 in tasks-old/x.md docs/specs-archive/x.md; do
+  d_51="$(mktemp -d)"; mk_gate_repo_51 "$d_51"
+  mkdir -p "$d_51/$(dirname "$p_51")"; printf 'x\n' > "$d_51/$p_51"; commit_51 "$d_51" praefix
+  out_51="$(run_gate_51 "$d_51")"
+  assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F5: $p_51 zählt nicht als erlaubt → Suite läuft"
+  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: $p_51" "#51 F5: die Ausgabe nennt $p_51"
+  rm -rf "$d_51"
+done
+
+# AK6: pre-push.sh und run-pipeline.sh lösen commands.test über dieselbe gate_command-Funktion auf → beide erhalten den Wrapper
+if [ "$HAS_YQ" = 1 ]; then
+  cmd_51="$(env -u FACTORY_TEST_COMMAND bash -c 'FACTORY_DIR="$1"; source "$1/scripts/lib/gate-config.sh"; gate_command test required' _ "$FACTORY_ROOT")"
+  assert_true "$([ "$cmd_51" = "bash scripts/project/checks/factory-suite-gate.sh" ]; echo $?)" "#51 AK6: gate_command test liefert den Suite-Gate-Wrapper (Ist: $cmd_51)"
+  assert_true "$(grep -qF -- 'TEST_COMMAND="$(gate_command test required)"' "$CHECKS_DIR/pre-push.sh"; echo $?)" "#51 AK6: pre-push.sh löst das Test-Kommando über gate_command auf"
+  assert_true "$(grep -qF -- 'TEST_CMD="$(gate_command test required)"' "$SCRIPTS_DIR/run-pipeline.sh"; echo $?)" "#51 AK6: run-pipeline.sh löst das Test-Kommando über gate_command auf"
+else
+  skip_yq "#51 AK6"
+fi
+# Der Wrapper startet die ausgelieferte Suite per exec (Exit-Code unverändert, AK2)
+assert_true "$(grep -qF -- 'exec bash "$SUITE"' "$GATE_51"; echo $?)" "#51 AK2: der Wrapper startet die Suite per exec"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary
