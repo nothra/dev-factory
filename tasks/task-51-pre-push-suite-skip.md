@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -126,6 +126,12 @@ Verworfene Alternativen:
   Coverage-Messung (Bash); Zeilen des Wrappers sind durch die Szenarien je `run_full_suite`-Grund abgedeckt.
 - Lücke aus Review-Iteration 2 geschlossen: Exit-Code des zweiten Worktree-Pushs wird assertiert.
 - Projekt-Suite: 198 grün, 0 rot. Kein Produktionscode geändert.
+
+## Refactoring-Notizen
+<!-- /refactor, 2026-11-10 -->
+- Wrapper `factory-suite-gate.sh` geprüft: Funktionen klein und einstufig, Early Returns, WHY-Kommentare – keine Änderung.
+- Tests: das fünfmal wiederholte Meldungs-Literal `außerhalb von tasks/ und docs/specs/:` in Block `#51` ist jetzt
+  die Konstante `OUTSIDE_MSG_51` (analog `SKIP_MSG_51`). Kein neues Verhalten; Projekt-Suite 198 grün, 0 rot.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

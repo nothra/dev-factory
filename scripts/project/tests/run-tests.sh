@@ -632,6 +632,7 @@ echo "#51 Suite-Gate (Skip bei reinem Spec-/Task-Diff):"
 GATE_51="$FACTORY_ROOT/scripts/project/checks/factory-suite-gate.sh"
 REAL_GIT_51="$(command -v git)"
 SKIP_MSG_51='nur Spec-/Task-Dateien geändert'
+OUTSIDE_MSG_51='außerhalb von tasks/ und docs/specs/:'
 commit_51() { git -C "$1" add -A && git -C "$1" -c user.email=t@t.com -c user.name=t commit -q -m "$2"; }
 # mk_gate_repo_51 <dir> – main mit Suite-Stub, src.txt, tasks/old.md und .gitignore (*.log); origin/main als Ref
 # auf main (kein Remote nötig); danach Feature-Branch ohne eigene Änderungen.
@@ -677,7 +678,7 @@ d_51="$(mktemp -d)"; mk_spec_only_51 "$d_51"
 printf 'y\n' > "$d_51/code.sh"; commit_51 "$d_51" code
 out_51="$(run_gate_51 "$d_51")"; rc_51=$?
 assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK2: Datei außerhalb der erlaubten Pfade → Suite läuft"
-assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: code.sh" "#51 AK2: die Ausgabe nennt die Datei außerhalb als Grund"
+assert_contains_286 "$out_51" "$OUTSIDE_MSG_51 code.sh" "#51 AK2: die Ausgabe nennt die Datei außerhalb als Grund"
 assert_exit 0 "$rc_51" "#51 AK2: grüne Suite → Exit 0 durchgereicht"
 out_51="$(run_gate_51 "$d_51" STUB_RC_51=3)"; rc_51=$?
 assert_exit 3 "$rc_51" "#51 AK2: rote Suite (Exit 3) → Exit 3 unverändert durchgereicht"
@@ -693,7 +694,7 @@ for case_51 in untracked unstaged staged; do
   esac
   out_51="$(run_gate_51 "$d_51")"
   assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK3: $case_51 Datei außerhalb bei committet reinem Spec-/Task-Diff → Suite läuft"
-  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/:" "#51 AK3: $case_51 – Grund ist die Datei außerhalb"
+  assert_contains_286 "$out_51" "$OUTSIDE_MSG_51" "#51 AK3: $case_51 – Grund ist die Datei außerhalb"
   rm -rf "$d_51"
 done
 
@@ -704,7 +705,7 @@ for case_51 in hinein heraus; do
   commit_51 "$d_51" "mv $case_51"
   out_51="$(run_gate_51 "$d_51")"
   assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK4: Umbenennung $case_51 (tasks/ ↔ außerhalb) → Suite läuft"
-  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/:" "#51 AK4: Umbenennung $case_51 – Grund ist der Pfad außerhalb"
+  assert_contains_286 "$out_51" "$OUTSIDE_MSG_51" "#51 AK4: Umbenennung $case_51 – Grund ist der Pfad außerhalb"
   rm -rf "$d_51"
 done
 
@@ -767,7 +768,7 @@ for p_51 in tasks-old/x.md docs/specs-archive/x.md; do
   mkdir -p "$d_51/$(dirname "$p_51")"; printf 'x\n' > "$d_51/$p_51"; commit_51 "$d_51" praefix
   out_51="$(run_gate_51 "$d_51")"
   assert_contains_286 "$out_51" SUITE_RAN_51 "#51 F5: $p_51 zählt nicht als erlaubt → Suite läuft"
-  assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: $p_51" "#51 F5: die Ausgabe nennt $p_51"
+  assert_contains_286 "$out_51" "$OUTSIDE_MSG_51 $p_51" "#51 F5: die Ausgabe nennt $p_51"
   rm -rf "$d_51"
 done
 
@@ -793,7 +794,7 @@ git -C "$wt_51" -c user.email=t@t.com -c user.name=t commit -q -m "wt spec 2"
 out_51="$(push_51)"; rc_51=$?
 assert_exit 0 "$rc_51" "#51 AK6: Push mit grüner Suite-Attrappe im Worktree-Hook gelingt (Exit der Suite durchgereicht)"
 assert_contains_286 "$out_51" SUITE_RAN_51 "#51 AK6: untracked Datei außerhalb im Worktree → Suite läuft im Hook"
-assert_contains_286 "$out_51" "außerhalb von tasks/ und docs/specs/: neu-wt.txt" "#51 AK6: Hook im Worktree – Grund ist die Datei außerhalb"
+assert_contains_286 "$out_51" "$OUTSIDE_MSG_51 neu-wt.txt" "#51 AK6: Hook im Worktree – Grund ist die Datei außerhalb"
 unset -f push_51; rm -rf "$r_51"
 
 # AK6: pre-push.sh und run-pipeline.sh lösen commands.test über dieselbe gate_command-Funktion auf → beide erhalten den Wrapper
