@@ -100,6 +100,14 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
   bei ~300–350 s (Kopf #23 vorher bei 297–356 s), also über 240 s. Das ist das Restrisiko aus ADR-066 „Konsequenzen":
   Nicht still den Scope erweitert. Entscheidung durch den Menschen nötig (z. B. Folge-Issue für die
   run-pipeline-E2E-Abschnitte oder Zielwert relativ zur Maschine).
+  **Versuch AK3 (2026-11-10, verworfen):** Der größte serielle Block (#334, 81 s, 286 Assertions) wurde probehalber als
+  sechste Gruppe `telemetry-334-tests.sh` mit gemeinsamer Lib ausgelagert (2467 grün, Gruppe allein 83–88 s). Ergebnis:
+  Die Gesamtzeit sank **nicht** (Läufe 398/419 s statt 353 s; die übrigen Abschnitte wurden unter Last langsamer, z. B.
+  #310 34→51 s, #312 31→49 s). Ursache: Die Suite nutzt im Mittel nur 1,3 Kerne (`time`: 186 s user + 335 s system über
+  398 s, 131 % CPU) bei Load 8–12 – die Systemzeit (Prozess-Starts, `fork`/`exec`) dominiert und skaliert auf diesem Mac
+  nicht mit zusätzlichen Gruppen. Weitere Auslagerung bringt hier nichts; ein Hebel wäre nur weniger Prozess-Starts
+  je Assertion (Umbau tausender Testzeilen, außerhalb des Scopes). Der Versuch wurde zurückgenommen (kein gemessener
+  Nutzen). Entscheidung weiter beim Menschen: AK3 als Folge-Issue (Prozess-Starts senken) oder Zielwert je Maschine.
 - **AK4 ✓:** CI-Job `factory-self-test` (`ubuntu-latest`, Dauer laut `gh pr checks`, inkl. Setup): vorher 3 min 14 s
   (PR #53 = Stand von `main` 8676a44, derselbe Tag), nachher **1 min 44 s** (PR #54 @ 864b213), grün. Einschränkung:
   `gh run view`/`gh api` waren in dieser Session nicht freigegeben, deshalb gilt die Job-Dauer statt der Dauer des
