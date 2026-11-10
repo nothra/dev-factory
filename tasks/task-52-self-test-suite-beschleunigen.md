@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -188,6 +188,10 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
     (W1/W2/W5: F5 in fünf Teile geteilt, EXIT-Pfad, kill-Trace mit Positivkontrolle und Vorbedingung); alle 2444 alten
     unverändert. Gruppendauern in diesem Lauf (Rechner parallel ausgelastet, keine Median-Messung): 23 130 s, 24a 127 s,
     24b 164 s, 37a 184 s – die AK2-Messung (Median 136 s) wurde nicht wiederholt, die Änderungen betreffen die Gruppen nicht.
+
+- Iteration 2 (`/review`, 2026-11-10): **APPROVED** – 0 kritisch, 0 wichtig, 5 Nitpicks, siehe
+  [`review-52.md`](review-52.md). W1–W7 bestätigt, W6 bleibt menschlicher Schritt vor dem Merge (Q7/Q8, im PR-Body genannt).
+  Nitpick: `test_groups_cleanup` ist nicht ganz idempotent (zweiter Aufruf nach `.rc`-Gruppe träfe die freie PID).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

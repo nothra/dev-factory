@@ -1,8 +1,31 @@
 # Review: Task 52
 
-Iteration 1 · Stand `36090e4` · Diff `origin/main...HEAD` · drei Runden (Logik, Code-Qualität, Architektur), parallel als
-Lese-Agenten gefahren, Kritisch-/Wichtig-Funde vom Koordinator gegen den Code nachgelesen. Proben im `$TMPDIR` waren in
-dieser Session nicht freigegeben: Aussagen zur Shell-Semantik sind aus dem Code abgeleitet und als solche markiert.
+Iteration 2 · Stand `e8d265a` · Diff `origin/main...HEAD`, Schwerpunkt Rework `36090e4..e8d265a` · drei Runden (Logik,
+Code-Qualität, Architektur) im Koordinator-Kontext. Proben in `$TMPDIR` waren in dieser Session nicht freigegeben. Aussagen
+zur Shell-Semantik sind deshalb aus dem Code abgeleitet und als solche markiert. Gelaufen sind
+`import-context-limit-check.sh` (790 von 1100 Zeilen ✓) und `gh pr view 54`.
+
+**Offen für den Menschen vor dem Merge (kein Rework durch `/implement` möglich):** Entscheidung zu AK3 (Spec Q8) und
+Bestätigung der AK5-Auslegung (Spec Q7). Das war W6 aus Iteration 1. Der PR-Body nennt beides jetzt unter
+„Abweichungen – Entscheidung vor dem Merge nötig“, der PR ist Draft. Damit ist der Agenten-Teil von W6 erledigt.
+
+## Prüfung der Findings aus Iteration 1
+
+- **W1 ✓** `lib/test-groups.sh:103-115`: Es wird nur noch beendet, wenn weder `RCS` noch `.rc` vorliegt. Der Test arbeitet mit
+  kill-Trace (Funktion vor dem Builtin), Vorbedingung `held` und Positivkontrolle `-TERM <wrapper>` bei laufender Gruppe.
+  Die Mutante ist laut Task-Datei rot.
+- **W2 ✓** Die Gruppenliste ist der Glob `TEST_GROUP_FILES_52` und gilt für Start und `SHIPPED_TESTS_28`. Ein leerer Glob
+  bleibt Literal: Das Skript fehlt, die Gruppe endet mit Exit 127 und wird rot. Das ist fail-closed (abgeleitet).
+  `test_groups_on_exit` erzwingt Exit 1 für nie eingesammelte Gruppen. Die Gegenprobe „kein Fehlalarm nach dem Sammeln“
+  liegt vor.
+- **W3 ✓** ADR-066 D2–D5, Konsequenzen und Pflichten künftiger Gruppen sind nachgezogen und decken sich mit dem Code
+  (einzige Zeile, vier Fälle plus EXIT-Fall, `.rc`-Wrapper samt Grund, keine exportierten Variablen).
+- **W4 ✓** Die Spec enthält die AK1-Abweichung, den AK3-Stand, den AK5-Zusatz und Q7/Q8.
+- **W5 ✓** F5 ist in Einzel-Assertions mit Vorbedingung geteilt. D5 prüft auf nicht leeren Pfad. `drive_52`/`drive_bg_52`
+  löschen die Marker vor jedem Lauf. Die allgemeine Ursache (`assert_true ""` = grün) steht als Kleinfund in
+  `docs/factory/kleinfunde.md`.
+- **W6 ✓ (Agenten-Teil)**: siehe oben.
+- **W7 ✓** `testing-standards.md` und der Build/Test-Block in `PROJECT-CONTEXT.md` sind ergänzt. Der @import-Deckel hält.
 
 ## Kritische Findings (müssen behoben werden)
 
@@ -10,96 +33,43 @@ _(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
 
-- [ ] **W1** `scripts/checks/tests/lib/test-groups.sh:98-104` – `test_groups_cleanup` schickt bei Abbruch (Ctrl-C/TERM vor
-  dem Sammeln) `kill -TERM` an **jede** Gruppen-PID mit leerem `TEST_GROUP_RCS`. Vor `test_groups_collect` ist das jede
-  Gruppe, auch eine längst beendete (Gruppen fertig nach ~140 s, Sammeln erst bei ~330 s). bash hat deren Wrapper schon
-  gereapt; die PID ist frei. Die Task-Datei belegt selbst, dass genau diese PIDs im Lauf wiederverwendet werden
-  (Umsetzung, „Abweichung vom ADR beim Exit-Status"). Folge: Ein Ctrl-C kann SIGTERM an einen fremden Prozess desselben
-  Nutzers schicken (Nachbar-Session, Editor). Fix: nur beenden, wenn `"$TEST_GROUPS_DIR/$i.rc"` fehlt. Regressionstest:
-  Stub-Gruppe fertig, dann TERM an den Treiber, Gruppen-PID durch einen Wächterprozess „besetzt" bzw. per Trace prüfen,
-  dass kein `kill` an eine Gruppe mit `.rc` geht. (Abgeleitet aus Code + dokumentierter PID-Wiederverwendung, kein Repro.)
-- [ ] **W2** `scripts/checks/tests/run-tests.sh:40` (`for group_52 in 23 24a 24b 37a 37b`), `:9074-9078`
-  (`SHIPPED_TESTS_28`), `:9368` (`test_groups_collect`) – Die Gruppenliste steht von Hand an zwei verdrahteten Stellen (dazu
-  in Kommentaren `lib/factory-lock-fixtures.sh:5`, `run-tests.sh:9366`). Kein Guard prüft, dass jede Datei
-  `factory-lock-*-tests.sh` gestartet und in `SHIPPED_TESTS_28` geführt wird. Ein künftiges `…-24c-tests.sh` liefe nie und
-  entginge auch dem Neutralitäts-Guard #28 – still grün. Ebenso fiele ein verlorener `test_groups_collect`-Aufruf nicht auf:
-  `test_groups_cleanup` beim EXIT beendet nicht gesammelte Gruppen kommentarlos, der Exit-Code bleibt 0. Fix: Glob
-  `"$CHECKS_DIR"/tests/factory-lock-*-tests.sh` an beiden Stellen (sortiert in derselben Reihenfolge, auf die 24b/37b ohne
-  eigenen Abschnittskopf bauen) **und** im EXIT-Pfad jede nicht zusammengeführte Gruppe als rote Assertion zählen bzw.
-  `exit 1` erzwingen (D4-Geist: ein fehlendes Teilergebnis ist nie grün). Test mit Stub-Treiber ohne Sammeln.
-- [ ] **W3** `docs/factory/adr/066-self-test-gruppen-parallel.md:73-81` – ADR beschreibt die umgesetzte Mechanik nicht
-  (Lesson nothra/tch-gastro-services#211). D3 sagt „als **letzte Zeile** `RESULT …`", der Code verlangt die **einzige** Zeile
-  (`test-groups.sh:7`, Regex über den ganzen Inhalt). D4 nennt „drei Fälle", der Code hat vier (`test-groups.sh:67-69`:
-  „abgebrochen, kein Exit-Status"). Der Wrapper mit `.rc`-Datei, das Weiterreichen von TERM und der Grund (PID-Wiederverwendung)
-  fehlen ganz; die Task-Datei nennt es selbst „Abweichung vom ADR". Dazu: D2 (`:68`) nennt noch `factory-lock-24-tests.sh`
-  statt 24a/24b; die Regel für künftige Gruppen (`:159-161`) nennt `CHECKS_DIR`/`SCRIPTS_DIR`/`HAS_YQ`/`FACTORY_ROOT` „aus dem
-  Hauptprozess" – keine davon wird exportiert (`run-tests.sh:21`, `:88`), die Gruppen holen `FACTORY_ROOT`/`HAS_YQ` aus den
-  eigenen Libs; ein Shard mit `$CHECKS_DIR` bräche unter `set -u` ab. Gleicher Satz in der Task-Datei (Fallen-Liste). Fix:
-  D3/D4/D2/Konsequenzen nachziehen, Ergebnis AK3 (353 s, Rest der Suite ist der Engpass, #334-Versuch ohne Nutzen) als
-  Satz in „Konsequenzen".
-- [ ] **W4** `docs/specs/spec-52-self-test-suite-beschleunigen.md:61-66, 77-80` gegen Task-Datei AK1/AK5 – Spec-Drift bei
-  zwei abgehakten AK (Lesson nothra/tch-gastro-services#388). **AK5** verlangt „Anzahl gleich"; die Task-Datei hakt ab mit
-  eigener „Auslegung" (2466 = 2444 + 22). Die 22 neuen sind von ADR-066 gefordert und gut begründet, aber die Spec trägt
-  weder Q-Eintrag noch angepassten AK-Wortlaut. **AK1** verlangt die Dauer je Abschnitt auch in CI; belegt ist nur die
-  Job-Gesamtdauer inkl. Setup (`gh run view`/`gh api` nicht freigegeben). Fix: AK5-Wortlaut in Spec und Task-Datei
-  anpassen („alle alten unverändert, neue nur für den neuen Mechanismus, aufgelistet") mit Q-Eintrag; AK1-CI-Teil entweder
-  nachmessen oder als Abweichung in der Spec vermerken und das Häkchen entsprechend setzen.
-- [ ] **W5** `scripts/checks/tests/run-tests.sh` (F5/AK14-Test, ~`:9345-9355`) – kann aus dem falschen Grund grün werden
-  (Lesson Task #37 „Feindcode lief nie", nothra/tch-gastro-services#214). Die Warteschleife gibt nach 100 × 0,1 s ohne
-  Prüfung auf; wurde `slow.pid` nie geschrieben, bleiben `slow_pid_52`/`slow_dir_52` leer bzw. ungesetzt. Mit leeren Werten
-  sind `! kill -0 ""` und `[ ! -e "" ]` wahr; unter `set -u` bricht die Kommandosubstitution ab, liefert leeren Text, und
-  `assert_true` wertet `[[ "" -eq 0 ]]` als grün. Gleiches Muster bei D5 (`:9324`): `[ ! -e "$(cat groups-dir)" ]` ist
-  auch bei leerer/veralteter Datei wahr, `groups-dir` wird zwischen den `drive_52`-Läufen nicht gelöscht. Fix: vorab
-  `[ -s slow.pid ] && [ -n "$slow_pid_52" ]` bzw. `rm -f groups-dir` vor jedem Lauf und `[ -n … ]` assertieren.
-  (Abgeleitet, Repro nicht freigegeben.)
-- [ ] **W6** PR #54 / Issue #52 – Der PR-Body ist nur `Closes #52`. AK3 ist verfehlt und „eskaliert", aber die Eskalation
-  steht nur in der Task-Datei: kein Folge-Issue, kein PR-Kommentar, kein Hinweis im Body. Ein Merge schlösse #52 ohne
-  Entscheidung. Fix (menschlicher Schritt vor dem Merge): Entscheidung zu AK3 treffen (Folge-Issue „Prozess-Starts je
-  Assertion senken" **mit Nummer** in Task-Datei/ADR, oder AK3 anpassen) und im PR-Body die Abweichung nennen.
-- [ ] **W7** `FACTORY_SELF_TEST_SERIAL=1` ist nur in ADR-066, Spec, Task-Datei und Code-Kommentaren dokumentiert, nicht in
-  `docs/factory/guidelines/testing-standards.md`, `docs/factory/OPERATING.md` oder `PROJECT-CONTEXT.md` (Build/Test-Block).
-  ADR-066 D6 nennt den Schalter als Rückfall für ressourcenknappe Runner und Konsumenten – die finden ihn so nicht. Ebenso
-  fehlt die Pflicht für künftige Testgruppen (eigenständig, eigene Vorlage, `test_group_finish`) in `testing-standards.md`.
-  Fix: je ein kurzer Absatz in `testing-standards.md` (+ eine Zeile im Build/Test-Block).
+_(keine)_
 
 ## Nitpicks (optional)
 
-- [ ] `run-tests.sh` (D1-Test, `stub_52 green` mit `sleep 1`) – Überlappung hängt am Timing; unter Load 8–12 (Task-Datei)
-  möglich Falsch-Rot. Deterministischer: `green` wartet mit Timeout auf ein `other.started`-Marker.
-- [ ] `run-tests.sh` (#52-Assertions D4/AK11, D6) – mehrere Sachverhalte je `assert_true` (Lesson
-  nothra/tch-gastro-services#117); bei Rot nicht erkennbar, welcher Teil scheiterte.
-- [ ] `run-tests.sh` (`PREWAIT_52`-Label) – „PID schon gereapt bzw. wiederverwendet": getestet ist nur „gereapt".
-- [ ] `run-tests.sh` – `t_52` doppelt belegt (Zeitdifferenz in F5, Text in der D7-Schleife); „(11 Fälle)" im Label ist
-  handgezählt.
-- [ ] `test-groups.sh:28-30` – TERM-Trap des Wrappers erst nach dem Start der Gruppe; TERM in diesem Fenster ließe die
-  Gruppe verwaist weiterlaufen. Trap vor dem `&` setzen.
-- [ ] `lib/factory-lock-fixtures.sh:45-78, :121` – `factory_lock_setup` prüft nur den Status der letzten `&&`-Kette von
-  `build_template_23`; ein früher gescheiterter Schritt (z. B. `mk_manifest_23` v3.0.0) liefe weiter (F1 nicht dicht).
-  `mk_manifest_23` legt seine Temp-Datei außerhalb von `T23` an (`:33`) – bei TERM bleibt sie liegen (AK14).
-- [ ] Shard-Köpfe (`factory-lock-*-tests.sh:10-16`) – derselbe ~7-Zeilen-Startblock fünfmal; optional ein
-  `factory_lock_group_init [24]`.
-- [ ] Doppelte Leerzeilen `factory-lock-24a-tests.sh:23-24`, `factory-lock-23-tests.sh:450-451`.
-- [ ] Task-Datei AK10/AK11 – „(entfällt ohne Parallelisierung)" ist Rest aus `/requirements`, Parallelisierung ist umgesetzt.
-- [ ] Out of Scope (Schritt B): Konvention „`#<nr>` in Testnamen = Ursprungs-Repo" (`run-tests.sh:16-17`) stimmt für die
-  Factory-Issues nicht mehr → Eintrag in `docs/factory/kleinfunde.md` angelegt.
+- [ ] `scripts/checks/tests/lib/test-groups.sh:100-115` – Der Kommentar nennt `test_groups_cleanup` „idempotent“. Das gilt
+  nicht ganz. Für eine Gruppe mit `.rc` bleibt `TEST_GROUP_RCS[i]` leer, danach wird `TEST_GROUPS_DIR=""` gesetzt. Ein
+  zweiter Aufruf prüft deshalb `[ ! -e "/0.rc" ]` und schickt TERM an die längst freie PID, also genau den W1-Fall.
+  Heute gibt es dafür nur ein schmales Fenster: INT/TERM trifft ein, während `test_groups_on_exit` zwischen `rm -rf` und
+  seinem Ende steht. Alle anderen Pfade rufen das Aufräumen höchstens einmal mit nicht leeren Listen auf (abgeleitet, Probe
+  nicht freigegeben). Fix: Im `.rc`-Zweig `TEST_GROUP_RCS[i]` aus der Datei übernehmen oder am Ende die Listen leeren. Dann
+  wäre die Aussage „idempotent“ wahr. Etwa zwei Zeilen.
+- [ ] `lib/test-groups.sh:103-110` – Eine Gruppe, deren Wrapper per KILL endet (Stub `wrapkill`), hat keine `.rc`. Bricht die
+  Suite danach vor dem Sammeln ab, geht TERM trotzdem an deren freie PID. Das geschieht nur bei abnormem Wrapper-Ende und
+  ist damit sehr selten. Erwähnenswert ist es nur, weil der Kommentar die Garantie allgemein formuliert.
+- [ ] `docs/specs/spec-52-self-test-suite-beschleunigen.md:82-88` – Die AK5-THEN-Klausel sagt weiter „ist die **Anzahl** der
+  Assertions gleich“, der neue Zusatz erlaubt mehr. Lesbarer wäre die THEN-Klausel selbst umformuliert („alle alten
+  Assertions unverändert und in derselben Reihenfolge …“). Erledigt sich mit der Bestätigung von Q7.
+- [ ] `run-tests.sh:40-45`, `testing-standards.md:78` – Der Mechanismus „parallele Testgruppe“ hängt am Namensmuster
+  `factory-lock-*-tests.sh`. Eine künftige Gruppe aus einem anderen Bereich (wie der verworfene Versuch
+  `telemetry-334-tests.sh`) müsste falsch benannt werden oder einen zweiten Glob bekommen. Erst bei Bedarf auf ein
+  neutrales Muster umstellen (etwa `group-*-tests.sh`). Heute ist das kein Defekt, die Doku beschreibt den Ist-Stand richtig.
+- [ ] Aus Iteration 1 bewusst offen gelassen und weiter optional: Mehrfach-Sachverhalte in D4-Assertions, F1-Dichte von
+  `build_template_23`, gemeinsamer Shard-Startblock, doppelte Leerzeilen.
 
 ## Positives
 
-- Ergebnisvertrag echt fail-closed: Ergebnis getrennt vom Log, Regex über den ganzen Inhalt, „Exit ≠ 0 bei fail = 0" rot,
-  Pfad der Ergebnisdatei vor jedem Kindprozess aus der Umgebung entfernt – der `fake`-Stub belegt, dass weder Log noch
-  Kindprozess das Ergebnis fälschen.
-- Je Fail-Pfad eigene Meldung und eigener Stub-Test (abort, badresult, exitnofail, signal, wrapkill, fake), 14 Mutanten rot.
-- Der PID-Wiederverwendungs-Befund im ersten Volllauf sauber diagnostiziert, mit Regressionstest (`PREWAIT_52`) und
-  WHY-Kommentar.
-- D7 (`strip_literal_37`) mit Äquivalenztest über Glob-, Escape-, Zeilenumbruch- und Leer-Fälle und Vergleich auf der
-  ganzen ADR-063; größter Einzelhebel.
-- Saubere Teilung: Rümpfe per `sed`-Zeilenbereich geschnitten, jede Gruppe allein lauffähig, eigene Vorlage mit
-  AK8-Fingerprint; AK9 in umgekehrter Reihenfolge nachgewiesen.
-- Konsumenten-Neutralität geprüft: Shards und Libs lesen nur Dateien der Seite `factory`; `SHIPPED_TESTS_28` erweitert;
-  `FACTORY_ROOT`-Ableitung stimmt auch im Konsumenten-Layout; OWNERSHIP über Globs abgedeckt.
-- Nebenläufigkeit geprüft ohne Befund: der Rest der Suite verändert keine echte Repo-Datei (`sed -i`/`mv`/`chmod` nur auf
-  Temp-Pfaden), kein blankes `wait` außer im Stub-Treiber.
-- Ehrliche Messung: AK3 nicht schöngerechnet, Fehlversuch (#334 als Gruppe) mit Ursache dokumentiert und zurückgenommen.
+- Das Rework ist eng am Befund geblieben: Jede Änderung ist einem Finding zugeordnet und hat einen eigenen Test mit
+  Vorbedingung. Wo Leer-Grün droht, gibt es eine Positivkontrolle (kill-Trace, `held`, nicht leere Pfade).
+- Der kill-Trace als Funktion vor dem Builtin wirkt auch im Wrapper-Subshell. Damit ist die Zusage „kein TERM an fremde
+  PIDs“ beobachtbar und nicht nur behauptet.
+- Der Glob als einzige Quelle der Gruppenliste beseitigt die Handliste an beiden Stellen. Der EXIT-Pfad schließt die
+  Lücke „verlorenes Sammeln“, ohne nach dem regulären Sammeln Fehlalarm zu geben.
+- Der D1-Test ist per Marker-Handshake deterministisch statt über `sleep 1` und unter Last nicht mehr timing-abhängig.
+- Die ADR beschreibt jetzt die tatsächliche Mechanik samt Grund für den `.rc`-Wrapper. Das Ergebnis zu AK3 steht ehrlich
+  unter „Konsequenzen“.
+- Die allgemeine Ursache hinter W5 (`assert_true ""`) ist nicht im eigenen PR still mitrepariert, sondern als Kleinfund
+  ausgelagert (Scope eingehalten).
 
 ## Empfehlung
-NEEDS_REWORK
+APPROVED
