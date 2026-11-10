@@ -6,8 +6,8 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Laufzeit der ausgelieferten Self-Test-Suite senken, ohne Abdeckung zu verlieren. Schwerpunkt ist
@@ -210,6 +210,13 @@ Glob-Gruppenliste führt auch ungetrackte passende Dateien aus (gleiche Vertraue
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Zwei Lessons in `docs/factory/lessons/testing.md` (parallele Hintergrund-Gruppen: Status per Datei, kein `kill` auf
+wiederverwendete PID; Beschleunigung: erst Kernauslastung messen). Details: [`codify-52.md`](codify-52.md).
+
+## PR-Shepherd
+PR-Shepherd 2026-11-10: keine offenen Review-Kommentare, kein Approval verlangt, PR bleibt Draft. Merge **nicht**
+freigegeben: W6 (AK3 verfehlt, 353 s statt ≤ 240 s; Spec Q7/Q8) braucht die Entscheidung des Entwicklers vor dem Merge –
+Interrupt `APPROVAL_PENDING`.
 
 ---
 Branch: `test/52-self-test-suite-beschleunigen`

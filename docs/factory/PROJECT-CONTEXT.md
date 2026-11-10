@@ -144,6 +144,8 @@ bash scripts/install-hooks.sh                          # Git-Hooks einmalig inst
 - Guard-Scan-Test: Scanner mit Exit 1 bei Fund + `| grep -q` ist unter `pipefail` rot, wenn der Guard richtig arbeitet – Ausgabe erst fangen; Mutation in geteilter Fixture sofort zurücknehmen (aus Factory-Task #27, `/implement` + `/test`)
 - Feindcode-Test grün, weil der Feindcode nie lief (`$SELF` zeigte auf die vertrauenswürdige Kopie): Marker, der sein Laufen belegt, plus Gegenprobe im Zustand, in dem er das Geschützte sehen müsste (aus Factory-Task #37, `/implement`)
 - Git-nutzendes Gate im Hook: Wegwerf-Repo mit `update-ref` genügt nicht – echter Push aus einem Worktree (Bare-Remote, `core.hooksPath`), beide Richtungen + Exit-Code; dort ist `.git` eine Datei und `GIT_DIR` wird exportiert (aus Factory-Task #51, `/review` Iteration 1)
+- Parallele Hintergrund-Testgruppen: Status aus Ergebnisdatei statt `wait <pid>` (PID-Wiederverwendung → falsches Exit 127), `kill` nur ohne Ergebnisdatei, nie eingesammelte Gruppe = rot (aus Factory-Task #52, Umsetzung + `/review` Iteration 1)
+- Test-Beschleunigung: erst CPU-Auslastung/Zeit je Abschnitt messen und quadratische Einzelausdrücke beseitigen, dann Gruppen schneiden – mehr Gruppen brachten bei 1,3 genutzten Kernen nichts (aus Factory-Task #52, AK3-Versuch)
 
 **[`lessons/build-tooling.md`](lessons/build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 
