@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -201,6 +201,12 @@ die Assertion-Reihenfolge und die Mutationsbelege berühren, die `/review` best�
 vierzeilige Lib-Ladeblock, der in jeder Gruppe steht (eine zusätzliche Lib wäre eine neue ausgelieferte Datei und eine
 weitere `F-22.5`-Assertion, also eine Änderung der AK5-Zählung für ein Nitpick). Die Test-Suite lief in dieser Session
 nicht erneut: die Shell-Rechte für `bash -n`/Suite waren nicht freigegeben; es gibt keine Änderung an Skripten.
+
+## Security-Review (`/security-review`, 2026-11-10)
+**PASSED** – 0 kritisch, 0 wichtig, 6 Hinweise ohne Handlungsbedarf, siehe [`security-52.md`](security-52.md).
+Ergebnisvertrag gegen Fälschung durch Kindprozesse geschützt, Temp-Verzeichnisse per `mktemp -d`, Token-Assertions
+unverändert. Akzeptierte Restpunkte: TERM an freie PID nur nach KILL des Wrappers plus Abbruch vor dem Sammeln;
+Glob-Gruppenliste führt auch ungetrackte passende Dateien aus (gleiche Vertrauensstufe wie `run-tests.sh`).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
