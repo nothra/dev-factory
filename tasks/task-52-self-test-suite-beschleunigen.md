@@ -157,6 +157,10 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Iteration 1 (`/review`, 2026-11-10): **NEEDS_REWORK** – 0 kritisch, 7 wichtig, 10 Nitpicks, siehe
+  [`review-52.md`](review-52.md). Kern: Cleanup kann fremde (wiederverwendete) PIDs beenden (W1), Gruppenliste ohne Guard
+  und nicht gesammelte Gruppe still grün (W2), ADR-066 D2–D4 nicht nachgezogen (W3), Spec-Drift AK1/AK5 (W4), F5/D5-Test
+  kann leer grün werden (W5), AK3-Entscheidung vor Merge (W6, Mensch), `FACTORY_SELF_TEST_SERIAL` undokumentiert (W7).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

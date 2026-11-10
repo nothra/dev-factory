@@ -278,3 +278,10 @@
 - **Was:** Seit Task 51 ist `commands.test` des Factory-Repos der Wrapper `scripts/project/checks/factory-suite-gate.sh` (überspringt die Suite bei reinem `tasks/`-/`docs/specs/`-Diff). Die ADR-Beschreibung nennt noch die Suite direkt. Datei gehört der Seite `factory`, daher außerhalb von AK7 des Tasks 51.
 - **Fix:** Halbsatz in D9 ergänzen („`commands.test` = Wrapper um `run-tests.sh`, siehe Task 51“). Eine Zeile.
 - **Herkunft:** `/review` zu Task 51 (Iteration 1/2, Nitpick), `/codify`.
+
+### Konvention „`#<nr>` in Testnamen = Ursprungs-Repo" in `run-tests.sh` gilt nicht mehr durchgängig
+
+- **Wo:** `scripts/checks/tests/run-tests.sh:16-17` (Kopf-Kommentar zur Konvention), verifiziert am 2026-11-10.
+- **Was:** Der Kopf erklärt jedes `#<nr>` in Testnamen zum Issue von `nothra/tch-gastro-services`. Die Tests der Factory-Issues #22, #23, #24, #28, #37 und #52 tragen aber Nummern dieses Repos (`#52 D3: …`, `#23 …`), ohne Präfix. Wer einen Testnamen nachschlägt, landet im falschen Repo. Gleiches gilt für den Satz in `docs/factory/PROJECT-CONTEXT.md` → „Konventionen".
+- **Fix:** Konvention um „Nummern ab dem Herauslösen (Factory-Issues) meinen dieses Repo; sie stehen in Abschnitten `Factory-Issue #<nr>`" ergänzen, beide Stellen. Etwa vier Zeilen.
+- **Herkunft:** `/review` zu Task 52 (Runde 2, Nitpick).
