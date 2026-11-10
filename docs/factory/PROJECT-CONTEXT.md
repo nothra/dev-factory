@@ -31,7 +31,7 @@
 
 ```bash
 bash scripts/checks/tests/run-tests.sh                 # ausgelieferte Self-Test-Suite
-FACTORY_SELF_TEST_SERIAL=1 bash scripts/checks/tests/run-tests.sh  # dieselbe Suite, Testgruppen nacheinander (ADR-066 D6)
+FACTORY_SELF_TEST_SERIAL=1 bash scripts/checks/tests/run-tests.sh  # dieselbe Suite, Testgruppen nacheinander (Factory-ADR-066 D6)
 bash scripts/project/checks/factory-suite-gate.sh      # commands.test: Suite, außer bei reinem tasks/-/docs/specs/-Diff
 bash scripts/project/tests/run-tests.sh                # Projekt-Suite: Prüfungen, die dieses Repo voraussetzen
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n          # Syntaxprüfung (commands.lint)
