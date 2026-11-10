@@ -111,5 +111,5 @@ Parser und liest nichts anderes:
 | project | `docs/factory/PROJECT-CONTEXT.md` | Projekt-Gedächtnis dieses Repos (Anpassungsstelle) |
 | project | `docs/specs/**` | Spec-Archiv des Repos |
 | project | `factory.config.yml` | Projekt-Konfiguration (Anpassungsstelle) |
-| project | `scripts/project/**` | Projekt-Erweiterungen dieses Repos: Projekt-Suite `tests/`, Hooks `checks/pre-push.d/` (Factory-ADR-064 D6) |
+| project | `scripts/project/**` | Projekt-Erweiterungen dieses Repos: Projekt-Suite `tests/`, Hooks `checks/pre-push.d/` (Factory-ADR-064 D6), Suite-Gate `checks/factory-suite-gate.sh` (commands.test, #51) |
 | project | `tasks/**` | Task-, Review- und Telemetrie-Archiv des Repos |
