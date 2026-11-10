@@ -24,10 +24,12 @@ TEST_GROUP_RCS=()
 # und wird die PID einer längst beendeten Gruppe wiederverwendet, verwirft bash deren Status (`wait` meldet dann 127).
 # TERM an den Wrapper wird an die Gruppe weitergereicht; erst ihr echtes Ende schreibt den Status.
 test_group_run() {
-  local child forwarded=0 rc
+  local child="" forwarded=0 rc
+  # Trap vor dem Start: ein TERM zwischen `&` und dem Setzen von child ließe die Gruppe sonst verwaist weiterlaufen
+  trap 'forwarded=1; [ -z "$child" ] || kill -TERM "$child" 2>/dev/null' TERM
   FACTORY_TEST_GROUP_RESULT="$2.result" bash "$1" > "$2.log" 2>&1 &
   child=$!
-  trap 'forwarded=1; kill -TERM "$child" 2>/dev/null' TERM
+  [ "$forwarded" -eq 0 ] || kill -TERM "$child" 2>/dev/null
   wait "$child"; rc=$?
   [ "$forwarded" -eq 0 ] || { wait "$child"; rc=$?; }
   printf '%s\n' "$rc" > "$2.rc.tmp" && mv "$2.rc.tmp" "$2.rc"
@@ -92,13 +94,16 @@ test_groups_collect() {
     i=$((i + 1))
   done
   test_groups_cleanup
+  TEST_GROUP_NAMES=(); TEST_GROUP_PIDS=(); TEST_GROUP_RCS=()
 }
 
-# test_groups_cleanup – laufende Gruppen beenden und abwarten, Logs und Ergebnisdateien entfernen (D5; idempotent)
+# test_groups_cleanup – laufende Gruppen beenden und abwarten, Logs und Ergebnisdateien entfernen (D5; idempotent).
+# Beendet wird nur eine Gruppe ohne .rc-Datei: Die PID einer schon beendeten Gruppe ist frei und kann längst einem fremden
+# Prozess gehören (dieselbe PID-Wiederverwendung wie bei test_group_run) – ein TERM dorthin träfe ihn.
 test_groups_cleanup() {
   local i=0
   while [ "$i" -lt "${#TEST_GROUP_PIDS[@]}" ]; do
-    if [ -z "${TEST_GROUP_RCS[$i]}" ]; then
+    if [ -z "${TEST_GROUP_RCS[$i]}" ] && [ ! -e "$TEST_GROUPS_DIR/$i.rc" ]; then
       kill -TERM "${TEST_GROUP_PIDS[$i]}" 2>/dev/null
       wait "${TEST_GROUP_PIDS[$i]}" 2>/dev/null
       TEST_GROUP_RCS[$i]=143
@@ -109,9 +114,20 @@ test_groups_cleanup() {
   TEST_GROUPS_DIR=""
 }
 
+# test_groups_on_exit – EXIT der Suite: aufräumen; eine gestartete, nie eingesammelte Gruppe ist ein fehlendes Teilergebnis
+# und macht die Suite rot (D4), auch wenn der Rest grün war (etwa nach einem verlorenen test_groups_collect).
+test_groups_on_exit() {
+  local rc=$? pending="${TEST_GROUP_NAMES[*]:-}"
+  test_groups_cleanup
+  if [ -n "$pending" ]; then
+    echo -e "  ${RED}✗${NC} Testgruppen nicht eingesammelt: $pending – zählt als rot (Factory-ADR-066 D4)"
+    [ "$rc" -ne 0 ] || exit 1
+  fi
+}
+
 # test_groups_trap – Aufräumen bei Ende und Abbruch der Suite (Ctrl-C/TERM endet rot, F5)
 test_groups_trap() {
-  trap 'test_groups_cleanup' EXIT
+  trap 'test_groups_on_exit' EXIT
   trap 'test_groups_cleanup; trap - EXIT; exit 130' INT
   trap 'test_groups_cleanup; trap - EXIT; exit 143' TERM
 }

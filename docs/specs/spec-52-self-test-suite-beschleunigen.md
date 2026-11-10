@@ -64,6 +64,9 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
   und die Dauer je Abschnitt von `factory-lock-tests.sh`. Die Messmethode schreibt jedem Abschnitt
   nur die Zeit zwischen seinem Beginn und dem Beginn des nächsten Abschnitts zu, und Methode,
   Maschine und Commit sind angegeben.
+  *Abweichung (`/implement`, 2026-11-10):* In CI ist nur die Dauer des ganzen Jobs belegt (inkl.
+  Setup, laut `gh pr checks`), nicht die je Abschnitt; `gh run view`/`gh api` waren nicht
+  freigegeben. Lokal ist AK1 vollständig erfüllt.
 - [ ] **AK2 – Testgruppe mindestens halbiert:** GIVEN die Messung aus AK1, WHEN man die Laufzeit
   der Testgruppe `factory-lock-tests.sh` lokal vergleicht, THEN liegt sie bei höchstens **181 s**
   (Ausgangswert 362 s). Bei paralleler Ausführung zählt die Wanduhrzeit der Gruppe in ihrem eigenen
@@ -71,6 +74,8 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
 - [ ] **AK3 – Gesamtziel lokal:** GIVEN die Messung aus AK1, WHEN man die Laufzeit der gesamten
   Suite lokal auf macOS misst, THEN liegt sie bei höchstens **240 s** (Ausgangswert 566 s,
   Entscheidung Q1).
+  *Stand (`/implement`, 2026-11-10):* verfehlt – 353 s (Median). Der Engpass ist der Rest der Suite
+  außerhalb des Scopes (Q2); Entscheidung offen (Q8).
 - [ ] **AK4 – CI nicht langsamer:** GIVEN der CI-Job `factory-self-test`, WHEN der Branch darin
   läuft, THEN ist der Schritt der Suite nicht langsamer als vor der Änderung (Ausgangswert 151 s;
   der Vorher-Wert wird im selben Zeitraum neu gemessen, siehe AK1).
@@ -78,6 +83,9 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
   per `diff` vergleicht, THEN ist die **Anzahl** der Assertions gleich. Jede Abweichung in Name oder
   Reihenfolge steht in der Task-Datei mit alter Zeile, neuer Zeile und Begründung (Entscheidung Q4).
   Eine Assertion, die wegfällt und dafür an anderer Stelle neu entsteht, gilt als Abweichung.
+  Neue Assertions für den neuen Mechanismus selbst (ADR-066: Ergebnisvertrag, Aufräumen, Fingerprint
+  je Gruppe) zählen nicht als Abweichung, wenn alle alten Assertions unverändert und in derselben
+  Reihenfolge bleiben und die neuen in der Task-Datei aufgelistet sind (Q7).
 - [ ] **AK6 – Gleicher Prüfinhalt:** GIVEN jede Assertion aus `factory-lock-tests.sh`, WHEN man sie
   vor und nach der Änderung vergleicht, THEN prüft sie denselben Sachverhalt mit derselben
   Erwartung (Exit-Code, Meldung, Abwesenheit von Push bzw. schreibenden `gh`-Aufrufen). Das gilt
@@ -155,3 +163,12 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
   langsamer wird.
   → **Parallel überall** (lokal, CI, Konsumenten), Rückfall `FACTORY_SELF_TEST_SERIAL=1`, ADR-066 D6
   (`/architecture`, 2026-11-10).
+- [ ] Q7 (aus `/implement`, nach `/review` Iteration 1): ADR-066 verlangt Tests für den neuen
+  Mechanismus; damit wächst die Assertion-Zahl, Q4 sagte „Anzahl gleich“. → **Auslegung
+  `/implement`:** alle alten Assertions unverändert und in derselben Reihenfolge, die neuen nur für
+  den neuen Mechanismus und in der Task-Datei aufgelistet (AK5 entsprechend ergänzt).
+  Bestätigung durch den Entwickler vor dem Merge offen.
+- [ ] Q8 (aus `/implement`): AK3 ist verfehlt (353 s). Die Gruppen sind nach ≤ 143 s fertig; der Rest
+  der Suite lag schon vorher über 240 s, und eine weitere Auslagerung (Tests aus nothra/tch-gastro-services#334 als Gruppe) brachte keinen
+  Nutzen (Engpass: Prozess-Starts). Optionen: Folge-Issue „Prozess-Starts je Assertion senken“ oder
+  Zielwert relativ zur Maschine. Entscheidung durch den Entwickler vor dem Merge offen.

@@ -64,25 +64,39 @@ führt dann den eigenen Rest wie bisher aus und sammelt die Shards an der Stelle
 Start-Funktion und einer Sammel-Funktion.
 
 **D2 · Schnitt.** Die gemeinsamen Helfer (`git_23` … `mut_manifest_23`, gh-Stub, `world_24` & Co.,
-die #37-Helfer) wandern in `lib/factory-lock-fixtures.sh`. Die Abschnitte werden zu eigenen Dateien,
-etwa `factory-lock-23-tests.sh`, `factory-lock-24-tests.sh` und `factory-lock-37a/37b-tests.sh`.
-#37 wird an einem Abschnittskopf geteilt, damit kein Shard deutlich über ~150 s (gemessen wie oben)
+die #37-Helfer) wandern in `lib/factory-lock-fixtures.sh`. Die Abschnitte werden zu eigenen Dateien
+`factory-lock-<abschnitt>-tests.sh` (umgesetzt: 23, 24a, 24b, 37a, 37b – siehe Status). Ein Abschnitt
+wird an einem Abschnittskopf geteilt, damit kein Shard deutlich über ~150 s (gemessen wie oben)
 liegt. Den genauen Schnitt legt `/implement` nach Messung fest. Jeder Shard baut in seinem eigenen
-`mktemp -d` eine eigene Vorlage und teilt keinen Zustand mit anderen Shards.
+`mktemp -d` eine eigene Vorlage und teilt keinen Zustand mit anderen Shards. Die Liste der Shards
+ist der Glob `factory-lock-*-tests.sh` selbst (Start und Neutralitäts-Guard `SHIPPED_TESTS_28`);
+eine neue Datei läuft also mit, ohne dass eine Liste von Hand mitwächst.
 
-**D3 · Ergebnisvertrag.** Ein Shard schreibt seine Ausgabe in eine Log-Datei. Als **letzte Zeile**
-schreibt er `RESULT <pass> <fail>` in eine eigene Ergebnisdatei. Die Sammel-Funktion wartet auf die
-Shards in **Startreihenfolge** und gibt jedes Log zusammenhängend aus. Danach addiert sie die Zähler
-auf `PASS`/`FAIL`. Damit bleibt die Assertion-Reihenfolge der Ausgabe unverändert (AK5, AK10).
+**D3 · Ergebnisvertrag.** Ein Shard schreibt seine Ausgabe in eine Log-Datei und am Ende
+`RESULT <pass> <fail>` als **einzige Zeile** in eine eigene Ergebnisdatei. Den Pfad der
+Ergebnisdatei erfährt er über die Umgebung; die Lib entfernt die Variable sofort, damit kein
+getestetes Skript (Kindprozess des Shards) das Ergebnis überschreiben kann. Den **Exit-Status**
+schreibt ein Wrapper-Subshell je Shard in eine eigene `.rc`-Datei, statt dass die Suite ihn per
+`wait <pid>` holt: Die Suite startet bis zum Sammeln Zehntausende Prozesse, die PID eines längst
+beendeten Shards wird wiederverwendet, und bash verwirft dann dessen Status (`wait` meldet 127 –
+im ersten Volllauf beobachtet). TERM an den Wrapper reicht er an den Shard weiter; erst dessen
+echtes Ende schreibt den Status. Die Sammel-Funktion wartet auf die Shards in
+**Startreihenfolge** und gibt jedes Log zusammenhängend aus. Danach addiert sie die Zähler auf
+`PASS`/`FAIL`. Damit bleibt die Assertion-Reihenfolge der Ausgabe unverändert (AK5, AK10).
 
-**D4 · Fail-closed.** In drei Fällen zählt die Sammel-Funktion den Shard als **eine rote Assertion**
-mit dem Namen des Shards und dem Grund: Die Ergebnisdatei fehlt, sie ist nicht wohlgeformt
-(`^RESULT [0-9]+ [0-9]+$`), oder der Exit-Code ist ≠ 0 **und** `fail` ist 0. Ein fehlendes
-Teilergebnis wird nie als grün gelesen (AK11). Das Log wird trotzdem ausgegeben.
+**D4 · Fail-closed.** In vier Fällen zählt die Sammel-Funktion den Shard als **eine rote Assertion**
+mit dem Namen des Shards und dem Grund: Der Exit-Status fehlt (Wrapper abgebrochen), die
+Ergebnisdatei fehlt, sie ist nicht wohlgeformt (der ganze Inhalt muss `^RESULT [0-9]+ [0-9]+$`
+sein), oder der Exit-Code ist ≠ 0 **und** `fail` ist 0. Ein fehlendes Teilergebnis wird nie als
+grün gelesen (AK11). Das Log wird trotzdem ausgegeben. Dazu ein fünfter Fall außerhalb der
+Sammel-Funktion: Endet die Suite, ohne einen gestarteten Shard eingesammelt zu haben (etwa nach
+einem verlorenen Aufruf der Sammel-Funktion), nennt der EXIT-Trap die Shards und erzwingt Exit 1.
 
-**D5 · Aufräumen.** Jeder Shard räumt sein Temp-Verzeichnis per EXIT-Trap auf, heute steht dafür
-nur ein `rm -rf` am Ende. `run-tests.sh` setzt einen Trap auf INT/TERM/EXIT: Er beendet laufende
-Shards und entfernt Logs und Ergebnisdateien (AK14, F5).
+**D5 · Aufräumen.** Jeder Shard räumt sein Temp-Verzeichnis per EXIT-Trap auf (TERM endet über
+`exit 143` im Trap). `run-tests.sh` setzt einen Trap auf INT/TERM/EXIT: Er beendet laufende
+Shards und entfernt Logs und Ergebnisdateien (AK14, F5). Beendet wird nur ein Shard ohne
+`.rc`-Datei – die PID eines schon beendeten Shards ist frei und kann einem fremden Prozess gehören
+(dieselbe PID-Wiederverwendung wie in D3).
 
 **D6 · Schalter.** Standard ist parallel, und zwar überall: lokal, in CI und bei Konsumenten. Mit
 `FACTORY_SELF_TEST_SERIAL=1` startet `run-tests.sh` jeden Shard und wartet sofort auf ihn. Es ist
@@ -156,9 +170,18 @@ Summenzeile, Exit-Code.
   nicht beschleunigt und ist die Untergrenze der Wanduhrzeit. Bleiben durch Ressourcenkonkurrenz
   weniger als 36 s Luft, verfehlt die Suite AK3, obwohl AK2 erfüllt ist. In dem Fall wird eskaliert
   und der Scope nicht still erweitert.
+  **Eingetreten (Umsetzung, 2026-11-10):** Gruppe 136 s (AK2 erfüllt), Suite 353 s (AK3 verfehlt).
+  Die Shards sind nach ≤ 143 s fertig, der Rest der Suite lag an diesem Tag schon vorher über 240 s.
+  Ein Versuch, den größten seriellen Block (Tests aus nothra/tch-gastro-services#334) als weiteren Shard auszulagern, brachte keinen
+  Nutzen: Die Suite nutzt im Mittel nur 1,3 Kerne, die Systemzeit für Prozess-Starts dominiert und
+  wächst unter Last mit. Eskaliert an den Entwickler (Spec #52 Q8).
 - **Neue Pflicht für spätere Testgruppen:** Eine Gruppe, die als Shard läuft, darf keinen Zustand
-  außerhalb ihres eigenen Temp-Verzeichnisses verändern und keine Variable des Haupt-Prozesses
-  voraussetzen außer `FACTORY_ROOT`, `HAS_YQ`, `CHECKS_DIR`, `SCRIPTS_DIR` und den Helfern.
+  außerhalb ihres eigenen Temp-Verzeichnisses verändern und setzt **keine** Variable des
+  Haupt-Prozesses voraus: `CHECKS_DIR`, `SCRIPTS_DIR` und `HAS_YQ` werden nicht exportiert. Sie
+  sourct `lib/assert-helpers.sh` (Zähler, `HAS_YQ`) und `lib/test-groups.sh` selbst, leitet
+  `FACTORY_ROOT` aus dem eigenen Pfad ab (wie `lib/factory-lock-fixtures.sh`) und endet mit
+  `test_group_finish; exit $?`. Kanonische Kurzfassung:
+  `docs/factory/guidelines/testing-standards.md`.
 - **Fehlersuche:** Die Ausgabe eines roten Shards erscheint am Sammelpunkt, nicht live.
   `FACTORY_SELF_TEST_SERIAL=1` ändert daran nichts, es entfällt nur die Überlappung. Dafür nennt
   jede abgebrochene Gruppe ihren Namen (D4).

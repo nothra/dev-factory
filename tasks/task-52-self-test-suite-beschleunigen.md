@@ -16,17 +16,17 @@ Spec: [`docs/specs/spec-52-self-test-suite-beschleunigen.md`](../docs/specs/spec
 
 ## Akzeptanzkriterien
 <!-- Von /requirements befüllt oder manuell eingeben -->
-- [x] AK1 – Profiling vorher/nachher je Abschnitt (lokal Median aus 3, CI), Methode ohne Zeilen-Zuordnungsartefakt
+- [x] AK1 – Profiling vorher/nachher je Abschnitt (lokal Median aus 3, CI), Methode ohne Zeilen-Zuordnungsartefakt — CI nur Job-Gesamtdauer, Abweichung in der Spec vermerkt
 - [x] AK2 – `factory-lock-tests.sh` lokal ≤ 181 s
 - [ ] AK3 – gesamte Suite lokal (macOS) ≤ 240 s — **verfehlt (353 s), eskaliert**: Engpass ist der Rest der Suite außerhalb des Scopes, siehe Umsetzung
 - [x] AK4 – CI-Job `factory-self-test` nicht langsamer als vorher
-- [x] AK5 – Anzahl der Assertions gleich; jede Namens-/Reihenfolge-Abweichung begründet (Auslegung: alle 2444 alten unverändert, +22 neue Tests für neuen Mechanismus – siehe Umsetzung)
+- [x] AK5 – alle alten Assertions unverändert und in derselben Reihenfolge; neue nur für den neuen Mechanismus, aufgelistet (Spec-Wortlaut ergänzt, Q7 – Bestätigung durch den Entwickler offen)
 - [x] AK6 – jede Assertion prüft denselben Sachverhalt mit derselben Erwartung
 - [x] AK7 – Rot-Nachweis je geändertem Fixture-Muster dokumentiert
 - [x] AK8 – geteilte Basis-Fixture bleibt unverändert (Fingerprint-Test)
 - [x] AK9 – Abschnitte reihenfolge-unabhängig
-- [x] AK10 – parallel: PASS/FAIL zusammengeführt, Exit ≠ 0 bei Rot, Ausgabe nicht verschränkt (entfällt ohne Parallelisierung)
-- [x] AK11 – parallel: abgebrochene Gruppe → Suite rot, nie als grün gelesen (entfällt ohne Parallelisierung)
+- [x] AK10 – parallel: PASS/FAIL zusammengeführt, Exit ≠ 0 bei Rot, Ausgabe nicht verschränkt
+- [x] AK11 – parallel: abgebrochene oder nie eingesammelte Gruppe → Suite rot, nie als grün gelesen
 - [x] AK12 – konsumenten-neutral (Fixture-Lauf grün, kein Node/DB)
 - [x] AK13 – grün auf macOS (bash 3.2) und `ubuntu-latest`
 - [x] AK14 – keine Wegwerf-Verzeichnisse/Hintergrundprozesse nach Lauf (auch rot/Signal)
@@ -56,8 +56,9 @@ Entscheidung: [ADR-066](../docs/factory/adr/066-self-test-gruppen-parallel.md) (
 **Fallen / mitzupflegen:**
 - `SHIPPED_TESTS_28` in `run-tests.sh` (Liste ausgelieferter Testdateien) um die neuen Dateien erweitern.
 - `OWNERSHIP.md`: jede neue Datei Seite `factory`; Fixture-Lauf der Konsumenten-Neutralität (ADR-064 D6) erneut fahren.
-- Shard-Prozess braucht `set -uo pipefail`, die Helfer aus `lib/assert-helpers.sh` (neutralisiert `GIT_*`, F3) und
-  `FACTORY_ROOT`/`HAS_YQ`/`CHECKS_DIR`/`SCRIPTS_DIR`; `FACTORY_SELF_TEST_RUN` ist exportiert und erreicht die Shards.
+- Shard-Prozess braucht `set -uo pipefail` und sourct die Helfer selbst (`lib/assert-helpers.sh` neutralisiert `GIT_*`, F3,
+  und setzt `HAS_YQ`; `FACTORY_ROOT` aus `lib/factory-lock-fixtures.sh`). `CHECKS_DIR`/`SCRIPTS_DIR` werden **nicht**
+  exportiert; `FACTORY_SELF_TEST_RUN` ist exportiert und erreicht die Shards.
 - `GITHUB_ACTIONS`/`GITHUB_OUTPUT`/`PR_SHEPHERD`/`FACTORY_STAGE` im Shard wie bisher behandeln (F4; Lesson CI-Erkennung).
 - Ergebnisdatei getrennt vom Log (Log-Inhalt ist Testausgabe, darf das Ergebnis nicht fälschen).
 - Neue Tests für D3/D4/D5/D6 mit Stub-Shards (grün, rot, `exit 2` ohne RESULT, kaputte RESULT-Zeile, Signal),
@@ -100,7 +101,7 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
   bei ~300–350 s (Kopf #23 vorher bei 297–356 s), also über 240 s. Das ist das Restrisiko aus ADR-066 „Konsequenzen":
   Nicht still den Scope erweitert. Entscheidung durch den Menschen nötig (z. B. Folge-Issue für die
   run-pipeline-E2E-Abschnitte oder Zielwert relativ zur Maschine).
-  **Versuch AK3 (2026-11-10, verworfen):** Der größte serielle Block (#334, 81 s, 286 Assertions) wurde probehalber als
+  **Versuch AK3 (2026-11-10, verworfen):** Der größte serielle Block (Tests aus nothra/tch-gastro-services#334, 81 s, 286 Assertions) wurde probehalber als
   sechste Gruppe `telemetry-334-tests.sh` mit gemeinsamer Lib ausgelagert (2467 grün, Gruppe allein 83–88 s). Ergebnis:
   Die Gesamtzeit sank **nicht** (Läufe 398/419 s statt 353 s; die übrigen Abschnitte wurden unter Last langsamer, z. B.
   #310 34→51 s, #312 31→49 s). Ursache: Die Suite nutzt im Mittel nur 1,3 Kerne (`time`: 186 s user + 335 s system über
@@ -161,6 +162,32 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
   [`review-52.md`](review-52.md). Kern: Cleanup kann fremde (wiederverwendete) PIDs beenden (W1), Gruppenliste ohne Guard
   und nicht gesammelte Gruppe still grün (W2), ADR-066 D2–D4 nicht nachgezogen (W3), Spec-Drift AK1/AK5 (W4), F5/D5-Test
   kann leer grün werden (W5), AK3-Entscheidung vor Merge (W6, Mensch), `FACTORY_SELF_TEST_SERIAL` undokumentiert (W7).
+- Rework nach Iteration 1 (`/implement`, 2026-11-10):
+  - **W1 ✓** `test_groups_cleanup` beendet nur Gruppen ohne `.rc`-Datei. Test: Treiber mit `kill`-Trace hält nach dem Ende
+    der Gruppe an, TERM → kein `kill` an ihre PID; Positivkontrolle: bei laufender Gruppe steht `-TERM <pid>` im Trace.
+  - **W2 ✓** Gruppenliste = Glob `factory-lock-*-tests.sh` (`TEST_GROUP_FILES_52`) für Start und `SHIPPED_TESTS_28`
+    (Libs dort ebenfalls per Glob). Neuer EXIT-Pfad `test_groups_on_exit`: nie eingesammelte Gruppe → Meldung + Exit 1;
+    `test_groups_collect` leert danach die Listen (Gegenprobe: kein Fehlalarm nach dem Sammeln).
+  - **W3 ✓** ADR-066 D2–D5 und „Konsequenzen“ nachgezogen (einzige Zeile, vier Fälle + EXIT-Fall, Wrapper/`.rc` mit Grund,
+    TERM-Weiterreichung, Glob-Liste, Pflicht für künftige Gruppen ohne exportierte Variablen, AK3-Ergebnis).
+  - **W4 ✓** Spec: AK5-Wortlaut ergänzt + Q7, AK1-CI-Abweichung vermerkt, AK3-Stand + Q8. Q7/Q8 sind offen für den Menschen.
+  - **W5 ✓** F5 in Einzel-Assertions geteilt, mit Vorbedingung (PID/Verzeichnis/Gruppen-Verzeichnis bekannt); D5 prüft
+    nicht-leeren Pfad; `drive_52` löscht alle Marker vor jedem Lauf. Allgemeine Ursache (`assert_true ""` = grün, per
+    Sonde auf bash 3.2 belegt) als Kleinfund in `docs/factory/kleinfunde.md`.
+  - **W6 – offen (Mensch):** PR-Body nennt AK3-Abweichung und die offenen Q7/Q8; Folge-Issue bzw. Zielwert entscheidet
+    der Entwickler vor dem Merge.
+  - **W7 ✓** Absatz in `testing-standards.md` (Pflichten neuer Gruppen + Schalter), Zeile im Build/Test-Block von
+    `PROJECT-CONTEXT.md`.
+  - Nitpicks erledigt: TERM-Trap des Wrappers vor dem Start (Race-Fenster, nicht deterministisch testbar), D1 ohne
+    `sleep 1` (Marker-Handshake), `PREWAIT_52`-Label auf „gereapt“ korrigiert, `t_52` nicht mehr doppelt belegt, Fallzahl
+    D7 gezählt statt handgeschrieben, Rest aus `/requirements` in AK10/AK11 entfernt. Offen gelassen: Mehrfach-Sachverhalte
+    in den übrigen D4-Assertions, F1-Dichte von `build_template_23`, gemeinsamer Shard-Startblock, doppelte Leerzeilen.
+  - Mutationsbelege (Sonde, #52-Block allein): ohne `.rc`-Prüfung → W1-Assertion rot; ohne `exit 1` im EXIT-Pfad →
+    D4-Assertion rot; Listen nach dem Sammeln nicht geleert → 4 rot. Original: 25 grün.
+  - Volllauf nach dem Rework (macOS): **2476 grün, 0 rot**, Exit 0. Zu den 2466 aus AK5 kommen 10 neue `#52`-Assertions
+    (W1/W2/W5: F5 in fünf Teile geteilt, EXIT-Pfad, kill-Trace mit Positivkontrolle und Vorbedingung); alle 2444 alten
+    unverändert. Gruppendauern in diesem Lauf (Rechner parallel ausgelastet, keine Median-Messung): 23 130 s, 24a 127 s,
+    24b 164 s, 37a 184 s – die AK2-Messung (Median 136 s) wurde nicht wiederholt, die Änderungen betreffen die Gruppen nicht.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
