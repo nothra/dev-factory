@@ -16,22 +16,22 @@ Spec: [`docs/specs/spec-52-self-test-suite-beschleunigen.md`](../docs/specs/spec
 
 ## Akzeptanzkriterien
 <!-- Von /requirements befüllt oder manuell eingeben -->
-- [ ] AK1 – Profiling vorher/nachher je Abschnitt (lokal Median aus 3, CI), Methode ohne Zeilen-Zuordnungsartefakt
-- [ ] AK2 – `factory-lock-tests.sh` lokal ≤ 181 s
-- [ ] AK3 – gesamte Suite lokal (macOS) ≤ 240 s
-- [ ] AK4 – CI-Job `factory-self-test` nicht langsamer als vorher
-- [ ] AK5 – Anzahl der Assertions gleich; jede Namens-/Reihenfolge-Abweichung begründet
-- [ ] AK6 – jede Assertion prüft denselben Sachverhalt mit derselben Erwartung
-- [ ] AK7 – Rot-Nachweis je geändertem Fixture-Muster dokumentiert
-- [ ] AK8 – geteilte Basis-Fixture bleibt unverändert (Fingerprint-Test)
-- [ ] AK9 – Abschnitte reihenfolge-unabhängig
-- [ ] AK10 – parallel: PASS/FAIL zusammengeführt, Exit ≠ 0 bei Rot, Ausgabe nicht verschränkt (entfällt ohne Parallelisierung)
-- [ ] AK11 – parallel: abgebrochene Gruppe → Suite rot, nie als grün gelesen (entfällt ohne Parallelisierung)
-- [ ] AK12 – konsumenten-neutral (Fixture-Lauf grün, kein Node/DB)
-- [ ] AK13 – grün auf macOS (bash 3.2) und `ubuntu-latest`
-- [ ] AK14 – keine Wegwerf-Verzeichnisse/Hintergrundprozesse nach Lauf (auch rot/Signal)
-- [ ] AK15 – Ownership-Check grün für neue Dateien
-- [ ] F1–F5 – Fehlerszenarien der Spec abgedeckt
+- [x] AK1 – Profiling vorher/nachher je Abschnitt (lokal Median aus 3, CI), Methode ohne Zeilen-Zuordnungsartefakt
+- [x] AK2 – `factory-lock-tests.sh` lokal ≤ 181 s
+- [ ] AK3 – gesamte Suite lokal (macOS) ≤ 240 s — **verfehlt (353 s), eskaliert**: Engpass ist der Rest der Suite außerhalb des Scopes, siehe Umsetzung
+- [x] AK4 – CI-Job `factory-self-test` nicht langsamer als vorher
+- [x] AK5 – Anzahl der Assertions gleich; jede Namens-/Reihenfolge-Abweichung begründet (Auslegung: alle 2444 alten unverändert, +22 neue Tests für neuen Mechanismus – siehe Umsetzung)
+- [x] AK6 – jede Assertion prüft denselben Sachverhalt mit derselben Erwartung
+- [x] AK7 – Rot-Nachweis je geändertem Fixture-Muster dokumentiert
+- [x] AK8 – geteilte Basis-Fixture bleibt unverändert (Fingerprint-Test)
+- [x] AK9 – Abschnitte reihenfolge-unabhängig
+- [x] AK10 – parallel: PASS/FAIL zusammengeführt, Exit ≠ 0 bei Rot, Ausgabe nicht verschränkt (entfällt ohne Parallelisierung)
+- [x] AK11 – parallel: abgebrochene Gruppe → Suite rot, nie als grün gelesen (entfällt ohne Parallelisierung)
+- [x] AK12 – konsumenten-neutral (Fixture-Lauf grün, kein Node/DB)
+- [x] AK13 – grün auf macOS (bash 3.2) und `ubuntu-latest`
+- [x] AK14 – keine Wegwerf-Verzeichnisse/Hintergrundprozesse nach Lauf (auch rot/Signal)
+- [x] AK15 – Ownership-Check grün für neue Dateien
+- [x] F1–F5 – Fehlerszenarien der Spec abgedeckt
 
 ## Technische Notizen
 Entscheidung: [ADR-066](../docs/factory/adr/066-self-test-gruppen-parallel.md) (Accepted mit der Umsetzung).
@@ -100,7 +100,10 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
   bei ~300–350 s (Kopf #23 vorher bei 297–356 s), also über 240 s. Das ist das Restrisiko aus ADR-066 „Konsequenzen":
   Nicht still den Scope erweitert. Entscheidung durch den Menschen nötig (z. B. Folge-Issue für die
   run-pipeline-E2E-Abschnitte oder Zielwert relativ zur Maschine).
-- **AK4:** CI-Vorher `factory-self-test` = 3 min 14 s (PR #53, Merge-Stand von `main` 8676a44, Job inkl. Setup). Nachher: siehe unten.
+- **AK4 ✓:** CI-Job `factory-self-test` (`ubuntu-latest`, Dauer laut `gh pr checks`, inkl. Setup): vorher 3 min 14 s
+  (PR #53 = Stand von `main` 8676a44, derselbe Tag), nachher **1 min 44 s** (PR #54 @ 864b213), grün. Einschränkung:
+  `gh run view`/`gh api` waren in dieser Session nicht freigegeben, deshalb gilt die Job-Dauer statt der Dauer des
+  Suite-Schritts allein. Das Setup (Checkout, yq, Hooks) ist in beiden Läufen gleich.
 - **AK5 ✓:** Alle 2444 Assertions von vorher stehen unverändert und in derselben Reihenfolge in der Liste von nachher
   (`diff` zeigt nur Einfügungen). Neu sind 22 Zeilen (2466 = 2444 + 22):
   - 15 × `#52 …` (Abschnitt „Factory-Issue #52“ vor dem Sammelpunkt): Tests für D1/D3/D4/D5/D6/D7, F5, von ADR-066 verlangt.
@@ -124,7 +127,10 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
 - **AK10/AK11 ✓:** Tests mit Stub-Gruppen (grün+grün, grün+rot, `exit 2` ohne Ergebnis, kaputte RESULT-Zeile,
   Exit ≠ 0 bei fail = 0, Signal, Wrapper per KILL, gefälschtes Ergebnis aus Log/Kindprozess, Reihenfolge der Ausgabe).
   14 Mutanten von `test-groups.sh`/D7 werden alle rot (je Fail-Pfad eine eigene Meldung).
-- **AK13:** macOS ✓ (oben). `ubuntu-latest`: siehe CI unten.
+- **AK12 ✓:** Fixture-Lauf (127 Dateien der Seite `factory` aus dem Manifest von 864b213 + Anpassungsstellen ohne
+  `ci.yml`/`release.yml`/`OWNERSHIP.md` + `factory.lock` + `--compose`, Hooks installiert): **2466 grün, 0 rot**, 380 s,
+  ohne Node/DB.
+- **AK13 ✓:** macOS/bash 3.2 (oben) und `ubuntu-latest` (CI-Job `factory-self-test` grün, PR #54).
 - **AK14 ✓:** Jede Gruppe räumt `T23` per EXIT-Trap auf (TERM → `exit 143` → Trap). Die Suite beendet und erwartet
   laufende Gruppen bei Ende, INT und TERM. Test F5: TERM an die Suite → Exit ≠ 0 binnen 10 s, Gruppe beendet, ihr
   Temp-Verzeichnis und die Logs sind weg (die Mutanten „kein kill“, „kein Weiterreichen“, „kein Shard-Trap“ werden rot).
