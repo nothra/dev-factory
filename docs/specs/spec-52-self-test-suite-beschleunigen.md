@@ -143,12 +143,15 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
   (Entwickler, 2026-11-10).
 - [x] Q4: Wie streng ist „Assertions identisch“? → **Anzahl gleich**. Name und Reihenfolge dürfen
   abweichen, wenn jede Abweichung in der Task-Datei begründet ist (Entwickler, 2026-11-10).
-- [ ] Q5 (für `/architecture`): **Q1 und Q2 zusammen erzwingen fast sicher Parallelisierung.**
+- [x] Q5 (für `/architecture`): **Q1 und Q2 zusammen erzwingen fast sicher Parallelisierung.**
   Außerhalb von `factory-lock-tests.sh` laufen heute ~204 s, und die sind nicht im Scope. Sequenziell
   müsste die Gruppe auf ≤ 36 s sinken (−90 %), um 240 s zu erreichen. Mit paralleler Ausführung
   genügt es, dass die Gruppe in ihrem Prozess unter etwa 240 s bleibt und der Rest nicht durch
   Ressourcenkonkurrenz über 240 s wächst. `/architecture` entscheidet den Weg und prüft, ob die
   Parallelisierung ein ADR-Trigger ist (Struktur der ausgelieferten Suite, Verhalten bei Konsumenten).
-- [ ] Q6 (für `/architecture`): Läuft die Parallelisierung auch in CI und bei Konsumenten, oder gibt
+  → **Parallelisierung in Shards, ADR-Trigger ja** (Architekturmuster): [ADR-066](../factory/adr/066-self-test-gruppen-parallel.md) (`/architecture`, 2026-11-10).
+- [x] Q6 (für `/architecture`): Läuft die Parallelisierung auch in CI und bei Konsumenten, oder gibt
   es einen Schalter für sequenziellen Lauf (z. B. zum Debuggen)? AK4 verlangt nur, dass CI nicht
   langsamer wird.
+  → **Parallel überall** (lokal, CI, Konsumenten), Rückfall `FACTORY_SELF_TEST_SERIAL=1`, ADR-066 D6
+  (`/architecture`, 2026-11-10).
