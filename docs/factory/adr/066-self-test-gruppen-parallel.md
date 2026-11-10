@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed (2026-11-10, Spec #52). Wird mit der Umsetzung auf Accepted gesetzt.
+Accepted (2026-11-10, umgesetzt mit Spec #52). Schnitt (D2) nach Messung: `factory-lock-23-tests.sh`,
+`factory-lock-24a-tests.sh` (bis F-24.3), `factory-lock-24b-tests.sh` (ab FS-T2.3; #24 ungeteilt lag bei ~173 s),
+`factory-lock-37a-tests.sh` (Verdrahtung, Doku-Guards, AK-37b/c) und `factory-lock-37b-tests.sh` (Fail-closed-Zweige,
+F-37.1, guard/preflight); Helfer in `lib/factory-lock-fixtures.sh` und `lib/test-groups.sh`.
 
 ## Kontext
 

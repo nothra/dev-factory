@@ -770,7 +770,8 @@ Repository-Secret für `pull_request`-Workflows des Update-PRs.
 
 **Konsequenzen:** geändert `.github/workflows/factory-update.yml` (vier Jobs), `scripts/factory-update.sh`
 (vier Aufrufformen, Übergabe per Bundle, kein Checkout im Arbeitsbaum), `docs/factory/OPERATING.md` §0.6,
-E4/E10/E12 dieses ADR (Verweise statt „Restrisiko akzeptiert"), Tests in `scripts/checks/tests/factory-lock-tests.sh`.
+E4/E10/E12 dieses ADR (Verweise statt „Restrisiko akzeptiert"), Tests in `scripts/checks/tests/factory-lock-tests.sh`
+(seit #52 aufgeteilt in `factory-lock-23/24a/24b/37a/37b-tests.sh` mit `lib/factory-lock-fixtures.sh`, Factory-ADR-066).
 Keine neue Datei (kein `OWNERSHIP.md`-Eintrag nötig). Bestehende Konsumenten müssen das Secret **vor** dem
 Update auf die neue Version umziehen, sonst endet `guard` rot (gewollt); das gehört in die Release-Notes
 des nächsten Releases.

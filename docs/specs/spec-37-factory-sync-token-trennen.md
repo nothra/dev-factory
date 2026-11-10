@@ -171,7 +171,7 @@ sich darauf verlässt, dass ein Release dieses Token nicht erreicht, bevor er de
 
 8 Kriterien + 4 Fehlerszenarien = 12, unter der Schwelle von 25 AK (Lesson
 `nothra/tch-gastro-services#369`). Erwartet: `factory-update.yml` (Aufteilung), `factory-update.sh` bzw.
-ein zusätzliches Skript für Übergabe/Prüfung, Tests in `scripts/checks/tests/factory-lock-tests.sh`,
+ein zusätzliches Skript für Übergabe/Prüfung, Tests in `scripts/checks/tests/factory-lock-tests.sh` (seit #52: `factory-lock-37a/37b-tests.sh`, Factory-ADR-066),
 `OPERATING.md` §0.6, ADR-063 Nachtrag, ggf. Zeile in `OWNERSHIP.md` je neuer Datei.
 
 ## Zuordnung
