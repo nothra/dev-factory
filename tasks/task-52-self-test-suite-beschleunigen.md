@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -192,6 +192,15 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
 - Iteration 2 (`/review`, 2026-11-10): **APPROVED** – 0 kritisch, 0 wichtig, 5 Nitpicks, siehe
   [`review-52.md`](review-52.md). W1–W7 bestätigt, W6 bleibt menschlicher Schritt vor dem Merge (Q7/Q8, im PR-Body genannt).
   Nitpick: `test_groups_cleanup` ist nicht ganz idempotent (zweiter Aufruf nach `.rc`-Gruppe träfe die freie PID).
+
+## Refactoring (`/refactor`, 2026-11-10)
+Durchgesehen: `lib/test-groups.sh`, `lib/factory-lock-fixtures.sh`, die fünf Gruppen-Dateien, Diff gegen `origin/main`.
+**Keine Code-Änderung.** `test-groups.sh` besteht aus kleinen Funktionen mit einer Aufgabe, benannten Rückgabewegen und
+WHY-Kommentaren. Die Gruppen-Rümpfe sind unverändert aus dem Original geschnitten (AK5/AK6) – eine Umformung würde
+die Assertion-Reihenfolge und die Mutationsbelege berühren, die `/review` bestätigt hat. Bewusst nicht angefasst: der
+vierzeilige Lib-Ladeblock, der in jeder Gruppe steht (eine zusätzliche Lib wäre eine neue ausgelieferte Datei und eine
+weitere `F-22.5`-Assertion, also eine Änderung der AK5-Zählung für ein Nitpick). Die Test-Suite lief in dieser Session
+nicht erneut: die Shell-Rechte für `bash -n`/Suite waren nicht freigegeben; es gibt keine Änderung an Skripten.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
