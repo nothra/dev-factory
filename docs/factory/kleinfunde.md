@@ -278,3 +278,17 @@
 - **Was:** Seit Task 51 ist `commands.test` des Factory-Repos der Wrapper `scripts/project/checks/factory-suite-gate.sh` (überspringt die Suite bei reinem `tasks/`-/`docs/specs/`-Diff). Die ADR-Beschreibung nennt noch die Suite direkt. Datei gehört der Seite `factory`, daher außerhalb von AK7 des Tasks 51.
 - **Fix:** Halbsatz in D9 ergänzen („`commands.test` = Wrapper um `run-tests.sh`, siehe Task 51“). Eine Zeile.
 - **Herkunft:** `/review` zu Task 51 (Iteration 1/2, Nitpick), `/codify`.
+
+### Konvention „`#<nr>` in Testnamen = Ursprungs-Repo" in `run-tests.sh` gilt nicht mehr durchgängig
+
+- **Wo:** `scripts/checks/tests/run-tests.sh:16-17` (Kopf-Kommentar zur Konvention), verifiziert am 2026-11-10.
+- **Was:** Der Kopf erklärt jedes `#<nr>` in Testnamen zum Issue von `nothra/tch-gastro-services`. Die Tests der Factory-Issues #22, #23, #24, #28, #37 und #52 tragen aber Nummern dieses Repos (`#52 D3: …`, `#23 …`), ohne Präfix. Wer einen Testnamen nachschlägt, landet im falschen Repo. Gleiches gilt für den Satz in `docs/factory/PROJECT-CONTEXT.md` → „Konventionen".
+- **Fix:** Konvention um „Nummern ab dem Herauslösen (Factory-Issues) meinen dieses Repo; sie stehen in Abschnitten `Factory-Issue #<nr>`" ergänzen, beide Stellen. Etwa vier Zeilen.
+- **Herkunft:** `/review` zu Task 52 (Runde 2, Nitpick).
+
+### `assert_true` wertet eine leere Bedingung als grün
+
+- **Wo:** `scripts/checks/tests/lib/assert-helpers.sh:45` (`[[ "$cond" -eq 0 ]]` in `assert_true`), verifiziert am 2026-11-10.
+- **Was:** `[[ "" -eq 0 ]]` ist in bash wahr. Bricht die Kommandosubstitution einer Bedingung ab, bevor `echo $?` läuft (z. B. `set -u` auf einer ungesetzten Variable), liefert sie leeren Text, und die Assertion zählt grün. Fiel in Task 52 beim F5-Test auf (dort durch eigene Vorbedingungs-Assertions abgefangen); jede andere Assertion nach diesem Muster kann aus demselben Grund still grün sein.
+- **Fix:** in `assert_true` nur `0` als Erfolg werten (`[ "$cond" = 0 ]`) und einen Test mit leerer Bedingung ergänzen; vorher die Suite auf Aufrufer prüfen, die bewusst etwas anderes als `0`/`1` oder eine Zahl übergeben. Etwa fünf Zeilen.
+- **Herkunft:** `/implement` zu Task 52 (Rework nach `/review` Iteration 1, Finding W5).

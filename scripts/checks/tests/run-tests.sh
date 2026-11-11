@@ -30,6 +30,20 @@ source "$CHECKS_DIR/tests/lib/assert-helpers.sh" || {
 # Repo auf (#149, #265 …); dort soll der Hook die Projekt-Suite nicht verschachtelt noch einmal starten (Factory-Issue #22).
 export FACTORY_SELF_TEST_RUN=1
 
+# Testgruppen als parallele Teilprozesse (Factory-ADR-066): jetzt starten, an der Stelle „Factory-Issue #23" unten einsammeln.
+# Ausgabe und Zähler erscheinen dort in Startreihenfolge; FACTORY_SELF_TEST_SERIAL=1 = derselbe Ablauf ohne Überlappung.
+source "$CHECKS_DIR/tests/lib/test-groups.sh" || {
+  echo "run-tests: Helfer-Lib nicht ladbar: $CHECKS_DIR/tests/lib/test-groups.sh (fail-closed)" >&2
+  exit 2
+}
+test_groups_trap
+# Die Gruppenliste ist der Glob selbst (sortiert: 23, 24a, 24b, 37a, 37b – die Ausgabe bleibt in der bisherigen Reihenfolge):
+# eine neue Gruppendatei läuft mit und steht im Neutralitäts-Guard (SHIPPED_TESTS_28), ohne dass eine Liste von Hand mitwächst.
+TEST_GROUP_FILES_52=("$CHECKS_DIR"/tests/factory-lock-*-tests.sh)
+for group_52 in "${TEST_GROUP_FILES_52[@]}"; do
+  test_group_start "$(basename "$group_52" -tests.sh)" "$group_52"
+done
+
 # ─── branch-name-check.sh: direkter Aufruf mit Befehls-String ────────────────
 echo "branch-name-check.sh (Befehls-String als \$1):"
 
@@ -8332,7 +8346,7 @@ assert_exit 0 "$adr_links_rc_426" "#426 AK-B3: im ganzen Repo zeigt kein ADR-Lin
 [ "$adr_links_rc_426" -eq 0 ] || echo "$out_426" | grep '^✗' | head -20 | sed 's/^/      /'
 
 # AK-B1/B2: Zuordnung der ADR-Dateien (Anhang 1 der Spec, final in ADR-063 Nachtrag Q3)
-FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063 064 065"
+FACTORY_ADR_NUMS_426="001 002 003 004 005 006 007 008 009 010 011 012 013 018 019 029 030 037 038 040 041 042 043 045 047 049 051 063 064 065 066"
 adr_nums_426() { # $1 = Verzeichnis → Nummern der ADR-Dateien, eindeutig sortiert
   local f; for f in "$1"/[0-9][0-9][0-9]-*.md; do [ -e "$f" ] && basename "$f" | cut -c1-3; done | sort -u
 }
@@ -9060,7 +9074,8 @@ project_reads_28() {
   done
   printf '%s' "$out"
 }
-SHIPPED_TESTS_28=("$SCRIPTS_DIR/checks/tests/run-tests.sh" "$SCRIPTS_DIR/checks/tests/factory-lock-tests.sh" "$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh")
+# Libs und Testgruppen per Glob (dieselbe Liste, die oben gestartet wird): eine neue Datei entgeht dem Guard nicht
+SHIPPED_TESTS_28=("$SCRIPTS_DIR/checks/tests/run-tests.sh" "$SCRIPTS_DIR"/checks/tests/lib/*.sh "${TEST_GROUP_FILES_52[@]}")
 assert_true "$([ -z "$(project_reads_28 "${SHIPPED_TESTS_28[@]}")" ]; echo $?)" "#28 AK6: die ausgelieferten Test-Dateien lesen keine projekteigene Datei des echten Repos (Ausnahme: factory.config.yml)"
 TMP_28="$(mktemp -d)"; HELPERS_28="$SCRIPTS_DIR/checks/tests/lib/assert-helpers.sh"
 # mutant_28 <Pfad-nach-Variable> → Kopie der Helfer-Lib mit einem ergänzten Lesezugriff nach $TMP_28/mut.sh (Pfad auf stdout)
@@ -9270,11 +9285,125 @@ for var_env_6 in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX 
 done
 rm -rf "$TMP_ENV_6"
 
-# ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
-source "$CHECKS_DIR/tests/factory-lock-tests.sh" || {
-  echo "run-tests: Testgruppe nicht ladbar: $CHECKS_DIR/tests/factory-lock-tests.sh (fail-closed)" >&2
-  exit 2
+# ─── Factory-Issue #52: Testgruppen als Teilprozesse (Factory-ADR-066) ───────────────────────────
+# Stub-Gruppen in einem eigenen Treiber-Prozess (sonst zählten ihre Assertions in diese Suite): Ergebnisvertrag D3,
+# fail-closed D4 (je Fail-Pfad eine eigene Meldung), Aufräumen D5, seriell D6, linearer Literal-Helfer D7.
+echo ""
+echo "Factory-Issue #52: Testgruppen als Teilprozesse (Factory-ADR-066):"
+TMP_52="$(mktemp -d)"
+cat > "$TMP_52/driver.sh" <<'DRIVER'
+source "$STUB_CHECKS_52/tests/lib/assert-helpers.sh"; source "$STUB_CHECKS_52/tests/lib/test-groups.sh"
+# Trace jedes `kill` der Lib (Funktion vor dem Builtin): belegt, an welche PIDs das Aufräumen ein Signal schickt
+kill() { printf '%s\n' "$*" >> "$STUB_DIR_52/kill.log"; builtin kill "$@"; }
+test_groups_trap
+while [ $# -gt 0 ]; do test_group_start "$1" "$STUB_DIR_52/$1.sh"; shift; done
+printf '%s' "$TEST_GROUPS_DIR" > "$STUB_DIR_52/groups-dir"
+printf '%s\n' "${TEST_GROUP_PIDS[@]}" > "$STUB_DIR_52/group-pids"
+[ -z "${PREWAIT_52:-}" ] || wait   # alle Kinder vorab reapen: `wait <pid>` kennt ihren Status danach nicht mehr
+[ -z "${NOCOLLECT_52:-}" ] || exit 0   # Sammeln „vergessen": der EXIT-Pfad muss das Fehlen erkennen
+if [ -n "${HOLD_52:-}" ]; then   # alle Gruppen fertig werden lassen, ohne zu sammeln, und auf TERM warten
+  while [ "$(ls "$TEST_GROUPS_DIR"/*.rc 2>/dev/null | wc -l)" -lt "${#TEST_GROUP_PIDS[@]}" ]; do sleep 0.1; done
+  echo held > "$STUB_DIR_52/held"
+  while :; do sleep 0.1; done
+fi
+test_groups_collect
+print_summary
+DRIVER
+stub_52() { # <name> <rumpf> – Stub-Gruppe mit den echten Helfern
+  printf 'source "$STUB_CHECKS_52/tests/lib/assert-helpers.sh"; source "$STUB_CHECKS_52/tests/lib/test-groups.sh"\n%s\n' "$2" > "$TMP_52/$1.sh"
 }
+# green wartet (höchstens 3 s), bis other nachgesehen hat: parallel sieht other green nie fertig, seriell immer – ohne Timing
+stub_52 green 'echo "  A1"; i=0; while [ ! -e "$STUB_DIR_52/other.checked" ] && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done; assert_true 0 "stub-gruen"; echo "  A2"; : > "$STUB_DIR_52/green.done"; test_group_finish; exit $?'
+stub_52 other 'echo "  B1"; [ -e "$STUB_DIR_52/green.done" ] && echo "  B sah green fertig"; : > "$STUB_DIR_52/other.checked"; echo "  B2"; assert_true 0 "stub-anders"; test_group_finish; exit $?'
+stub_52 quick 'assert_true 0 "stub-schnell"; test_group_finish; exit $?'
+stub_52 red 'assert_true 1 "stub-rot"; test_group_finish; exit $?'
+stub_52 abort 'echo "  abort-log"; exit 2'
+stub_52 badresult 'printf "RESULT x\n" > "$TEST_GROUP_RESULT_FILE"; exit 0'
+stub_52 exitnofail 'assert_true 0 "stub-ok"; test_group_finish; exit 3'
+stub_52 signal 'kill -TERM $$'
+stub_52 wrapkill 'assert_true 0 "stub-ok"; test_group_finish; kill -KILL $PPID; exit 0'
+stub_52 fake 'echo "RESULT 99 0"; bash -c '"'"'printf "RESULT 99 0\n" > "${FACTORY_TEST_GROUP_RESULT:-/dev/null}"'"'"'; exit 0'
+stub_52 slow 'd="$(mktemp -d)"; test_group_trap "$d"; printf "%s %s\n" "$$" "$d" > "$STUB_DIR_52/slow.pid"; i=0; while [ $i -lt 30 ]; do sleep 1; i=$((i + 1)); done; test_group_finish; exit $?'
+drive_52() { # <stub…> – Treiber laufen lassen (seriell nur mit SERIAL_52=1, nie geerbt); setzt out_52 (ohne Farbcodes) und rc_52
+  rm -f "$TMP_52/groups-dir" "$TMP_52/group-pids" "$TMP_52/kill.log" "$TMP_52/green.done" "$TMP_52/other.checked" "$TMP_52/held"
+  out_52="$(STUB_CHECKS_52="$CHECKS_DIR" STUB_DIR_52="$TMP_52" FACTORY_SELF_TEST_SERIAL="${SERIAL_52:-}" bash "$TMP_52/driver.sh" "$@" 2>&1)"; rc_52=$?
+  out_52="$(printf '%s' "$out_52" | LC_ALL=C sed $'s/\033\\[[0-9;]*m//g')"
+}
+drive_52 green other
+assert_true "$([ "$rc_52" -eq 0 ] && grep -qF 'Ergebnis: 2 grün, 0 rot' <<< "$out_52"; echo $?)" "#52 D3: zwei grüne Gruppen → Exit 0, Zähler beider Gruppen addiert"
+assert_true "$([ "$(grep -E '^  (A1|A2|B1|B2)$' <<< "$out_52" | tr -d ' ' | tr '\n' ' ')" = 'A1 A2 B1 B2 ' ]; echo $?)" "#52 D3/AK10: Ausgabe je Gruppe zusammenhängend in Startreihenfolge (die schnellere zweite Gruppe wird nicht verschränkt)"
+assert_absent "$out_52" 'B sah green fertig' "#52 D1: die Gruppen laufen überlappend (die zweite startet, bevor die erste fertig ist)"
+groups_dir_52="$(cat "$TMP_52/groups-dir" 2>/dev/null)"
+assert_true "$([ -n "$groups_dir_52" ] && [ ! -e "$groups_dir_52" ]; echo $?)" "#52 D5: nach dem Sammeln sind Logs und Ergebnisdateien entfernt (Verzeichnis war bekannt)"
+assert_absent "$out_52" 'nicht eingesammelt' "#52 D4: nach dem Sammeln meldet der EXIT-Pfad keine fehlende Gruppe"
+PREWAIT_52=1 drive_52 green other
+assert_true "$([ "$rc_52" -eq 0 ] && grep -qF 'Ergebnis: 2 grün, 0 rot' <<< "$out_52"; echo $?)" \
+  "#52 D3: der Exit-Status einer längst beendeten Gruppe geht nicht verloren (PID schon gereapt)"
+SERIAL_52=1 drive_52 green other
+assert_true "$([ "$rc_52" -eq 0 ] && grep -qF 'Ergebnis: 2 grün, 0 rot' <<< "$out_52" && grep -qF 'B sah green fertig' <<< "$out_52"; echo $?)" "#52 D6: FACTORY_SELF_TEST_SERIAL=1 → dasselbe Ergebnis, die zweite Gruppe startet erst nach der ersten"
+drive_52 green red
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF 'Ergebnis: 1 grün, 1 rot' <<< "$out_52" && grep -qF '✗ stub-rot' <<< "$out_52"; echo $?)" "#52 AK10: rote Assertion in einer Gruppe → Exit ≠ 0, PASS/FAIL beider Gruppen zusammengezählt"
+drive_52 abort
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF '✗ Testgruppe abort: abgebrochen, kein Ergebnis (Exit 2)' <<< "$out_52" && grep -qF 'abort-log' <<< "$out_52"; echo $?)" "#52 D4/AK11: exit 2 ohne Ergebnis → rot mit Namen der Gruppe, ihr Log wird trotzdem ausgegeben"
+drive_52 badresult
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF '✗ Testgruppe badresult: Ergebnis nicht wohlgeformt' <<< "$out_52"; echo $?)" "#52 D4: kaputte RESULT-Zeile → rot (nicht wohlgeformt)"
+drive_52 exitnofail
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF '✗ Testgruppe exitnofail: Exit 3 ohne rote Assertion' <<< "$out_52"; echo $?)" "#52 D4: Exit ≠ 0 bei fail = 0 → rot"
+drive_52 signal
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF '✗ Testgruppe signal: abgebrochen, kein Ergebnis (Exit 143)' <<< "$out_52"; echo $?)" "#52 AK11: Gruppe per Signal beendet → rot, nie als grün gelesen"
+drive_52 wrapkill
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF '✗ Testgruppe wrapkill: abgebrochen, kein Exit-Status' <<< "$out_52"; echo $?)" \
+  "#52 D4: fehlt der Exit-Status (Wrapper hart beendet), zählt die Gruppe als rot – auch wenn ihr Ergebnis grün lautet"
+drive_52 fake
+assert_true "$([ "$rc_52" -eq 1 ] && grep -qF 'Ergebnis: 0 grün, 1 rot' <<< "$out_52" && grep -qF '✗ Testgruppe fake: abgebrochen, kein Ergebnis (Exit 0)' <<< "$out_52"; echo $?)" \
+  "#52 D3: weder eine RESULT-Zeile im Log noch ein Kindprozess der Gruppe (kennt die Ergebnisdatei nicht) fälscht das Ergebnis"
+NOCOLLECT_52=1 drive_52 quick
+assert_true "$([ "$rc_52" -eq 1 ]; echo $?)" "#52 D4: eine gestartete, nie eingesammelte Gruppe macht die Suite rot (Exit 1 statt 0)"
+assert_contains_286 "$out_52" '✗ Testgruppen nicht eingesammelt: quick' "#52 D4: der EXIT-Pfad nennt die nie eingesammelte Gruppe"
+
+# drive_bg_52 <stub> <wartedatei> – Treiber im Hintergrund, bis <wartedatei> existiert (höchstens 10 s), dann TERM; setzt
+# drv_rc_52 und dt_52 (Sekunden bis zum Ende nach dem TERM); die Wartedatei muss erscheinen, sonst prüft der Fall nichts
+drive_bg_52() {
+  rm -f "$TMP_52/groups-dir" "$TMP_52/group-pids" "$TMP_52/kill.log" "$TMP_52/held" "$TMP_52/slow.pid"
+  ( STUB_CHECKS_52="$CHECKS_DIR" STUB_DIR_52="$TMP_52" FACTORY_SELF_TEST_SERIAL= exec bash "$TMP_52/driver.sh" "$1" >/dev/null 2>&1 ) &
+  local drv=$! i=0
+  while [ ! -s "$TMP_52/$2" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  dt_52=$SECONDS; kill -TERM "$drv"; wait "$drv"; drv_rc_52=$?; dt_52=$((SECONDS - dt_52))
+}
+# F5/AK14: Abbruch der Suite per TERM während eine Gruppe läuft → Gruppe beendet, Temp-Verzeichnisse weg, Exit ≠ 0
+drive_bg_52 slow slow.pid
+slow_pid_52=""; slow_dir_52=""
+[ ! -s "$TMP_52/slow.pid" ] || read -r slow_pid_52 slow_dir_52 < "$TMP_52/slow.pid"
+groups_dir_52="$(cat "$TMP_52/groups-dir" 2>/dev/null)"
+assert_true "$([ -n "$slow_pid_52" ] && [ -n "$slow_dir_52" ] && [ -n "$groups_dir_52" ]; echo $?)" \
+  "#52 F5: die laufende Gruppe hat PID und Temp-Verzeichnis gemeldet, bevor das TERM kam (sonst prüfte der Fall nichts)"
+# Die Gruppe schliefe 30 s: endet der Treiber binnen 10 s, hat er sie beendet und nicht nur abgewartet
+assert_true "$([ "$drv_rc_52" -ne 0 ] && [ "$dt_52" -lt 10 ]; echo $?)" "#52 F5: TERM an die Suite → Exit ≠ 0 binnen 10 s"
+assert_true "$([ -n "$slow_pid_52" ] && ! kill -0 "$slow_pid_52" 2>/dev/null; echo $?)" "#52 F5/AK14: TERM an die Suite → die laufende Gruppe ist beendet"
+assert_true "$([ -n "$slow_dir_52" ] && [ ! -e "$slow_dir_52" ]; echo $?)" "#52 F5/AK14: TERM an die Suite → das Temp-Verzeichnis der Gruppe ist entfernt"
+assert_true "$([ -n "$groups_dir_52" ] && [ ! -e "$groups_dir_52" ]; echo $?)" "#52 F5/AK14: TERM an die Suite → Logs und Ergebnisdateien sind entfernt"
+slow_wrapper_52="$(head -1 "$TMP_52/group-pids" 2>/dev/null)"
+assert_true "$([ -n "$slow_wrapper_52" ] && grep -qxF -- "-TERM $slow_wrapper_52" "$TMP_52/kill.log"; echo $?)" \
+  "#52 D5: das Aufräumen schickt TERM an eine noch laufende Gruppe (Positivkontrolle des kill-Trace)"
+# W1: eine schon beendete Gruppe bekommt beim Abbruch kein TERM – ihre PID ist frei und kann einem fremden Prozess gehören
+HOLD_52=1 drive_bg_52 quick held
+quick_wrapper_52="$(head -1 "$TMP_52/group-pids" 2>/dev/null)"
+assert_true "$([ -s "$TMP_52/held" ] && [ -n "$quick_wrapper_52" ]; echo $?)" "#52 D5: Gruppe fertig und Treiber wartete vor dem TERM ungesammelt (Vorbedingung)"
+assert_true "$([ -n "$quick_wrapper_52" ] && ! grep -qE -- "(^| )$quick_wrapper_52\$" "$TMP_52/kill.log" 2>/dev/null; echo $?)" \
+  "#52 D5: Abbruch vor dem Sammeln → kein kill an die PID einer schon beendeten Gruppe (PID-Wiederverwendung)"
+# D7: strip_literal_37 liefert exakt "${v//"$lit"/}" – Literal am Anfang, am Ende, mehrfach, gar nicht, leer, mit Glob-/Escape-Zeichen
+diff_52=0
+cases_52=("XYab|XY" "abXY|XY" "XYXYaXY|XY" "abc|XY" "|XY" "abc|" "a"$'\n'"XY"$'\n'"|XY" "aaa|aa" "x (y) z|(y)" "a*b|*" 'a\nb|\n')
+for case_52 in "${cases_52[@]}"; do
+  t_52="${case_52%|*}"; l_52="${case_52##*|}"
+  [ "$(bash -c 'source "$1/tests/lib/assert-helpers.sh"; source "$1/tests/lib/test-groups.sh"; source "$1/tests/lib/factory-lock-fixtures.sh"; strip_literal_37 "$2" "$3"; printf .' _ "$CHECKS_DIR" "$t_52" "$l_52")" = "${t_52//"$l_52"/}." ] || diff_52=$((diff_52 + 1))
+done
+assert_true "$diff_52" "#52 D7: strip_literal_37 liefert auf kleinen Eingaben dasselbe wie \${v//literal/} (${#cases_52[@]} Fälle)"
+rm -rf "$TMP_52"
+
+# ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
+# Die Testgruppen (TEST_GROUP_FILES_52, factory-lock-*-tests.sh) laufen seit dem Start als Teilprozesse; hier ihre Ausgabe und Zähler
+test_groups_collect
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

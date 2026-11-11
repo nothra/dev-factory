@@ -120,3 +120,4 @@ directory). Duplicate numbers (040) are known, see nothra/tch-gastro-services#32
 | 063 | [Factory in eigenes Repo – versionierte Übernahme per Manifest](063-factory-eigenes-repo-vendored-manifest.md) | Accepted |
 | 064 | [Konsumenten-Vertrag – `factory.lock` als Ownership-Quelle, Lock-Format](064-konsumenten-vertrag-lock-als-ownership-quelle.md) | Accepted |
 | 065 | [Turn-Budget von `/implement` nach AK-Zahl staffeln (erweitert ADR-038)](065-turn-budget-nach-ak-zahl.md) | Accepted |
+| 066 | [Testgruppen der ausgelieferten Suite als parallele Teilprozesse](066-self-test-gruppen-parallel.md) | Accepted |

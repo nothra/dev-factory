@@ -788,3 +788,19 @@ Ein Gate-Skript, das `git`-Befehle auf dem Repo ausführt (Merge-Base, Diff, ls-
 **Regel:** Ein Gate, das im pre-push-/pre-commit-Hook läuft und Git befragt, bekommt einen Test, der **echt pusht**: Bare-Remote, `git worktree add`, Einzeiler-Hook über `core.hooksPath`, beide Richtungen (Skip/voller Lauf) mit Exit-Code des Pushs. Mutationsbeleg: eine Prüfung `[ -d "$ROOT/.git" ]` muss nur diese Assertions rot machen. Fixture-Repos vorher `GIT_*` unsetzen und mit lokaler Identität committen.
 
 → `/implement`, `/test`, `/review` – bei neuem oder geändertem Skript, das im Git-Hook läuft und Git-Zustand liest
+
+## Parallele Testgruppen: Status nicht aus `wait <pid>`, Aufräumen nie per PID ohne Lebendprüfung (aus Factory-Task #52, `/implement` + `/review` Iteration 1)
+
+Die Suite startet Gruppen im Hintergrund und sammelt sie erst nach Zehntausenden weiteren Prozess-Starts. Erster Volllauf: Gruppe grün, Suite meldete „Exit 127“ – die PID der längst beendeten Gruppe war wiederverwendet, bash hatte den Status verworfen. Dieselbe Ursache im Aufräumpfad: `kill <pid>` auf eine beendete Gruppe hätte einen fremden Prozess getroffen (Review W1).
+
+**Regel:** (1) Der Status einer Hintergrund-Gruppe kommt aus einer **Datei**, die ein Wrapper schreibt, nie aus `wait <pid>`; der Treiber reapt Kinder vor dem Sammeln. (2) `kill` nur für Gruppen ohne Ergebnisdatei. (3) Fail-closed: eine nie eingesammelte oder ergebnislose Gruppe ist eine rote Assertion – Gruppenliste per Glob, nicht von Hand gepflegt. (4) Test mit `kill`-Trace-Stub samt Positivkontrolle (laufende Gruppe → `-TERM <pid>` im Trace); die Mutante „Status aus `wait`“ muss rot werden.
+
+→ `/implement`, `/test`, `/review` – bei Hintergrundprozessen, die ein Treiber später einsammelt
+
+## Beschleunigung per Parallelisierung: erst Kernauslastung messen, dann Gruppen schneiden (aus Factory-Task #52, AK3-Versuch)
+
+Eine sechste Gruppe aus dem größten seriellen Block (81 s) senkte die Gesamtzeit nicht (398/419 s statt 353 s): Die Suite nutzte im Schnitt 1,3 Kerne, die Systemzeit (fork/exec) dominierte und skalierte nicht mit weiteren Gruppen. Der größte Einzelhebel war ein quadratischer Bash-Ausdruck (`${v//x/}`, ~124 s je Aufruf).
+
+**Regel:** Vor dem Schneiden in Gruppen `time` (user/system/CPU-%) und Zeit je Abschnitt messen und teure Einzelausdrücke zuerst beseitigen; ein Zielwert, den der Scope nicht erreicht, wird mit Messung eskaliert statt den Scope still zu erweitern.
+
+→ `/architecture`, `/implement` – bei Laufzeit-Zielen für Test-Suiten

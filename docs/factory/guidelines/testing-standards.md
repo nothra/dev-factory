@@ -75,6 +75,13 @@ einfache Utilities ohne Side Effects.
 - Test-Daten werden pro Test aufgebaut, nicht geteilt
 - Bei Datenbank-Tests: Rollback nach jedem Test oder Test-Container
 
+**Testgruppen der Factory-Suite (Factory-ADR-066):** `scripts/checks/tests/factory-lock-*-tests.sh`
+laufen als parallele Teilprozesse von `run-tests.sh`; eine neue Datei nach diesem Muster läuft
+automatisch mit. Eine Gruppe ist allein startbar, setzt keine Variable der Suite voraus, baut in
+eigenem `mktemp -d` (EXIT-Trap per `test_group_trap`) eine eigene Vorlage und endet mit
+`test_group_finish; exit $?`. `FACTORY_SELF_TEST_SERIAL=1` startet die Gruppen nacheinander
+(Debuggen, knappe Runner).
+
 ---
 
 ## Flaky Tests: Zero Tolerance
