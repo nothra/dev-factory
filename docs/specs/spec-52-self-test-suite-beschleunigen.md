@@ -163,12 +163,12 @@ Zeile die gesamte Arbeit **seit der vorigen Ausgabe** zu, hier etwa die vorangeh
   langsamer wird.
   → **Parallel überall** (lokal, CI, Konsumenten), Rückfall `FACTORY_SELF_TEST_SERIAL=1`, ADR-066 D6
   (`/architecture`, 2026-11-10).
-- [ ] Q7 (aus `/implement`, nach `/review` Iteration 1): ADR-066 verlangt Tests für den neuen
+- [x] Q7 (aus `/implement`, nach `/review` Iteration 1): ADR-066 verlangt Tests für den neuen
   Mechanismus; damit wächst die Assertion-Zahl, Q4 sagte „Anzahl gleich“. → **Auslegung
   `/implement`:** alle alten Assertions unverändert und in derselben Reihenfolge, die neuen nur für
   den neuen Mechanismus und in der Task-Datei aufgelistet (AK5 entsprechend ergänzt).
-  Bestätigung durch den Entwickler vor dem Merge offen.
-- [ ] Q8 (aus `/implement`): AK3 ist verfehlt (353 s). Die Gruppen sind nach ≤ 143 s fertig; der Rest
+  → **Bestätigt durch den Entwickler (2026-11-10).**
+- [x] Q8 (aus `/implement`): AK3 ist verfehlt (353 s). Die Gruppen sind nach ≤ 143 s fertig; der Rest
   der Suite lag schon vorher über 240 s, und eine weitere Auslagerung (Tests aus nothra/tch-gastro-services#334 als Gruppe) brachte keinen
   Nutzen (Engpass: Prozess-Starts). Optionen: Folge-Issue „Prozess-Starts je Assertion senken“ oder
-  Zielwert relativ zur Maschine. Entscheidung durch den Entwickler vor dem Merge offen.
+  Zielwert relativ zur Maschine. → **Entschieden (2026-11-10): Abweichung akzeptiert, Folge-Issue #55.**

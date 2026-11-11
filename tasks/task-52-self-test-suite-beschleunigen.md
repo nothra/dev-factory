@@ -18,7 +18,7 @@ Spec: [`docs/specs/spec-52-self-test-suite-beschleunigen.md`](../docs/specs/spec
 <!-- Von /requirements befüllt oder manuell eingeben -->
 - [x] AK1 – Profiling vorher/nachher je Abschnitt (lokal Median aus 3, CI), Methode ohne Zeilen-Zuordnungsartefakt — CI nur Job-Gesamtdauer, Abweichung in der Spec vermerkt
 - [x] AK2 – `factory-lock-tests.sh` lokal ≤ 181 s
-- [ ] AK3 – gesamte Suite lokal (macOS) ≤ 240 s — **verfehlt (353 s), eskaliert**: Engpass ist der Rest der Suite außerhalb des Scopes, siehe Umsetzung
+- [x] AK3 – gesamte Suite lokal (macOS) ≤ 240 s — **verfehlt (353 s), vom Entwickler akzeptiert; Folge-Issue #55 (Prozess-Starts senken)**: Engpass ist der Rest der Suite außerhalb des Scopes, siehe Umsetzung
 - [x] AK4 – CI-Job `factory-self-test` nicht langsamer als vorher
 - [x] AK5 – alle alten Assertions unverändert und in derselben Reihenfolge; neue nur für den neuen Mechanismus, aufgelistet (Spec-Wortlaut ergänzt, Q7 – Bestätigung durch den Entwickler offen)
 - [x] AK6 – jede Assertion prüft denselben Sachverhalt mit derselben Erwartung
@@ -174,7 +174,7 @@ Maschine: macOS arm64, 8 Kerne, bash 3.2, an diesem Tag deutlich langsamer als b
   - **W5 ✓** F5 in Einzel-Assertions geteilt, mit Vorbedingung (PID/Verzeichnis/Gruppen-Verzeichnis bekannt); D5 prüft
     nicht-leeren Pfad; `drive_52` löscht alle Marker vor jedem Lauf. Allgemeine Ursache (`assert_true ""` = grün, per
     Sonde auf bash 3.2 belegt) als Kleinfund in `docs/factory/kleinfunde.md`.
-  - **W6 – offen (Mensch):** PR-Body nennt AK3-Abweichung und die offenen Q7/Q8; Folge-Issue bzw. Zielwert entscheidet
+  - **W6 ✓ (Mensch, 2026-11-10):** AK3-Abweichung akzeptiert („Ich gebe mich mit dem aktuellen Ergebnis zufrieden“), Folge-Issue #55 angelegt; Q7 bestätigt, Q8 entschieden
     der Entwickler vor dem Merge.
   - **W7 ✓** Absatz in `testing-standards.md` (Pflichten neuer Gruppen + Schalter), Zeile im Build/Test-Block von
     `PROJECT-CONTEXT.md`.
@@ -217,6 +217,9 @@ wiederverwendete PID; Beschleunigung: erst Kernauslastung messen). Details: [`co
 PR-Shepherd 2026-11-10: keine offenen Review-Kommentare, kein Approval verlangt, PR bleibt Draft. Merge **nicht**
 freigegeben: W6 (AK3 verfehlt, 353 s statt ≤ 240 s; Spec Q7/Q8) braucht die Entscheidung des Entwicklers vor dem Merge –
 Interrupt `APPROVAL_PENDING`.
+
+**Aufgelöst 2026-11-10:** Der Entwickler hat AK3 (353 s statt ≤ 240 s) als Abweichung akzeptiert und Q7 (AK5-Auslegung) bestätigt;
+Folge-Issue #55 „Prozessstarts der Self-Test-Suite senken“ ist angelegt. Merge freigegeben.
 
 ---
 Branch: `test/52-self-test-suite-beschleunigen`
