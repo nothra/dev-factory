@@ -214,12 +214,9 @@ Zwei Lessons in `docs/factory/lessons/testing.md` (parallele Hintergrund-Gruppen
 wiederverwendete PID; Beschleunigung: erst Kernauslastung messen). Details: [`codify-52.md`](codify-52.md).
 
 ## PR-Shepherd
-PR-Shepherd 2026-11-10: keine offenen Review-Kommentare, kein Approval verlangt, PR bleibt Draft. Merge **nicht**
-freigegeben: W6 (AK3 verfehlt, 353 s statt ≤ 240 s; Spec Q7/Q8) braucht die Entscheidung des Entwicklers vor dem Merge –
-Interrupt `APPROVAL_PENDING`.
-
-**Aufgelöst 2026-11-10:** Der Entwickler hat AK3 (353 s statt ≤ 240 s) als Abweichung akzeptiert und Q7 (AK5-Auslegung) bestätigt;
-Folge-Issue #55 „Prozessstarts der Self-Test-Suite senken“ ist angelegt. Merge freigegeben.
+PR-Shepherd 2026-11-11: Merge freigegeben – keine offenen Review-Kommentare, kein Approval verlangt, Branch aktuell auf `main`,
+CI läuft (Auto-Merge wartet server-seitig). Die zuvor offene Entscheidung (AK3 verfehlt, Q7/Q8) ist am 2026-11-10 vom Entwickler
+getroffen: AK3-Abweichung akzeptiert, Q7 bestätigt, Folge-Issue #55 angelegt.
 
 ---
 Branch: `test/52-self-test-suite-beschleunigen`
