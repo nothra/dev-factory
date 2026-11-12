@@ -3,8 +3,8 @@
 ## Kontext
 
 AK-K1 aus spec-426 (nothra/tch-gastro-services#432) sollte die ausgelieferten Anweisungstexte der
-Factory von Details des Ursprungs-Projekts befreien. Die damalige Suchliste (`pnpm`, `Neon`, `Vercel`,
-`db:seed`, `Drizzle`) war zu kurz. In Dateien der Seite `factory` stehen deshalb noch Stack-Details
+Factory von Details des Ursprungs-Projekts befreien. Die damalige Suchliste (`pnpm`, die beiden
+Anbieternamen aus der C1-Liste, `db:seed`, `Drizzle`) war zu kurz. In Dateien der Seite `factory` stehen deshalb noch Stack-Details
 des Ursprungs-Projekts: Playwright, Next.js-Routen, Drizzle-Transaktionen, Vitest/esbuild,
 projektspezifische Lesson-Themen.
 
@@ -13,10 +13,13 @@ Zwei dieser Stellen sind für jeden anderen Konsumenten **falsch, nicht nur unpa
 zugehörige `routes-doc-check.sh` ist laut Factory-ADR-063 D3 projekteigen und existiert in der
 Factory nicht. Ein Agent im Konsumenten folgt damit einer Regel für ein Gate, das es nicht gibt.
 
-Zusätzlich verletzt der Herkunftsbegriff `Veranstaltung` in zwei Lessons die Regel C1 aus
-`PROJECT-CONTEXT.md` → „Konventionen". Der C1-Guard in `scripts/project/tests/run-tests.sh` findet
-ihn nicht, weil er nur ganze Wörter vergleicht (`VeranstaltungMetaForm.tsx`,
-`deleteVeranstaltungAction`).
+Zusätzlich verletzt der erste Begriff der C1-Liste (`PROJECT-CONTEXT.md` → „Konventionen") in zwei
+Lessons die Regel C1. Der C1-Guard in `scripts/project/tests/run-tests.sh` findet ihn nicht, weil er
+nur ganze Wörter vergleicht und der Begriff dort nur als Wortteil steht (Muster
+`<B1>MetaForm.tsx` und `delete<B1>Action`, `<B1>` = erster C1-Begriff).
+
+Diese Spec nennt die C1-Begriffe bewusst nicht im Klartext: sie ist keine erlaubte Stelle, der
+C1-Guard prüft auch `docs/specs/`.
 
 Der Zeitpunkt ist vorgegeben: **vor der Reintegration** des Ursprungs-Repos
 (nothra/tch-gastro-services#428). Dort gingen die entfernten projektspezifischen Regeln sonst beim
@@ -44,11 +47,11 @@ ersten Factory-Update still verloren.
      Die qualifizierten Herkunftsverweise (`nothra/tch-gastro-services#<nr>`) dürfen bleiben.
    - `docs/factory/gitignore.factory`: das Muster `*.tmp.spec.tsx`
 2. **Herkunftsbegriff aus den Lessons entfernen:** `docs/factory/lessons/testing.md` (Zeile mit
-   `VeranstaltungMetaForm.tsx`) und `docs/factory/lessons/code-style.md` (Zeile mit
-   `deleteVeranstaltungAction`) neutral formulieren, ohne Aussage und Lehre der Lesson zu ändern.
-3. **C1-Guard auf Komposita erweitern (Entscheidung Q2):** Die langen Begriffe `Veranstaltung`,
-   `Montagsrunde`, `Thekenwart`, `Heuchelheim`, `tch-gastro` werden auch als Teil eines Worts
-   erkannt. Die kurzen Begriffe `TCH`, `Neon`, `Vercel` bleiben Ganzwort-Treffer.
+   `<B1>MetaForm.tsx`, heute Zeile 97) und `docs/factory/lessons/code-style.md` (Zeile mit
+   `delete<B1>Action`, heute Zeile 203) neutral formulieren, ohne Aussage und Lehre der Lesson zu
+   ändern.
+3. **C1-Guard auf Komposita erweitern (Entscheidung Q2):** Die langen C1-Begriffe werden auch als
+   Teil eines Worts erkannt. Die kurzen C1-Begriffe bleiben Ganzwort-Treffer.
 4. **Neuer Stack-Begriff-Guard über die Anweisungstexte (Entscheidung Q1):**
    - **Geprüfte Dateien:** alle getrackten Dateien unter `.claude/commands/`,
      `docs/factory/agents/`, `docs/factory/guidelines/`, dazu `docs/factory/gitignore.factory` und
@@ -84,7 +87,12 @@ ersten Factory-Update still verloren.
 - **Anweisungstexte:** die Dateien aus Scope 4 („Geprüfte Dateien"). Ein Agent liest sie als
   Handlungsanweisung, deshalb gelten Aussagen darin für jeden Konsumenten.
 - **Stack-Begriff:** ein Eintrag aus der Begriffsliste in Scope 4.
-- **Langer / kurzer C1-Begriff:** siehe Scope 3.
+- **C1-Liste:** die Begriffsliste in `PROJECT-CONTEXT.md` → „Konventionen" → „Erlaubte Stellen für
+  Herkunftsbegriffe". `<B1>` steht in dieser Spec für ihren ersten Eintrag.
+- **Langer C1-Begriff:** ein Eintrag der C1-Liste mit mindestens sieben Zeichen (heute fünf: die vier
+  deutschen Fachbegriffe bzw. Ortsnamen und der Repo-Kurzname mit Bindestrich).
+- **Kurzer C1-Begriff:** ein Eintrag mit höchstens sechs Zeichen (heute drei: das Akronym und die
+  beiden Anbieternamen).
 
 ## Akzeptanzkriterien
 
@@ -119,11 +127,11 @@ ersten Factory-Update still verloren.
   `docs/factory/lessons/code-style.md`, WHEN man sie nach den langen C1-Begriffen durchsucht (auch als
   Wortteil), THEN gibt es keinen Treffer, und Aussage und Lehre der beiden Absätze sind unverändert.
 - [ ] **AK8 – C1 erkennt Komposita:** GIVEN der C1-Guard, WHEN er eine Zeile mit
-  `VeranstaltungMetaForm.tsx` bzw. `deleteVeranstaltungAction` prüft, THEN meldet er einen Treffer.
+  `<B1>MetaForm.tsx` bzw. `delete<B1>Action` prüft, THEN meldet er einen Treffer.
   Je langem C1-Begriff gibt es einen Negativtest mit einem Kompositum, der rot macht.
 - [ ] **AK9 – C1 ohne Fehlalarm bei kurzen Begriffen:** GIVEN der erweiterte C1-Guard, WHEN er
-  Zeilen mit `match`, `switch`, `watch` oder `neonatal` prüft, THEN meldet er keinen Treffer. Ein
-  ganzes Wort `TCH`, `Neon` oder `Vercel` meldet er weiterhin.
+  Zeilen mit `match`, `switch`, `watch` oder `neonatal` prüft, THEN meldet er keinen Treffer. Jeden
+  kurzen C1-Begriff als ganzes Wort meldet er weiterhin (je Begriff ein Test).
 - [ ] **AK10 – C1 behält Herkunftsverweise und Ausnahmen:** GIVEN ein qualifizierter Verweis
   `nothra/tch-gastro-services#<nr>` oder eine der vier erlaubten Stellen aus `PROJECT-CONTEXT.md` →
   „Konventionen", WHEN der erweiterte C1-Guard läuft, THEN ist das kein Treffer (Verhalten wie bisher).
@@ -169,8 +177,8 @@ ersten Factory-Update still verloren.
 - **Q1 – Guard-Umfang:** nur Anweisungstexte (Skills, Agent-Personas, Guidelines,
   `gitignore.factory`, `pre-push.sh`). ADRs, Lessons, Tests und Fixtures bleiben ausgenommen.
   (Entwickler, 2026-11-13)
-- **Q2 – Komposita:** nur die langen C1-Begriffe werden auch als Wortteil erkannt; `TCH`, `Neon`,
-  `Vercel` bleiben Ganzwort-Treffer. (Entwickler, 2026-11-13)
+- **Q2 – Komposita:** nur die langen C1-Begriffe werden auch als Wortteil erkannt; die kurzen
+  bleiben Ganzwort-Treffer. (Entwickler, 2026-11-13)
 - **Q3 – Ursprungs-Repo:** Checklisten-Kommentar an nothra/tch-gastro-services#428 statt eines
   eigenen Issues. (Entwickler, 2026-11-13)
 

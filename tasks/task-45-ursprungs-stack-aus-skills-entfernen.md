@@ -28,7 +28,7 @@ Spec: [`docs/specs/spec-45-ursprungs-stack-aus-skills-entfernen.md`](../docs/spe
 - [ ] AK6 – `*.tmp.spec.tsx` aus `gitignore.factory` und `.gitignore` entfernt, Zusammensetzungs-Guards grün
 - [ ] AK7 – Lessons `testing.md`/`code-style.md` ohne langen C1-Begriff, Lehre unverändert
 - [ ] AK8 – C1 erkennt Komposita der langen Begriffe (Negativtest je Begriff)
-- [ ] AK9 – C1 ohne Fehlalarm (`match`, `switch`, `watch`, `neonatal`); `TCH`/`Neon`/`Vercel` als Wort weiter erkannt
+- [ ] AK9 – C1 ohne Fehlalarm (`match`, `switch`, `watch`, `neonatal`); kurze C1-Begriffe als ganzes Wort weiter erkannt
 - [ ] AK10 – C1 behält Herkunftsverweise und erlaubte Stellen
 - [ ] AK11 – C1 grün auf dem Repo, fail-closed-Prüfung bleibt
 - [ ] AK12 – Stack-Guard findet jeden Begriff, unabhängig von Groß-/Kleinschreibung, mit Datei und Zeile
