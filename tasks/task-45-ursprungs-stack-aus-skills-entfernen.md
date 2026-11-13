@@ -3,7 +3,7 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -97,6 +97,14 @@ Iteration 2 (2026-11-13): **APPROVED** – 0 kritisch, 0 wichtig, 5 Nitpicks (Le
 `build-tooling.md:32` nennt `*.tmp.spec.tsx` noch als ignoriert, doppelte Pfad-Orakel-Liste,
 `sed`-Ersetzung mit ungeschütztem Dateinamen, Anführungszeichen in `codify.md`, AK16 offen).
 Projekt-Suite ohne Patch: 252 grün, 3 rot (die drei erwarteten, grün erst nach dem Apply).
+
+## Test-Notizen
+`/test` (2026-11-13): Projekt-Suite 252 grün, 3 rot (die drei erwarteten, grün erst nach `git apply
+tasks/patch-45.diff`). Je AK ein Test: AK8/AK9/AK10 (C1, je Begriff), AK11 (bestehender
+fail-closed-Test „liest die getrackten Dateien“), AK12 (je Begriff in Groß-/Kleinschreibung, je Pfad),
+AK13, AK14 (leer, falsche Wurzel, unlesbar), AK15 (Pfade getrackt + Repo-Lauf), AK17 (ausgelieferte
+Suite). AK1–AK4, AK6, AK7 sind inhaltlich vom Stack-Guard (AK15) bzw. C1-Scan (AK11) mitgeprüft. Keine
+neuen Tests nötig, kein Produktionscode geändert. Coverage-Werkzeug gibt es für Bash hier nicht.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
