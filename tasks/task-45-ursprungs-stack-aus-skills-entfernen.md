@@ -122,3 +122,4 @@ Branch: `fix/45-ursprungs-stack-aus-skills-entfernen`
 Erstellt: 2026-11-12 23:45
 
 Blocker 2026-11-13: Pipeline pausiert – PUSH_GATE_BLOCKED: Push wartet auf Mensch: tasks/patch-45.diff (.claude/** + .gitignore) ist nicht angewendet, 3 Projekt-Suite-Tests (AK15 + 2 gitignore-Guards) blockieren den pre-push-Hook; 6 Commits unpushed (origin/fix/45 steht auf 63c8be3). Zusätzlich offen: AK16 (Kommentar an nothra/tch-gastro-services#428 zum Posten freigeben). Ablauf: git apply tasks/patch-45.diff, Patch-Datei entfernen, [~]->[x], committen, pushen, dann /pr-shepherd erneut. (/architecture ausführen, dann Pipeline neu starten)
+PR-Shepherd 2026-11-13: Merge freigegeben – keine offenen Kommentare, Branch aktuell, CI läuft (Auto-Merge wartet server-seitig).
