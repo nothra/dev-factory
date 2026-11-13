@@ -498,8 +498,10 @@ C1_LONG_TERMS="Veranstal""tung|Montags""runde|Theken""wart|Heuchel""heim|tc""h-g
 C1_SHORT_TERMS="T""CH|Ne""on|Ver""cel"
 # c1_hits_in <datei> → höchstens drei Treffer als `<zeile>:<text>`; der qualifizierte Herkunftsverweis zählt nicht.
 c1_hits_in() {
-  { sed 's#nothra/tch-gastro-services##g' "$1" | grep -nIiE -- "$C1_LONG_TERMS"
-    sed 's#nothra/tch-gastro-services##g' "$1" | grep -nIiwE -- "$C1_SHORT_TERMS"; } | sort -t: -k1,1n -u | head -3
+  local unqualified
+  unqualified="$(sed 's#nothra/tch-gastro-services##g' "$1")"
+  { grep -nIiE -- "$C1_LONG_TERMS" <<< "$unqualified"
+    grep -nIiwE -- "$C1_SHORT_TERMS" <<< "$unqualified"; } | sort -t: -k1,1n -u | head -3
 }
 # c1_allowed_place <pfad> → Exit 0, wenn der Pfad eine der erlaubten Stellen aus PROJECT-CONTEXT.md → „Konventionen" ist
 c1_allowed_place() {
@@ -566,7 +568,7 @@ stack_hits_45() {
   while IFS= read -r -d '' f; do
     n=$((n + 1))
     [ -r "$root/$f" ] || { echo "✗ nicht lesbar: $f"; return 2; }
-    grep -nIiF "${pat[@]}" -- "$root/$f" | sed "s#^#$f:#" | grep . && rc=1
+    grep -nIiF "${pat[@]}" -- "$root/$f" | awk -v file="$f" '{ print file ":" $0 }' | grep . && rc=1
   done < <(git -C "$root" ls-files -z -- "${STACK_PATHS_45[@]}" 2>/dev/null)
   [ "$n" -gt 0 ] || { echo "✗ keine geprüfte Datei gefunden unter $root"; return 2; }
   return "$rc"

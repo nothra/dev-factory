@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -105,6 +105,14 @@ fail-closed-Test „liest die getrackten Dateien“), AK12 (je Begriff in Groß-
 AK13, AK14 (leer, falsche Wurzel, unlesbar), AK15 (Pfade getrackt + Repo-Lauf), AK17 (ausgelieferte
 Suite). AK1–AK4, AK6, AK7 sind inhaltlich vom Stack-Guard (AK15) bzw. C1-Scan (AK11) mitgeprüft. Keine
 neuen Tests nötig, kein Produktionscode geändert. Coverage-Werkzeug gibt es für Bash hier nicht.
+
+## Refactor-Notizen
+`/refactor` (2026-11-13): zwei kleine Umbauten in `scripts/project/tests/run-tests.sh`, kein neues Verhalten.
+`c1_hits_in` ersetzt den Herkunftsverweis nur noch einmal (statt zweimal `sed` je Datei). `stack_hits_45` setzt
+den Dateinamen per `awk -v` vor die Treffer statt per `sed`-Ersetzung – ein Dateiname mit `#` bricht den
+Ausdruck nicht mehr (Review-Nitpick). Projekt-Suite vorher/nachher identisch: 252 grün, 3 rot (die drei
+erwarteten, grün erst nach `git apply tasks/patch-45.diff`). Nicht angefasst: doppelte Pfad-Orakel-Liste
+(bewusst unabhängig, siehe Kommentar), `build-tooling.md:32` (Lesson-Historie, Codify).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
