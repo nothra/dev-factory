@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Rest von AK-K1 (spec-426): Stack-Details des Ursprungs-Projekts aus den ausgelieferten
@@ -35,7 +35,7 @@ Spec: [`docs/specs/spec-45-ursprungs-stack-aus-skills-entfernen.md`](../docs/spe
 - [x] AK13 – Stack-Guard prüft nur die Anweisungstexte
 - [x] AK14 – Stack-Guard fail-closed bei leerer Dateiliste
 - [x] AK15 – Stack-Guard grün auf dem Repo – grün nach Apply des Patches (in Wegwerf-Kopie belegt)
-- [ ] AK16 – Checklisten-Kommentar an nothra/tch-gastro-services#428, im PR-Body verlinkt – Entwurf liegt vor, Freigabe zum Posten ausstehend
+- [x] AK16 – Checklisten-Kommentar an nothra/tch-gastro-services#428, im PR-Body verlinkt: https://github.com/nothra/tch-gastro-services/issues/428#issuecomment-6845841266
 - [x] AK17 – `ownership-check.sh` grün
 
 ## Technische Notizen
