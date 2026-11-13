@@ -804,3 +804,11 @@ Eine sechste Gruppe aus dem größten seriellen Block (81 s) senkte die Gesamtze
 **Regel:** Vor dem Schneiden in Gruppen `time` (user/system/CPU-%) und Zeit je Abschnitt messen und teure Einzelausdrücke zuerst beseitigen; ein Zielwert, den der Scope nicht erreicht, wird mit Messung eskaliert statt den Scope still zu erweitern.
 
 → `/architecture`, `/implement` – bei Laufzeit-Zielen für Test-Suiten
+
+## Guard über mehrere Pfade: je Pfad ein eigener Fixture-Test, Pfad-Orakel unabhängig vom Guard (aus Factory-Task #45, `/review` Iteration 1)
+
+Der Stack-Begriff-Guard prüfte laut Spec fünf Pfade, belegt war nur einer (`.claude/commands/`): Die übrigen vier hätten still aus der Pfadliste fallen können, ohne dass ein Test rot wurde. Ein Mutationsbeleg je gestrichenem Pfad deckte die Lücke auf.
+
+**Regel:** Prüft ein Guard eine Pfadliste, braucht jeder Pfad (a) einen Fixture-Test „Treffer wird mit Datei und Zeile gemeldet“ und (b) am echten Baum die Prüfung „hat getrackte Dateien“ (sonst läuft der Pfad leer grün). Die Orakel-Liste im Test bewusst nicht aus der Guard-Liste ableiten. Fixture-Dateinamen unter `docs/factory/adr/` zur Laufzeit zusammensetzen, sonst meldet `adr-links-check.sh` sie als toten ADR-Link.
+
+→ `/implement`, `/test`, `/review` – bei Guard/Scanner, der eine Liste von Pfaden oder Verzeichnissen prüft

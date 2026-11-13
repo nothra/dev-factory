@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -115,7 +115,7 @@ erwarteten, grün erst nach `git apply tasks/patch-45.diff`). Nicht angefasst: d
 (bewusst unabhängig, siehe Kommentar), `build-tooling.md:32` (Lesson-Historie, Codify).
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+`/codify` (2026-11-13): zwei Lesson-Einträge (Mehrpfad-Guard in `testing.md`, Patch-gesperrte Guard-Ziele als Index-Zeile), `build-tooling.md` nachgeführt. Details: [`codify-45.md`](codify-45.md).
 
 ---
 Branch: `fix/45-ursprungs-stack-aus-skills-entfernen`
