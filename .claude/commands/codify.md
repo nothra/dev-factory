@@ -10,7 +10,8 @@ Er ist der Meta-Loop: Was hat die Factory dieses Mal falsch gemacht?
 - `tasks/security-$ARGUMENTS.md` – Security-Findings (falls vorhanden)
 - `CLAUDE.md` – Aktuelle Regeln
 - `docs/factory/guidelines/` – Aktuelle Guidelines
-- `docs/factory/PROJECT-CONTEXT.md` – Index der Stolpersteine + Kern-Kurzregeln
+- `docs/factory/PROJECT-CONTEXT.md` – Index der Projekt-Lessons + Kern-Kurzregeln
+- `docs/factory/lessons/INDEX.md` – Einzelliste der Factory-Lessons (Übersicht je Datei: `docs/factory/FACTORY.md` → „Bedarfsgesteuert laden")
 - `docs/factory/lessons/` (generisch) und `docs/project/lessons/` (projektspezifisch) – Volltext der
   ausgelagerten Stolperstein-Learnings (ADR-037)
 
@@ -28,7 +29,7 @@ Für jeden Fehler-Typ:
 - Ist er durch eine Ergänzung der Guidelines verhinderbar?
 - Ist er eine Lesson → Volltext in `docs/factory/lessons/<thema>.md` **oder**
   `docs/project/lessons/<thema>.md` (Zuordnungsregel in Schritt 3) + eine Index-Zeile mit
-  „Laden bei"-Trigger in `PROJECT-CONTEXT.md`?
+  „Laden bei"-Trigger im Index der Seite (Factory: `docs/factory/lessons/INDEX.md`, Projekt: `PROJECT-CONTEXT.md`)?
 
 ### 3. Änderungen vornehmen
 
@@ -40,9 +41,15 @@ Betrifft es App-/Projekt-Code (Seite `project`: `app/`, `db/`, `lib/`, E2E, Buil
 App), kommt es nach `docs/project/lessons/<thema>.md`; bei mehreren Dateien entscheidet die in der
 Lesson zuerst genannte. Schreibe den **Volltext** in die thematisch passende Datei der Seite
 (Factory: `testing`, `build-tooling`, `code-style`, `factory-workflow`; Projekt: die Themen der Gruppe
-„Projekt-Lessons" im Index von `PROJECT-CONTEXT.md`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“ in
-`docs/factory/PROJECT-CONTEXT.md` (Gruppe „Factory-Lessons“ bzw. „Projekt-Lessons“) – **nicht** mehr
-in den @import-Volltext (ADR-037).
+„Projekt-Lessons" im Index von `PROJECT-CONTEXT.md`) **plus** eine **Index-Zeile** im Index der Seite – **nicht** in den @import-Volltext (ADR-037, Nachtrag #44):
+
+- **Factory-Lesson:** Zeile ans Ende der Gruppe ihrer Lesson-Datei in `docs/factory/lessons/INDEX.md`. Legst du eine
+  **neue** Factory-Lesson-Datei an, zusätzlich eine Gruppe in `INDEX.md` **und** eine Übersichtszeile in
+  `docs/factory/FACTORY.md` → „Bedarfsgesteuert laden" (Format der vorhandenen Zeilen). Factory-Index-Zeilen
+  gehören **nie** nach `PROJECT-CONTEXT.md`: die Datei wird nicht ausgeliefert, der Trigger erreichte keinen Konsumenten.
+- **Projekt-Lesson:** Zeile in `docs/factory/PROJECT-CONTEXT.md` → „Bekannte Stolpersteine", Gruppe „Projekt-Lessons"
+  (neu angelegt: mit „Laden bei"-Trigger am Gruppen-Header).
+
 Die Index-Zeile bekommt einen **„Laden bei"-Trigger** (welcher Skill + welche Situation die
 Lesson braucht), damit ein Skill sie bedarfsgesteuert lädt: bei homogener Domänen-Datei am
 Gruppen-Header, bei gemischten Auslösern (`factory-workflow.md`) als `→ <Trigger>` je Zeile.

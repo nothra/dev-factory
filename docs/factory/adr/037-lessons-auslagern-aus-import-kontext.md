@@ -108,3 +108,12 @@ berührt (jede Server Action validiert per Zod und schreibt via Drizzle).
   Index, den diese ADR auf „~60–80 Zeilen" kalkuliert hat, war ohne Gate auf 341 Zeilen
   gewachsen. ADR-047 §4 deckelt den gesamten @import-Kontext per `pre-push`-Check.
 - Kein Produktverhalten betroffen (reine Kontext-/Doku-Umschichtung).
+
+## Nachtrag 2026-11-13 (#44): Index ausgeliefert, zweistufig
+
+Der Index stand in `PROJECT-CONTEXT.md`, einer Anpassungsstelle, die nie ausgeliefert wird. Factory-Lessons kamen
+deshalb ohne „Laden bei"-Trigger beim Konsumenten an. Neu: (1) Übersicht je Lesson-Datei mit Trigger in
+`docs/factory/FACTORY.md` → „Bedarfsgesteuert laden" (Dauerkontext); (2) die Einzelzeilen unverändert in
+`docs/factory/lessons/INDEX.md` (ausgeliefert, nicht `@import`-geladen). `/codify` schreibt Factory-Zeilen dorthin,
+Projekt-Zeilen weiter nach `PROJECT-CONTEXT.md`. Entscheidung 2 und 3 oben gelten mit diesem Ort. Abgesichert durch
+einen Guard in der ausgelieferten Suite und einen E2E-Test über `factory-sync.sh` (Spec 44).

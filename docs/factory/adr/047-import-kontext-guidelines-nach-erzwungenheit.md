@@ -265,3 +265,13 @@ zu unzuverlässig; zudem entstünde eine zweite Zuordnungsquelle neben der Rolle
 - **Kein Produktverhalten betroffen** – reine Kontext-/Doku-Umschichtung am Factory-Harness.
 - **Fachlich gilt unverändert alles:** Verdichtung reduziert Prosa, Vorfall-Narrativ und
   Redundanz, keine geltende Regel (spec-319 AC5). Beleg über ein Regel-Inventar vorher/nachher.
+
+## Nachtrag 2026-11-13 (#44): Bytes als zweite Messgröße, Portabilität ausgelagert
+
+- **§4:** Der Deckel misst zusätzlich Bytes (`MAX_IMPORT_BYTES`, gleiche Herleitung: Ist + 25 %, aufgerundet auf
+  1.000). Die Zeilenzahl allein maß den Token-Bedarf nicht: der Lessons-Index lag mit 145 Zeilen bei 47 KB. Beide
+  Grenzen wurden am Stand nach #44 neu hergeleitet (575 Zeilen / 29.994 Bytes).
+- **§3:** Das Trigger-Format verweist auf die Factory-Lessons-Übersicht in `FACTORY.md` statt auf `PROJECT-CONTEXT.md`.
+- **§2:** „Portabilität in Gate-/Shell-Skripten" wandert aus `clean-code.md` nach `bash-gotchas.md` § 20. Die
+  Regeln betreffen nur Shell-Skripte, also genau den Adressatenkreis, den der „Laden bei"-Trigger von
+  `bash-gotchas.md` schon benennt (§2, zweite Klausel).

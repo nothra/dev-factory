@@ -515,6 +515,28 @@ nur die gemeldete Zeile. Ein Test braucht einen Pfad mit führendem `-` **und** 
 
 ---
 
+## 20. Portabilität in Gate-/Shell-Skripten
+
+Quality-Gates (`scripts/checks/`) laufen lokal (macOS/BSD) **und** in CI (GNU/Alpine).
+Nicht-portable Regex bricht still oder läuft ins Leere – ein Gate, das nicht greift,
+ist gefährlicher als gar keins.
+
+- **Nur POSIX-Regex in `grep -E`.** Kein `\s`, `\d`, `\w` (nutze `[[:space:]]`,
+  `[[:digit:]]`); kein PCRE-Lookahead/-behind (`(?!…)`, `(?=…)`).
+- Brauchst du Lookahead-Logik, nimm `awk` oder eine zweistufige Pipe statt `grep -P`
+  (`grep -P` ist auf BSD-grep nicht verfügbar).
+- Ein Gate-Regex gehört durch einen Test abgesichert, der das echte Gate gegen
+  ein Positiv- **und** ein Negativ-Beispiel laufen lässt – sonst merkt niemand,
+  wenn das Muster nicht mehr greift.
+- **Config-/nutzerkontrollierte Werte als Daten behandeln, nie als Optionen/Code**
+  (aus nothra/tch-gastro-services#36-Codify, ADR-010): Bei `grep -F`/`grep` mit variablem Suchwert immer `--`
+  vor das Pattern setzen (`grep -qxF -- "$wert"`), sonst wird ein Wert wie `-x` als
+  Option interpretiert. Werte vor arithmetischen Tests (`[ "$n" -lt 1 ]`) erst per
+  `case "$n" in ''|*[!0-9]*)` als Integer absichern. Faustregel für Validierungs-Gates:
+  fail-closed – im Zweifel ablehnen, nie still durchwinken.
+
+---
+
 ## Querregel
 
 `set -euo pipefail` ist Default, aber **`-e` bewusst weglassen, wo Befehls-Fehler explizit

@@ -99,7 +99,7 @@ Die Aktivierungsreihenfolge für die Production-Entkopplung steht in
 ### 0.4 Async-Trigger scharfschalten (unbeaufsichtigte Pipeline in CI)
 
 Voraussetzung für den **vollständig unbeaufsichtigten** Pfad ([1.3](#13-vollautomatisch-unbeaufsichtigt-in-ci)) –
-Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, ADR-008):
+Issues, die die Factory eigenständig abarbeitet (`factory-poll.yml`, CI-Stage `orchestrate`, ADR-008):
 
 - Repo-Secret `ANTHROPIC_API_KEY` (oder `ANTHROPIC_BASE_URL`).
 - Labels existieren bereits (`factory::run/running/done/failed/interrupted`).
@@ -344,7 +344,7 @@ Gesprächsgedächtnis nötig).
 | 5 | `/test <id>` | immer | Test-Suite vollständig, Coverage ≥ 80 % (neuer Code: 100 % erwartet) |
 | 6 | `/refactor <id>` | immer | Clean-Code-Pass, **kein** neues Verhalten, Tests bleiben grün |
 | 7 | `/security-review <id>` | immer (letztes Gate vor Merge) | `tasks/security-<id>.md`, `PASSED` / `NEEDS_FIXES` |
-| 8 | `/codify <id>` | immer | `tasks/codify-<id>.md`; Learnings → Regeln in `CLAUDE.md`/`PROJECT-CONTEXT.md`/Guidelines |
+| 8 | `/codify <id>` | immer | `tasks/codify-<id>.md`; Learnings → Regeln in `CLAUDE.md`/Guidelines, Lessons + `lessons/INDEX.md` (Projekt: `PROJECT-CONTEXT.md`) |
 
 Alternativer Einstieg statt 1: **`/bug-fix <id>`** – von Bug/Stacktrace statt Spec
 (Reproduzieren → Isolieren → Beheben → Verifizieren).
@@ -458,7 +458,7 @@ Nie an reine Backlog-/Doku-Issues.
 `/codify <id>` extrahiert Learnings → neue Regeln in `CLAUDE.md`, den Guidelines oder als
 ausgelagertes Stolperstein-Learning unter `docs/factory/lessons/` (generisch) bzw.
 `docs/project/lessons/` (projektspezifisch) + Index-Zeile in
-`docs/factory/PROJECT-CONTEXT.md` (ADR-037). **Achtung:** die beiden erstgenannten Ziele liegen im
+`docs/factory/lessons/INDEX.md` (generisch) bzw. `docs/factory/PROJECT-CONTEXT.md` (projektspezifisch; ADR-037, Nachtrag #44). **Achtung:** die beiden erstgenannten Ziele liegen im
 `@import`-Dauerkontext und stehen seit
 [ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4 unter einem harten
 Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln aus der Praxis:
@@ -466,7 +466,7 @@ Deckel – wächst die Summe über die Grenze, wird der Push rot. Faustregeln au
 - **Stack-spezifisch** (Framework-, Datenbank-, Test-Stack des Projekts …) → Volltext nach
   `docs/project/lessons/<thema>.md` (generische Pipeline-/Skript-Learnings: `docs/factory/lessons/`;
   Zuordnung nach der betroffenen Datei: Seite `factory`, wenn
-  `bash scripts/checks/ownership-check.sh --list factory` sie listet) + Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037), **nicht**
+  `bash scripts/checks/ownership-check.sh --list factory` sie listet) + Index-Zeile in `docs/factory/lessons/INDEX.md` (generisch) bzw. `PROJECT-CONTEXT.md` (projektspezifisch; ADR-037), **nicht**
   die stack-agnostischen Guidelines.
 - **Kanonische Quelle referenzieren:** taucht eine Regel mehrfach auf (Skill + Persona + Spec),
   jede Kopie auf die Quelle verweisen und beim Update **alle** synchronisieren.

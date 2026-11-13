@@ -8,7 +8,7 @@ Regeln für Test-Qualität und Test-Aufbau in diesem Projekt.
 > nothra/tch-gastro-services#426 liegen die beiden stack-spezifischen davon in `docs/project/lessons/testing.md`,
 > die Coverage-Regel in `lessons/testing.md`.
 > Sie gelten unverändert weiter; „Laden bei" steht kanonisch im Lessons-Index
-> (`PROJECT-CONTEXT.md` → `lessons/testing.md`), nicht hier. Die ADR-040-Regel selbst bleibt
+> (`FACTORY.md` → Factory-Lessons → `lessons/testing.md`), nicht hier. Die ADR-040-Regel selbst bleibt
 > zusätzlich als Kurzregel unter „Coverage-Anforderungen" in dieser Datei – nur ihre Begründung
 > und der Vorfall stehen in der Lesson.
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # import-context-limit-check.sh – Deckel für den @import-Dauerkontext (ADR-047 §4)
 #
-# Summiert die Zeilen von CLAUDE.md und – rekursiv – aller per `@pfad` eingebundenen Dateien
-# und vergleicht die Summe gegen MAX_IMPORT_LINES. Dieser Kontext wird bei JEDER Session und
+# Summiert die Zeilen und Bytes von CLAUDE.md und – rekursiv – aller per `@pfad` eingebundenen Dateien
+# und vergleicht die Summen gegen MAX_IMPORT_LINES und MAX_IMPORT_BYTES. Dieser Kontext wird bei JEDER Session und
 # JEDEM Pipeline-Schritt vollständig geladen; ohne Deckel wächst er unbemerkt zurück – genau
 # das ist nach ADR-037 passiert (der Lessons-Index von ~80 auf 341 Zeilen, Befund aus nothra/tch-gastro-services#319).
 # Eine Prosa-Konvention hat dort nicht gehalten, deshalb hier ein Gate.
@@ -54,6 +54,9 @@
 # * Gezählt werden Zeilen per `awk END{print NR}` – auch eine Datei ohne Schluss-Newline zählt
 #   vollständig (`wc -l` unterzählte sie um 1; ein Gate, das die Schluss-Newline erzwingt, gibt
 #   es nicht: `.prettierignore` deckt `docs/` und `CLAUDE.md`).
+# * **Bytes:** `wc -c` zählt Bytes (UTF-8: Umlaut = 2). BSD-`wc` rückt die Zahl mit Leerzeichen
+#   ein, deshalb `tr -d` vor dem Integer-Guard. Ist die Bytezahl nicht ermittelbar, ist der
+#   Check rot – kein stiller Rückfall auf die Zeilenprüfung allein.
 #
 # Projektwurzel: FACTORY_DIR (Tests/Override), sonst zwei Ebenen über scripts/checks/.
 
@@ -62,12 +65,17 @@ set -uo pipefail
 ROOT="${FACTORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # Obergrenze in Zeilen für CLAUDE.md + rekursiv alle @-eingebundenen Dateien.
-# Herleitung (ADR-047 §4 – keine Magic Number): Ist-Stand direkt nach der Umstellung aus nothra/tch-gastro-services#319
-# = 863 Zeilen; + 25 % Puffer = 1.079; aufgerundet auf das nächste Vielfache von 50 = 1.100.
+# Herleitung (ADR-047 §4 – keine Magic Number): Ist-Stand nach Factory-Issue #44
+# = 575 Zeilen; + 25 % Puffer = 718; aufgerundet auf das nächste Vielfache von 50 = 750.
 # Der Puffer trägt legitime Regel-Ergänzungen, ohne den nächsten Wildwuchs zu decken. Wer die
 # Grenze anhebt, trifft eine bewusste Entscheidung – und pflegt diese Herleitung mit (ein Test
 # rechnet die Konstante gegen die hier genannte Basis nach).
-MAX_IMPORT_LINES=1100
+MAX_IMPORT_LINES=750
+
+# Obergrenze in Bytes (wc -c) für dasselbe Datei-Set – eine lange Zeile zählt sonst als eine (Factory-Issue #44).
+# Herleitung (ADR-047 §4): Ist-Stand nach Factory-Issue #44
+# = 29994 Bytes; + 25 % Puffer = 37492; aufgerundet auf das nächste Vielfache von 1.000 = 38000.
+MAX_IMPORT_BYTES=38000
 
 ENTRY_FILE="CLAUDE.md"
 SELF_PATH="scripts/checks/import-context-limit-check.sh"
@@ -169,8 +177,10 @@ CANDIDATES
 pending="$ENTRY_FILE"
 seen=""
 total=0
+total_bytes=0
 failed=0
 breakdown=""
+breakdown_bytes=""
 
 while [ -n "$pending" ]; do
   rel="${pending%%$NL*}"
@@ -201,25 +211,46 @@ while [ -n "$pending" ]; do
       continue
       ;;
   esac
+  bytes="$(wc -c < "./$rel" 2>/dev/null | tr -d '[:space:]')" || bytes=""
+  case "$bytes" in
+    ''|*[!0-9]*)
+      printf '%b %s\n' "${RED}✗${NC} import-context-limit-check:" \
+        "Bytezahl nicht ermittelbar: $rel (fail-closed)"
+      failed=1
+      continue
+      ;;
+  esac
   total=$((total + lines))
+  total_bytes=$((total_bytes + bytes))
   breakdown="$breakdown$(printf '%6d  %s' "$lines" "$rel")$NL"
+  breakdown_bytes="$breakdown_bytes$(printf '%8d  %s' "$bytes" "$rel")$NL"
 
   enqueue_refs_of "$rel"
 done
 
 if [ "$failed" -eq 1 ]; then
   echo "     Beheben: die oben genannte Ursache beseitigen – Referenz korrigieren oder entfernen,"
-  echo "     bzw. das Zählwerkzeug (awk) prüfen. Bis dahin bleibt der Deckel fail-closed."
+  echo "     bzw. das Zählwerkzeug (awk, wc) prüfen. Bis dahin bleibt der Deckel fail-closed."
   exit 1
 fi
+
+# report_over_limit <ist> <einheit> <grenze> <konstante> <beitragsliste> – Rot-Meldung einer Grenze.
+report_over_limit() {
+  echo -e "${RED}✗${NC} @import-Dauerkontext zu groß: $1 $2 (Grenze: $3, ADR-047 §4)"
+  printf '%s' "$5" | sort -rn | sed 's/^/     /'
+  echo "     Beheben: verdichten oder auslagern (Volltext → docs/factory/lessons/ bzw. docs/project/lessons/, Index-Zeile in docs/factory/lessons/INDEX.md bzw. PROJECT-CONTEXT.md)."
+  echo "     Grenze anheben ist eine bewusste Entscheidung: $4 in $SELF_PATH samt Herleitung anpassen."
+}
 
 if [ "$total" -gt "$MAX_IMPORT_LINES" ]; then
-  echo -e "${RED}✗${NC} @import-Dauerkontext zu groß: $total Zeilen (Grenze: $MAX_IMPORT_LINES, ADR-047 §4)"
-  printf '%s' "$breakdown" | sort -rn | sed 's/^/     /'
-  echo "     Beheben: verdichten oder auslagern (Volltext → docs/factory/lessons/ bzw. docs/project/lessons/, Trigger in CLAUDE.md)."
-  echo "     Grenze anheben ist eine bewusste Entscheidung: MAX_IMPORT_LINES in $SELF_PATH samt Herleitung anpassen."
+  report_over_limit "$total" Zeilen "$MAX_IMPORT_LINES" MAX_IMPORT_LINES "$breakdown"
   exit 1
 fi
 
-echo -e "${GREEN}✓${NC} @import-Dauerkontext: $total von $MAX_IMPORT_LINES Zeilen"
+if [ "$total_bytes" -gt "$MAX_IMPORT_BYTES" ]; then
+  report_over_limit "$total_bytes" Bytes "$MAX_IMPORT_BYTES" MAX_IMPORT_BYTES "$breakdown_bytes"
+  exit 1
+fi
+
+echo -e "${GREEN}✓${NC} @import-Dauerkontext: $total von $MAX_IMPORT_LINES Zeilen, $total_bytes von $MAX_IMPORT_BYTES Bytes"
 exit 0

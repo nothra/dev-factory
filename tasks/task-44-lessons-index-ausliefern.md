@@ -1,7 +1,7 @@
 # Task 44: lessons-index-ausliefern
 
 ## Status
-- [ ] In Bearbeitung
+- [x] In Bearbeitung
 - [ ] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
@@ -258,15 +258,15 @@ Neue Treffer gegenüber der Tabelle ergänzen.
 
   ```markdown
   - Nie committen ohne grünes `scripts/checks/pre-commit.sh`, nie pushen ohne grünes `scripts/checks/pre-push.sh`. Der Hook
-    ist lokales Feedback; fail-closed schützt `main` allein das Ruleset `protect-main` ([Factory-ADR-029](adr/029-branch-protection-main-ruleset.md)).
-  - **Git-Hooks nur aus `bash scripts/install-hooks.sh`** ([Factory-ADR-042](adr/042-hook-installation-single-source.md),
+    ist lokales Feedback; fail-closed schützt `main` allein das Ruleset `protect-main` ([Factory-ADR-029](../docs/factory/adr/029-branch-protection-main-ruleset.md)).
+  - **Git-Hooks nur aus `bash scripts/install-hooks.sh`** ([Factory-ADR-042](../docs/factory/adr/042-hook-installation-single-source.md),
     idempotent, einmal je Clone): `pre-commit`, `pre-push` und der `commit-msg`-Hook (lehnt `--help`/`-h` als Message ab).
   - **`yq` kommt in CI nur aus `bash scripts/install-yq.sh`** (Version + SHA-256 gepinnt, fail-closed, nothra/tch-gastro-services#258) – kein
     eigener `wget`/`curl`-Block; dasselbe Muster für jedes weitere Fremd-Binary.
   - Keine offenen Checkboxen in der Task-Datei → kein Done. Letzte Checkbox und Abschluss-Notizen **vor dem Merge auf dem
     Feature-Branch** setzen – danach nur per neuem PR (nothra/tch-gastro-services#63).
   - **Der `@import`-Dauerkontext ist gedeckelt** (Zeilen und Bytes, `scripts/checks/import-context-limit-check.sh`,
-    [Factory-ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4; lokal, in CI nur mittelbar, nothra/tch-gastro-services#328).
+    [Factory-ADR-047](../docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4; lokal, in CI nur mittelbar, nothra/tch-gastro-services#328).
     Neue Regeln verdichten oder als Lesson auslagern (`docs/factory/lessons/` + Zeile in `lessons/INDEX.md`), nicht anhängen.
   - Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren.
   - **Empfehlung (keine Pflicht): Für den `/implement`-Schritt einer Task eine neue Claude-Session öffnen**; `start-work.sh`
@@ -539,9 +539,12 @@ einen Guard in der ausgelieferten Suite und einen E2E-Test über `factory-sync.s
 ### Messwerte
 <!-- von /implement befüllen -->
 - Vorher: 794 Zeilen, 82.453 Bytes (CLAUDE.md 1.159 · FACTORY.md 16.451 · PROJECT-CONTEXT.md 53.154 · clean-code 5.118 · tdd 1.950 · testing-standards 4.621)
-- Rekonstruktion (Schritt 2.4): geprüfte Zeilen … , fehlend …
-- Nach M1 … / M2 … / M3 … / M4 … / M5 … / M6 … / M7 … / M8 … (je Summe Bytes)
-- Nachher: … Zeilen, … Bytes → `MAX_IMPORT_LINES` = … , `MAX_IMPORT_BYTES` = …
+- Rekonstruktion (Schritt 2.4): geprüfte Zeilen 131, fehlend 0; INDEX ohne Kopf 131 Zeilen, 0 `### `-Überschriften
+- Nach M1–M9 (F8): 30.111 Bytes, 577 Zeilen – 111 Bytes über AK17. Entscheidung F8 (Mensch): Variante 1, weiter kürzen in `FACTORY.md`
+  (Satz „Skills sind für beide Stufen designed …" entfernt, zwei Pfadangaben gekürzt)
+- Nachher: 575 Zeilen, 29.994 Bytes → `MAX_IMPORT_LINES` = 750 (575 + 25 % = 718, auf 50 gerundet), `MAX_IMPORT_BYTES` = 38.000 (29.994 + 25 % = 37.492, auf 1.000 gerundet)
+- Doku-Sweep (Schritt 9): `OPERATING.md` (Zeile 347, 460, 469) und `token-efficiency.md` nachgezogen; `README.md` nennt den Index-Ort nicht
+- Negativkontrolle AK7: der Sync lehnt eine Upstream-`PROJECT-CONTEXT.md` als geschützte Stelle ab; der Guard prüft dann den Upstream-Stand (Signal `fehlt-uebersicht`)
 
 ## Offene Fragen
 - [ ] (für `/architecture`, optional) Nachträge statt neuem ADR (Spec E5). Ohne Einwand gilt E5, dann ist `/architecture` nicht nötig.

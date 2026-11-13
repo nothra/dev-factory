@@ -183,6 +183,36 @@ bare_factory_adr_426() { # $1 = Datei, $2 = Nummernliste (Leerzeichen) → Treff
   grep -noE "(^|[^A-Za-z-])ADR-($alt)([^0-9]|$)" "$1"
 }
 
+# lessons_index_guard_44 <factory_md> <index_md> <lessons_dir> <customization_txt> – Guard „Lessons-Index ausgeliefert" (Factory-Issue #44);
+# geteilt zwischen der ausgelieferten Suite und factory-lock-44-tests.sh, konsumenten-neutral (liest nur Dateien der Seite `factory`
+# und die Anpassungsstellen-Liste). Gibt je Verstoß eine Zeile aus, Exit 1 bei Fund:
+#   UNLESBAR:<pfad> | fehlt-uebersicht:<datei> | fehlt-gruppe:<datei> | toter-link:<datei> | anpassungsstelle:<pfad> | fehlt-index-link | importiert-index
+lessons_index_guard_44() {
+  local fmd="$1" idx="$2" dir="$3" cust="$4" f name hdr tgt bad=0 src
+  for src in "$fmd" "$idx" "$cust"; do
+    [ -r "$src" ] || { echo "UNLESBAR:$src"; bad=1; }
+  done
+  [ -d "$dir" ] || { echo "UNLESBAR:$dir"; bad=1; }
+  [ "$bad" -eq 0 ] || return 1
+  for f in "$dir"/*.md; do
+    name="$(basename "$f")"; [ "$name" = INDEX.md ] && continue
+    grep -F -- "](lessons/$name)" "$fmd" | grep -qF -- '**Laden bei:**' || { echo "fehlt-uebersicht:$name"; bad=1; }
+    hdr="$(grep -F -- "**[\`lessons/$name\`](" "$idx" | head -1)"
+    if [ -z "$hdr" ]; then
+      echo "fehlt-gruppe:$name"; bad=1
+    else
+      tgt="$(printf '%s' "$hdr" | sed -E 's/^\*\*\[`[^`]*`\]\(([^)]*)\).*/\1/')"
+      [ -f "$dir/$tgt" ] || { echo "toter-link:$name"; bad=1; }
+    fi
+  done
+  for f in docs/factory/FACTORY.md docs/factory/lessons/INDEX.md; do
+    grep -qxF -- "$f" "$cust" && { echo "anpassungsstelle:$f"; bad=1; }
+  done
+  grep -qF -- '](lessons/INDEX.md)' "$fmd" || { echo "fehlt-index-link"; bad=1; }
+  grep -qF -- '@docs/factory/lessons/INDEX.md' "$fmd" && { echo "importiert-index"; bad=1; }
+  [ "$bad" -eq 0 ]
+}
+
 # print_summary – Ergebnis-Fußzeile; der Rückgabewert (0 nur ohne Rot) ist der Exit-Code der Suite.
 print_summary() {
   echo ""

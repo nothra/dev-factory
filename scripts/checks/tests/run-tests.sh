@@ -7069,6 +7069,72 @@ ic_out="$(ic_319)"; ic_rc=$?
 assert_exit 0 "$ic_rc" "#319: Datei ohne Schluss-Newline → exit 0"
 assert_contains_286 "$ic_out" "24" "#319: ihre letzte Zeile zählt mit (21 + 3 = 24, nicht 23)"
 
+# ── Factory-Issue #44: zweite Messgröße Bytes (AK13–AK15) ──
+# Grenze und Basis wie bei den Zeilen aus dem Skript lesen; der Test hält nur die Rechenregel.
+IC_BYTES_44="$(sed -n 's/^MAX_IMPORT_BYTES=\([0-9]*\).*/\1/p' "$IMPORT_CHECK" | head -1)"
+IC_BYTES_BASIS_44="$(sed -n 's/^# = \([0-9]*\) Bytes.*/\1/p' "$IMPORT_CHECK" | head -1)"
+assert_true "$([ -n "$IC_BYTES_44" ] && [ "$IC_BYTES_44" -gt 0 ]; echo $?)" \
+  "#44 AK15: MAX_IMPORT_BYTES ist als Konstante im Skript lesbar"
+assert_true "$([ -n "$IC_BYTES_BASIS_44" ] && [ "$IC_BYTES_BASIS_44" -gt 0 ]; echo $?)" \
+  "#44 AK15: die Byte-Basis ist aus dem Kommentar lesbar"
+ic_bytes_expected_44=$(( ((${IC_BYTES_BASIS_44:-0} * 125 / 100) + 999) / 1000 * 1000 ))
+assert_true "$([ "${IC_BYTES_44:-0}" -eq "$ic_bytes_expected_44" ]; echo $?)" \
+  "#44 AK15: MAX_IMPORT_BYTES ($IC_BYTES_44) entspricht der dokumentierten Herleitung ($IC_BYTES_BASIS_44 + 25 % → $ic_bytes_expected_44)"
+
+# mkbytes_44 <datei> <n> – genau n Bytes in EINER Zeile (inkl. Newline). Eine Zeile, damit allein
+# der Byte-Pfad greifen kann (Lesson nothra/tch-gastro-services#214: Negativ-Test auf den Ziel-Pfad isolieren).
+mkbytes_44() { awk -v n="$2" 'BEGIN { for (i = 1; i < n; i++) printf "x"; printf "\n" }' > "$1"; }
+
+# Grenzwert: genau MAX_IMPORT_BYTES ist zulässig, ein Byte mehr ist rot (`-gt` vs. `-ge`).
+mkbytes_44 "$TMP_IC/CLAUDE.md" "${IC_BYTES_44:-1}"
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#44 AK13 Grenzwert: genau MAX_IMPORT_BYTES Bytes sind noch zulässig (exit 0)"
+assert_contains_286 "$ic_out" "${IC_BYTES_44:-__MAX_IMPORT_BYTES_NICHT_LESBAR__} Bytes" \
+  "#44 AK13: die Grün-Meldung nennt Ist und Grenze in Bytes"
+mkbytes_44 "$TMP_IC/CLAUDE.md" $(( ${IC_BYTES_44:-1} + 1 ))
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#44 AK13 Grenzwert: ein Byte darüber ist rot (exit 1)"
+assert_contains_286 "$ic_out" "Bytes (Grenze:" "#44 AK13: die Rot-Meldung nennt die Byte-Grenze"
+assert_contains_286 "$ic_out" "CLAUDE.md" "#44 AK13: die Byte-Beitragsliste nennt die Datei"
+assert_absent "$ic_out" "Zeilen (Grenze:" "#44 AK13: rot allein über den Byte-Pfad, nicht über die Zeilen"
+assert_contains_286 "$ic_out" "MAX_IMPORT_BYTES in" "#44 AK13: die Remediation nennt die Byte-Konstante"
+assert_contains_286 "$ic_out" "docs/factory/lessons/INDEX.md" "#44 AK10: die Remediation nennt den neuen Index-Ort"
+
+# Summen-Beweis Bytes: zwei Dateien, jede unter der Byte-Grenze, zusammen darüber.
+claude_fixture_319 '@docs/a.md' '@docs/b.md'
+mkbytes_44 "$TMP_IC/docs/a.md" $(( ${IC_BYTES_44:-2} * 2 / 3 ))
+mkbytes_44 "$TMP_IC/docs/b.md" $(( ${IC_BYTES_44:-2} * 2 / 3 ))
+ic_out="$(ic_319)"; ic_rc=$?
+assert_exit 1 "$ic_rc" "#44 AK13: zwei je-für-sich zulässige Dateien, zusammen über der Byte-Grenze → exit 1"
+assert_contains_286 "$ic_out" "Bytes (Grenze:" "#44 AK13: der Summen-Fall ist ein Byte-Befund"
+rm -f "$TMP_IC/docs/b.md"
+
+# Fail-closed (AK14) und BSD-Polsterung (F4): `wc` per Stub im PATH. Das Stub-Verzeichnis
+# enthält NUR `wc` – awk, sort & Co. bleiben echt, sonst bräche die Messung an anderer Stelle.
+IC_STUB_44="$(mktemp -d)"
+ic_wc_stub_44() { printf '#!/bin/sh\n%s\n' "$1" > "$IC_STUB_44/wc"; chmod +x "$IC_STUB_44/wc"; }
+claude_fixture_319
+for ic_wc_44 in 'exit 1' 'echo abc' 'echo'; do
+  ic_wc_stub_44 "$ic_wc_44"
+  ic_out="$(PATH="$IC_STUB_44:$PATH" ic_319)"; ic_rc=$?
+  assert_exit 1 "$ic_rc" "#44 AK14: wc-Stub '$ic_wc_44' → exit 1 (fail-closed)"
+  assert_contains_286 "$ic_out" "Bytezahl nicht ermittelbar: CLAUDE.md (fail-closed)" \
+    "#44 AK14: wc-Stub '$ic_wc_44' → zweigspezifische Meldung"
+  assert_absent "$ic_out" "@import-Dauerkontext:" "#44 AK14: wc-Stub '$ic_wc_44' → keine Grün-Meldung (kein Rückfall auf Zeilen)"
+done
+# BSD-`wc` rückt die Zahl ein: mit `tr -d` grün, ohne `tr -d` (Mutante) rot.
+ic_wc_stub_44 "printf '     42\\n'"
+ic_out="$(PATH="$IC_STUB_44:$PATH" ic_319)"; ic_rc=$?
+assert_exit 0 "$ic_rc" "#44 F4: eingerückte wc-Ausgabe (BSD) wird akzeptiert (exit 0)"
+assert_contains_286 "$ic_out" "42 von" "#44 F4: die eingerückte Zahl wird als Bytezahl gezählt"
+IC_NOTR_44="$TMP_IC/import-check-ohne-tr.sh"
+sed "s/ | tr -d '\[:space:\]')\" || bytes=\"\"/)\" || bytes=\"\"/" "$IMPORT_CHECK" > "$IC_NOTR_44"
+assert_true "$([ "$(grep -c "tr -d '\[:space:\]'" "$IC_NOTR_44")" -lt "$(grep -c "tr -d '\[:space:\]'" "$IMPORT_CHECK")" ]; echo $?)" \
+  "#44 F4 (Mutation): die Mutante hat das tr -d an der Byte-Messung verloren"
+PATH="$IC_STUB_44:$PATH" FACTORY_DIR="$TMP_IC" bash "$IC_NOTR_44" >/dev/null 2>&1
+assert_exit 1 "$?" "#44 F4 (Mutation): ohne tr -d ist dieselbe eingerückte Ausgabe rot"
+rm -rf "$IC_STUB_44"
+
 rm -rf "$TMP_IC"
 
 # 15. Verdrahtung im Push-Gate – Anker ist die echte AUFRUFZEILE, nicht der Dateiname
@@ -8468,6 +8534,11 @@ OWN_LIST_CMD_27='bash scripts/checks/ownership-check.sh --list factory'
 OWN_TABLE_NAME_27="OWNERSHIP"".md"   # zur Laufzeit zusammengesetzt: kein Literal, das der Guard unten in dieser Datei fände (F3)
 assert_contains_286 "$codify_flat_426" "$OWN_LIST_CMD_27" "#426 AK-C5 / #27 AK4: die Zuordnungsregel nennt das Kommando ownership-check.sh --list factory"
 assert_absent "$codify_flat_426" "$OWN_TABLE_NAME_27" "#27 AK4: /codify nennt die Zuordnungstabelle nicht mehr (im Konsumenten nicht vorhanden)"
+# Factory-Issue #44 AK9: Factory-Index-Zeilen gehen nach lessons/INDEX.md, nie nach PROJECT-CONTEXT.md (rot bis Patch-Apply).
+assert_contains_286 "$codify_flat_426" 'docs/factory/lessons/INDEX.md' "#44 AK9: /codify nennt lessons/INDEX.md als Ort der Factory-Index-Zeilen"
+assert_contains_286 "$codify_flat_426" 'Factory-Index-Zeilen gehören **nie** nach `PROJECT-CONTEXT.md`' \
+  "#44 AK9: /codify schließt Factory-Index-Zeilen in PROJECT-CONTEXT.md aus"
+assert_absent "$codify_flat_426" 'Index der ausgelagerten Learnings' "#44 AK9: /codify verweist nicht mehr auf den alten Index-Abschnitt"
 
 # AK-L1: Kleinfunde nach betroffener Datei geteilt; die Skills nennen beide Orte
 kf_side_426() { # $1 = Kleinfunde-Datei, $2 = erwartete Seite → Anzahl Einträge, deren erste Wo-Datei NICHT auf dieser Seite liegt
@@ -9400,6 +9471,70 @@ for case_52 in "${cases_52[@]}"; do
 done
 assert_true "$diff_52" "#52 D7: strip_literal_37 liefert auf kleinen Eingaben dasselbe wie \${v//literal/} (${#cases_52[@]} Fälle)"
 rm -rf "$TMP_52"
+
+# ─── Factory-Issue #44: Lessons-Index ausgeliefert ───────────────────────────────────────────────
+# Übersicht je Lesson-Datei mit „Laden bei“ steht in FACTORY.md, die Einzelzeilen in lessons/INDEX.md – beides Seite `factory`
+# (AK3–AK6). Der Guard lessons_index_guard_44 (lib/assert-helpers.sh) liest nur ausgelieferte Dateien und die Anpassungsstellen-Liste.
+LI_FMD_44="$FACTORY_ROOT/docs/factory/FACTORY.md"
+LI_IDX_44="$FACTORY_ROOT/docs/factory/lessons/INDEX.md"
+LI_DIR_44="$FACTORY_ROOT/docs/factory/lessons"
+LI_CUST_44="$FACTORY_ROOT/scripts/checks/customization-points.txt"
+li_out_44="$(lessons_index_guard_44 "$LI_FMD_44" "$LI_IDX_44" "$LI_DIR_44" "$LI_CUST_44")"; li_rc_44=$?
+assert_exit 0 "$li_rc_44" "#44 AK6: echter Stand → Guard grün (Ausgabe: ${li_out_44:-leer})"
+assert_true "$([ -z "$li_out_44" ]; echo $?)" "#44 AK6: echter Stand → Guard ohne Fund"
+assert_true "$([ "$(grep -c '^### ' "$LI_IDX_44")" -eq 0 ]; echo $?)" "#44 AK2: INDEX.md hat keine ###-Überschriften"
+# Umzug aus der Projekt-Suite (#319): der Index-Eintrag steht jetzt in der ausgelieferten Datei (Datei-grep, kein printf|grep: SIGPIPE-Lesson)
+assert_true "$(grep -qF -- 'Coverage-Ausgabe nur in' "$LI_IDX_44"; echo $?)" "#44 AK6 (umgezogen aus #319): „Coverage-Ausgabe nur in“ hat eine Zeile in lessons/INDEX.md"
+
+# Negativtests: je Regel eine Kopie, pfadspezifisches Signal (Lesson nothra/tch-gastro-services#214); Ausgabe erst fangen (Lesson Factory-Task #27)
+TMP_LI_44="$(mktemp -d)"
+li_copy_44() { # frische Kopie der vier Quellen → $TMP_LI_44/<name>
+  mkdir -p "$TMP_LI_44/$1/lessons"
+  cp "$LI_FMD_44" "$TMP_LI_44/$1/FACTORY.md"; cp "$LI_CUST_44" "$TMP_LI_44/$1/cust.txt"
+  cp "$LI_DIR_44"/*.md "$TMP_LI_44/$1/lessons/"
+}
+li_guard_44() { lessons_index_guard_44 "$TMP_LI_44/$1/FACTORY.md" "$TMP_LI_44/$1/lessons/INDEX.md" "$TMP_LI_44/$1/lessons" "$TMP_LI_44/$1/cust.txt"; }
+li_case_44() { # $1 = Fallname, $2 = erwartetes Signal (Zeile), $3 = Beschreibung – führt li_guard_44 aus und prüft Exit 1 + Signal
+  li_out_44="$(li_guard_44 "$1")"; li_rc_44=$?
+  assert_exit 1 "$li_rc_44" "#44 AK6: $3 → Guard rot"
+  assert_contains_286 "$li_out_44" "$2" "#44 AK6: $3 → Signal „$2“"
+}
+li_copy_44 base; li_out_44="$(li_guard_44 base)"; li_rc_44=$?
+assert_exit 0 "$li_rc_44" "#44 AK6 (Kontrolle): die unveränderte Kopie ist grün"
+
+li_copy_44 ue; grep -vF -- '](lessons/code-style.md)' "$TMP_LI_44/ue/FACTORY.md" > "$TMP_LI_44/ue/x"; mv "$TMP_LI_44/ue/x" "$TMP_LI_44/ue/FACTORY.md"
+li_case_44 ue "fehlt-uebersicht:code-style.md" "Übersichtszeile von code-style.md entfernt"
+
+li_copy_44 nt; sed -E 's/\*\*Laden bei:\*\*/Laden bei/' "$TMP_LI_44/nt/FACTORY.md" > "$TMP_LI_44/nt/x"; mv "$TMP_LI_44/nt/x" "$TMP_LI_44/nt/FACTORY.md"
+li_case_44 nt "fehlt-uebersicht:" "Übersichtszeilen ohne „**Laden bei:**“"
+
+li_copy_44 gr; grep -vF -- '**[`lessons/testing.md`](' "$TMP_LI_44/gr/lessons/INDEX.md" > "$TMP_LI_44/gr/x"; mv "$TMP_LI_44/gr/x" "$TMP_LI_44/gr/lessons/INDEX.md"
+li_case_44 gr "fehlt-gruppe:testing.md" "INDEX-Gruppe von testing.md entfernt"
+
+li_copy_44 tl; sed 's#\*\*\[`lessons/code-style.md`\](code-style.md)#**[`lessons/code-style.md`](gibt-es-nicht.md)#' "$TMP_LI_44/tl/lessons/INDEX.md" > "$TMP_LI_44/tl/x"; mv "$TMP_LI_44/tl/x" "$TMP_LI_44/tl/lessons/INDEX.md"
+li_case_44 tl "toter-link:code-style.md" "Link-Ziel einer Gruppe zeigt auf eine fehlende Datei"
+
+li_copy_44 as; printf 'docs/factory/FACTORY.md\n' >> "$TMP_LI_44/as/cust.txt"
+li_case_44 as "anpassungsstelle:docs/factory/FACTORY.md" "FACTORY.md als Anpassungsstelle gelistet"
+li_copy_44 ai; printf 'docs/factory/lessons/INDEX.md\n' >> "$TMP_LI_44/ai/cust.txt"
+li_case_44 ai "anpassungsstelle:docs/factory/lessons/INDEX.md" "INDEX.md als Anpassungsstelle gelistet"
+
+li_copy_44 il; grep -vF -- '](lessons/INDEX.md)' "$TMP_LI_44/il/FACTORY.md" > "$TMP_LI_44/il/x"; mv "$TMP_LI_44/il/x" "$TMP_LI_44/il/FACTORY.md"
+li_case_44 il "fehlt-index-link" "Link auf lessons/INDEX.md entfernt"
+
+li_copy_44 im; printf '@docs/factory/lessons/INDEX.md\n' >> "$TMP_LI_44/im/FACTORY.md"
+li_case_44 im "importiert-index" "INDEX.md per @import eingebunden (AK4)"
+
+# F5: jede unlesbare Quelle → UNLESBAR:<pfad>, nie still grün
+for src_44 in FACTORY.md lessons/INDEX.md cust.txt; do
+  li_copy_44 un; rm -f "$TMP_LI_44/un/$src_44"
+  li_case_44 un "UNLESBAR:$TMP_LI_44/un/$src_44" "Quelle $src_44 fehlt"
+  rm -rf "$TMP_LI_44/un"
+done
+li_copy_44 ud; li_out_44="$(lessons_index_guard_44 "$TMP_LI_44/ud/FACTORY.md" "$TMP_LI_44/ud/lessons/INDEX.md" "$TMP_LI_44/ud/gibt-es-nicht" "$TMP_LI_44/ud/cust.txt")"; li_rc_44=$?
+assert_exit 1 "$li_rc_44" "#44 AK6: Lesson-Verzeichnis fehlt → Guard rot"
+assert_contains_286 "$li_out_44" "UNLESBAR:$TMP_LI_44/ud/gibt-es-nicht" "#44 AK6: Lesson-Verzeichnis fehlt → Signal UNLESBAR"
+rm -rf "$TMP_LI_44"
 
 # ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
 # Die Testgruppen (TEST_GROUP_FILES_52, factory-lock-*-tests.sh) laufen seit dem Start als Teilprozesse; hier ihre Ausgabe und Zähler
