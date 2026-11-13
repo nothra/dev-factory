@@ -69,7 +69,7 @@ Installiert werden die Factory-Hooks – neben `pre-commit` und `pre-push` auch 
 | Hook | Ruft auf | Zweck (Stand der Check-Skripte) |
 |------|----------|---------------------------------|
 | `pre-commit` | `scripts/checks/pre-commit.sh` | Merge-Konflikte, Debug-Statements, TODO-ohne-Ticket (Warnung), hardkodierte Credentials, Lint |
-| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format (Prettier), Routen-Doku-Drift, Git-Hooks-Installiert-Check (inkl. `core.hooksPath`, nothra/tch-gastro-services#265/#268), @import-Kontext-Deckel (ADR-047 §4, nothra/tch-gastro-services#319), Schutz gegen Push auf `main`/`master` |
+| `pre-push` | `scripts/checks/pre-push.sh` | Tests, Typecheck, Format, projekteigene Checks aus `pre-push.d/`, Git-Hooks-Installiert-Check (inkl. `core.hooksPath`, nothra/tch-gastro-services#265/#268), @import-Kontext-Deckel (ADR-047 §4, nothra/tch-gastro-services#319), Schutz gegen Push auf `main`/`master` |
 | `commit-msg` | `scripts/checks/commit-msg-check.sh` | Flag-Guard: lehnt `--help`/`-h` als Commit-Message ab (nothra/tch-gastro-services#262) |
 
 - **Neue Projekte:** `scripts/init-factory.sh` ruft `install-hooks.sh` auf – die

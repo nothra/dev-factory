@@ -492,21 +492,140 @@ echo ""
 echo "C1 Herkunftsbegriffe (PROJECT-CONTEXT.md → Konventionen → erlaubte Stellen):"
 # Die Begriffe werden zur Laufzeit zusammengesetzt: als Literal stünden sie in dieser Datei selbst, und der
 # Guard wäre immer rot (Content-Scan-Guard, dessen Phrase in der gescannten Datei steht – Lesson nothra/tch-gastro-services#319).
-C1_TERMS="Veranstal""tung|Montags""runde|Theken""wart|Heuchel""heim|T""CH|tc""h-gastro|Ne""on|Ver""cel"
-# Positivkontrolle: derselbe Ausdruck findet ein Wort und ignoriert den qualifizierten Herkunftsverweis.
-assert_true "$(printf '%s\n' 'Die Ver''cel-Regel' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): der Suchausdruck findet einen Herkunftsbegriff"
-assert_true "$(! printf '%s\n' 'siehe nothra/tch-gastro-services#12' | sed 's#nothra/tch-gastro-services##g' | grep -qiwE "$C1_TERMS"; echo $?)" "C1 (Kontrolle): ein qualifizierter Herkunftsverweis ist kein Treffer"
+# Lange Begriffe (ab sieben Zeichen) zählen auch als Wortteil – Komposita wie `delete<Begriff>Action` (Factory-Issue
+# #45, Q2); kurze Begriffe nur als ganzes Wort, sonst schlügen `match`, `switch` oder `neonatal` an.
+C1_LONG_TERMS="Veranstal""tung|Montags""runde|Theken""wart|Heuchel""heim|tc""h-gastro"
+C1_SHORT_TERMS="T""CH|Ne""on|Ver""cel"
+# c1_hits_in <datei> → höchstens drei Treffer als `<zeile>:<text>`; der qualifizierte Herkunftsverweis zählt nicht.
+c1_hits_in() {
+  { sed 's#nothra/tch-gastro-services##g' "$1" | grep -nIiE -- "$C1_LONG_TERMS"
+    sed 's#nothra/tch-gastro-services##g' "$1" | grep -nIiwE -- "$C1_SHORT_TERMS"; } | sort -t: -k1,1n -u | head -3
+}
+# c1_allowed_place <pfad> → Exit 0, wenn der Pfad eine der erlaubten Stellen aus PROJECT-CONTEXT.md → „Konventionen" ist
+c1_allowed_place() {
+  case "$1" in README.md|CHANGELOG.md|docs/factory/PROJECT-CONTEXT.md|scripts/checks/tests/fixtures/lessons-split-426.tsv) return 0 ;; esac
+  return 1
+}
+C1_PROBE="$(mktemp)"
+c1_hits_on_line() { printf '%s\n' "$1" > "$C1_PROBE"; [ -n "$(c1_hits_in "$C1_PROBE")" ]; }
+# AK8: jeder lange Begriff wird auch als Wortteil eines Kompositums gefunden (je Begriff ein Negativtest)
+IFS='|' read -r -a c1_long_list <<< "$C1_LONG_TERMS"
+for t_c1 in "${c1_long_list[@]}"; do
+  c1_hits_on_line "const delete${t_c1}Action = 1"
+  assert_true "$?" "C1 #45 AK8: Kompositum mit langem Begriff ist ein Treffer (delete<${#t_c1} Zeichen>Action)"
+done
+c1_hits_on_line "import Form from './${c1_long_list[0]}MetaForm.tsx'"
+assert_true "$?" "C1 #45 AK8: <B1>MetaForm.tsx ist ein Treffer"
+# AK9: kurze Begriffe als ganzes Wort weiter gefunden, als Wortteil nicht
+IFS='|' read -r -a c1_short_list <<< "$C1_SHORT_TERMS"
+for t_c1 in "${c1_short_list[@]}"; do
+  c1_hits_on_line "Die ${t_c1}-Regel"
+  assert_true "$?" "C1 #45 AK9: kurzer Begriff als ganzes Wort ist ein Treffer (${#t_c1} Zeichen)"
+done
+for w_c1 in match switch watch neonatal; do
+  ! c1_hits_on_line "Ein Wort: $w_c1"
+  assert_true "$?" "C1 #45 AK9: '$w_c1' ist kein Treffer"
+done
+# AK10: qualifizierter Herkunftsverweis und erlaubte Stellen bleiben Ausnahmen
+! c1_hits_on_line 'siehe nothra/tch-gastro-services#12'
+assert_true "$?" "C1 (Kontrolle): ein qualifizierter Herkunftsverweis ist kein Treffer"
+for p_c1 in README.md CHANGELOG.md docs/factory/PROJECT-CONTEXT.md scripts/checks/tests/fixtures/lessons-split-426.tsv; do
+  c1_allowed_place "$p_c1"
+  assert_true "$?" "C1 #45 AK10: $p_c1 ist erlaubte Stelle"
+done
+! c1_allowed_place docs/factory/lessons/testing.md
+assert_true "$?" "C1 #45 AK10: eine Lesson ist keine erlaubte Stelle"
+rm -f "$C1_PROBE"
 c1_files=0; c1_hits=""
 while IFS= read -r -d '' f_c1; do
-  case "$f_c1" in README.md|CHANGELOG.md|docs/factory/PROJECT-CONTEXT.md|scripts/checks/tests/fixtures/lessons-split-426.tsv) continue ;; esac
+  c1_allowed_place "$f_c1" && continue
   [ -f "$FACTORY_ROOT/$f_c1" ] || continue
   c1_files=$((c1_files + 1))
-  hit_c1="$(sed 's#nothra/tch-gastro-services##g' "$FACTORY_ROOT/$f_c1" | grep -nIiwE "$C1_TERMS" | head -3)"
+  hit_c1="$(c1_hits_in "$FACTORY_ROOT/$f_c1")"
   [ -z "$hit_c1" ] || c1_hits="$c1_hits$f_c1: $hit_c1"$'\n'
 done < <(git -C "$FACTORY_ROOT" ls-files -z)
 assert_true "$([ "$c1_files" -gt 50 ]; echo $?)" "C1 (fail-closed): der Scan liest wirklich die getrackten Dateien (Ist: $c1_files)"
 assert_true "$([ -z "$c1_hits" ]; echo $?)" "C1: Herkunftsbegriffe stehen nur an den dokumentierten erlaubten Stellen"
 [ -z "$c1_hits" ] || printf '%s' "$c1_hits" | head -10 | sed 's/^/      /'
+
+# ── Factory-Issue #45: Stack-Begriffe des Ursprungs-Projekts nicht in den ausgelieferten Anweisungstexten ──
+# Ein Agent im Konsumenten liest Skills, Personas und Guidelines als Handlungsanweisung; Stack-Details des
+# Ursprungs-Projekts (Werkzeuge, Pfade, Gates) gelten dort nicht. Die Liste ist Wissen über das Ursprungs-Projekt und
+# steht darum hier, nicht in der ausgelieferten Suite (Factory-ADR-064 D6). ADRs, Lessons und Tests prüft der Guard
+# bewusst nicht: dort stehen die Begriffe als Historie oder Testdaten (Spec 45, Q1).
+echo ""
+echo "#45 Stack-Begriffe des Ursprungs-Projekts (Anweisungstexte):"
+STACK_TERMS_45=(pnpm db:seed drizzle playwright docs/routes.md db.transaction runAtomic vitest esbuild page.tsx next-auth frontend-react)
+STACK_PATHS_45=(.claude/commands docs/factory/agents docs/factory/guidelines docs/factory/gitignore.factory scripts/checks/pre-push.sh)
+# stack_hits_45 <wurzel> → je Treffer `<datei>:<zeile>:<text>`; Exit 0 = sauber, 1 = Treffer,
+# 2 = keine geprüfte Datei gefunden oder eine nicht lesbar (fail-closed, nie still grün).
+stack_hits_45() {
+  local root="$1" f n=0 rc=0 t
+  local -a pat=()
+  for t in "${STACK_TERMS_45[@]}"; do pat+=(-e "$t"); done
+  while IFS= read -r -d '' f; do
+    n=$((n + 1))
+    [ -r "$root/$f" ] || { echo "✗ nicht lesbar: $f"; return 2; }
+    grep -nIiF "${pat[@]}" -- "$root/$f" | sed "s#^#$f:#" | grep . && rc=1
+  done < <(git -C "$root" ls-files -z -- "${STACK_PATHS_45[@]}" 2>/dev/null)
+  [ "$n" -gt 0 ] || { echo "✗ keine geprüfte Datei gefunden unter $root"; return 2; }
+  return "$rc"
+}
+FX_45="$(mktemp -d)"
+git -C "$FX_45" init -q
+mkdir -p "$FX_45/.claude/commands" "$FX_45/docs/factory/agents" "$FX_45/docs/factory/adr" "$FX_45/docs/factory/lessons"
+printf 'sauber\n' > "$FX_45/.claude/commands/skill.md"
+printf 'sauber\n' > "$FX_45/docs/factory/agents/persona.md"
+git -C "$FX_45" add -A
+stack_hits_45 "$FX_45" >/dev/null
+assert_exit 0 "$?" "#45 AK12 (Kontrolle): saubere Wegwerf-Kopie ist grün"
+# AK12: jeder Begriff, in der Schreibweise der Liste und in Großbuchstaben, ist rot und nennt Datei und Zeile
+for t_45 in "${STACK_TERMS_45[@]}"; do
+  for v_45 in "$t_45" "$(printf '%s' "$t_45" | tr '[:lower:]' '[:upper:]')"; do
+    printf 'sauber\nZeile mit %s darin\n' "$v_45" > "$FX_45/.claude/commands/skill.md"
+    out_45="$(stack_hits_45 "$FX_45")"; rc_45=$?
+    assert_true "$([ "$rc_45" -eq 1 ] && grep -qF -- ".claude/commands/skill.md:2:" <<< "$out_45"; echo $?)" "#45 AK12: '$v_45' ist rot mit Datei und Zeile (Exit $rc_45)"
+  done
+done
+printf 'sauber\n' > "$FX_45/.claude/commands/skill.md"
+# AK12/AK13 je Pfad aus Scope 4 der Spec: eine Datei je Pfad trägt einen Begriff und ist rot mit Datei und Zeile.
+# Die Liste steht bewusst unabhängig von STACK_PATHS_45 – sie ist das Orakel; fehlt dort ein Pfad, wird genau
+# dessen Test rot statt still nicht mehr geprüft.
+SPEC_FILES_45=(.claude/commands/skill.md docs/factory/agents/persona.md docs/factory/guidelines/regel.md docs/factory/gitignore.factory scripts/checks/pre-push.sh)
+for f_45 in "${SPEC_FILES_45[@]}"; do mkdir -p "$FX_45/$(dirname "$f_45")"; printf 'sauber\n' > "$FX_45/$f_45"; done
+git -C "$FX_45" add -A
+for f_45 in "${SPEC_FILES_45[@]}"; do
+  printf 'pnpm test\n' > "$FX_45/$f_45"
+  out_45="$(stack_hits_45 "$FX_45")"; rc_45=$?
+  assert_true "$([ "$rc_45" -eq 1 ] && grep -qF -- "$f_45:1:" <<< "$out_45"; echo $?)" "#45 AK12: Begriff in $f_45 ist rot mit Datei und Zeile (Exit $rc_45)"
+  printf 'sauber\n' > "$FX_45/$f_45"
+done
+# AK13: ein Begriff außerhalb der geprüften Dateien (ADR, Lesson) ist kein Treffer
+# Dateiname zusammengesetzt: als Literal läse der ADR-Link-Check der ausgelieferten Suite ihn als toten Link.
+adr_45="001""-x.md"
+printf 'Playwright und Drizzle\n' > "$FX_45/docs/factory/adr/$adr_45"
+printf 'pnpm build\n' > "$FX_45/docs/factory/lessons/testing.md"
+git -C "$FX_45" add -A
+stack_hits_45 "$FX_45" >/dev/null
+assert_exit 0 "$?" "#45 AK13: Stack-Begriff in ADR/Lesson ist kein Treffer"
+# AK14: keine geprüfte Datei (leeres Repo, falsche Wurzel) bzw. eine nicht lesbare ist rot statt grün
+EMPTY_45="$(mktemp -d)"; git -C "$EMPTY_45" init -q
+stack_hits_45 "$EMPTY_45" >/dev/null
+assert_exit 2 "$?" "#45 AK14: leere Dateiliste ist rot (fail-closed)"
+stack_hits_45 "$EMPTY_45/gibt-es-nicht" >/dev/null
+assert_exit 2 "$?" "#45 AK14: falsche Wurzel ist rot (fail-closed)"
+rm -f "$FX_45/docs/factory/agents/persona.md"
+out_45="$(stack_hits_45 "$FX_45")"; rc_45=$?
+assert_true "$([ "$rc_45" -eq 2 ] && grep -qF 'nicht lesbar: docs/factory/agents/persona.md' <<< "$out_45"; echo $?)" "#45 AK14: getrackte, aber nicht lesbare Datei ist rot (Exit $rc_45)"
+rm -rf "$FX_45" "$EMPTY_45"
+# AK15: jeder Pfad aus Scope 4 hat im echten Baum mindestens eine getrackte Datei – sonst wäre „sauber" trivial
+for p_45 in .claude/commands docs/factory/agents docs/factory/guidelines docs/factory/gitignore.factory scripts/checks/pre-push.sh; do
+  assert_true "$([ -n "$(git -C "$FACTORY_ROOT" ls-files -- "$p_45")" ]; echo $?)" "#45 AK15: $p_45 hat getrackte Dateien"
+done
+# AK15: der echte Baum ist sauber
+out_45="$(stack_hits_45 "$FACTORY_ROOT")"; rc_45=$?
+assert_exit 0 "$rc_45" "#45 AK15: die Anweisungstexte dieses Repos nennen keinen Stack-Begriff"
+[ "$rc_45" -eq 0 ] || printf '%s\n' "$out_45" | head -10 | sed 's/^/      /'
 
 
 # ── verschoben aus der ausgelieferten Suite: #212 AK9/AK10: .gitignore dieses Repos deckt Coverage-Temp generisch ab ──

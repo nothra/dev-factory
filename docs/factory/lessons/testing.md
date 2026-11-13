@@ -94,7 +94,7 @@ die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permis
 
 **Rezidiv in neuer Domäne, außerhalb eines Spec-AK-Paars (aus nothra/tch-gastro-services#352, `/test`-Selbstfund):** Ein
 manueller Rework-Schritt verschob einen Reset-Handler von `onClick` auf `onSubmit`
-(`VeranstaltungMetaForm.tsx`, siehe `lessons/frontend-react.md`) und schrieb dazu **einen**
+(eine Formular-Komponente, siehe die Projekt-Lesson zu Formular-Handlern) und schrieb dazu **einen**
 Test – für den gemeldeten Bug-Pfad (ungültiges Pflichtfeld, Reset darf nicht feuern). Die
 Gegenrichtung (gültiges Pflichtfeld, Reset **muss** feuern) blieb ungetestet; der erst im
 `/test`-Schritt gelaufene Coverage-Report zeigte die `onSubmit`-Callback-Zeile selbst als nie
