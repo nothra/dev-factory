@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -92,6 +92,11 @@ Iteration 1 (2026-11-13): **NEEDS_REWORK** – 0 kritisch, 3 wichtig, 3 Nitpicks
 anderen vier Pfade sind ungetestet. W2: Routen-Doku-Drift-Gate noch in `git-workflow.md:72` und
 `pre-push.sh:86-87` (als Kleinfund verankert, Mitnahme empfohlen). W3: Umsetzung committen, nur
 den Push zurückhalten. → W1–W3 und Nitpick 1 im Rework behoben (siehe Technische Notizen).
+
+Iteration 2 (2026-11-13): **APPROVED** – 0 kritisch, 0 wichtig, 5 Nitpicks (Lesson
+`build-tooling.md:32` nennt `*.tmp.spec.tsx` noch als ignoriert, doppelte Pfad-Orakel-Liste,
+`sed`-Ersetzung mit ungeschütztem Dateinamen, Anführungszeichen in `codify.md`, AK16 offen).
+Projekt-Suite ohne Patch: 252 grün, 3 rot (die drei erwarteten, grün erst nach dem Apply).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
