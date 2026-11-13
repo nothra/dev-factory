@@ -94,7 +94,7 @@ die zweite Assertion nicht. Bei symmetrischen Gate-Entscheidungen ist die permis
 
 **Rezidiv in neuer Domäne, außerhalb eines Spec-AK-Paars (aus nothra/tch-gastro-services#352, `/test`-Selbstfund):** Ein
 manueller Rework-Schritt verschob einen Reset-Handler von `onClick` auf `onSubmit`
-(`VeranstaltungMetaForm.tsx`, siehe `lessons/frontend-react.md`) und schrieb dazu **einen**
+(eine Formular-Komponente, siehe die Projekt-Lesson zu Formular-Handlern) und schrieb dazu **einen**
 Test – für den gemeldeten Bug-Pfad (ungültiges Pflichtfeld, Reset darf nicht feuern). Die
 Gegenrichtung (gültiges Pflichtfeld, Reset **muss** feuern) blieb ungetestet; der erst im
 `/test`-Schritt gelaufene Coverage-Report zeigte die `onSubmit`-Callback-Zeile selbst als nie
@@ -804,3 +804,11 @@ Eine sechste Gruppe aus dem größten seriellen Block (81 s) senkte die Gesamtze
 **Regel:** Vor dem Schneiden in Gruppen `time` (user/system/CPU-%) und Zeit je Abschnitt messen und teure Einzelausdrücke zuerst beseitigen; ein Zielwert, den der Scope nicht erreicht, wird mit Messung eskaliert statt den Scope still zu erweitern.
 
 → `/architecture`, `/implement` – bei Laufzeit-Zielen für Test-Suiten
+
+## Guard über mehrere Pfade: je Pfad ein eigener Fixture-Test, Pfad-Orakel unabhängig vom Guard (aus Factory-Task #45, `/review` Iteration 1)
+
+Der Stack-Begriff-Guard prüfte laut Spec fünf Pfade, belegt war nur einer (`.claude/commands/`): Die übrigen vier hätten still aus der Pfadliste fallen können, ohne dass ein Test rot wurde. Ein Mutationsbeleg je gestrichenem Pfad deckte die Lücke auf.
+
+**Regel:** Prüft ein Guard eine Pfadliste, braucht jeder Pfad (a) einen Fixture-Test „Treffer wird mit Datei und Zeile gemeldet“ und (b) am echten Baum die Prüfung „hat getrackte Dateien“ (sonst läuft der Pfad leer grün). Die Orakel-Liste im Test bewusst nicht aus der Guard-Liste ableiten. Fixture-Dateinamen unter `docs/factory/adr/` zur Laufzeit zusammensetzen, sonst meldet `adr-links-check.sh` sie als toten ADR-Link.
+
+→ `/implement`, `/test`, `/review` – bei Guard/Scanner, der eine Liste von Pfaden oder Verzeichnissen prüft

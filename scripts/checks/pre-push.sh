@@ -41,11 +41,11 @@ else
 fi
 
 # ─── Check 2: Typecheck ───────────────────────────────────────────────────────
-# Fängt Typfehler (z.B. fehlende `import type`), die Lint und Vitest nicht
-# erkennen: Vitest transpiliert über esbuild (Typen werden vor der Ausführung
-# gestrippt, kein Type-Check) und das ESLint-Setup hier ist nicht typed-aware.
-# Nur `tsc`/`next build` sieht diese Fehler – aus nothra/tch-gastro-services#137 (Build-Break unbemerkt
-# bis zum manuellen `pnpm build` vor dem Merge).
+# Fängt Typfehler, die Lint und Tests nicht erkennen: ein Test-Runner, der Quelltext
+# nur transpiliert, entfernt die Typen vor der Ausführung (kein Type-Check), und ein Linter
+# ohne Typinformation sieht sie ebenfalls nicht. Nur der eigentliche Typecheck bzw. Build
+# findet diese Fehler – aus nothra/tch-gastro-services#137 (Build-Break unbemerkt bis zum
+# manuellen Build vor dem Merge).
 if TYPECHECK_COMMAND="$(gate_command typecheck required)"; then
   echo -e "  ${YELLOW}→${NC} Typecheck: $TYPECHECK_COMMAND"
   if eval "$TYPECHECK_COMMAND" > /dev/null 2>&1; then
@@ -60,11 +60,11 @@ else
   FAILED=1
 fi
 
-# ─── Check 3: Format (Prettier) ──────────────────────────────────────────────
-# Erzwingt Prettier-Konformität vor dem Push. Ohne dieses Gate drifteten unbemerkt
-# 38 Dateien aus dem Format (nothra/tch-gastro-services#149) – weder pre-commit noch CI prüften `format:check`.
-# Ausgabe NICHT unterdrücken: `prettier --check` listet bei Drift die betroffenen
-# Dateien ([warn] …) – direkt umsetzbar mit `pnpm format` (anders als der verbose tsc).
+# ─── Check 3: Format ─────────────────────────────────────────────────────────
+# Erzwingt Format-Konformität vor dem Push. Ohne dieses Gate drifteten unbemerkt
+# 38 Dateien aus dem Format (nothra/tch-gastro-services#149) – weder pre-commit noch CI prüften den Format-Check.
+# Ausgabe NICHT unterdrücken: ein Format-Check listet bei Drift typischerweise die betroffenen
+# Dateien – direkt umsetzbar mit dem Format-Kommando des Projekts (anders als die meist sehr lange Typecheck-Ausgabe).
 # Optionales Kommando (commands.format bzw. FACTORY_FORMAT_COMMAND): ein BEWUSST leer gesetztes
 # FACTORY_FORMAT_COMMAND="" – oder ein leerer commands.format – deaktiviert das Gate (expliziter
 # Opt-out, unten der else-Zweig); ein leerer Env-Wert fällt nicht still auf die Config zurück.
@@ -83,8 +83,8 @@ else
 fi
 
 # ─── Check 4: Projekt-Erweiterungspunkt ──────────────────────────────────────
-# Ausführbare Skripte aus scripts/project/checks/pre-push.d/ (lexikalisch), u. a. der
-# Routen-Doku-Drift-Check (nothra/tch-gastro-services#145). Fehlendes oder leeres Verzeichnis ist kein Fehler;
+# Ausführbare Skripte aus scripts/project/checks/pre-push.d/ (lexikalisch) – die projekteigenen
+# Checks des Konsumenten. Fehlendes oder leeres Verzeichnis ist kein Fehler;
 # Fehlschlag oder fehlendes Ausführbar-Bit blockiert den Push (Skriptname in der Meldung).
 run_project_checks "$FACTORY_DIR/scripts/project/checks/pre-push.d" || FAILED=1
 

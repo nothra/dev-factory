@@ -200,7 +200,7 @@ Kommentars selbst. Zeigt: die Regel „vor dem Schreiben den Enforcer öffnen" w
 gerade das Kopieren verlangt die erneute Prüfung, nicht nur das Erstschreiben.
 
 **Rezidiv in einer sicherheitsrelevanten Risikoakzeptanz-Begründung (aus nothra/tch-gastro-services#352, Security-Review-Finding):**
-Ein WHY-Kommentar zu einer bewusst akzeptierten TOCTOU-Lücke (`deleteVeranstaltungAction`)
+Ein WHY-Kommentar zu einer bewusst akzeptierten TOCTOU-Lücke (in einer Lösch-Action)
 benannte den nebenläufigen, unauthentifizierten Schreiber als
 „`adjustVerzehrByTokenAction`/`kassiereZeileAction` … kein `requireRole`". Zweiteres ist falsch:
 `kassiereZeileAction` ruft selbst `requireRole("veranstalter")` und ist nur unter einer

@@ -19,7 +19,6 @@ tasks/pipeline-stuck-*.md
 *.tmp.sh
 *.tmp.py
 *.tmp.spec.ts
-*.tmp.spec.tsx
 *.tmp.config.ts
 coverage-*-tmp/
 .verify-*/

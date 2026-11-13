@@ -29,8 +29,8 @@ an. Der Kommentar in der Spec-Datei behauptete „`*.tmp.*` ist gitignoret" – 
 `.verify-*/`-Verzeichnis; `git status` zeigte beide Pfade als `Untracked`. Die Behauptung wurde
 nie gegen den echten `.gitignore`-Inhalt geprüft, nur angenommen.
 
-**Regel (erweitert):** `.gitignore` deckt jetzt zusätzlich `*.tmp.spec.ts`/`*.tmp.spec.tsx`
-(Wegwerf-E2E-Specs) und `.verify-*/` (Wegwerf-Verifikationsartefakte wie Screenshots) ab. Ein
+**Regel (erweitert):** `.gitignore` deckt jetzt zusätzlich `*.tmp.spec.ts` (seit Factory-Task #45 ohne `*.tmp.spec.tsx`,
+das ein Ursprungs-Stack-Muster war; Wegwerf-E2E-Specs) und `.verify-*/` (Wegwerf-Verifikationsartefakte wie Screenshots) ab. Ein
 Kommentar, der behauptet „Muster X ist gitignoret", ist selbst eine überprüfbare
 Tatsachenbehauptung (vgl. `lessons/testing.md` nothra/tch-gastro-services#314-Learning zu unverifizierten
 Verhaltensbehauptungen) – vor dem Anlegen einer Wegwerf-Datei `git check-ignore -v <pfad>`
