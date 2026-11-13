@@ -39,8 +39,8 @@ Guidelines, Self-Tests) und ist es generisch, kommt es nach `docs/factory/lesson
 Betrifft es App-/Projekt-Code (Seite `project`: `app/`, `db/`, `lib/`, E2E, Build/Abhängigkeiten der
 App), kommt es nach `docs/project/lessons/<thema>.md`; bei mehreren Dateien entscheidet die in der
 Lesson zuerst genannte. Schreibe den **Volltext** in die thematisch passende Datei der Seite
-(`frontend-react`, `next-auth`, `db-drizzle`, `testing`, `build-tooling`, `code-style`,
-`factory-workflow`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“ in
+(Factory: `testing`, `build-tooling`, `code-style`, `factory-workflow`; Projekt: die Themen der Gruppe
+„Projekt-Lessons" im Index von `PROJECT-CONTEXT.md`) **plus** eine **Index-Zeile** unter „Index der ausgelagerten Learnings“ in
 `docs/factory/PROJECT-CONTEXT.md` (Gruppe „Factory-Lessons“ bzw. „Projekt-Lessons“) – **nicht** mehr
 in den @import-Volltext (ADR-037).
 Die Index-Zeile bekommt einen **„Laden bei"-Trigger** (welcher Skill + welche Situation die

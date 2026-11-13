@@ -34,7 +34,7 @@ Personas aus: `docs/factory/agents/review-agent.md`
 - Architektur-Entscheidungen aus ADRs eingehalten?
 - Keine Schicht-Verletzungen?
 - Konsistent mit bestehendem Code-Stil?
-- Bei Routen-Änderungen: `docs/routes.md` mitgepflegt (neue/geänderte/entfernte `page.tsx`/`route.ts`; Pfad, Funktion, Zugriff)? (nothra/tch-gastro-services#145)
+- Projekteigene Zusatzregeln aus `CLAUDE.md`/`PROJECT-CONTEXT.md` des Projekts eingehalten (z. B. im selben PR mitzupflegende Doku)?
 
 ## Output-Format
 

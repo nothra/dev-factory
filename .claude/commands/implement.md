@@ -85,15 +85,16 @@ Nur wenn beide grün: Schritt als abgeschlossen markieren.
 
 **Oberflächentests bei UI-berührenden Tasks (zusätzlich, nicht als Ersatz):**
 Sobald eine Task die Oberfläche berührt, wird das Verhalten gegen einen **lokal
-gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-/Proxy-grün (vgl. nothra/tch-gastro-services#63, wo ein
-Handler-Direktaufruf die `proxy.ts`-Ebene umging):
-1. Voraussetzung: lokale Umgebung läuft (DB, `.env.local`) – Details und Kommandos:
-   `PROJECT-CONTEXT.md` → „Lokale Umgebung & Oberflächentests".
-2. Automatisiert: je Akzeptanzkriterium eine Playwright-Spec unter `e2e/*.spec.ts`;
-   das E2E-Kommando des Projekts startet den Dev-Server via `webServer`-Config selbst
-   (`reuseExistingServer` außerhalb CI).
-3. Interaktiv: den Dev-Server des Projekts (bzw. Preview-Config `dev`) starten und die betroffene
-   Oberfläche im Browser durchklicken/screenshotten (deckt sich mit `/verify`).
+gestarteten Dev-Server** verifiziert – Unit-grün ≠ UI-grün (vgl. nothra/tch-gastro-services#63, wo ein
+Handler-Direktaufruf eine vorgeschaltete Request-Ebene umging). Werkzeug, Ablageort der
+Oberflächentests und Start des Dev-Servers legt das Projekt fest:
+`PROJECT-CONTEXT.md` → „Lokale Umgebung & Oberflächentests".
+1. Voraussetzung: die lokale Umgebung des Projekts läuft (Datenbank, lokale Konfiguration o. ä.) –
+   Details und Kommandos stehen im genannten Abschnitt.
+2. Automatisiert: je Akzeptanzkriterium ein Oberflächentest mit dem E2E-Werkzeug des Projekts;
+   das E2E-Kommando des Projekts startet den Dev-Server selbst oder nutzt einen bereits laufenden.
+3. Interaktiv: den Dev-Server des Projekts starten und die betroffene Oberfläche im Browser
+   durchklicken/screenshotten (deckt sich mit `/verify`).
 
 Oberflächentests sind **nicht** in den pre-push-Gates verankert (Gates = Lint + Tests);
 sie laufen zusätzlich und werden in der Task-Datei als erledigt vermerkt.
@@ -114,7 +115,7 @@ protokollieren (Nachweis später über `/post-merge-verify`) – nicht still üb
 - Keine Features über den Task-Scope hinaus
 - Kein `TODO` ohne Ticket-Referenz
 - Keine auskommentierten Code-Blöcke
-- Bei Routen-Änderungen (`app/**/page.tsx`, `app/api/**/route.ts`): `docs/routes.md` im selben PR aktualisieren (Pfad, Funktion, Zugriff) – der Drift-Check blockiert sonst den Push (nothra/tch-gastro-services#145).
+- Projekteigene Zusatzregeln (z. B. Doku, die bei bestimmten Änderungen im selben PR mitzupflegen ist) stehen in `CLAUDE.md` und `PROJECT-CONTEXT.md` des Projekts – dort nachlesen und einhalten.
 - ADR-Trigger-Check: siehe Schritt 0 – vier Kategorien, bei Treffer stoppen und fragen.
 
 ## Output
