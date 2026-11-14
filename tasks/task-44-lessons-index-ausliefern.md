@@ -25,26 +25,26 @@ Spec (Volltext je AK, Entscheidungen E1–E5, Fehlerszenarien F1–F8):
 
 ## Akzeptanzkriterien
 <!-- Volltext je AK in der Spec; hier die Kurzform zum Abhaken -->
-- [ ] AK1 – `lessons/INDEX.md` enthält alle bisherigen Factory-Index-Zeilen zeichengleich (nur der Link in den 4 Kopfzeilen ist angepasst), Rekonstruktionsbeleg im PR-Body
-- [ ] AK2 – `INDEX.md` hat keine `### `-Überschriften
-- [ ] AK3 – `FACTORY.md` hat je Lesson-Datei eine Übersichtszeile mit `**Laden bei:**` + Verweis auf `lessons/INDEX.md`; `factory-workflow.md` trägt einen konkreten Trigger
-- [ ] AK4 – `INDEX.md` ist nicht Teil des `@import`-Sets
-- [ ] AK5 – `PROJECT-CONTEXT.md` dieses Repos ohne Factory-Index; „Bekannte Stolpersteine" bleibt als Verweis
-- [ ] AK6 – Guard in der ausgelieferten Suite (Übersichtszeile, INDEX-Gruppe, nicht Anpassungsstelle, INDEX-Link), je Teil ein Negativtest
-- [ ] AK7 – E2E: neue Lesson erreicht einen Fixture-Konsumenten per `factory-sync.sh` samt Trigger, Anpassungsstellen byte-gleich, mit Negativkontrolle
-- [ ] AK8 – `/codify` schreibt Factory-Index-Zeilen nach `INDEX.md` (+ Übersichtszeile bei neuer Datei), Projekt-Zeilen nach `PROJECT-CONTEXT.md` – als Patch geliefert, Mensch wendet an
-- [ ] AK9 – Assertions auf den neuen `/codify`-Wortlaut (Präsenz + Abwesenheit)
-- [ ] AK10 – kein Präsens-Verweis mehr auf den alten Index-Ort (Grep-Liste unten abgearbeitet)
-- [ ] AK11 – Nachträge in Factory-ADR-037 und Factory-ADR-047
-- [ ] AK12 – CHANGELOG `## Unreleased` mit Migrationshinweis
-- [ ] AK13 – Deckel summiert Bytes, Grenze inklusiv, Meldungen nennen beide Werte
-- [ ] AK14 – Bytezahl nicht ermittelbar → rot (fail-closed)
-- [ ] AK15 – beide Konstanten aus dem Kommentar nachgerechnet (Zeilen /50, Bytes /1000)
-- [ ] AK16 – Projekt-Suite: realer Stand unter beiden Grenzen
-- [ ] AK17 – Dauerkontext < 30.000 Bytes, vorher/nachher im PR-Body
-- [ ] AK18 – Kürzungen in `FACTORY.md` erhalten alle Test-Anker; entfernte Details stehen in `OPERATING.md`
-- [ ] AK19 – „Portabilität in Gate-/Shell-Skripten" zeichengleich nach `bash-gotchas.md` § 20 verschoben
-- [ ] AK20 – alle Gates grün (nach Apply des Patches)
+- [x] AK1 – `lessons/INDEX.md` enthält alle bisherigen Factory-Index-Zeilen zeichengleich (nur der Link in den 4 Kopfzeilen ist angepasst), Rekonstruktionsbeleg im PR-Body
+- [x] AK2 – `INDEX.md` hat keine `### `-Überschriften
+- [x] AK3 – `FACTORY.md` hat je Lesson-Datei eine Übersichtszeile mit `**Laden bei:**` + Verweis auf `lessons/INDEX.md`; `factory-workflow.md` trägt einen konkreten Trigger
+- [x] AK4 – `INDEX.md` ist nicht Teil des `@import`-Sets
+- [x] AK5 – `PROJECT-CONTEXT.md` dieses Repos ohne Factory-Index; „Bekannte Stolpersteine" bleibt als Verweis
+- [x] AK6 – Guard in der ausgelieferten Suite (Übersichtszeile, INDEX-Gruppe, nicht Anpassungsstelle, INDEX-Link), je Teil ein Negativtest
+- [x] AK7 – E2E: neue Lesson erreicht einen Fixture-Konsumenten per `factory-sync.sh` samt Trigger, Anpassungsstellen byte-gleich, mit Negativkontrolle
+- [x] AK8 – `/codify` schreibt Factory-Index-Zeilen nach `INDEX.md` (+ Übersichtszeile bei neuer Datei), Projekt-Zeilen nach `PROJECT-CONTEXT.md` – als Patch geliefert, Mensch wendet an
+- [x] AK9 – Assertions auf den neuen `/codify`-Wortlaut (Präsenz + Abwesenheit)
+- [x] AK10 – kein Präsens-Verweis mehr auf den alten Index-Ort (Grep-Liste unten abgearbeitet)
+- [x] AK11 – Nachträge in Factory-ADR-037 und Factory-ADR-047
+- [x] AK12 – CHANGELOG `## Unreleased` mit Migrationshinweis
+- [x] AK13 – Deckel summiert Bytes, Grenze inklusiv, Meldungen nennen beide Werte
+- [x] AK14 – Bytezahl nicht ermittelbar → rot (fail-closed)
+- [x] AK15 – beide Konstanten aus dem Kommentar nachgerechnet (Zeilen /50, Bytes /1000)
+- [x] AK16 – Projekt-Suite: realer Stand unter beiden Grenzen
+- [x] AK17 – Dauerkontext < 30.000 Bytes, vorher/nachher im PR-Body
+- [x] AK18 – Kürzungen in `FACTORY.md` erhalten alle Test-Anker; entfernte Details stehen in `OPERATING.md`
+- [x] AK19 – „Portabilität in Gate-/Shell-Skripten" zeichengleich nach `bash-gotchas.md` § 20 verschoben
+- [x] AK20 – alle Gates grün (nach Apply des Patches)
 
 ## Technische Notizen
 
