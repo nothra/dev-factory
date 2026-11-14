@@ -5,7 +5,7 @@
 - [ ] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -562,6 +562,9 @@ Iteration 1 (`tasks/review-44.md`, NEEDS_REWORK) – Rework durch `/implement`:
 - [x] Nitpicks: OPERATING.md nennt `MAX_IMPORT_BYTES`; ADR-037 benennt die inhaltliche Änderung, 037/047 mit „Erweitert durch“-Hinweis; `INDEX.md`-Kopf erklärt `FACTORY.md` für maßgeblich; Guard: Link-Ziel muss die eigene Datei sein (Test `tf`), leeres Lesson-Verzeichnis → `keine-lessons:` (Test `le`, vorher rot belegt), eigener Schleifenname `shipped_path`, Modul-Header ergänzt; `nt`-Fall mit konkretem Dateinamen; `world_44` nennt seine Ausgabevariablen; `PC264` → `IDX264`; Kommentar-Grammatik Projekt-Suite.
 - [ ] Offen gelassen (Nitpicks): `@./`-Variante im AK4-Guard, `is_count`-Helfer, beide Grenzen in einem Lauf melden, `.claude/commands/codify.md`-Wortlaut „Kern-Kurzregeln“ / „Factory-Issue #44“ (bräuchte einen weiteren Patch). Begründung: kein falsches Grün (Byte-Deckel greift), Refactor-Themen für `/refactor`.
 - Hinweis TDD: Der `tf`-Fall (Link auf fremde, existierende Datei) wurde nach der Guard-Änderung geschrieben; ein Rot-Nachweis vor der Implementierung fehlt. Logisch belegt: die alte Fassung prüfte nur `[ -f "$dir/$tgt" ]`, `testing.md` existiert, sie wäre grün gewesen.
+
+## Refactoring
+- `import-context-limit-check.sh`: doppelte Integer-Prüfung (Zeilen/Bytes) in `is_count` + `report_uncountable` extrahiert, kein neues Verhalten. Beide Suiten grün (2555 / 249).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

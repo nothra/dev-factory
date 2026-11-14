@@ -174,6 +174,18 @@ CANDIDATES
 
 # Worklist als newline-getrennter String statt Array: bash 3.2 (macOS) bricht unter `set -u`
 # beim Expandieren leerer Arrays ab – der Check läuft lokal UND in CI.
+# is_count <wert> – wahr nur bei einer nicht leeren Ziffernfolge (Integer-Guard für awk-/wc-Ausgaben).
+is_count() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+}
+
+# report_uncountable <größe> <datei> – Rot-Meldung, wenn ein Zählwerkzeug keine Zahl liefert (fail-closed).
+report_uncountable() {
+  printf '%b %s\n' "${RED}✗${NC} import-context-limit-check:" "$1 nicht ermittelbar: $2 (fail-closed)"
+}
+
 pending="$ENTRY_FILE"
 seen=""
 total=0
@@ -203,23 +215,9 @@ while [ -n "$pending" ]; do
   fi
 
   lines="$(awk 'END { print NR }' "./$rel" 2>/dev/null)" || lines=""
-  case "$lines" in
-    ''|*[!0-9]*)
-      printf '%b %s\n' "${RED}✗${NC} import-context-limit-check:" \
-        "Zeilenzahl nicht ermittelbar: $rel (fail-closed)"
-      failed=1
-      continue
-      ;;
-  esac
+  is_count "$lines" || { report_uncountable "Zeilenzahl" "$rel"; failed=1; continue; }
   bytes="$(wc -c < "./$rel" 2>/dev/null | tr -d '[:space:]')" || bytes=""
-  case "$bytes" in
-    ''|*[!0-9]*)
-      printf '%b %s\n' "${RED}✗${NC} import-context-limit-check:" \
-        "Bytezahl nicht ermittelbar: $rel (fail-closed)"
-      failed=1
-      continue
-      ;;
-  esac
+  is_count "$bytes" || { report_uncountable "Bytezahl" "$rel"; failed=1; continue; }
   total=$((total + lines))
   total_bytes=$((total_bytes + bytes))
   breakdown="$breakdown$(printf '%6d  %s' "$lines" "$rel")$NL"
