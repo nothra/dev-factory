@@ -54,6 +54,7 @@
 - Parallele Hintergrund-Testgruppen: Status aus Ergebnisdatei statt `wait <pid>` (PID-Wiederverwendung → falsches Exit 127), `kill` nur ohne Ergebnisdatei, nie eingesammelte Gruppe = rot (aus Factory-Task #52, Umsetzung + `/review` Iteration 1)
 - Test-Beschleunigung: erst CPU-Auslastung/Zeit je Abschnitt messen und quadratische Einzelausdrücke beseitigen, dann Gruppen schneiden – mehr Gruppen brachten bei 1,3 genutzten Kernen nichts (aus Factory-Task #52, AK3-Versuch)
 - Guard über mehrere Pfade: je Pfad ein eigener Fixture-Test + „hat getrackte Dateien“, Orakel-Liste unabhängig vom Guard (aus Factory-Task #45, `/review` Iteration 1)
+- Negativkontrolle aus derselben Quelle wie der echte Ablauf bauen (Setup-Abbruch ist kein Beleg); Link-Guard prüft die eigene Zieldatei, leere Eingabemenge = Fehler (aus Factory-Task #44, `/review` Iteration 1)
 
 **[`lessons/build-tooling.md`](build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 

@@ -812,3 +812,11 @@ Der Stack-Begriff-Guard prüfte laut Spec fünf Pfade, belegt war nur einer (`.c
 **Regel:** Prüft ein Guard eine Pfadliste, braucht jeder Pfad (a) einen Fixture-Test „Treffer wird mit Datei und Zeile gemeldet“ und (b) am echten Baum die Prüfung „hat getrackte Dateien“ (sonst läuft der Pfad leer grün). Die Orakel-Liste im Test bewusst nicht aus der Guard-Liste ableiten. Fixture-Dateinamen unter `docs/factory/adr/` zur Laufzeit zusammensetzen, sonst meldet `adr-links-check.sh` sie als toten ADR-Link.
 
 → `/implement`, `/test`, `/review` – bei Guard/Scanner, der eine Liste von Pfaden oder Verzeichnissen prüft
+
+## Negativkontrolle bildet den realen Ablauf nach; Link-Guard prüft die eigene Zieldatei (aus Factory-Task #44, `/review` Iteration 1)
+
+Die erste Negativkontrolle des E2E-Tests (alter Weg: Trigger nur in `PROJECT-CONTEXT.md`) legte diese Datei ins Upstream-Manifest. Der Sync brach ab – ein Szenario, das real nie vorkommt, weil das Manifest aus `ownership-check.sh --list factory` entsteht und keine Anpassungsstelle enthält. Der Test war rot aus dem falschen Grund und belegte die Lücke nicht. Zweiter Fund: der Link-Guard prüfte nur, ob das Ziel existiert; eine Gruppe, die auf eine andere vorhandene Lesson zeigte, blieb grün.
+
+**Regel:** (a) Eine Negativkontrolle baut ihre Welt aus derselben Quelle wie der echte Ablauf (hier das Manifest aus `--list factory`) und scheitert an der Assertion, nicht am Setup – ein Setup-Abbruch ist kein Beleg. (b) Prüft ein Guard Link-Ziele, muss das Ziel die zur Gruppe gehörende Datei sein, nicht irgendeine existierende; dazu ein Negativtest „Ziel existiert, ist aber fremd“. (c) Eine leere Eingabemenge (leeres Lesson-Verzeichnis, unaufgelöster Glob) ist ein eigener Fehlerfall, kein Grün.
+
+→ `/implement`, `/test`, `/review` – bei E2E-/Sync-Negativkontrollen und Guards über Link- oder Pfadlisten

@@ -2,12 +2,12 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 
@@ -567,7 +567,9 @@ Iteration 1 (`tasks/review-44.md`, NEEDS_REWORK) – Rework durch `/implement`:
 - `import-context-limit-check.sh`: doppelte Integer-Prüfung (Zeilen/Bytes) in `is_count` + `report_uncountable` extrahiert, kein neues Verhalten. Beide Suiten grün (2555 / 249).
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- Neue Lesson `testing.md` „Negativkontrolle bildet den realen Ablauf nach; Link-Guard prüft die eigene Zieldatei“ + Zeile in `lessons/INDEX.md`. Details: `tasks/codify-44.md`.
+
+PR-Shepherd 2026-11-14: Merge freigegeben – alle Gates grün.
 
 ---
 Branch: `feature/44-lessons-index-ausliefern`
