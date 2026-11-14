@@ -28,7 +28,7 @@
 #     Fail-closed: kein origin/<branch>-Tracking oder fehlgeschlagener git/gh-Aufruf →
 #     nicht verifiziert (nie stilles „Erfolg" bei unklarer Lage).
 #
-# Nur POSIX-Regex/portables Shell, macOS/BSD + GNU/Alpine (clean-code.md „Portabilität").
+# Nur POSIX-Regex/portables Shell, macOS/BSD + GNU/Alpine (bash-gotchas.md § 20 „Portabilität").
 
 # Reine Entscheidung über die erhobenen Fakten. Reihenfolge = Meldungs-Priorität.
 evaluate_final_state() {

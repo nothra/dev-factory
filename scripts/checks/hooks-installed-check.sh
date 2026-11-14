@@ -73,7 +73,7 @@ esac
 # --git-common-dir` (oben) mit demselben Nicht-Null-Exit scheitern (analytisch begründet –
 # in dieser Umgebung nicht reproduzierbar: `git`-Aufrufe in Wegwerf-Repos sind
 # permission-blockiert), sodass der Check dort schon in den „kein Git-Repository"-Zweig
-# fail-closed geht und diese Zeile nie erreicht. Trotzdem bleibt der Zweig stehen (clean-code.md:
+# fail-closed geht und diese Zeile nie erreicht. Trotzdem bleibt der Zweig stehen (bash-gotchas.md § 20:
 # Validierungs-Gates fail-closed – im Zweifel ablehnen, auch für einen Code-Pfad ohne
 # bekannten Trigger).
 HOOKS_PATH_CONFIG="$(git config --get core.hooksPath 2>/dev/null)"

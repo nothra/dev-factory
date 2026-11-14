@@ -74,7 +74,7 @@ MAX_IMPORT_LINES=750
 
 # Obergrenze in Bytes (wc -c) für dasselbe Datei-Set – eine lange Zeile zählt sonst als eine (Factory-Issue #44).
 # Herleitung (ADR-047 §4): Ist-Stand nach Factory-Issue #44
-# = 29994 Bytes; + 25 % Puffer = 37492; aufgerundet auf das nächste Vielfache von 1.000 = 38000.
+# = 29990 Bytes; + 25 % Puffer = 37487; aufgerundet auf das nächste Vielfache von 1.000 = 38000.
 MAX_IMPORT_BYTES=38000
 
 ENTRY_FILE="CLAUDE.md"

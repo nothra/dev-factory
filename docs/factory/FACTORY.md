@@ -95,7 +95,7 @@ personenfrei nach `tasks/telemetry-<task-id>-<zeitstempel>.csv`. Details: `OPERA
 >   Kosten-Effizienz · **Laden bei:** bewusst nie automatisch – die Datei rät selbst, geladenen
 >   Kontext schlank zu halten
 > - [`guidelines/bash-gotchas.md`](guidelines/bash-gotchas.md) – Bash-Fallstricke ·
->   **Laden bei:** `/implement`, `/review`, `/refactor` beim Schreiben/Reviewen von Shell-Skripten
+>   **Laden bei:** `/implement`, `/review`, `/refactor`, `/security-review` bei Shell-Skripten
 >
 > **Factory-Lessons** (`/codify`-Learnings, Volltext, nicht @importiert – Factory-ADR-037):
 >

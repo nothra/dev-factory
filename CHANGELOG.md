@@ -11,9 +11,12 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   mehr in `docs/factory/PROJECT-CONTEXT.md` (Anpassungsstelle, wurde nie ausgeliefert), sondern zweistufig in
   ausgelieferten Dateien: Übersicht je Lesson-Datei mit „Laden bei"-Trigger in `docs/factory/FACTORY.md`, Einzelzeilen in
   der neuen `docs/factory/lessons/INDEX.md` (nicht `@import`-geladen). `/codify` schreibt dorthin. Der
-  `@import`-Deckel misst zusätzlich Bytes (`MAX_IMPORT_BYTES`), beide Grenzen neu hergeleitet. „Portabilität in
-  Gate-/Shell-Skripten" steht jetzt in `bash-gotchas.md` § 20. **Migration:** Den Abschnitt `#### Factory-Lessons` samt
-  Einzelzeilen aus dem eigenen `docs/factory/PROJECT-CONTEXT.md` entfernen; Projekt-Lessons bleiben dort.
+  `@import`-Deckel misst zusätzlich Bytes, beide Grenzen neu hergeleitet: `MAX_IMPORT_LINES` 750 (vorher 1100),
+  `MAX_IMPORT_BYTES` 38.000 (neu). „Portabilität in Gate-/Shell-Skripten" steht jetzt in `bash-gotchas.md` § 20.
+  **Breaking ohne Migration:** Mit altem Index (~53 KB) in `PROJECT-CONTEXT.md` ist `pre-push` Check 6
+  (`import-context-limit-check.sh`) nach dem Sync rot. **Migration:** Den Abschnitt `#### Factory-Lessons` samt
+  Einzelzeilen aus dem eigenen `docs/factory/PROJECT-CONTEXT.md` entfernen, **im selben PR wie den Sync**;
+  Projekt-Lessons bleiben dort.
 
 - **Turn-Budget von `/implement` nach AK-Zahl gestaffelt (Factory-ADR-065, #49):** `run-pipeline.sh` gibt
   `/implement` bei 1–5 AK 20 Turns, bei 6–11 AK 40, ab 12 AK 60 – auch in den Rework-Iterationen nach `/review`.

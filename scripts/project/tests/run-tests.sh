@@ -187,10 +187,10 @@ else
 fi
 
 # ── verschoben aus der ausgelieferten Suite: #264: Index-Zeilen, seit #44 in lessons/INDEX.md ──
-PC264="$FACTORY_ROOT/docs/factory/lessons/INDEX.md"
-assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$PC264"; echo $?)" \
+IDX264="$FACTORY_ROOT/docs/factory/lessons/INDEX.md"
+assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$IDX264"; echo $?)" \
   "#264: Index-Zeile in lessons/INDEX.md nennt die Härtung nicht mehr als ausgelagert"
-grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$PC264"
+grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$IDX264"
 assert_true "$?" "#264: Index-Zeile in lessons/INDEX.md nennt den Erledigt-Stand"
 
 # ── verschoben aus der ausgelieferten Suite: #262: CONTRIBUTING.md nennt die Hook-Installation (Einstieg für Menschen in diesem Repo) ──
@@ -214,8 +214,8 @@ grep -qF 'bash scripts/install-hooks.sh' "$README_MD"
 assert_true "$?" "#262: README.md nennt 'bash scripts/install-hooks.sh' im lokalen Setup"
 
 # ── verschoben aus der ausgelieferten Suite: #319 AC4: PROJECT-CONTEXT.md ist Teil des gedeckelten @import-Sets (CLAUDE.md dieses Repos) ──
-# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (der
-# Projekt-Gedächtnis inkl. Index der Projekt-Lessons; der Factory-Index steht seit #44 in lessons/INDEX.md) Teil der gedeckelten
+# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (das
+# Projekt-Gedächtnis samt Index der Projekt-Lessons; der Factory-Index steht seit #44 in lessons/INDEX.md) Teil der gedeckelten
 # Summe IST. Verschwände die @import-Zeile, liefe der Index wieder unbegrenzt – und alle
 # übrigen Deckel-Tests blieben grün, weil sie nur die Guidelines betrachten.
 grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md"
@@ -236,7 +236,7 @@ ic_dead_links_319() {  # $1 = Markdown-Datei → gibt "datei → ziel" je totem 
     [ -e "$d/$ziel" ] || printf '%s → %s\n' "$f" "$ziel"
   done
 }
-# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (clean-code.md: ein
+# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (bash-gotchas.md § 20: ein
 # Gate-Regex braucht beide Richtungen) – unabhängig vom Repo-Inhalt.
 TMP_LNK_319="$(mktemp -d)"
 printf 'Ziel\n' > "$TMP_LNK_319/ziel.md"

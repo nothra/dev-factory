@@ -292,3 +292,10 @@
 - **Was:** `[[ "" -eq 0 ]]` ist in bash wahr. Bricht die Kommandosubstitution einer Bedingung ab, bevor `echo $?` läuft (z. B. `set -u` auf einer ungesetzten Variable), liefert sie leeren Text, und die Assertion zählt grün. Fiel in Task 52 beim F5-Test auf (dort durch eigene Vorbedingungs-Assertions abgefangen); jede andere Assertion nach diesem Muster kann aus demselben Grund still grün sein.
 - **Fix:** in `assert_true` nur `0` als Erfolg werten (`[ "$cond" = 0 ]`) und einen Test mit leerer Bedingung ergänzen; vorher die Suite auf Aufrufer prüfen, die bewusst etwas anderes als `0`/`1` oder eine Zahl übergeben. Etwa fünf Zeilen.
 - **Herkunft:** `/implement` zu Task 52 (Rework nach `/review` Iteration 1, Finding W5).
+
+### Lessons zitieren Regel-Orte, die Task 44 verschoben oder umformuliert hat
+
+- **Wo:** `docs/factory/lessons/factory-workflow.md:188` (ebenso `:336`, `:1644`) zitiert den Guardrail-Titel „Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge"; `docs/factory/lessons/code-style.md:255` verweist für die Portabilitätsregeln auf `clean-code.md`. Verifiziert am 2026-11-14.
+- **Was:** Seit Task 44 steht der Guardrail in `FACTORY.md` mit anderem Wortlaut („Keine offenen Checkboxen … vor dem Merge auf dem Feature-Branch setzen"), und die Portabilitätsregeln stehen in `bash-gotchas.md` § 20 (in `clean-code.md` bleibt nur ein Einzeiler-Verweis). Wer den zitierten Titel sucht, findet ihn nicht; der Verweis in `code-style.md` führt über einen Umweg.
+- **Fix:** In den vier Zeilen den Regel-Ort bzw. -Wortlaut nachziehen (`bash-gotchas.md` § 20; Guardrail sinngemäß statt wörtlich zitieren). Der Rest der Lessons bleibt unverändert. Etwa vier Zeilen.
+- **Herkunft:** `/review` zu Task 44 (Runde 1, Out-of-Scope; die Lessons blieben laut Spec zeichengleich).

@@ -35,7 +35,7 @@
 #     → druckt den Pfad der Spec docs/specs/spec-<id>-*.md, sonst NICHTS. Einzige
 #       Spec-Auflösung für Preflight, Modell- und Turn-Wahl: alle messen dieselbe Datei (F4).
 #
-# Nur POSIX-Regex/awk, portabel macOS/BSD + GNU/Alpine (clean-code.md „Portabilität").
+# Nur POSIX-Regex/awk, portabel macOS/BSD + GNU/Alpine (bash-gotchas.md § 20 „Portabilität").
 
 # Reine Entscheidung: size + threshold → Tier, mit Fail-Safe auf den statischen Tier.
 select_tier() {

@@ -3423,7 +3423,7 @@ fi
 # ─── nothra/tch-gastro-services#112: pr-closes-keyword-check.sh (CI-Gate für Closing-Keyword) ──────────
 # Verhalten: PR-Body mit Closing-Keyword+#<nr> → exit 0, sonst fail-closed exit 1.
 # Positiv- UND Negativfälle, damit ein stilles Nicht-Greifen des Musters auffällt
-# (clean-code.md: Gate-Regex gehört durch beide Richtungen abgesichert).
+# (bash-gotchas.md § 20: Gate-Regex gehört durch beide Richtungen abgesichert).
 echo ""
 echo "#112 pr-closes-keyword-check.sh (Closing-Keyword im PR-Body):"
 
@@ -5439,7 +5439,7 @@ assert_true "$(! printf '%s' "$gitwf_flat_286" | grep -qF 'ebenso legen die Skil
 # Wortlaut vor nothra/tch-gastro-services#286 einmalig vorkommende Anweisungssätze – kein Kommando-Fragment (Lesson
 # factory-workflow.md "Reihenfolge-/Präsenz-Guards": Anker an der echten Zeile, nicht an
 # einem Fragment oder einer nie feuernden Alternative).
-# Kein 'declare -A' (macOS-Bash 3.2 kennt keine assoziativen Arrays, clean-code.md
+# Kein 'declare -A' (macOS-Bash 3.2 kennt keine assoziativen Arrays, bash-gotchas.md § 20
 # "Portabilität in Gate-/Shell-Skripten") – Zuordnung Skill → alte Anweisungszeile per case.
 old_unconditional_line_286() {
   case "$1" in
@@ -5533,7 +5533,7 @@ assert_true "$(! grep -qE '\| Fund-Art \|' "$ADR018"; echo $?)" \
 
 # ADR-043 ist beim Implementieren von Proposed auf Accepted geflippt (Lesson factory-workflow.md).
 # Erste nicht-leere Zeile nach der '## Status'-Überschrift, statt 'head -n -1' (GNU-Extension,
-# auf BSD/macOS-head nicht verfügbar – clean-code.md "Portabilität in Gate-/Shell-Skripten").
+# auf BSD/macOS-head nicht verfügbar – bash-gotchas.md § 20 "Portabilität in Gate-/Shell-Skripten").
 ADR043="$FACTORY_ROOT/docs/factory/adr/043-schwelle-fuer-autonome-issue-anlage.md"
 adr043_status_line="$(awk '/^## Status/{found=1; next} found && NF {print; exit}' "$ADR043")"
 assert_true "$([[ "$adr043_status_line" = "Accepted" ]]; echo $?)" "#286: ADR-043 Status ist auf 'Accepted' geflippt"
@@ -6651,7 +6651,7 @@ assert_exit 0 "$ak8_rc" "#314 AK8: nicht-numerischer FACTORY_METRICS_ISSUE brich
 assert_true "$([ ! -s "$GHLOG_314" ]; echo $?)" "#314 AK8: kein gh-Aufruf bei nicht-numerischem Wert"
 assert_contains_286 "$ak8_out" "keine Zahl ('12x')" "#314 AK8: Ablehnungsgrund nennt den abgelehnten Wert"
 # Typischer Stolperstein: ein CLI-Flag statt einer Zahl – Config-/nutzerkontrollierte Werte
-# als Daten behandeln (clean-code.md), nie als gh-Option.
+# als Daten behandeln (bash-gotchas.md § 20), nie als gh-Option.
 : > "$GHLOG_314"
 env -u GITHUB_STEP_SUMMARY FACTORY_DIR="$TMP_314M" FACTORY_METRICS_ISSUE="--repo" \
   bash "$SCRIPTS_DIR/metrics.sh" --no-api --quiet --publish >/dev/null 2>&1
@@ -7131,8 +7131,11 @@ IC_NOTR_44="$TMP_IC/import-check-ohne-tr.sh"
 sed "s/ | tr -d '\[:space:\]')\" || bytes=\"\"/)\" || bytes=\"\"/" "$IMPORT_CHECK" > "$IC_NOTR_44"
 assert_true "$([ "$(grep -c "tr -d '\[:space:\]'" "$IC_NOTR_44")" -lt "$(grep -c "tr -d '\[:space:\]'" "$IMPORT_CHECK")" ]; echo $?)" \
   "#44 F4 (Mutation): die Mutante hat das tr -d an der Byte-Messung verloren"
-PATH="$IC_STUB_44:$PATH" FACTORY_DIR="$TMP_IC" bash "$IC_NOTR_44" >/dev/null 2>&1
-assert_exit 1 "$?" "#44 F4 (Mutation): ohne tr -d ist dieselbe eingerückte Ausgabe rot"
+ic_mut_out="$(PATH="$IC_STUB_44:$PATH" FACTORY_DIR="$TMP_IC" bash "$IC_NOTR_44" 2>&1)"; ic_mut_rc=$?
+assert_exit 1 "$ic_mut_rc" "#44 F4 (Mutation): ohne tr -d ist dieselbe eingerückte Ausgabe rot"
+# Signal statt nur Exit (Lesson nothra/tch-gastro-services#214): ein Syntaxfehler der Mutante wäre sonst ebenfalls „rot“.
+assert_contains_286 "$ic_mut_out" "Bytezahl nicht ermittelbar: CLAUDE.md (fail-closed)" \
+  "#44 F4 (Mutation): die Mutante scheitert am Integer-Guard der Byte-Messung, nicht anderswo"
 rm -rf "$IC_STUB_44"
 
 rm -rf "$TMP_IC"
@@ -7288,7 +7291,7 @@ assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/guidelines/git-workf
 # Anker ohne das führende `@import` in Backticks (der Zieltext setzt es als Code-Span, die
 # Backticks würden sonst mitten in der Phrase stehen) – und ohne führenden Bindestrich: die
 # assert_*-Helfer geben kein `--` an grep weiter, ein mit `-` beginnender Anker würde als Option
-# gelesen (clean-code.md: variabler Suchwert immer als Daten behandeln).
+# gelesen (bash-gotchas.md § 20: variabler Suchwert immer als Daten behandeln).
 assert_contains_286 "$(flat_286 "$FACTORY_ROOT/docs/factory/OPERATING.md")" \
   "Kontext unter dem Deckel halten" "#319: OPERATING.md führt die Deckel-Invariante"
 
@@ -7345,7 +7348,7 @@ sec319() { FACTORY_DIR="$TMP_SEC319/fx" bash "$IMPORT_CHECK" 2>&1; }
 
 # S1 – Fail-open bei nicht ermittelbarer Zeilenzahl. `$((total + ""))` ist in bash KEIN Fehler,
 # sondern `+ 0`: schlug die Zählung fehl, meldete das Gate „0 von 1100" und exit 0, obwohl der
-# Kontext die Grenze reißt. clean-code.md verlangt für genau das einen Integer-Guard vor der
+# Kontext die Grenze reißt. bash-gotchas.md § 20 verlangt für genau das einen Integer-Guard vor der
 # Arithmetik („fail-closed – im Zweifel ablehnen, nie still durchwinken").
 seq 1 20 > "$TMP_SEC319/fx/CLAUDE.md"
 printf '@big.md\n' >> "$TMP_SEC319/fx/CLAUDE.md"
@@ -9506,13 +9509,18 @@ li_copy_44 ue; grep -vF -- '](lessons/code-style.md)' "$TMP_LI_44/ue/FACTORY.md"
 li_case_44 ue "fehlt-uebersicht:code-style.md" "Übersichtszeile von code-style.md entfernt"
 
 li_copy_44 nt; sed -E 's/\*\*Laden bei:\*\*/Laden bei/' "$TMP_LI_44/nt/FACTORY.md" > "$TMP_LI_44/nt/x"; mv "$TMP_LI_44/nt/x" "$TMP_LI_44/nt/FACTORY.md"
-li_case_44 nt "fehlt-uebersicht:" "Übersichtszeilen ohne „**Laden bei:**“"
+li_case_44 nt "fehlt-uebersicht:testing.md" "Übersichtszeilen ohne „**Laden bei:**“"
 
 li_copy_44 gr; grep -vF -- '**[`lessons/testing.md`](' "$TMP_LI_44/gr/lessons/INDEX.md" > "$TMP_LI_44/gr/x"; mv "$TMP_LI_44/gr/x" "$TMP_LI_44/gr/lessons/INDEX.md"
 li_case_44 gr "fehlt-gruppe:testing.md" "INDEX-Gruppe von testing.md entfernt"
 
 li_copy_44 tl; sed 's#\*\*\[`lessons/code-style.md`\](code-style.md)#**[`lessons/code-style.md`](gibt-es-nicht.md)#' "$TMP_LI_44/tl/lessons/INDEX.md" > "$TMP_LI_44/tl/x"; mv "$TMP_LI_44/tl/x" "$TMP_LI_44/tl/lessons/INDEX.md"
 li_case_44 tl "toter-link:code-style.md" "Link-Ziel einer Gruppe zeigt auf eine fehlende Datei"
+li_copy_44 tf; sed 's#\*\*\[`lessons/code-style.md`\](code-style.md)#**[`lessons/code-style.md`](testing.md)#' "$TMP_LI_44/tf/lessons/INDEX.md" > "$TMP_LI_44/tf/x"; mv "$TMP_LI_44/tf/x" "$TMP_LI_44/tf/lessons/INDEX.md"
+li_case_44 tf "toter-link:code-style.md" "Link-Ziel einer Gruppe zeigt auf eine andere, existierende Lesson-Datei"
+li_copy_44 le; rm -f "$TMP_LI_44/le/lessons/"*.md; cp "$LI_IDX_44" "$TMP_LI_44/le/lessons/INDEX.md"
+li_case_44 le "keine-lessons:$TMP_LI_44/le/lessons" "Lesson-Verzeichnis ohne Lesson-Datei (nur INDEX.md)"
+assert_absent "$li_out_44" "fehlt-uebersicht:*.md" "#44 AK6: leeres Lesson-Verzeichnis → kein Glob-Literal als Dateiname"
 
 li_copy_44 as; printf 'docs/factory/FACTORY.md\n' >> "$TMP_LI_44/as/cust.txt"
 li_case_44 as "anpassungsstelle:docs/factory/FACTORY.md" "FACTORY.md als Anpassungsstelle gelistet"

@@ -542,15 +542,26 @@ einen Guard in der ausgelieferten Suite und einen E2E-Test über `factory-sync.s
 - Rekonstruktion (Schritt 2.4): geprüfte Zeilen 131, fehlend 0; INDEX ohne Kopf 131 Zeilen, 0 `### `-Überschriften
 - Nach M1–M9 (F8): 30.111 Bytes, 577 Zeilen – 111 Bytes über AK17. Entscheidung F8 (Mensch): Variante 1, weiter kürzen in `FACTORY.md`
   (Satz „Skills sind für beide Stufen designed …" entfernt, zwei Pfadangaben gekürzt)
-- Nachher: 575 Zeilen, 29.994 Bytes → `MAX_IMPORT_LINES` = 750 (575 + 25 % = 718, auf 50 gerundet), `MAX_IMPORT_BYTES` = 38.000 (29.994 + 25 % = 37.492, auf 1.000 gerundet)
+- Nachher (Iteration 1): 575 Zeilen, 29.994 Bytes
+- Nachher (Rework nach `/review` Iteration 1): 575 Zeilen, 29.990 Bytes (Trigger `bash-gotchas.md` um `/security-review` ergänzt, „beim Schreiben/Reviewen von Shell-Skripten" → „bei Shell-Skripten") → `MAX_IMPORT_LINES` = 750 (575 + 25 % = 718, auf 50 gerundet), `MAX_IMPORT_BYTES` = 38.000 (29.990 + 25 % = 37.487, auf 1.000 gerundet)
 - Doku-Sweep (Schritt 9): `OPERATING.md` (Zeile 347, 460, 469) und `token-efficiency.md` nachgezogen; `README.md` nennt den Index-Ort nicht
-- Negativkontrolle AK7: der Sync lehnt eine Upstream-`PROJECT-CONTEXT.md` als geschützte Stelle ab; der Guard prüft dann den Upstream-Stand (Signal `fehlt-uebersicht`)
+- Negativkontrolle AK7 (Rework): das Manifest der Negativ-Welt enthält wie ein echtes Release (`--list factory`) keine `PROJECT-CONTEXT.md`; der Sync ist grün, die Lesson kommt ohne Übersichtszeile an, der Guard gegen den Konsumenten meldet `fehlt-uebersicht:neu-44.md`. (Iteration 1 hatte die Upstream-Datei im Manifest, der Sync brach ab – ein Szenario, das real nicht vorkommt.)
 
 ## Offene Fragen
 - [ ] (für `/architecture`, optional) Nachträge statt neuem ADR (Spec E5). Ohne Einwand gilt E5, dann ist `/architecture` nicht nötig.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+Iteration 1 (`tasks/review-44.md`, NEEDS_REWORK) – Rework durch `/implement`:
+- [x] K1 AK19: Portabilitäts-Verweise in Kommentaren auf `bash-gotchas.md § 20` umgestellt (`run-tests.sh` 3426/5442/5536/6654/7291/7348, `report-verdict.sh`, `tier-select.sh`, `verify-final-state.sh`, `hooks-installed-check.sh`, `pr-closes-keyword-check.sh`, `metrics.sh`, `assert-helpers.sh`, Projekt-Suite 239, `bash-gotchas.md` 429). `run-pipeline.sh:156` meint „Keine Code-Duplikation“ (bleibt in `clean-code.md`), unverändert.
+- [x] K2 F7/CHANGELOG: F7 korrigiert (`pre-push` Check 6 wird rot); CHANGELOG nennt 750/38.000 (vorher 1100) und „im selben PR wie den Sync“.
+- [x] W1 `INDEX.md`-Kopf: kein Verweis mehr auf `README.md`; Regel für qualifizierte/unqualifizierte Nummern korrigiert.
+- [x] W2 AK7-Negativkontrolle auf den realen Ablauf umgestellt (siehe Messwerte).
+- [x] W3 Mutationsbeleg `tr -d` prüft zusätzlich die Meldung „Bytezahl nicht ermittelbar“.
+- [x] W4 `bash-gotchas.md`-Trigger nennt `/security-review`, byte-neutral (−4 Bytes); ADR-047-Nachtrag begründet es.
+- [x] Nitpicks: OPERATING.md nennt `MAX_IMPORT_BYTES`; ADR-037 benennt die inhaltliche Änderung, 037/047 mit „Erweitert durch“-Hinweis; `INDEX.md`-Kopf erklärt `FACTORY.md` für maßgeblich; Guard: Link-Ziel muss die eigene Datei sein (Test `tf`), leeres Lesson-Verzeichnis → `keine-lessons:` (Test `le`, vorher rot belegt), eigener Schleifenname `shipped_path`, Modul-Header ergänzt; `nt`-Fall mit konkretem Dateinamen; `world_44` nennt seine Ausgabevariablen; `PC264` → `IDX264`; Kommentar-Grammatik Projekt-Suite.
+- [ ] Offen gelassen (Nitpicks): `@./`-Variante im AK4-Guard, `is_count`-Helfer, beide Grenzen in einem Lauf melden, `.claude/commands/codify.md`-Wortlaut „Kern-Kurzregeln“ / „Factory-Issue #44“ (bräuchte einen weiteren Patch). Begründung: kein falsches Grün (Byte-Deckel greift), Refactor-Themen für `/refactor`.
+- Hinweis TDD: Der `tf`-Fall (Link auf fremde, existierende Datei) wurde nach der Guard-Änderung geschrieben; ein Rot-Nachweis vor der Implementierung fehlt. Logisch belegt: die alte Fassung prüfte nur `[ -f "$dir/$tgt" ]`, `testing.md` existiert, sie wäre grün gewesen.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

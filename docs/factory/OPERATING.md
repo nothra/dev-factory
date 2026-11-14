@@ -523,7 +523,7 @@ Fehlschlag → `POST_MERGE_FAIL`-Interrupt + roter Job (fail-closed).
   ist das serverseitige Ruleset `protect-main` (ADR-029); immer über Feature-Branch + PR.
 - **`@import`-Kontext unter dem Deckel halten** (ADR-047 §4):
   `bash scripts/checks/import-context-limit-check.sh` – summiert `CLAUDE.md` + alle
-  `@`-eingebundenen Dateien gegen `MAX_IMPORT_LINES`. Läuft im pre-push-Gate; neue Regeln
+  `@`-eingebundenen Dateien gegen `MAX_IMPORT_LINES` (Zeilen) und `MAX_IMPORT_BYTES` (Bytes). Läuft im pre-push-Gate; neue Regeln
   verdichten oder als Lesson auslagern, statt anzuhängen.
 - **Parallele Sessions in eigenen Worktrees** – `start-work.sh` legt jede Task in einem eigenen
   git-Worktree an; nach dem Merge `git worktree remove <pfad>` (siehe git-workflow.md).

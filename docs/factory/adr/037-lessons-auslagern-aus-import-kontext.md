@@ -4,6 +4,9 @@
 
 Accepted
 
+> **Erweitert durch [Nachtrag #44](#nachtrag-2026-11-13-44-index-ausgeliefert-zweistufig):** Der Index steht
+> ausgeliefert und zweistufig in `FACTORY.md` (Übersicht) und `lessons/INDEX.md` (Einzelzeilen).
+
 ## Kontext
 
 Der bei **jeder** Session und **jedem** Pipeline-Agenten per `@import` geladene Kontext
@@ -115,5 +118,8 @@ Der Index stand in `PROJECT-CONTEXT.md`, einer Anpassungsstelle, die nie ausgeli
 deshalb ohne „Laden bei"-Trigger beim Konsumenten an. Neu: (1) Übersicht je Lesson-Datei mit Trigger in
 `docs/factory/FACTORY.md` → „Bedarfsgesteuert laden" (Dauerkontext); (2) die Einzelzeilen unverändert in
 `docs/factory/lessons/INDEX.md` (ausgeliefert, nicht `@import`-geladen). `/codify` schreibt Factory-Zeilen dorthin,
-Projekt-Zeilen weiter nach `PROJECT-CONTEXT.md`. Entscheidung 2 und 3 oben gelten mit diesem Ort. Abgesichert durch
+Projekt-Zeilen weiter nach `PROJECT-CONTEXT.md`. Entscheidung 2 und 3 oben gelten mit diesem Ort, aber **inhaltlich
+geändert**: Die Trigger der einzelnen Zeilen liegen nicht mehr im Dauerkontext. Die Auswahl läuft zweistufig – erst die
+Übersichtszeile je Datei in `FACTORY.md` (immer geladen, maßgeblich), dann bei Treffer die Einzelzeilen in `INDEX.md`
+öffnen. Abgesichert durch
 einen Guard in der ausgelieferten Suite und einen E2E-Test über `factory-sync.sh` (Spec 44).

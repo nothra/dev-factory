@@ -4,6 +4,9 @@
 
 Accepted
 
+> **Erweitert durch [Nachtrag #44](#nachtrag-2026-11-13-44-bytes-als-zweite-messgröße-portabilität-ausgelagert):** Der
+> Deckel (§4) misst zusätzlich Bytes; „Portabilität in Gate-/Shell-Skripten" steht in `bash-gotchas.md` § 20.
+
 ## Kontext
 
 `CLAUDE.md` bindet fünf Guidelines per `@import` ein. Sie werden damit bei **jeder** Session und
@@ -270,8 +273,10 @@ zu unzuverlässig; zudem entstünde eine zweite Zuordnungsquelle neben der Rolle
 
 - **§4:** Der Deckel misst zusätzlich Bytes (`MAX_IMPORT_BYTES`, gleiche Herleitung: Ist + 25 %, aufgerundet auf
   1.000). Die Zeilenzahl allein maß den Token-Bedarf nicht: der Lessons-Index lag mit 145 Zeilen bei 47 KB. Beide
-  Grenzen wurden am Stand nach #44 neu hergeleitet (575 Zeilen / 29.994 Bytes).
+  Grenzen wurden am Stand nach #44 neu hergeleitet (575 Zeilen / 29.990 Bytes).
 - **§3:** Das Trigger-Format verweist auf die Factory-Lessons-Übersicht in `FACTORY.md` statt auf `PROJECT-CONTEXT.md`.
 - **§2:** „Portabilität in Gate-/Shell-Skripten" wandert aus `clean-code.md` nach `bash-gotchas.md` § 20. Die
   Regeln betreffen nur Shell-Skripte, also genau den Adressatenkreis, den der „Laden bei"-Trigger von
-  `bash-gotchas.md` schon benennt (§2, zweite Klausel).
+  `bash-gotchas.md` schon benennt (§2, zweite Klausel). Weil damit auch die sicherheitsrelevante Regel
+  „Config-/nutzerkontrollierte Werte als Daten, fail-closed" (Factory-ADR-010) den Dauerkontext verlässt, nennt der
+  Trigger zusätzlich `/security-review`.

@@ -5,8 +5,10 @@
 > „Laden bei"-Trigger steht in `docs/factory/FACTORY.md` → „Bedarfsgesteuert laden". Diese Datei öffnen,
 > sobald dort ein Trigger passt, und nur die passenden Einträge der Lesson lesen.
 >
-> Eine Zeile je Learning (Titel + Herkunft). `#<nr>` in den Herkunftsangaben bezeichnet Issues des
-> Ursprungs-Repos (siehe `README.md` → Herkunft), „Factory-Task #<nr>" ein Issue dieses Factory-Repos.
+> Eine Zeile je Learning (Titel + Herkunft). Herkunftsangaben aus dem Ursprungs-Repo stehen qualifiziert
+> (`<owner>/<repo>#<nr>`); unqualifiziertes `#<nr>` und „Factory-Task #<nr>" meinen Issues von `nothra/dev-factory`.
+> **Maßgeblich für „Laden bei“ je Lesson-Datei ist die Übersichtszeile in `FACTORY.md`**; die Gruppenköpfe hier
+> nennen Thema und Trigger nur zur Orientierung, die Trigger einzelner Einträge stehen an der Zeile.
 > `/codify` hängt neue Zeilen ans Ende der Gruppe ihrer Lesson-Datei.
 
 **[`lessons/testing.md`](testing.md)** – Guard-/Gate-Tests für Skripte und Pipeline, Mutationsbelege, Fixtures, Test-Helfer · **Laden bei:** `/implement`, `/test`, `/review` beim Schreiben von Tests für Skripte/Gates/Pipeline

@@ -267,8 +267,12 @@ jeder Konsument sein `PROJECT-CONTEXT.md` von Hand umbauen.
 - [ ] **F6** Patch `tasks/patch-44.diff` noch nicht angewendet → AK9-Assertions rot. Der Push wird
   bis zum Apply zurückgehalten (Lesson „Neuer Guard prüft Dateien, die nur per `.claude/**`-Patch
   änderbar sind").
-- [ ] **F7** Konsument mit noch vorhandenem altem Factory-Abschnitt in `PROJECT-CONTEXT.md` → nichts
-  bricht: Doppel-Index, nur größer. Behebung per CHANGELOG-Migration (E4); kein Test nötig.
+- [ ] **F7** Konsument mit noch vorhandenem altem Factory-Abschnitt in `PROJECT-CONTEXT.md` → nach dem Sync
+  ist `pre-push` Check 6 (`import-context-limit-check.sh`, ausgeliefert) **rot**: der alte Index (~53 KB) reißt
+  beide neuen Grenzen (750 Zeilen statt vorher 1100, 38.000 Bytes). Korrigiert im `/review` zu #44 (vorher hieß es
+  hier „nichts bricht“). Behebung per CHANGELOG-Migration (E4): Abschnitt im selben PR wie den Sync entfernen;
+  kein eigener Test – das Rot ist genau das Verhalten des Deckels, das AK13 testet. Einstellbarkeit des Deckels je
+  Projekt ist Out-of-Scope (eigenes Issue).
 - [ ] **F8** Ziel < 30.000 Bytes nach M3–M8 nicht erreicht → **Stopp und Rückfrage an den Menschen**.
   Keine freien Kürzungen in `tdd-principles.md`, `testing-standards.md` oder den Kern-Kurzregeln 1–8.
 

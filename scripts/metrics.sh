@@ -171,7 +171,7 @@ publish_issue_comment() {
     echo "→ Issue-Kommentar übersprungen: FACTORY_METRICS_ISSUE nicht gesetzt"
     return 0
   fi
-  # Config-/nutzerkontrollierten Wert als Daten behandeln (clean-code.md), fail-closed:
+  # Config-/nutzerkontrollierten Wert als Daten behandeln (bash-gotchas.md § 20), fail-closed:
   # nicht-numerische Werte erreichen gh nie (ADR-045 Entscheidung 5). Der leere String ist
   # hier bereits durch den [ -z "$issue" ]-Guard oben ausgeschlossen, kein eigenes Pattern nötig.
   case "$issue" in

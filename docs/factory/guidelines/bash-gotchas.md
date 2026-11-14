@@ -426,7 +426,7 @@ ab (Exit ≠ 0, also rot). Nur der *leere* Wert ist der stille Fall. Wer nur den
 Fall testet, hält das Gate fälschlich für abgesichert.
 
 **Regel:** Jeder von außen bezogene Wert wird **vor** dem arithmetischen Gebrauch als Integer
-abgesichert – dieselbe Guard-Klausel, die `clean-code.md` → „Portabilität in Gate-/Shell-Skripten"
+abgesichert – dieselbe Guard-Klausel, die § 20 („Portabilität in Gate-/Shell-Skripten")
 für Vergleiche fordert, gilt für Additionen genauso:
 
 ```bash

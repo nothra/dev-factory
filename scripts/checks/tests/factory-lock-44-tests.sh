@@ -23,7 +23,9 @@ echo "Factory-Issue #44: Lessons-Index erreicht den Konsumenten:"
 
 # world_44 <name> <mit-index: 1|0> – Welt mit Konsument C1 (eigene Anpassungsstellen, committet) und Upstream-Release v4.0.0 aus den
 # ECHTEN Factory-Dateien plus neuer Lesson neu-44.md. mit-index=1: Übersichtszeile + INDEX-Gruppe (neuer Weg); 0: nur eine Zeile in
-# einer Upstream-PROJECT-CONTEXT.md (alter Weg).
+# einer Upstream-PROJECT-CONTEXT.md (alter Weg). Diese Datei kommt wie bei einem echten Release (factory-release-manifest.sh baut aus
+# `ownership-check.sh --list factory`) nicht ins Manifest.
+# Setzt: out_44, rc_44 (Ausgabe und Exit des Syncs), SHA_CLAUDE_44, SHA_PC_44 (Fingerprints der Konsumenten-Anpassungsstellen).
 world_44() {
   world_23 "$1"
   printf '# Projekt-Regeln\n@docs/factory/FACTORY.md\n' > "$C1_23/CLAUDE.md"
@@ -44,6 +46,10 @@ world_44() {
   fi
   git -C "$U23" add -A && git_23 -C "$U23" commit -q -m v4 && git -C "$U23" tag v4.0.0
   mk_manifest_23 "$U23" v4.0.0 "$R23/v4.0.0/factory-release.json"
+  if [ "$2" = 0 ]; then
+    jq '.files |= map(select(.path != "docs/factory/PROJECT-CONTEXT.md"))' "$R23/v4.0.0/factory-release.json" > "$R23/x" \
+      && mv "$R23/x" "$R23/v4.0.0/factory-release.json"
+  fi
   out_44="$(sync_23 "$C1_23" v4.0.0)"; rc_44=$?
 }
 guard_c1_44() { lessons_index_guard_44 "$C1_23/docs/factory/FACTORY.md" "$C1_23/docs/factory/lessons/INDEX.md" "$C1_23/docs/factory/lessons" "$C1_23/scripts/checks/customization-points.txt"; }
@@ -62,13 +68,13 @@ assert_true "$([ "$(shasum -a 256 < "$C1_23/docs/factory/PROJECT-CONTEXT.md")" =
 
 # ── AK7 Negativkontrolle: alter Weg (Trigger in der Anpassungsstelle) kommt nicht an ────────────────────────────────
 world_44 l44n 0
-# Der Sync lehnt eine Upstream-PROJECT-CONTEXT.md als Anpassungsstelle ab: der alte Weg kann nichts ausliefern
-assert_exit 1 "$rc_44" "#44 AK7 (Negativkontrolle): eine Upstream-PROJECT-CONTEXT.md wird vom Sync abgelehnt"
-assert_contains_286 "$out_44" "geschützte Stelle" "#44 AK7 (Negativkontrolle): die Ablehnung nennt die geschützte Stelle"
-assert_true "$([ ! -e "$C1_23/docs/factory/lessons/neu-44.md" ]; echo $?)" "#44 AK7 (Negativkontrolle): die neue Lesson erreicht den Konsumenten nicht"
-# Der Guard sieht den Mangel im Upstream-Stand: Lesson ohne Übersichtszeile in FACTORY.md
-guard_out_44="$(lessons_index_guard_44 "$U23/docs/factory/FACTORY.md" "$U23/docs/factory/lessons/INDEX.md" "$U23/docs/factory/lessons" "$U23/scripts/checks/customization-points.txt")"; guard_rc_44=$?
-assert_exit 1 "$guard_rc_44" "#44 AK7 (Negativkontrolle): ohne Übersichtszeile in FACTORY.md ist der Guard rot"
+# Realer Ablauf: das Manifest kennt die Anpassungsstelle nicht, der Sync ist grün – und die Lesson kommt OHNE Trigger an.
+assert_exit 0 "$rc_44" "#44 AK7 (Negativkontrolle): Abholung mit Trigger nur in der Upstream-PROJECT-CONTEXT.md → Sync grün (Ausgabe: ${out_44:-leer})"
+assert_true "$([ -f "$C1_23/docs/factory/lessons/neu-44.md" ]; echo $?)" "#44 AK7 (Negativkontrolle): die neue Lesson liegt beim Konsumenten"
+assert_true "$(! grep -qF -- '](lessons/neu-44.md)' "$C1_23/docs/factory/FACTORY.md"; echo $?)" \
+  "#44 AK7 (Negativkontrolle): FACTORY.md beim Konsumenten hat keine Übersichtszeile zur neuen Lesson"
+guard_out_44="$(guard_c1_44)"; guard_rc_44=$?
+assert_exit 1 "$guard_rc_44" "#44 AK7 (Negativkontrolle): „Trigger im Konsumenten vorhanden“ ist rot – Guard gegen den Konsumenten"
 assert_contains_286 "$guard_out_44" "fehlt-uebersicht:neu-44.md" "#44 AK7 (Negativkontrolle): Signal fehlt-uebersicht:neu-44.md"
 assert_true "$([ "$(shasum -a 256 < "$C1_23/docs/factory/PROJECT-CONTEXT.md")" = "$SHA_PC_44" ]; echo $?)" \
   "#44 AK7 (Negativkontrolle): die Anpassungsstelle des Konsumenten bleibt unverändert – der Trigger im alten Ort erreicht ihn nicht"

@@ -6,8 +6,8 @@
 # die Helfer gehören der Factory und kommen ab T2 mit Factory-Updates.
 #
 # Stellt bereit: die Zähler PASS/FAIL, die Farben, assert_exit/assert_true/assert_contains_286/
-# assert_absent, flat_286, label_drift_431, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426 und
-# print_summary (Ergebnis-Fußzeile samt Exit-Code).
+# assert_absent, flat_286, label_drift_431, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426,
+# lessons_index_guard_44 und print_summary (Ergebnis-Fußzeile samt Exit-Code).
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
@@ -89,7 +89,7 @@ label_drift_431() {
 # die mit `-` beginnt (`--no-telemetry`, `-v`, …), als OPTION und bricht mit einem
 # Usage-Fehler ab – der Test wird rot bzw. der Abwesenheits-Spiegel grün, ohne dass die
 # Phrase je gesucht wurde. Genau diese Falle traf nothra/tch-gastro-services#319 dreimal im selben PR und nothra/tch-gastro-services#334 erneut;
-# clean-code.md („Config-/nutzerkontrollierte Werte als Daten behandeln") verlangt das `--`
+# bash-gotchas.md § 20 („Config-/nutzerkontrollierte Werte als Daten behandeln") verlangt das `--`
 # ohnehin. Die Kontroll-Assertion dazu steht im nothra/tch-gastro-services#334-Block.
 # Verdichtet das wiederkehrende "enthält der geflachte Inhalt die Phrase?" auf einen Aufruf.
 assert_contains_286() {
@@ -186,27 +186,32 @@ bare_factory_adr_426() { # $1 = Datei, $2 = Nummernliste (Leerzeichen) → Treff
 # lessons_index_guard_44 <factory_md> <index_md> <lessons_dir> <customization_txt> – Guard „Lessons-Index ausgeliefert" (Factory-Issue #44);
 # geteilt zwischen der ausgelieferten Suite und factory-lock-44-tests.sh, konsumenten-neutral (liest nur Dateien der Seite `factory`
 # und die Anpassungsstellen-Liste). Gibt je Verstoß eine Zeile aus, Exit 1 bei Fund:
-#   UNLESBAR:<pfad> | fehlt-uebersicht:<datei> | fehlt-gruppe:<datei> | toter-link:<datei> | anpassungsstelle:<pfad> | fehlt-index-link | importiert-index
+#   UNLESBAR:<pfad> | keine-lessons:<dir> | fehlt-uebersicht:<datei> | fehlt-gruppe:<datei> | toter-link:<datei> | anpassungsstelle:<pfad>
+#   | fehlt-index-link | importiert-index
 lessons_index_guard_44() {
-  local fmd="$1" idx="$2" dir="$3" cust="$4" f name hdr tgt bad=0 src
+  local fmd="$1" idx="$2" dir="$3" cust="$4" lesson name hdr tgt shipped_path bad=0 found=0 src
   for src in "$fmd" "$idx" "$cust"; do
     [ -r "$src" ] || { echo "UNLESBAR:$src"; bad=1; }
   done
   [ -d "$dir" ] || { echo "UNLESBAR:$dir"; bad=1; }
   [ "$bad" -eq 0 ] || return 1
-  for f in "$dir"/*.md; do
-    name="$(basename "$f")"; [ "$name" = INDEX.md ] && continue
+  for lesson in "$dir"/*.md; do
+    [ -f "$lesson" ] || continue   # ohne nullglob bleibt das Glob-Literal stehen
+    name="$(basename "$lesson")"; [ "$name" = INDEX.md ] && continue
+    found=1
     grep -F -- "](lessons/$name)" "$fmd" | grep -qF -- '**Laden bei:**' || { echo "fehlt-uebersicht:$name"; bad=1; }
     hdr="$(grep -F -- "**[\`lessons/$name\`](" "$idx" | head -1)"
     if [ -z "$hdr" ]; then
       echo "fehlt-gruppe:$name"; bad=1
     else
       tgt="$(printf '%s' "$hdr" | sed -E 's/^\*\*\[`[^`]*`\]\(([^)]*)\).*/\1/')"
-      [ -f "$dir/$tgt" ] || { echo "toter-link:$name"; bad=1; }
+      # Das Ziel muss die eigene Lesson-Datei sein – ein Link auf eine andere, existierende Datei ist ebenso tot.
+      { [ "$tgt" = "$name" ] && [ -f "$dir/$tgt" ]; } || { echo "toter-link:$name"; bad=1; }
     fi
   done
-  for f in docs/factory/FACTORY.md docs/factory/lessons/INDEX.md; do
-    grep -qxF -- "$f" "$cust" && { echo "anpassungsstelle:$f"; bad=1; }
+  [ "$found" -eq 1 ] || { echo "keine-lessons:$dir"; bad=1; }
+  for shipped_path in docs/factory/FACTORY.md docs/factory/lessons/INDEX.md; do
+    grep -qxF -- "$shipped_path" "$cust" && { echo "anpassungsstelle:$shipped_path"; bad=1; }
   done
   grep -qF -- '](lessons/INDEX.md)' "$fmd" || { echo "fehlt-index-link"; bad=1; }
   grep -qF -- '@docs/factory/lessons/INDEX.md' "$fmd" && { echo "importiert-index"; bad=1; }

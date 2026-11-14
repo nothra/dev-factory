@@ -21,7 +21,7 @@
 # stammt ($PR_HEAD_REF, $PR_HEAD_REPO, $PR_BASE_REPO aus CI) – ein Fork-PR mit gleichem Namen bleibt
 # geprüft. Hygiene-Gate, keine Sicherheitsgrenze: wer pushen darf, kann die Ausnahme nutzen.
 #
-# Nur POSIX-ERE (clean-code.md: portabel, kein PCRE) – läuft lokal (macOS/BSD)
+# Nur POSIX-ERE (bash-gotchas.md § 20: portabel, kein PCRE) – läuft lokal (macOS/BSD)
 # und in CI (GNU) identisch.
 
 set -uo pipefail
