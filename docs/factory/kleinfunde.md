@@ -299,3 +299,10 @@
 - **Was:** Seit Task 44 steht der Guardrail in `FACTORY.md` mit anderem Wortlaut („Keine offenen Checkboxen … vor dem Merge auf dem Feature-Branch setzen"), und die Portabilitätsregeln stehen in `bash-gotchas.md` § 20 (in `clean-code.md` bleibt nur ein Einzeiler-Verweis). Wer den zitierten Titel sucht, findet ihn nicht; der Verweis in `code-style.md` führt über einen Umweg.
 - **Fix:** In den vier Zeilen den Regel-Ort bzw. -Wortlaut nachziehen (`bash-gotchas.md` § 20; Guardrail sinngemäß statt wörtlich zitieren). Der Rest der Lessons bleibt unverändert. Etwa vier Zeilen.
 - **Herkunft:** `/review` zu Task 44 (Runde 1, Out-of-Scope; die Lessons blieben laut Spec zeichengleich).
+
+### `import-context-limit-check.sh` folgt Symlinks hinter `@import`-Pfaden
+
+- **Wo:** `scripts/checks/import-context-limit-check.sh:140` (`repo_relative`, rein lexikalisch) und `:210` (`[ -f "$rel" ]` folgt Symlinks), verifiziert am 2026-11-14.
+- **Was:** Absolute Pfade und `..`-Segmente werden abgelehnt, eine committete Datei `x.md -> /etc/hosts` mit `@x.md` aber mitgezählt; ihre Zeilen- und (seit Task 44) Bytezahl erscheint in der Beitragsliste. Nur Größe, nie Inhalt, und nur mit Schreibrecht aufs Repo – kein ausnutzbares Risiko.
+- **Fix:** In der Schleife vor dem Lesen `[ -L "$rel" ]` → `referenzierte Datei ist ein Symlink: $rel (fail-closed)`, `failed=1; continue`; dazu ein Test mit Symlink-Fixture. Etwa sechs Zeilen.
+- **Herkunft:** `/security-review` zu Task 44 (Hinweis, Out-of-Scope – Prüfung stammt aus nothra/tch-gastro-services#319).
