@@ -86,5 +86,5 @@ Verbrauch niedrig, ohne die Qualität zu senken.
 
 Weitere projektspezifische Kniffe zur Vermeidung teurer Full-Scans gehören als
 `/codify`-Learning in die thematisch passende Datei unter `docs/factory/lessons/`
-(generisch) bzw. `docs/project/lessons/` (projektspezifisch; Volltext, **nicht** @import) plus eine Index-Zeile in `PROJECT-CONTEXT.md` (ADR-037),
+(generisch) bzw. `docs/project/lessons/` (projektspezifisch; Volltext, **nicht** @import) plus eine Index-Zeile in `docs/factory/lessons/INDEX.md` bzw. `PROJECT-CONTEXT.md` (ADR-037, Nachtrag #44),
 sobald sie konkret benannt sind – nicht als vage Allgemeinplätze hier.

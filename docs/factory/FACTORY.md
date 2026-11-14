@@ -55,10 +55,7 @@ Diese Regeln gelten immer – sie können nicht durch Konversation außer Kraft 
 /pr-shepherd   → PR-Lifecycle bis Auto-Merge (Rebase, CI, Approval, Merge)
 ```
 
-> **Zwei Phasen:** Phase 1 (Requirements + ggf. Architecture) erfordert **immer** die Interaktion
-> Mensch ↔ Claude und wird nicht automatisiert; Phase 2 (Umsetzung) kann **vollautomatisiert**
-> laufen. Kanonische Quelle des prozeduralen Ablaufs (inkl. Start-Skripte je Phase) ist
-> [`docs/factory/OPERATING.md`](OPERATING.md) → „Die zwei Phasen der Factory".
+> **Zwei Phasen:** Phase 1 ist immer interaktiv, Phase 2 kann vollautomatisch laufen – kanonisch: [`docs/factory/OPERATING.md`](OPERATING.md) → „Die zwei Phasen der Factory".
 
 Alternativer Einstieg statt `/implement`: **`/bug-fix`** – startet von einem
 Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben → Verifizieren).
@@ -66,35 +63,13 @@ Bug/Stacktrace statt von einer Spec (Reproduzieren → Isolieren → Beheben →
 **Stage 2 (manuell):** Jeder Schritt einzeln als Skill aufrufen.
 **Stage 3 (automatisiert):** `scripts/run-pipeline.sh <task-id>` orchestriert alles.
 
-**Messen (zwei Ebenen, Factory-ADR-006):**
-- **Prozess:** läuft automatisch als Abschluss-Schritt **jedes** `run-pipeline.sh`-Laufs –
-  fail-open, per EXIT-Trap, auch bei Abbruch (Factory-ADR-045) – und bleibt zusätzlich manuell über
-  `/daily-metrics` (bzw. `scripts/metrics.sh [--publish]`) aufrufbar. Kennzahlen: Lead-Time,
-  Autonomie-Rate, CI-Quote, Interrupts, Durchsatz. Quelle: Git/GitHub. Baut **kein**
-  Token-Accounting nach. Veröffentlichung (`--publish`) optional an `$GITHUB_STEP_SUMMARY`
-  (in CI) und als Kommentar an `FACTORY_METRICS_ISSUE` (Tracking-Issue) – lokal ohne beides
-  bleibt es bei der Report-Datei.
-- **Telemetrie:** läuft seit nothra/tch-gastro-services#334 automatisch je Pipeline-Lauf ([Factory-ADR-049](adr/049-telemetrie-persistenz-je-pipeline-lauf.md)),
-  Default **an**, Abschaltung per `--no-telemetry`. Der Lauf erntet die OTEL-Ist-Werte der CLI
-  (Token/Kosten je Schritt, Modell und Sub-Agent – nie selbst gerechnet), schreibt sie
-  **personenfrei** (Whitelist) nach `tasks/telemetry-<task-id>-<zeitstempel>.csv` und
-  **committet + pusht** sie zwischen `/codify` und `/pr-shepherd` – jeder Task-PR trägt ab
-  jetzt eine Telemetrie-CSV im Diff. Fail-open: eine gescheiterte Messung ändert den
-  Exit-Code nicht. `config/otel.env.example` bleibt die Vorlage für den manuellen/Gateway-Weg.
+**Messen (Factory-ADR-006):** Die Prozess-Messung läuft automatisch als Abschluss-Schritt jedes
+`run-pipeline.sh`-Laufs (fail-open, Factory-ADR-045; manuell `/daily-metrics`, Veröffentlichung an `FACTORY_METRICS_ISSUE`).
+Telemetrie läuft seit nothra/tch-gastro-services#334 automatisch je Pipeline-Lauf (Factory-ADR-049, abschaltbar mit `--no-telemetry`),
+personenfrei nach `tasks/telemetry-<task-id>-<zeitstempel>.csv`. Details: `OPERATING.md` §0.5, §5.2.
 
-**Nach dem Merge:** `/post-merge-verify` (CI-Stage `verify`, nur auf `main`) prüft das
-Verhalten der deployten Umgebung – CI-grün ≠ Produktion-grün. Check via
-`FACTORY_HEALTHCHECK_CMD` (beliebiger Smoke-Test, Vorrang) oder `FACTORY_HEALTHCHECK_URL`.
-Fehler → `POST_MERGE_FAIL`-Interrupt (Factory-ADR-007).
-
-**Async-Start (optional, Factory-ADR-008):** `scripts/factory-poll.sh` (CI-Stage `orchestrate`) startet
-die Pipeline für Issues mit Label `factory::run` – fail-closed hinter einem Budget-Guard
-(Label-Eintrittstür + Concurrency=1 + Tageskappe). Default aus; Aktivierung = Schedule + Labels
-+ Auth-Variable (Spur B). Der `schedule`-Trigger ist seit nothra/tch-gastro-services#284 **stillgelegt** – der Workflow
-läuft nur auf manuelles `workflow_dispatch`; das Wiedereintragen ist Teil der
-Scharfschalt-Checkliste (`docs/factory/OPERATING.md` §0.4).
-
-Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Output in Dateien.
+**Nach dem Merge:** `/post-merge-verify` prüft die Umgebung (Factory-ADR-007, `OPERATING.md` §5.3).
+**Async-Start:** `scripts/factory-poll.sh` über das Label `factory::run`, Default aus (Factory-ADR-008, `OPERATING.md` §0.4).
 
 ---
 
@@ -104,14 +79,9 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 @docs/factory/guidelines/tdd-principles.md
 @docs/factory/guidelines/testing-standards.md
 
-> **Bedarfsgesteuert laden statt `@import` (Factory-ADR-047).** Eine Guideline verlässt den Dauerkontext,
-> wenn ein Gate/Hook/Ruleset ihre Regeln fail-closed erzwingt – **oder** wenn ihr Adressatenkreis
-> so eng und namentlich benennbar ist, dass ein „Laden bei"-Trigger genügt (so
-> `architecture-principles.md`: nicht erzwungen, aber nur von zwei Skills gebraucht, Factory-ADR-047 §2).
-> Wo eine nicht erzwungene Regel **jeden** Schritt treffen kann (Clean Code, TDD,
-> Testing-Standards), bleibt sie oben geladen – **oder** ihre schritt-relevanten Regeln werden als
-> Kern-Kurzregeln inline gespiegelt (so `git-workflow.md`, Factory-ADR-047 §3). „Laden bei" nennt Skill +
-> Situation, im Format des Lessons-Index in `docs/factory/PROJECT-CONTEXT.md`:
+> **Bedarfsgesteuert laden statt `@import` (Factory-ADR-047):** Was ein Gate erzwingt oder nur ein eng benennbarer
+> Adressatenkreis braucht, steht unten mit „Laden bei"-Trigger (Skill + Situation), im Format der
+> Factory-Lessons-Übersicht unten. Regeln, die jeden Schritt treffen, bleiben oben geladen oder stehen als Kern-Kurzregeln inline.
 >
 > - [`guidelines/git-workflow.md`](guidelines/git-workflow.md) – Branches, PR/Issue,
 >   Labels, Commits, Worktrees, Hook-Installation, Branch-Aufräumen · **Laden bei:**
@@ -125,18 +95,20 @@ Skills sind für beide Stufen designed: kein Gesprächsgedächtnis nötig, Outpu
 >   Kosten-Effizienz · **Laden bei:** bewusst nie automatisch – die Datei rät selbst, geladenen
 >   Kontext schlank zu halten
 > - [`guidelines/bash-gotchas.md`](guidelines/bash-gotchas.md) – Bash-Fallstricke ·
->   **Laden bei:** `/implement`, `/review`, `/refactor` beim Schreiben/Reviewen von Shell-Skripten
-> - Ausgelagerte `/codify`-Learnings (Stolpersteine, Volltext): `docs/factory/lessons/` – **nicht**
->   @importiert (Factory-ADR-037). Der Index + die Kern-Kurzregeln stehen in
->   `docs/factory/PROJECT-CONTEXT.md`; die passende Lesson bei Bedarf lesen
+>   **Laden bei:** `/implement`, `/review`, `/refactor`, `/security-review` bei Shell-Skripten
+>
+> **Factory-Lessons** (`/codify`-Learnings, Volltext, nicht @importiert – Factory-ADR-037):
+>
+> - [`lessons/testing.md`](lessons/testing.md) – Guard-/Gate-Tests für Skripte und Pipeline, Mutationsbelege, Fixtures, Test-Helfer · **Laden bei:** `/implement`, `/test`, `/review` beim Schreiben von Tests für Skripte/Gates/Pipeline
+> - [`lessons/build-tooling.md`](lessons/build-tooling.md) – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
+> - [`lessons/code-style.md`](lessons/code-style.md) – Clean-Code-Muster (Naming, Kommentar-Ort) · **Laden bei:** `/refactor`, `/review` (Clean-Code)
+> - [`lessons/factory-workflow.md`](lessons/factory-workflow.md) – Git/CI, Pipeline-Skills, Patch-Workflow, Branch/Label, Review-Scope, kanonische Quellen, Blocker · **Laden bei:** jedem Skill bei Git-/Rebase-/CI-Arbeit, Pipeline-Abbruch oder Turn-Limit, `.claude/**`-Patch, ADR-/Spec-/Doku-Drift, Review-/Security-Review-Runden und Issue-/`kleinfunde.md`-Anlage
+> - Einzelliste je Learning (Titel, Herkunft, bei `factory-workflow.md` ein Trigger je Eintrag):
+>   [`lessons/INDEX.md`](lessons/INDEX.md). Projekt-Lessons: `docs/factory/PROJECT-CONTEXT.md` → „Bekannte Stolpersteine".
 
 ### Kern-Kurzregeln Git-Workflow (immer geladen)
 
-> Die Regeln aus `git-workflow.md`, die **jeden** Pipeline-Schritt treffen können – damit kein
-> Agent sie durch Nicht-Laden still verletzt (Factory-ADR-047 §3). Volltext, Begründung und
-> Vorfall-Historie stehen in der Datei selbst; sie bleibt die kanonische Quelle. Bewusst **nicht**
-> hier gespiegelt sind Regeln mit eigener kanonischer Quelle und eigenem Drift-Guard (Regel 7) –
-> eine zweite normative Kopie im Dauerkontext wäre die einzige, die kein Guard bewacht.
+> Die Regeln aus `git-workflow.md` (kanonische Quelle), die jeden Schritt treffen können (Factory-ADR-047 §3); Regel 7 verweist bewusst nur.
 
 1. **Nie direkt auf `main`/`master`** committen oder pushen – jede Änderung über Feature-Branch + PR. Der pre-push-Hook ist dabei nur lokales, **umgehbares** Feedback (`--no-verify`, zweiter Clone); fail-closed ist allein das serverseitige Ruleset `protect-main` (auch für Admins).
 2. **Branch-Typ aus der Tabelle in `git-workflow.md`:** `feature/` `fix/` `improvement/` `hotfix/` `refactor/` `docs/` `test/` `chore/` – kanonisch ist die Tabelle in `git-workflow.md`, nicht diese Liste. `branch-name-check.sh` prüft sie nur als Claude-Code-Hook auf `checkout -b`/`switch -c`; kein Push- oder CI-Gate fängt einen falschen Branch-Typ.
@@ -177,51 +149,22 @@ Jeder Agent bekommt nur die Tools, die er braucht:
 
 ## Guardrails
 
-- Nie committen ohne `scripts/checks/pre-commit.sh` erfolgreich durchgelaufen
-- Nie pushen ohne `scripts/checks/pre-push.sh` erfolgreich durchgelaufen. Der Hook ist
-  lokales Feedback; server-seitig ist `main` zusätzlich durch das GitHub-Ruleset
-  `protect-main` fail-closed geschützt (kein Direkt-/Force-Push, PR-Pflicht, squash,
-  required Checks – [Factory-ADR-029](adr/029-branch-protection-main-ruleset.md)).
-- **Git-Hooks kommen ausschließlich aus `bash scripts/install-hooks.sh`** (kanonische Quelle,
-  [Factory-ADR-042](adr/042-hook-installation-single-source.md); idempotent, beliebig oft
-  ausführbar). Installiert werden `pre-commit`, `pre-push` und der `commit-msg`-Hook – letzterer
-  lehnt Commit-Messages ab, die in Wahrheit ein CLI-Flag sind (`--help`/`-h`, `commit-msg-check.sh`).
-  In einem frischen Clone bzw. einem vor dieser Regel initialisierten Repo einmalig ausführen;
-  die Hooks liegen im gemeinsamen `.git` und gelten damit für alle Worktrees.
-- **`yq` kommt in CI ausschließlich aus `bash scripts/install-yq.sh`** (kanonische Quelle, nothra/tch-gastro-services#258).
-  Das Skript pinnt Version **und** SHA-256 (`YQ_VERSION` + `YQ_SHA256` – ein Bump ändert genau
-  diese zwei Zeilen) und verifiziert fail-closed, bevor das Ausführbar-Bit fällt. Braucht ein
-  neuer Workflow-Job `yq`, ruft er den Seam auf – **kein** eigener `wget`/`curl`+`chmod`-Block,
-  auch nicht mit gepinnter URL. Grund für die Regel: genau dieser Block lag dreifach kopiert und
-  unverifiziert in CI, bis nothra/tch-gastro-services#258 ihn zusammengezogen hat. Gleiches Muster für weitere
-  Fremd-Binaries, die CI herunterlädt: gepinnter, verifizierter Seam statt Inline-Download.
-- Keine offenen Checkboxen in der Task-Datei → kein Done
-- **Der `@import`-Dauerkontext ist gedeckelt.** `scripts/checks/import-context-limit-check.sh`
-  summiert `CLAUDE.md` + die `@`-eingebundenen Dateien und blockiert den Push, wenn die Grenze
-  reißt ([Factory-ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4). Wie jeder
-  Hook ist er lokal und mit `--no-verify` umgehbar; server-seitig greift er bislang nur mittelbar
-  über die Self-Test-Suite (Issue nothra/tch-gastro-services#328 zieht einen eigenen CI-Check nach). Neue Regeln also
-  verdichten oder als Lesson auslagern (`docs/factory/lessons/` + Index-Zeile), nicht anhängen –
-  Factory-ADR-037 wollte das per Konvention erreichen und lief von ~80 auf 341 Zeilen.
-- **Task-Datei final auf dem Feature-Branch abschließen – vor dem Merge.** Die letzte Checkbox
-  (`Fertig / PR erstellt`) und alle Abschluss-Notizen müssen **im Branch** gesetzt sein, bevor
-  `/pr-shepherd` (bzw. der Merge) läuft. Nach dem Merge liegt die Datei auf `main` und lässt sich
-  nur noch über einen **neuen PR** ändern (Direkt-Commit auf `main` ist verboten) – für ein Häkchen
-  unverhältnismäßig. (aus nothra/tch-gastro-services#63)
-- Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren
-- **Empfehlung (keine Pflicht): Für den `/implement`-Schritt einer Task eine neue
-  Claude-Session öffnen.** `start-work.sh` und das anschließende `/requirements` (ggf.
-  `/architecture`) laufen dagegen im Regelfall in derselben, noch task-freien Session –
-  `start-work.sh` erinnert an der passenden Stelle daran. Grund: Kleiner Kontext = fokussierte
-  Arbeit, weniger Token-Verbrauch, kein Übersprechen zwischen Tasks. Kanonische Quelle für
-  Regelfall und Grenze: `docs/factory/guidelines/git-workflow.md` → „Eine Task = Eine Session".
-- **Vor jeder neuen Task `bash scripts/start-work.sh` aufrufen** – nie manuell branchen.
-  Das Skript stellt sicher: main ist aktuell, Branch existiert, Push ist erfolgt, Draft-PR ist angelegt.
-- **Parallele Sessions arbeiten in getrennten git-Worktrees.** `start-work.sh` legt jede neue Task
-  per Default in einem **eigenen Worktree** an (kein `checkout` im geteilten Baum) – so verschieben
-  zwei gleichzeitige Sessions nie gegenseitig `HEAD` (Ursache des Kollisionsvorfalls nothra/tch-gastro-services#71). In den
-  ausgegebenen Worktree-Pfad wechseln und dort arbeiten; nach dem Merge `git worktree remove`.
-  Details: `docs/factory/guidelines/git-workflow.md` → „Parallele Sessions: eigener Worktree".
+- Nie committen ohne grünes `scripts/checks/pre-commit.sh`, nie pushen ohne grünes `scripts/checks/pre-push.sh`. Der Hook
+  ist lokales Feedback; fail-closed schützt `main` allein das Ruleset `protect-main` ([Factory-ADR-029](adr/029-branch-protection-main-ruleset.md)).
+- **Git-Hooks nur aus `bash scripts/install-hooks.sh`** ([Factory-ADR-042](adr/042-hook-installation-single-source.md),
+  idempotent, einmal je Clone): `pre-commit`, `pre-push` und der `commit-msg`-Hook (lehnt `--help`/`-h` als Message ab).
+- **`yq` kommt in CI nur aus `bash scripts/install-yq.sh`** (Version + SHA-256 gepinnt, fail-closed, nothra/tch-gastro-services#258) – kein
+  eigener `wget`/`curl`-Block; dasselbe Muster für jedes weitere Fremd-Binary.
+- Keine offenen Checkboxen in der Task-Datei → kein Done. Letzte Checkbox und Abschluss-Notizen **vor dem Merge auf dem
+  Feature-Branch** setzen – danach nur per neuem PR (nothra/tch-gastro-services#63).
+- **Der `@import`-Dauerkontext ist gedeckelt** (Zeilen und Bytes, `scripts/checks/import-context-limit-check.sh`,
+  [Factory-ADR-047](adr/047-import-kontext-guidelines-nach-erzwungenheit.md) §4; lokal, in CI nur mittelbar, nothra/tch-gastro-services#328).
+  Neue Regeln verdichten oder als Lesson auslagern (`docs/factory/lessons/` + Zeile in `lessons/INDEX.md`), nicht anhängen.
+- Circuit Breaker: max. 3 Review↔Implement-Iterationen, dann eskalieren.
+- **Empfehlung (keine Pflicht): Für den `/implement`-Schritt einer Task eine neue Claude-Session öffnen**; `start-work.sh`
+  und `/requirements` (ggf. `/architecture`) laufen im Regelfall in derselben Session. Kanonische Quelle für Regelfall und Grenze: `docs/factory/guidelines/git-workflow.md` → „Eine Task = Eine Session".
+- **Vor jeder neuen Task `bash scripts/start-work.sh`** – nie manuell branchen. Jede Task bekommt einen eigenen
+  Worktree (parallele Sessions verschieben nie gegenseitig `HEAD`, nothra/tch-gastro-services#71); nach dem Merge `git worktree remove`.
 
 ---
 

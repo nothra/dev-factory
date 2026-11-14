@@ -186,12 +186,12 @@ else
   skip_yq "#197 AK12"
 fi
 
-# ── verschoben aus der ausgelieferten Suite: #264: Index-Zeilen in PROJECT-CONTEXT.md ──
-PC264="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$PC264"; echo $?)" \
-  "#264: Index-Zeile in PROJECT-CONTEXT.md nennt die Härtung nicht mehr als ausgelagert"
-grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$PC264"
-assert_true "$?" "#264: Index-Zeile in PROJECT-CONTEXT.md nennt den Erledigt-Stand"
+# ── verschoben aus der ausgelieferten Suite: #264: Index-Zeilen, seit #44 in lessons/INDEX.md ──
+IDX264="$FACTORY_ROOT/docs/factory/lessons/INDEX.md"
+assert_true "$(! grep -qF 'Härtung ausgelagert: nothra/tch-gastro-services#264' "$IDX264"; echo $?)" \
+  "#264: Index-Zeile in lessons/INDEX.md nennt die Härtung nicht mehr als ausgelagert"
+grep -qF 'Härtung umgesetzt in nothra/tch-gastro-services#264' "$IDX264"
+assert_true "$?" "#264: Index-Zeile in lessons/INDEX.md nennt den Erledigt-Stand"
 
 # ── verschoben aus der ausgelieferten Suite: #262: CONTRIBUTING.md nennt die Hook-Installation (Einstieg für Menschen in diesem Repo) ──
 # Die Schleife der ausgelieferten Suite prüft FACTORY.md, git-workflow.md und OPERATING.md; CONTRIBUTING.md gehört dem Projekt.
@@ -213,15 +213,9 @@ assert_true "$?" "#262: README.md ist lesbar (Vorbedingung des Setup-Checks)"
 grep -qF 'bash scripts/install-hooks.sh' "$README_MD"
 assert_true "$?" "#262: README.md nennt 'bash scripts/install-hooks.sh' im lokalen Setup"
 
-# ── verschoben aus der ausgelieferten Suite: #319: Index-Zeile „Coverage-Ausgabe nur in" in PROJECT-CONTEXT.md ──
-PC_FLAT_319="$(flat_286 "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md")"
-phrase="Coverage-Ausgabe nur in"
-assert_contains_286 "$PC_FLAT_319" "$phrase" \
-  "#319: „$phrase\" hat eine Index-Zeile in PROJECT-CONTEXT.md"
-
 # ── verschoben aus der ausgelieferten Suite: #319 AC4: PROJECT-CONTEXT.md ist Teil des gedeckelten @import-Sets (CLAUDE.md dieses Repos) ──
-# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (der
-# Lessons-Index, der nach ADR-037 von ~80 auf 341 Zeilen gewachsen ist) Teil der gedeckelten
+# AC4 – „Index-Wachstum mitentschieden" hängt allein daran, dass PROJECT-CONTEXT.md (das
+# Projekt-Gedächtnis samt Index der Projekt-Lessons; der Factory-Index steht seit #44 in lessons/INDEX.md) Teil der gedeckelten
 # Summe IST. Verschwände die @import-Zeile, liefe der Index wieder unbegrenzt – und alle
 # übrigen Deckel-Tests blieben grün, weil sie nur die Guidelines betrachten.
 grep -qE '^@docs/factory/PROJECT-CONTEXT\.md$' "$FACTORY_ROOT/CLAUDE.md"
@@ -242,7 +236,7 @@ ic_dead_links_319() {  # $1 = Markdown-Datei → gibt "datei → ziel" je totem 
     [ -e "$d/$ziel" ] || printf '%s → %s\n' "$f" "$ziel"
   done
 }
-# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (clean-code.md: ein
+# Positiv-/Negativ-Kontrolle des Helfers gegen ein eigenes Fixture (bash-gotchas.md § 20: ein
 # Gate-Regex braucht beide Richtungen) – unabhängig vom Repo-Inhalt.
 TMP_LNK_319="$(mktemp -d)"
 printf 'Ziel\n' > "$TMP_LNK_319/ziel.md"
@@ -259,7 +253,7 @@ for f in CLAUDE.md CONTRIBUTING.md docs/factory/PROJECT-CONTEXT.md docs/factory/
          docs/factory/kleinfunde.md docs/factory/lessons/testing.md docs/factory/lessons/code-style.md \
          docs/factory/adr/047-import-kontext-guidelines-nach-erzwungenheit.md \
          docs/factory/guidelines/tdd-principles.md docs/factory/guidelines/testing-standards.md \
-         docs/factory/guidelines/token-efficiency.md \
+         docs/factory/guidelines/token-efficiency.md docs/factory/lessons/INDEX.md \
          docs/factory/adr/037-lessons-auslagern-aus-import-kontext.md; do
   ic_dead_links_found_319="$ic_dead_links_found_319$(ic_dead_links_319 "$FACTORY_ROOT/$f")"
 done
@@ -296,24 +290,12 @@ assert_true "$([ -z "$bare_426" ]; echo $?)" \
   "#426 AK-B5: aktive Projekt-Dateien schreiben Factory-ADR-NNN statt ADR-NNN für Factory-ADRs"
 [ -z "$bare_426" ] || echo "$bare_426" | head -12 | sed 's/^/      /'
 
-# ── verschoben aus der ausgelieferten Suite: #426 AK-C3: Index in PROJECT-CONTEXT.md – Gruppen, Links, „Laden bei", Lesson-Abdeckung ──
-# AK-C3: Index in PROJECT-CONTEXT.md – getrennte Gruppen, gültige Links, „Laden bei" je Gruppe
-CTX_426="$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
-ctx_flat_426="$(flat_286 "$CTX_426")"
-assert_contains_286 "$ctx_flat_426" '#### Factory-Lessons (`docs/factory/lessons/`)' "#426 AK-C3: der Index hat eine Gruppe „Factory-Lessons“"
-ctx_dead_426=""; ctx_noload_426=""
-while IFS= read -r hdr_426; do
-  tgt_426="$(printf '%s' "$hdr_426" | sed -E 's/^\*\*\[`[^`]*`\]\(([^)]*)\).*/\1/')"
-  [ -f "$FACTORY_ROOT/docs/factory/$tgt_426" ] || ctx_dead_426="$ctx_dead_426 $tgt_426"
-  printf '%s' "$hdr_426" | grep -qF -- '**Laden bei:**' || ctx_noload_426="$ctx_noload_426 $tgt_426"
-done <<< "$(grep -E '^\*\*\[`[^`]*lessons/[a-z-]+\.md`\]' "$CTX_426")"
-assert_true "$([ -z "$ctx_dead_426" ]; echo $?)" "#426 AK-C3: jeder Gruppen-Link des Index zeigt auf eine existierende Datei (tot:${ctx_dead_426:- keine})"
-assert_true "$([ -z "$ctx_noload_426" ]; echo $?)" "#426 AK-C3: jede Index-Gruppe behält ihren „Laden bei“-Trigger (ohne:${ctx_noload_426:- keine})"
-# Datei-grep statt assert_contains_286: dessen `printf | grep -q` ist bei Haystacks ab wenigen KB ein Race (SIGPIPE + pipefail, nur in CI sichtbar; bash-gotchas #3).
-for f_426 in "$FACTORY_ROOT"/docs/factory/lessons/*.md; do
-  assert_true "$(grep -qF -- "](lessons/$(basename "$f_426"))" "$CTX_426"; echo $?)" \
-    "#426 AK-C3: Factory-Lesson $(basename "$f_426") steht im Index"
-done
+# ── #44 AK5: PROJECT-CONTEXT.md trägt keinen Factory-Index mehr (er steht ausgeliefert in lessons/INDEX.md; Guard: ausgelieferte Suite, #44 AK6) ──
+# Datei-grep statt assert_absent: der Haystack ist groß (SIGPIPE-Lesson #426)
+! grep -qF -- '#### Factory-Lessons' "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
+assert_true "$?" "#44 AK5: PROJECT-CONTEXT.md enthält keinen Abschnitt „#### Factory-Lessons“ mehr"
+grep -qF -- '](lessons/INDEX.md)' "$FACTORY_ROOT/docs/factory/PROJECT-CONTEXT.md"
+assert_true "$?" "#44 AK5: „Bekannte Stolpersteine“ verweist auf lessons/INDEX.md"
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-D2: CLAUDE.md importiert genau FACTORY.md und PROJECT-CONTEXT.md; Projekt-Regel, dünn ──
 imports_431="$(grep -E '^@' "$CLAUDE_MD_431" | sort | tr '\n' ' ')"
@@ -344,7 +326,7 @@ rm -rf "$TMP_D4_431"
 
 # ── verschoben aus der ausgelieferten Suite: #431 AK-D5: Dauerkontext dieses Repos liegt unter dem Deckel; PROJECT-CONTEXT.md bleibt im Import ──
 ctx_431="$(FACTORY_DIR="$FACTORY_ROOT" bash "$IMPORT_CHECK" 2>&1)"; ctx_rc_431=$?
-assert_exit 0 "$ctx_rc_431" "#431 AK-D5: Dauerkontext liegt unter dem Deckel ($ctx_431)"
+assert_exit 0 "$ctx_rc_431" "#431 AK-D5 / #44 AK16: Dauerkontext liegt unter beiden Grenzen, Zeilen und Bytes ($ctx_431)"
 # Factory-Issue #32: der Realstand-Test lebt nur hier (Projekt-QS); bei Rot ist die Breakdown-Liste die einzige Information.
 [ "$ctx_rc_431" -eq 0 ] || printf '%s\n' "$ctx_431" | sed 's/^/      /'
 

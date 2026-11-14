@@ -40,7 +40,7 @@
 # NEEDS_REWORK-Review wegen einer späteren APPROVED-Erwähnung fälschlich als bestanden).
 # Fail-closed: fehlender Anker, kein oder mehrdeutiges Token → leeres Verdict, kein Raten.
 # Case-sensitiv wie im Report; nur POSIX-Regex / portables awk, macOS/BSD + GNU/Alpine
-# (clean-code.md „Portabilität in Gate-Skripten").
+# (bash-gotchas.md § 20 „Portabilität in Gate-/Shell-Skripten").
 
 report_file() {
   local skill="$1" task_id="$2" tasks_dir="${3:-${FACTORY_DIR:-.}/tasks}"
