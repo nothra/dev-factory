@@ -5,6 +5,13 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ## Unreleased
 
+## v0.8.0 – 2026-11-15
+
+Bündelt alles seit v0.7.0 (#37, #44, #45, #47, #49, #51, #52). Mit dieser Version entfällt die Einschränkung zu
+`FACTORY_SYNC_TOKEN` aus v0.7.0 (siehe #37): das Secret darf im Konsumenten jetzt im Environment `factory-update` angelegt werden.
+Es sind mehrere Breaking-Änderungen mit Migration enthalten (#37, #44, #49); die Versionsnummer v0.8.0 steht jetzt für
+diesen Stand (nicht für T2b).
+
 ### Geändert
 
 - **Factory-Lessons-Index ausgeliefert (Factory-ADR-037/047 Nachtrag, #44):** Der Index der Factory-Lessons steht nicht
@@ -41,6 +48,25 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   wandert als `git bundle` zu `publish`, das es prüft und den Commit neu erzeugt. **Umziehen vor dem Update:** ein bestehendes
   Repository-Secret `FACTORY_SYNC_TOKEN` ins Environment verschieben und löschen, sonst endet `guard` rot
   (`docs/factory/OPERATING.md` §0.6).
+
+- **Ursprungs-Stack aus ausgelieferten Anweisungstexten entfernt (#45):** Agent-Personas, Skills, Guidelines, Lessons,
+  die Kommentare in `pre-push.sh` und `gitignore.factory` enthalten keine Stack-Details des Ursprungs-Projekts mehr
+  (Test-/Build-Werkzeuge, Framework-Routen, ORM-Beispiele); die Stellen sind generisch formuliert. `gitignore.factory`
+  führt das Muster `*.tmp.spec.tsx` nicht mehr; wer es braucht, trägt es in `.gitignore.project` ein. Im Factory-Repo
+  prüft ein neuer Stack-Begriff-Guard in der Projekt-Suite die ausgelieferten Pfade, der C1-Guard erkennt jetzt auch
+  Komposita der langen Begriffe.
+
+- **Self-Test-Suite läuft in parallelen Gruppen (Factory-ADR-066, #52):** `scripts/checks/tests/factory-lock-tests.sh` ist in
+  fünf Gruppen (`factory-lock-23`, `-24a`, `-24b`, `-37a`, `-37b`) mit gemeinsamen Helfern in `lib/factory-lock-fixtures.sh`
+  geteilt; `run-tests.sh` startet sie über `lib/test-groups.sh` als Teilprozesse, Ausgabe und Zähler erscheinen in
+  Startreihenfolge. Abdeckung unverändert. `FACTORY_SELF_TEST_SERIAL=1` führt die Gruppen nacheinander aus (Fehlersuche, knappe
+  Rechner). CI-Job `factory-self-test` (Linux): 3 min 14 s → 1 min 44 s. **Hinweis:** Wer `factory-lock-tests.sh` direkt
+  aufruft oder referenziert, nutzt jetzt `run-tests.sh` bzw. die Gruppendateien.
+
+- **Nur Factory-Repo, nicht ausgeliefert – Suite-Gate im pre-push (#51):** `commands.test` zeigt auf
+  `scripts/project/checks/factory-suite-gate.sh`; bei einem Diff, der nur unter `tasks/` oder `docs/specs/` liegt, überspringt
+  es lokal die ausgelieferte Suite (CI bleibt fail-closed). `FACTORY_FORCE_FULL_SUITE=1` erzwingt den vollen Lauf. Konsumenten
+  merken davon nichts.
 
 ## v0.7.0 – 2026-10-31
 
