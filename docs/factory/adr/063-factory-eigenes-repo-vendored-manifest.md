@@ -846,7 +846,7 @@ Eintrag entfällt die Kopie nach dem Update still.
 
 ## Nachtrag 2026-11-20 · Runtime-Token des `fetch`-Jobs abschirmen (Spec #41, Q1–Q5)
 
-Aus `/architecture` zu #41 (Security-Review zu #37); Status: Proposed (wird mit der Umsetzung in #41 Accepted).
+Aus `/architecture` zu #41 (Security-Review zu #37); Status: Accepted (2026-11-20, umgesetzt in #41).
 **Präzisiert** E17 (Job `fetch`) und **berichtigt** dort die Aussage „`sudo` bleibt auf einem Wegwerf-Runner
 wirkungslos": Das gilt für `FACTORY_SYNC_TOKEN`, das auf diesem Runner nie existiert, nicht aber für das
 Runtime-Token des Laufs. E18–E22 bleiben, soweit unten nicht verändert. Die Verhaltensentscheidungen stehen in

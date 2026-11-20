@@ -184,6 +184,16 @@ ab – nur dort läuft Code des noch ungeprüften Release – und übergibt das 
 (ein Commit auf `main`, keine Symlinks, keine geschützten Stellen im Manifest, nur erwartete Pfade, `factory.lock` = Manifest, Datei-Hashes) und erzeugt den Commit
 neu. Restrisiko: ein bösartiges Release, das der Mensch im Update-PR nicht bemerkt – siehe Factory-ADR-063, Nachtrag 2026-10-31.
 
+`fetch` führt den Release-Code nicht direkt auf dem Runner aus, sondern über `factory-update.sh` im Modus `fetch-isolated` in
+einem unprivilegierten Container (ohne Capabilities, als Runner-Benutzer, ohne Runner-Dateien und ohne Token-Variablen, Checkout
+nur lesend; Basis-Image per Digest gepinnt). Zurück kommt nur die Datei `update.bundle`, und danach folgt nur noch ihr Upload.
+So erreicht der Release-Code das Runtime-Token des Laufs nicht, weder über `$GITHUB_ENV` noch per `sudo` aus dem Runner-Prozess.
+Deshalb braucht der Job `fetch` Docker auf dem Runner. GitHub-gehostete Runner haben es; auf selbst gehosteten ohne Docker endet
+`fetch` rot, ohne Rückfall auf eine Ausführung ohne Container. **Restrisiko für Caches:** Das Runtime-Token darf Caches im
+Scope von `main` schreiben, die `pull_request`-Workflows lesen. Ein Ausbruch aus dem Container (Kernel- oder Docker-Fehler)
+öffnete diesen Weg wieder. Betroffen sind nur Repos mit Caches (`actions/cache`, `setup-*` mit `cache`). Details: Factory-ADR-063,
+Nachtrag 2026-11-20 (E28–E34).
+
 **Warum ein PAT und nicht `GITHUB_TOKEN`:** Pushes und PRs mit dem eingebauten Token lösen keine
 `pull_request`-Workflows aus – die Gates am Update-PR liefen nie. Der eingebaute Token bleibt im
 Workflow auf `contents: read`; das Skript liest ihn nie.

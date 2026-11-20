@@ -4,7 +4,11 @@
 # Verwendung (in CI über .github/workflows/factory-update.yml, lokal nur für Tests):
 #   factory-update.sh guard                              Job „guard“ (ohne Environment): kein Lock → No-op; Repository-Secret → rot
 #   factory-update.sh preflight                          Job „preflight“ (Token): Prüfungen, Ausgabe version/base_sha
-#   factory-update.sh fetch   <version> <base> <bundle>  Job „fetch“ (ohne Token): Release-Code läuft, Ergebnis = Bundle
+#   factory-update.sh fetch-isolated <version> <base> <out_dir>
+#                                                        Job „fetch“ (ohne Token): Image bauen, Release-Code im Container,
+#                                                        Ergebnis = <out_dir>/update.bundle (Factory-ADR-063 E28–E33)
+#   factory-update.sh fetch   <version> <base> <bundle>  Einstieg im Container (und der Kurzform); in CI direkt verweigert
+#   factory-update.sh fetch-smoke <out_dir>              Smoke-Job in factory-ci.yml: dasselbe Image, harmloses Kommando
 #   factory-update.sh publish <version> <base> <bundle>  Job „publish“ (Token): Bundle prüfen, pushen, PR pflegen
 #   FACTORY_SYNC_TOKEN=<pat> GITHUB_REPOSITORY=<owner>/<repo> bash scripts/factory-update.sh
 #                                                        Kurzform (nur Tests/lokal, in CI verweigert): alle Schritte hintereinander
@@ -21,7 +25,8 @@
 #      NEU erzeugt (commit-tree) und per SHA gepusht (Lease)
 #   6. offenen PR bearbeiten bzw. neuen anlegen (Label enhancement, kein Draft) – nie mergen, nie Auto-Merge
 #
-# Token-Grenze (E17): Code des noch ungeprüften Release läuft nur in `fetch` – ohne Token in Job, Umgebung und Runner;
+# Token-Grenze (E17, E28): Code des noch ungeprüften Release läuft nur in `fetch` – ohne Token in Job, Umgebung und Runner, und
+# dort nur in einem unprivilegierten Container (kein Weg zum Runtime-Token des Laufs, weder über Runner-Dateien noch über sudo);
 # `preflight`/`publish` tragen das Token und führen nur Code aus `main` aus. In der Kurzform läuft `fetch` als eigener Prozess
 # ohne Token-Variablen in einem frischen Klon. Anmeldung: alle gh-Aufrufe mit GH_TOKEN=$FACTORY_SYNC_TOKEN; der eingebaute
 # Actions-Token wird nie gelesen (Pushes mit ihm lösten keine pull_request-Workflows aus, AK2.4). Der Push meldet sich über einen
@@ -50,6 +55,18 @@ CREDENTIAL_HELPER='!f() { [ "$1" = get ] || return 0; printf "username=x-access-
 # Pfade, die der Neuaufbau außer den Manifest-Dateien ändern darf: die von factory-sync.sh zusammengesetzten Ziele.
 COMPOSED_TARGETS=(.claude/settings.json .gitignore)
 BUNDLE_MODE_FORBIDDEN_RE='^(120000|160000)$'  # Symlink, Submodul
+
+# Container des Jobs fetch (Factory-ADR-063 E28–E33). Basis per Digest gepinnt (Trust-on-First-Use wie YQ_SHA256 in
+# install-yq.sh; ein Bump ändert diese Zeile, Digest per `docker buildx imagetools inspect debian:<stable>-slim`).
+FETCH_BASE_IMAGE="debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
+FETCH_IMAGE="factory-update-fetch:local"
+FETCH_BUNDLE="update.bundle"
+# Im Container: Arbeitskopie des nur lesend eingebundenen Checkouts, darin die Abholung. Version und Basis als Positionsargumente.
+FETCH_CONTAINER_SCRIPT='cp -a /src/. /tmp/work && bash /tmp/work/scripts/factory-update.sh fetch "$1" "$2" /out/update.bundle'
+# Harmloser Nachweis für den Smoke-Job (E34 f): Werkzeuge da, kein root, keine Runner-Umgebung, Checkout nur lesend, /out beschreibbar.
+FETCH_SMOKE_SCRIPT='git --version && jq --version && yq --version && curl --version && sha256sum --version \
+  && [ "$(id -u)" != 0 ] && ! env | grep -qE "^(ACTIONS|GITHUB|RUNNER)_" && ! touch /src/.smoke 2>/dev/null \
+  && echo ok > /out/smoke.txt'
 
 WORK=""
 
@@ -171,6 +188,48 @@ fetch_release() {
   git add -A && git_nohooks "${COMMIT_IDENTITY[@]}" commit --quiet -m "chore: factory auf $version heben" \
     || die "Commit fehlgeschlagen – nichts gepusht"
   git_nohooks bundle create --quiet "$bundle" "$base..HEAD" || die "Übergabe-Bundle nicht erzeugbar – nichts gepusht"
+}
+
+# ─── 5a. Container für den Release-Code (E28–E33) ─────────────────────────────────────────────────────────────────────
+
+require_docker() {
+  docker info >/dev/null 2>&1 \
+    || die "fetch braucht Docker auf dem Runner (GitHub-gehostet vorhanden) – kein Rückfall auf eine Ausführung ohne Container"
+}
+
+fetch_dockerfile() {
+  printf 'FROM %s\n' "$FETCH_BASE_IMAGE"
+  printf '%s\n' 'RUN apt-get update && apt-get install -y --no-install-recommends git jq curl ca-certificates && rm -rf /var/lib/apt/lists/*'
+}
+
+# Vor jedem Release-Code und nur aus Code von main: Dockerfile per stdin, kein Build-Kontext.
+build_fetch_image() {
+  fetch_dockerfile | docker build -t "$FETCH_IMAGE" - >&2 \
+    || die "Image für fetch nicht baubar (Basis $FETCH_BASE_IMAGE nicht ladbar, Digest falsch oder apt gescheitert) – nichts abgeholt"
+}
+
+# Legt das Ausgabeverzeichnis neu an (existiert es schon → Exit 1); setzt OUT_DIR (absolut, für den Mount).
+make_out_dir() {
+  [ -n "${1:-}" ] || die "Ausgabeverzeichnis fehlt"
+  mkdir -- "$1" 2>/dev/null || die "Ausgabeverzeichnis $1 existiert schon oder ist nicht anlegbar (fail-closed)"
+  OUT_DIR="$(cd "$1" && pwd)" || die "Ausgabeverzeichnis $1 nicht erreichbar"
+}
+
+# Die Optionen von docker run (E31) – einzige Stelle, fetch-isolated und fetch-smoke starten beide hierüber. Keine Sonderrechte,
+# keine Umgebung außer HOME, genau drei Mounts: Checkout und yq nur lesend, dazu das Ausgabeverzeichnis.
+run_in_fetch_container() { # <out_dir> <kommando…>
+  local out="$1" yq_bin; shift
+  yq_bin="$(command -v yq)" || die "yq nicht gefunden (scripts/install-yq.sh, fail-closed)"
+  docker run --rm --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$ROOT:/src:ro" -v "$out:/out" -v "$yq_bin:/usr/local/bin/yq:ro" "$FETCH_IMAGE" "$@"
+}
+
+# Rückweg (E32): genau ein Eintrag, die reguläre Datei update.bundle – kein Symlink, kein Verzeichnis. Der Host liest sie nicht.
+require_single_bundle() {
+  local entries
+  entries="$(ls -A -- "$1")"
+  [ "$entries" = "$FETCH_BUNDLE" ] && [ -f "$1/$FETCH_BUNDLE" ] && [ ! -L "$1/$FETCH_BUNDLE" ] \
+    || die "Ausgabe des Containers ist nicht genau die reguläre Datei $FETCH_BUNDLE – kein Artefakt (fail-closed)"
 }
 
 # Prüfliste des Übergabe-Commits (E18), alle fail-closed, in vier Schritten. Setzt QUARANTINE_SHA; $WORK/manifest.json ist das
@@ -331,9 +390,33 @@ mode_preflight() {
 }
 
 mode_fetch() {
+  # Docker reicht GITHUB_ACTIONS nicht in den Container: dort läuft der Modus, direkt auf dem Runner nicht (E29).
+  [ "${GITHUB_ACTIONS:-}" != true ] || die "fetch führt Release-Code aus und läuft in CI nur im Container – fetch-isolated verwenden (Factory-ADR-063 E29)"
   require_handover_args "${1:-}" "${2:-}" "${3:-}"
-  # Hier steht kein Token (eigener Job); die Kurzform ruft diesen Modus über `env -u` auf.
+  # Kein Token in der Umgebung: im Container nur HOME, die Kurzform ruft diesen Modus über `env -u` auf.
   fetch_release "$1" "$2" "$3"
+}
+
+# Job fetch (E29): läuft auf dem Runner, führt nur Code aus main aus; der Release-Code läuft im Container.
+mode_fetch_isolated() {
+  require_handover_args "${1:-}" "${2:-}" "${3:-}"
+  require_docker
+  make_out_dir "$3"
+  build_fetch_image
+  run_in_fetch_container "$OUT_DIR" bash -c "$FETCH_CONTAINER_SCRIPT" _ "$1" "$2" \
+    || die "Abholung von $1 im Container gescheitert (Meldung oben) – kein Artefakt"
+  require_single_bundle "$OUT_DIR"
+  note "Übergabe liegt in $OUT_DIR/$FETCH_BUNDLE – geprüft wird sie in publish"
+}
+
+# Smoke-Job in factory-ci.yml (E34 f): dasselbe Image, derselbe Aufruf, ein harmloses Kommando statt der Abholung.
+mode_fetch_smoke() {
+  require_docker
+  make_out_dir "${1:-}"
+  build_fetch_image
+  run_in_fetch_container "$OUT_DIR" bash -c "$FETCH_SMOKE_SCRIPT" || die "Smoke im Container gescheitert (Meldung oben)"
+  [ "$(cat "$OUT_DIR/smoke.txt" 2>/dev/null)" = ok ] || die "Smoke ohne Nachweis aus dem Container (/out/smoke.txt fehlt)"
+  echo "✓ factory-update: Image und Aufruf des fetch-Containers tragen"
 }
 
 mode_publish() {
@@ -372,7 +455,8 @@ main() {
   local mode="${1:-all}"
   [ $# -eq 0 ] || shift
   cd "$ROOT" 2>/dev/null || die "Projektwurzel nicht erreichbar: $ROOT"
-  if [ "$mode" != guard ] && [ "$mode" != fetch ] && ! has_lock; then
+  # guard meldet den No-op selbst; die fetch-Modi brauchen keinen Lock (Abholung im Container, Smoke im Factory-Repo)
+  if ! [[ "$mode" =~ ^(guard|fetch|fetch-isolated|fetch-smoke)$ ]] && ! has_lock; then
     note "kein factory.lock – Repo bindet die Factory nicht per Lock ein (z. B. das Factory-Repo selbst), nichts zu tun"
     exit 0
   fi
@@ -385,9 +469,11 @@ main() {
     guard) mode_guard ;;
     preflight) mode_preflight ;;
     fetch) mode_fetch "$@" ;;
+    fetch-isolated) mode_fetch_isolated "$@" ;;
+    fetch-smoke) mode_fetch_smoke "$@" ;;
     publish) mode_publish "$@" ;;
     all) mode_all ;;
-    *) die "unbekannter Modus: $mode (guard|preflight|fetch|publish)" ;;
+    *) die "unbekannter Modus: $mode (guard|preflight|fetch-isolated|fetch|fetch-smoke|publish)" ;;
   esac
 }
 
