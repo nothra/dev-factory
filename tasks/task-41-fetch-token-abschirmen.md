@@ -4,9 +4,9 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -112,8 +112,23 @@ Runde 1 (2026-11-20): **APPROVED**, 0 kritische, 2 wichtige, 4 Nitpicks. Details
 - Nicht Refactoring (neues Verhalten, bleibt für /implement): Smoke-Befehl erweitern, `docker build --no-cache`.
 - Tests unverändert (kein Code geändert; Stand /test: 2637/0).
 
+## Security-Notizen (/security-review, 2026-11-20)
+**PASSED**, 0 kritische, 1 wichtiges Finding, 8 Hinweise. Details in `tasks/security-41.md`. Geprüft wurde nur statisch,
+weil Docker und die Testgruppe ohne Freigabe nicht liefen.
+- Die Isolationsgrenze hält: kein Weg zum Runtime-Token, keine Ausführung von Container-Daten auf dem Host.
+- Wichtig, im Scope (für `/implement`): W1. Der Runner wertet stdout und stderr des Containers als Workflow-Kommandos
+  aus. Den Kanal um `docker run` mit `::stop-commands::<zufälliges Token>` sperren und das per Test belegen.
+- Kleinere Punkte im Scope: Die Meldung in `mode_all` (`:437`) nennt noch `fetch` statt `fetch-isolated`. `make_out_dir`
+  könnte `:` und `,` im Pfad ablehnen.
+- Out-of-Scope, Netz (Host-Gateway, Metadata-Dienst, WireServer erreichbar): Nach der Zweifelsregel gehört das in ein
+  Issue mit `enhancement` + `security`. **Die Anlage steht noch aus**, weil der Seam eine Freigabe brauchte.
+- Out-of-Scope, DoS durch ein riesiges Bundle: als Eintrag in `docs/factory/kleinfunde.md`.
+
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Zwei neue Lessons in `docs/factory/lessons/factory-workflow.md` und `lessons/INDEX.md`: Log-Kanal als Rückkanal bei
+Fremdcode-Isolation (W1) und Pin-Wert ohne Netz nicht erfinden (Null-Digest). Details: `tasks/codify-41.md`.
+Offen: Issue „Fetch-Container vom Host-Gateway und Link-Local-Diensten abschotten" (`enhancement` + `security`) ist noch
+anzulegen, die Anlage lehnte der Permission-Layer ab. DoS durch riesiges Bundle steht in `docs/factory/kleinfunde.md`.
 
 ---
 Branch: `fix/41-fetch-token-abschirmen`

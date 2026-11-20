@@ -1834,3 +1834,19 @@ Die Serie der Turn-Limit-Vorkommnisse (Task 47: 18 AK, 3×20 Turns; Task 37: 12 
 **Regel:** (a) Nach einem Abbruch (Netz, Turn-Limit) zuerst Bestandsaufnahme – `git status`/`git log`, `tasks/review-<id>.md`/`security-<id>.md`, offene Checkboxen, `gh pr list` – und beim ersten offenen Schritt weitermachen, nicht neu starten; (b) ein Aufräum-`rm -rf` nie mit einem Schritt kombinieren, der Arbeit trägt (`git apply`): der Auto-Mode-Classifier lehnt die Kette als Ganzes ab, und der Guardrails-Hook markiert jeden rekursiven Löschbefehl erneut; (c) ein Patch-Weg ist nur für Pfade berechtigt, die wirklich gesperrt sind (`.claude/**`) – `factory.config.yml.example` lag nur nicht in der Freigabe, der Edit-Weg war offen (Rezidiv der Lesson zu nothra/tch-gastro-services#291).
 
 → `/pipeline`, `/implement`, jeder Skill – bei Fortsetzung nach Pipeline-Abbruch bzw. vor dem Anlegen eines `patch-<id>.diff`
+
+### Feindlicher Code im Container: Der Log-Kanal ist ein Rückkanal (aus Factory-Task #41)
+
+Der Fetch-Container (Factory-ADR-063, Nachtrag #41) führt Release-Code ohne Token, ohne Capabilities und mit nur zwei Mounts aus. Spec, ADR und Review führten die Rückkanäle Datei und Exit-Code, übersahen aber stdout/stderr: der Runner wertet beides als Workflow-Kommandos aus (`::add-mask::`, `::set-output`, `::error::` …). Erst `/security-review` fand es (W1).
+
+**Regel:** Bei einer Isolationsgrenze für nicht vertrauenswürdigen Code die Rückkanäle als Liste in der Spec führen (Datei, Log, Exit-Code, Artefakt) und je Kanal Abwehr plus Test belegen. Für den Log-Kanal den Aufruf mit `::stop-commands::<zufälliges Token>` umschließen und das per Test belegen.
+
+→ `/architecture`, `/requirements`, `/security-review` – bei Isolation von Fremdcode (Container, Sandbox, Runner-Job)
+
+### Pin-Wert ohne Netz nicht erfindbar (aus Factory-Task #41)
+
+Ohne Netz- und Docker-Zugriff stand für den Image-Digest ein Nullen-Platzhalter, abgesichert durch einen absichtlich roten Test, der den Push blockierte. Der spätere Format-Test („kein Platzhalter") belegt nur die Gestalt, nicht die Ladbarkeit. AK1.4 und AK4.3 blieben bis zum ersten grünen Smoke-Lauf in CI offen.
+
+**Regel:** Einen Pin, den die Session nicht gegen die Quelle prüfen kann, nicht mit einem Platzhalter plus rotem Test einchecken, sondern als Blocker melden. Den Format-Test nie als Ladbarkeitsbeleg ausgeben; die zugehörigen AK erst nach dem CI-Lauf abhaken, der die Quelle wirklich anspricht.
+
+→ `/implement`, `/review` – bei Pin-Werten (Digest, Version, Prüfsumme), die ohne Netz nicht ermittelbar sind
