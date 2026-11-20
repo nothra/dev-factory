@@ -28,6 +28,7 @@ ADR-Trigger: ja (Jobstruktur/Isolationsgrenze) → `/architecture 41` vor `/impl
 - [ ] AK3.2 Tests zu #23/#24/#37 grün, geänderte Anker mindestens gleich streng
 - [ ] AK4.1 Wiring-Tests an der echten `factory-update.yml`, ohne Docker lauffähig
 - [ ] AK4.2 Mutationsbeleg je tragender Eigenschaft
+- [ ] AK4.3 Smoke-Job in `factory-ci.yml`: Image echt bauen und mit echten Optionen starten
 - [ ] AK5.1 ADR-063-Nachtrag (#41) inkl. Korrektur der `sudo`-Aussage in E17
 - [ ] AK5.2 OPERATING §0.6: Container, Docker-Voraussetzung, Restrisiko für Caches
 - [ ] F1 Kein Docker → `fetch` rot, kein stiller Rückfall
@@ -37,10 +38,30 @@ ADR-Trigger: ja (Jobstruktur/Isolationsgrenze) → `/architecture 41` vor `/impl
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
+Factory-ADR-063, Nachtrag 2026-11-20 (E28–E34), Status Proposed → mit der Umsetzung Accepted setzen.
+
+- **Neuer Modus** `factory-update.sh fetch-isolated <version> <base_sha> <out_dir>` (Host, nur main-Code):
+  `docker info` → `docker build -t <tag> -` (Heredoc, `FROM debian:<stable>-slim@sha256:<digest>`, `apt-get install
+  --no-install-recommends git jq curl ca-certificates`; Digest als Konstante, per `docker buildx imagetools inspect`
+  ermitteln) → `docker run` → Ausgabe prüfen.
+- **`docker run`-Argumente in genau einem Array:** `--rm --cap-drop ALL --security-opt no-new-privileges
+  --user $(id -u):$(id -g) -e HOME=/tmp -v "$ROOT:/src:ro" -v "$out:/out" -v "$(command -v yq):/usr/local/bin/yq:ro"`;
+  Kommando `bash -c 'cp -a /src/. /tmp/work && bash /tmp/work/scripts/factory-update.sh fetch "$1" "$2" /out/update.bundle' _ "$version" "$base"`.
+- **Rückweg:** `<out_dir>` neu anlegen (existiert → Exit 1). Danach genau ein Eintrag `update.bundle`, reguläre Datei,
+  kein Symlink → sonst Exit 1. Kein `git` auf Container-Daten.
+- **`fetch` in CI sperren:** `GITHUB_ACTIONS=true` → die mit Verweis auf `fetch-isolated` (Docker reicht die Variable nicht durch).
+- **Workflow `fetch`:** checkout → install-yq → `bash scripts/factory-update.sh fetch-isolated "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/fetch-out"`
+  → upload-artifact mit `path: ${{ runner.temp }}/fetch-out/update.bundle`. Anker `wf_ok_37` anpassen.
+- **Tests:** Fake-`docker` im `PATH` (protokolliert argv, simuliert `/out`-Inhalte und Fehler). Wiring, Argumente,
+  Rückweg, CI-Sperre, Mutationsbelege. Neue Gruppe `factory-lock-41-tests.sh` → `OWNERSHIP.md`-Zeile + Eintrag in `run-tests.sh`.
+- **Smoke-Job** in `factory-ci.yml` (E34 f); dieselben Optionen wie das Array, daher den Aufruf im Skript wiederverwenden
+  (z. B. Modus/Funktion mit austauschbarem Kommando) statt die Optionen im YAML zu kopieren.
+- **Doku:** OPERATING §0.6 „Aufbau des Workflows"; E17-Berichtigung ist schon drin; Release-Notes: selbst gehostete
+  Runner ohne Docker werden in `fetch` rot.
 
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->
-Q1–Q5 für `/architecture` (Image, Ort des `docker run`, Netz, Benutzer, Restweg) – siehe Spec.
+Q1–Q5 in `/architecture` geklärt (ADR-063 E28–E34).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

@@ -63,8 +63,9 @@ selbst nutzt keine. Der Angriff ist nicht praktisch nachgestellt.
   keine `ACTIONS_*`-, `GITHUB_TOKEN`- oder Token-Variablen, kein `--env-file` und keine der Runner-Dateien
   `$GITHUB_ENV`, `$GITHUB_PATH`, `$GITHUB_OUTPUT`, `$GITHUB_STEP_SUMMARY` (weder als Variable noch eingebunden).
   Eingebunden sind nur ein eigens angelegtes Arbeitsverzeichnis und ein eigenes Ausgabeverzeichnis für das Bundle.
-- [ ] **AK1.4** GIVEN das Container-Image WHEN der Workflow es startet THEN ist es per Digest (`@sha256:…`) gepinnt
-  und wird nicht aus Code des Arbeitsbaums oder des Release gebaut.
+- [ ] **AK1.4** GIVEN das Container-Image WHEN der Workflow es startet THEN ist seine Basis per Digest (`@sha256:…`)
+  gepinnt. Das Image wird vor jedem Release-Code nur aus Code von `main` gebaut, ohne Build-Kontext aus dem
+  Arbeitsbaum (Factory-ADR-063 E30).
 
 ### AK2 · Rückweg nur als Daten
 
@@ -101,6 +102,11 @@ selbst nutzt keine. Der Angriff ist nicht praktisch nachgestellt.
   THEN erfährt er, dass `fetch` den Release-Code im Container ausführt, dass der Job deshalb Docker auf dem Runner
   braucht (GitHub-gehostet: vorhanden) und welches Restrisiko für Caches bleibt.
 
+- [ ] **AK4.3** GIVEN der CI-Workflow `factory-ci.yml` WHEN er läuft THEN baut ein Smoke-Job das Image echt und
+  startet es mit den echten Optionen und einem harmlosen Kommando (Werkzeuge vorhanden, `/out` beschreibbar). Kein
+  Angriffsversuch, kein Release (Factory-ADR-063 E34 f; ergänzt in `/architecture`, weil der Container-Pfad sonst erst
+  beim Konsumenten zum ersten Mal liefe).
+
 ## Fehlerszenarien
 
 - [ ] **F1** Docker auf dem Runner nicht verfügbar (z. B. selbst gehostet) → `fetch` endet rot mit verständlicher
@@ -115,13 +121,12 @@ selbst nutzt keine. Der Angriff ist nicht praktisch nachgestellt.
 
 ## Offene Fragen (für `/architecture`)
 
-- [ ] **Q1** Welches Image (Basis, Herkunft) und wie kommen `bash`, `git`, `jq`, `yq` (gepinnt wie
-  `install-yq.sh`), `curl` und `shasum` hinein, ohne Code aus dem Release zu verwenden?
-- [ ] **Q2** Wo steht der `docker run`-Aufruf: direkt im Workflow-Schritt oder als eigener Modus in
-  `factory-update.sh`? Das hängt davon ab, was offline am besten testbar ist.
-- [ ] **Q3** Netz im Container: Standard-Bridge (nötig für Release-Download) reicht; ist eine weitere Einschränkung
-  sinnvoll und testbar?
-- [ ] **Q4** Benutzer im Container (root ohne Capabilities oder unprivilegierte UID) und Besitzrechte des
-  eingebundenen Arbeitsverzeichnisses.
-- [ ] **Q5** Bleibt mit Container noch ein Restweg zum Runtime-Token, etwa über das Netz des Runners? Die Antwort
-  gehört in den ADR-Nachtrag.
+Alle geklärt in Factory-ADR-063, Nachtrag 2026-11-20 (E28–E34):
+
+- [x] **Q1** Image: lokal gebaut aus `debian:<stable>-slim@sha256:…` per Heredoc ohne Kontext, `git jq curl
+  ca-certificates` per `apt`; `yq` als verifizierte Host-Binary read-only eingebunden (E30).
+- [x] **Q2** Ort: neuer Modus `factory-update.sh fetch-isolated`; `fetch` verweigert in CI (E29).
+- [x] **Q3** Netz: Standard-Bridge, keine weitere Einschränkung (E31).
+- [x] **Q4** Benutzer: UID/GID des Runners, kein root; Checkout read-only, Arbeitskopie im Container (E31).
+- [x] **Q5** Restwege: Container-Ausbruch, Netz, Image-Lieferkette, übersehenes bösartiges Release (Restrisiko im
+  Nachtrag).
