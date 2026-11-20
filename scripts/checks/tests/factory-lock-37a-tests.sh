@@ -48,7 +48,8 @@ wf_ok_37() { # $1 = Workflow-Datei; 0 = alle Anker stimmen
   done
   wf_has_line_37 "$f" '.jobs.guard.steps[].run' 'bash scripts/factory-update.sh guard' || return 1
   wf_has_line_37 "$f" '.jobs.preflight.steps[].run' 'bash scripts/factory-update.sh preflight' || return 1
-  wf_has_line_37 "$f" '.jobs.fetch.steps[].run' 'bash scripts/factory-update.sh fetch "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/update.bundle"' || return 1
+  # #41 E34 a: Release-Code nur im Container; die volle Schrittfolge des Jobs prüft wf_fetch_ok_41 (factory-lock-41-tests.sh)
+  wf_has_line_37 "$f" '.jobs.fetch.steps[].run' 'bash scripts/factory-update.sh fetch-isolated "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/fetch-out"' || return 1
   wf_has_line_37 "$f" '.jobs.publish.steps[].run' 'bash scripts/factory-update.sh publish "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/bundle/update.bundle"' || return 1
   for j in preflight fetch publish; do
     [ "$(wf_idx_37 "$f" "$j" 'install-yq')" -lt "$(wf_idx_37 "$f" "$j" 'factory-update.sh')" ] || return 1

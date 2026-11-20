@@ -111,6 +111,22 @@ jobs:
       - name: Self-Test-Suite
         run: bash scripts/checks/tests/run-tests.sh
 
+  # ─── Fetch-Container-Smoke (Factory-ADR-063 E34 f) ──────────────────────────
+  # Der Job fetch von factory-update.yml führt Release-Code nur in einem unprivilegierten Container aus. Im Factory-Repo
+  # läuft factory-update.yml nie (kein factory.lock) – ohne diesen Job liefe der Container-Pfad erst beim Konsumenten
+  # zum ersten Mal. Baut das Image echt und startet es mit denselben Optionen (eine Stelle im Skript) und einem
+  # harmlosen Kommando; kein Release, kein Angriffsversuch.
+  fetch-container-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: yq bereitstellen
+        run: sudo bash scripts/install-yq.sh
+      - name: Image bauen und mit den echten Optionen starten
+        run: bash scripts/factory-update.sh fetch-smoke "$RUNNER_TEMP/fetch-smoke"
+
   # ─── Post-Merge-Verifikation ─────────────────────────────────────────────────
   # Läuft NUR nach echtem Merge (push auf main) – CI-grün ≠ Produktion-grün
   # (ADR-007). Prüft das tatsächliche Verhalten der deployten Umgebung per

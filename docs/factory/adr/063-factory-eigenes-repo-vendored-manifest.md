@@ -688,7 +688,7 @@ Repository-Secret für `pull_request`-Workflows des Update-PRs.
      `factory-update.sh fetch <version> <base_sha>`: baut den Neuaufbau (`factory-sync.sh`, ein Commit)
      und legt **nur** `git bundle create update.bundle <base_sha>..HEAD` als Artefakt ab. Hier läuft
      Release-Code; das Token existiert in diesem Job und auf diesem Runner nicht (kein `env -u`, kein
-     gleicher Prozessbaum, kein `/proc`-Zugriff, `sudo` bleibt auf einem Wegwerf-Runner wirkungslos).
+     gleicher Prozessbaum, kein `/proc`-Zugriff, `sudo` bleibt auf einem Wegwerf-Runner wirkungslos). **Berichtigt:** Das gilt für `FACTORY_SYNC_TOKEN`; das Runtime-Token des Laufs liegt auch auf diesem Runner – Abschirmung siehe Nachtrag 2026-11-20, E28–E34 (#41).
   4. `publish` – `environment: factory-update`, nur Code aus `main`, `needs: [preflight, fetch]`: lädt das
      Artefakt, prüft es (E18), pusht und legt den PR an (E11.5/E11.6 mit dem neuen Ablauf). Führt keinen
      Release-Code aus.
@@ -843,3 +843,118 @@ Elternordner anlegen, nur Einzeldateien) stehen in `docs/specs/spec-47-copy-file
 `scripts/checks/tests/run-tests.sh`, Doku laut Spec (AK17). Keine neue Datei. Ein Projekt, das die
 `.env.local`-Kopie behalten will, setzt `start_work.copy_files: [".env.local"]` (CHANGELOG); ohne den
 Eintrag entfällt die Kopie nach dem Update still.
+
+## Nachtrag 2026-11-20 · Runtime-Token des `fetch`-Jobs abschirmen (Spec #41, Q1–Q5)
+
+Aus `/architecture` zu #41 (Security-Review zu #37); Status: Accepted (2026-11-20, umgesetzt in #41).
+**Präzisiert** E17 (Job `fetch`) und **berichtigt** dort die Aussage „`sudo` bleibt auf einem Wegwerf-Runner
+wirkungslos": Das gilt für `FACTORY_SYNC_TOKEN`, das auf diesem Runner nie existiert, nicht aber für das
+Runtime-Token des Laufs. E18–E22 bleiben, soweit unten nicht verändert. Die Verhaltensentscheidungen stehen in
+`docs/specs/spec-41-fetch-token-abschirmen.md`.
+
+**Bedrohung:** Jeder Job trägt das Runtime-Token des Laufs (`ACTIONS_RUNTIME_TOKEN`). Es pusht nichts, schreibt aber
+Caches im Scope des Standard-Branches `main`, und `pull_request`-Workflows lesen diese Caches. Release-Code in `fetch`
+erreicht es auf zwei Wegen: (1) über `$GITHUB_ENV`/`$GITHUB_PATH` in die Umgebung des Folgeschritts
+`actions/upload-artifact`, der das Token trägt; (2) über das passwortlose `sudo` des Runners direkt aus dem Speicher
+des Prozesses `Runner.Worker` (öffentlich beschriebene Cache-Poisoning-Technik). Weg 2 braucht keinen Folgeschritt.
+Betroffen sind Konsumenten mit Caches (`actions/cache`, `setup-*` mit `cache`), das Factory-Repo nutzt keine.
+Nicht praktisch nachgestellt.
+
+- **E28 · Isolationsgrenze: unprivilegierter Container.** Der gesamte Release-Code des Jobs `fetch` (Abholung mit
+  `factory-sync.sh`, Commit, `git bundle create`) läuft in einem `docker run` auf dem Runner. Der Container hat einen
+  eigenen PID-Namensraum (kein Blick auf `Runner.Worker`), keine Capabilities, kein `sudo`-Pfad zum Host und keine der
+  Runner-Dateien. Das Token existiert weiter auf dem Runner, ist aber außerhalb der Grenze. Beide Wege sind damit
+  geschlossen. Was offen bleibt, steht unten unter „Restrisiko".
+- **E29 · Ort: neuer Modus `fetch-isolated` in `factory-update.sh`.** Aufruf
+  `factory-update.sh fetch-isolated <version> <base_sha> <out_dir>`. Er läuft auf dem Host und führt nur Code aus `main`
+  aus. Er prüft Docker (`docker info`), baut das Image (E30), startet den Container (E31) und prüft danach das
+  Ausgabeverzeichnis (E32). Der Workflow ruft nur diesen Modus auf; die Logik bleibt im Skript (wie E20, Workflow nur
+  Auslöser). Die Argumente für `docker run` stehen in **einem** Array an **einer** Stelle des Skripts, damit Tests sie
+  vollständig prüfen können.
+  Der bisherige Modus `fetch` bleibt der Einstieg **im** Container (und der Kurzform). Neu verweigert er mit
+  `GITHUB_ACTIONS=true`, mit Verweis auf `fetch-isolated`. Docker reicht `GITHUB_ACTIONS` nicht in den Container
+  durch, also läuft er dort; ein Workflow, der `fetch` wieder direkt auf dem Runner aufruft, wird rot.
+- **E30 · Image: lokal gebaut aus gepinnter Basis, ohne Build-Kontext.** `docker build` mit einem Dockerfile aus einem
+  Heredoc im Skript (`docker build -t <tag> -`, kein Kontext, keine neue Datei): `FROM debian:<stable>-slim@sha256:<digest>`
+  und `apt-get install --no-install-recommends git jq curl ca-certificates`. Der Digest steht als Konstante im
+  Skript (Trust-on-First-Use wie `YQ_SHA256`, ein Bump ändert eine Zeile). Der Build läuft **vor** jedem Release-Code
+  und nur aus Code von `main`; in ihn fließt nichts aus dem Arbeitsbaum. `yq` kommt nicht aus dem Image, sondern als
+  bereits verifizierte Host-Binary (`install-yq.sh`, statisch gelinkt) per Read-only-Mount. `sha256sum` liefert
+  coreutils der Basis. Damit präzisiert E30 Spec-AK1.4: gepinnt ist die Basis, das gebaute Image ist ein lokales
+  Wegwerf-Image dieses Laufs.
+- **E31 · Container-Aufruf.** Fest:
+  `docker run --rm --cap-drop ALL --security-opt no-new-privileges --user <uid>:<gid> -e HOME=/tmp`
+  `-v <ROOT>:/src:ro -v <out_dir>:/out -v <yq>:/usr/local/bin/yq:ro <tag> bash -c '<kopieren, fetch>' _ <version> <base_sha>`.
+  Im Container: `cp -a /src/. /tmp/work`, dann `bash /tmp/work/scripts/factory-update.sh fetch "$1" "$2" /out/update.bundle`.
+  Version und Basis gehen als Positionsargumente hinein, nie in den `bash -c`-Text.
+  Verboten (und getestet): `--privileged`, `--pid`/`--ipc`/`--uts`/`--userns=host`, `--network=host`, `--cap-add`,
+  `--device`, `--env-file`, jedes `-e` außer `HOME`, jeder weitere Mount, insbesondere `/var/run/docker.sock`,
+  `$RUNNER_TEMP` als Ganzes und die Runner-Dateien.
+  *Benutzer (Q4):* UID/GID des Runners statt root. Die Kopie gehört damit dem laufenden Benutzer (kein
+  „dubious ownership" bei `git`), die Ausgabe ist auf dem Host lesbar, und auch im Container gibt es kein root.
+  *Netz (Q3):* Standard-Bridge. Die Abholung braucht das Netz (Release-Assets). Eine weitere Einschränkung ist offline
+  nicht testbar und schützt das Token nicht zusätzlich; verworfen.
+  *Arbeitsbaum:* Der Checkout ist nur lesend eingebunden. Release-Code kann deshalb weder `.git/config` noch Hooks
+  des Workspace verändern, und der Post-Schritt von `actions/checkout` arbeitet auf dem unveränderten Baum.
+- **E32 · Rückweg: genau eine reguläre Datei.** `fetch-isolated` legt `<out_dir>` selbst neu an (existiert es schon →
+  Exit 1). Nach dem Container muss `<out_dir>` **genau einen** Eintrag `update.bundle` enthalten, und das muss eine
+  reguläre Datei sein, kein Symlink, kein Verzeichnis. Sonst endet der Lauf mit Exit 1, ohne Artefakt (Spec F4). Der
+  Host liest die Datei nicht und ruft kein `git` auf Container-Daten auf; das Bundle prüft weiter `publish` (E18).
+  Harte Links aus `/out` auf Host-Dateien scheitern an der Mount-Grenze (EXDEV), und sichtbar ist dem Container
+  ohnehin nur der Checkout.
+  Workflow: Der Schritt `fetch-isolated … "$RUNNER_TEMP/fetch-out"` steht direkt nach `install-yq`. Danach folgt nur
+  `actions/upload-artifact` mit `path: ${{ runner.temp }}/fetch-out/update.bundle`.
+- **E33 · Fail-closed (Spec F1–F3).** Kein Docker oder `docker info` scheitert → Exit 1 mit Hinweis
+  „`fetch` braucht Docker auf dem Runner (GitHub-gehostet vorhanden)". Build scheitert (Basis nicht ladbar, Digest
+  falsch, `apt` scheitert) → Exit 1. Container-Exit ≠ 0 → Exit 1. Es gibt keinen Rückfall auf eine Ausführung ohne
+  Container, weder per Schalter noch automatisch.
+- **E34 · Tests (ergänzt E22).** (a) *Wiring* an der echten `factory-update.yml`: `fetch` ruft genau
+  `factory-update.sh fetch-isolated "$VERSION" "$BASE_SHA" "$RUNNER_TEMP/fetch-out"` auf. Danach folgt nur der Upload,
+  `path` zeigt auf `fetch-out/update.bundle`, und kein `run`-Schritt ruft `fetch` direkt auf. Der Anker
+  `wf_ok_37` wird entsprechend ersetzt, alle übrigen Anker bleiben.
+  (b) *Argumente* mit einem Fake-`docker` im `PATH`, der seine Argumente protokolliert: Pflicht-Optionen vorhanden,
+  verbotene fehlen, genau drei Mounts (zwei `:ro`), kein `-e` außer `HOME`. Docker selbst wird nicht gebraucht.
+  (c) *Rückweg:* Der Fake legt in `/out` nichts, einen Symlink, ein Verzeichnis, zwei Dateien bzw. eine reguläre
+  Datei an → Exit 1, 1, 1, 1 bzw. 0. Dazu: `<out_dir>` existiert schon → Exit 1. Kein Docker bzw. Fake meldet
+  Fehler bei `info`/`build`/`run` → Exit 1.
+  (d) `fetch` mit `GITHUB_ACTIONS=true` → Exit 1.
+  (e) *Mutationsbelege* je tragender Eigenschaft: Mutant des Skripts bzw. Workflows → derselbe Prüfer rot (Muster
+  `mut_wf_37`/`mutant_37`).
+  (f) *Funktions-Smoke in CI:* ein Job in `factory-ci.yml` (Linux, Docker vorhanden) baut das Image echt und startet
+  es mit den echten Optionen aus E31 mit einem harmlosen Kommando (`git --version`, `jq --version`, `yq --version`,
+  `curl --version`, `sha256sum --version`, Schreiben nach `/out`). Kein Angriffsversuch und kein Release. Er belegt
+  nur, dass Image und Aufruf tragen. Hintergrund: Im Factory-Repo läuft `factory-update.yml` nie (kein Lock), sonst
+  liefe der Container-Pfad erst beim Konsumenten zum ersten Mal.
+
+**Alternativen:**
+- *Nur dokumentieren* (Issue-Vorschlag 1/3): kein Aufwand, aber beide Wege bleiben offen; verworfen (Entscheidung
+  Mensch, 2026-11-20).
+- *Nur den Folgeschritt trennen:* schließt Weg 1, nicht Weg 2. Die Übergabe braucht ohnehin einen Schritt mit Token
+  (Artefakt-Upload) auf demselben Runner. Verworfen.
+- *Benutzerwechsel ohne `sudo`* (eigener Unix-Benutzer, E17 Alt. C ohne den `sudo`-Einwand): keine Image-Abhängigkeit,
+  Host-Werkzeuge direkt nutzbar. Aber: gleiche Sicht auf das Dateisystem des Runners (Lesbarkeit von Runner-Dateien und
+  `/proc` hängt an Rechten, die die Factory nicht kontrolliert und offline nicht belegen kann). Für `$GITHUB_ENV`
+  müsste man sich auf Dateirechte verlassen. Verworfen zugunsten der klareren Grenze.
+- *Fertiges Fremd-Image* (z. B. mit git/jq/curl vorinstalliert): spart den Build, bringt aber einen weiteren
+  Herausgeber in die Lieferkette. Ein `apt`-Install unter `--cap-drop ALL` zur Laufzeit ist unzuverlässig (Rechte-
+  wechsel von `apt`/`dpkg`). Verworfen zugunsten E30.
+- *Eigene `Dockerfile` im Repo:* reviewbar, aber eine weitere ausgelieferte Datei samt `OWNERSHIP.md`-Zeile, und als
+  Build-Kontext käme der Arbeitsbaum ins Spiel. Verworfen zugunsten des Heredocs ohne Kontext.
+- *Abholung außerhalb des Runners* (eigene VM, externer Dienst): neue Infrastruktur je Konsument; außer Scope.
+
+**Restrisiko (ehrlich, Q5):**
+1. *Container-Ausbruch:* Der Container teilt den Kernel des Runners. Ein Kernel- oder Docker-Fehler, der ohne
+   Capabilities einen Ausbruch erlaubt, öffnet Weg 2 wieder. Das ist deutlich schwerer als passwortloses `sudo`, aber
+   keine absolute Grenze.
+2. *Netz:* Der Container hat Netz (Bridge). Er kann Inhalte des Checkouts hinaussenden (Restrisiko 2 aus E17–E22,
+   unverändert) und Dienste erreichen, die vom Runner-Netz aus erreichbar sind. Das Runtime-Token liegt dort nicht.
+3. *Lieferkette des Images:* Basis per Digest (TOFU), Pakete aus den signierten Debian-Quellen, nicht einzeln gepinnt.
+4. *Bösartiges Release, das der Mensch übersieht:* unverändert (Restrisiko 1 aus E17–E22).
+
+**Konsequenzen:** geändert `scripts/factory-update.sh` (Modus `fetch-isolated`, Sperre für `fetch` in CI),
+`.github/workflows/factory-update.yml` (Job `fetch`), `.github/workflows/factory-ci.yml` (Smoke-Job E34 f),
+`docs/factory/OPERATING.md` §0.6 („Aufbau des Workflows": Container, Docker-Voraussetzung, Restrisiko für Caches),
+E17 dieses ADR (Verweis bei der `sudo`-Aussage), Tests in `scripts/checks/tests/factory-lock-37a/37b-tests.sh` bzw.
+einer neuen Gruppe `factory-lock-41-tests.sh` (dann mit `OWNERSHIP.md`-Zeile und Eintrag in `run-tests.sh`).
+Konsumenten brauchen nichts einzurichten (GitHub-gehostete Runner haben Docker). Selbst gehostete Runner ohne Docker
+werden in `fetch` rot; das gehört in die Release-Notes.

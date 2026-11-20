@@ -306,3 +306,10 @@
 - **Was:** Absolute Pfade und `..`-Segmente werden abgelehnt, eine committete Datei `x.md -> /etc/hosts` mit `@x.md` aber mitgezählt; ihre Zeilen- und (seit Task 44) Bytezahl erscheint in der Beitragsliste. Nur Größe, nie Inhalt, und nur mit Schreibrecht aufs Repo – kein ausnutzbares Risiko.
 - **Fix:** In der Schleife vor dem Lesen `[ -L "$rel" ]` → `referenzierte Datei ist ein Symlink: $rel (fail-closed)`, `failed=1; continue`; dazu ein Test mit Symlink-Fixture. Etwa sechs Zeilen.
 - **Herkunft:** `/security-review` zu Task 44 (Hinweis, Out-of-Scope – Prüfung stammt aus nothra/tch-gastro-services#319).
+
+### Fetch-Container kann Bundle und Log beliebig aufblähen
+
+- **Wo:** `scripts/factory-update.sh:227` (`require_single_bundle` prüft Art, nicht Größe) und `.github/workflows/factory-update.yml:101` (Upload ohne Größengrenze), verifiziert am 2026-11-20.
+- **Was:** Ein feindliches Release kann `/out/update.bundle` sehr groß (auch sparse) schreiben oder stdout fluten. Folge ist nur ein DoS des eigenen Laufs (Platte, Artefakt-Kontingent mit `retention-days: 1`), kein Weg zum Token.
+- **Fix:** In `require_single_bundle` eine Obergrenze (z. B. `[ "$(stat -c %s …)" -le <MiB> ]`) und `docker run --stop-timeout`/Job-`timeout-minutes` prüfen; dazu ein Test mit zu großer Datei. Etwa fünf Zeilen.
+- **Herkunft:** `/security-review` zu Task 41 (Hinweis, Out-of-Scope, kein Sicherheitsrisiko).

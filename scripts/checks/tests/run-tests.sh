@@ -8821,8 +8821,8 @@ echo "#431 AK-F: factory-ci.yml nur Factory, ci.yml projekteigen:"
 FCI_431="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 jobs_of_431() { awk '/^jobs:/{j=1;next} j && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^  /,"");sub(/:.*/,"");print}' "$1" | sort | tr '\n' ' '; }
 
-assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-integrity factory-self-test issue-sync post-merge-verify pr-closes-issue " ]; echo $?)" \
-  "#431 AK-F1: factory-ci.yml enthält genau die sechs Factory-Jobs (Ist: $(jobs_of_431 "$FCI_431"))"
+assert_true "$([ "$(jobs_of_431 "$FCI_431")" = "config-validation factory-integrity factory-self-test fetch-container-smoke issue-sync post-merge-verify pr-closes-issue " ]; echo $?)" \
+  "#431 AK-F1: factory-ci.yml enthält genau die sieben Factory-Jobs (fetch-container-smoke seit #41) (Ist: $(jobs_of_431 "$FCI_431"))"
 grep -q 'pnpm' "$FCI_431"
 assert_exit 1 "$?" "#431 AK-F1: factory-ci.yml enthält keinen pnpm-Aufruf"
 

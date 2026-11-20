@@ -5,6 +5,15 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 
 ## Unreleased
 
+### Geändert
+
+- **Release-Code im Job `fetch` nur noch im Container (Factory-ADR-063, Nachtrag 2026-11-20 E28–E34, #41):** `factory-update.yml`
+  ruft `factory-update.sh fetch-isolated` auf. Der Code des noch ungeprüften Release läuft in einem unprivilegierten Container
+  (ohne Capabilities, ohne Runner-Dateien, ohne Token-Variablen) und erreicht das Runtime-Token des Laufs nicht mehr, das
+  Caches im Scope von `main` schreiben darf. Bundle und Update-PR bleiben unverändert. Neuer CI-Job `fetch-container-smoke`.
+  **Breaking für selbst gehostete Runner ohne Docker:** Dort endet der Job `fetch` rot, ohne Rückfall auf eine Ausführung ohne
+  Container. GitHub-gehostete Runner haben Docker, dort ist nichts zu tun.
+
 ## v0.8.0 – 2026-11-15
 
 Bündelt alles seit v0.7.0 (#37, #44, #45, #47, #49, #51, #52). Mit dieser Version entfällt die Einschränkung zu

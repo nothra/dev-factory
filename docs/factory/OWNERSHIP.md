@@ -42,7 +42,7 @@ Parser und liest nichts anderes:
 | Seite | Muster | Begründung |
 |---|---|---|
 | factory | `.claude/commands/**` | Skills der Pipeline |
-| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-integrity`, `factory-self-test`, `post-merge-verify`); kein `pnpm` |
+| factory | `.github/workflows/factory-ci.yml` | Factory-Jobs (`pr-closes-issue`, `issue-sync`, `config-validation`, `factory-integrity`, `factory-self-test`, `fetch-container-smoke`, `post-merge-verify`); kein `pnpm` |
 | factory | `.github/workflows/factory-poll.yml` | Async-Start der Pipeline (ADR-008) |
 | factory | `.github/workflows/factory-update.yml` | Täglicher Auslöser des Update-PRs auf `chore/factory-update` (ADR-063 E10) |
 | factory | `config/otel.env.example` | Vorlage für die Telemetrie-Erhebung |
