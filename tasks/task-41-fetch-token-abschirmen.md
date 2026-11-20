@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Im Job `fetch` von `factory-update.yml` läuft Release-Code auf einem Runner, auf dem das Runtime-Token des Laufs liegt
@@ -21,14 +21,14 @@ ADR-Trigger: ja (Jobstruktur/Isolationsgrenze) → `/architecture 41` vor `/impl
 - [x] AK1.1 Release-Code (Abholung, Commit, Bundle) läuft im `fetch`-Job nur im Container
 - [x] AK1.2 Container ohne Sonderrechte (kein privileged/pid/network/ipc host, kein cap-add, kein Docker-Socket; cap-drop ALL, no-new-privileges)
 - [x] AK1.3 Keine ACTIONS_*-/Token-Variablen, kein env-file, keine Runner-Dateien; nur Arbeits- und Ausgabeverzeichnis eingebunden
-- [ ] AK1.4 Image per Digest gepinnt, nicht aus Arbeitsbaum/Release gebaut (Build ohne Kontext erledigt; Digest `sha256:a72b…` eingetragen, Ladbarkeit belegt erst der erste Lauf des Smoke-Jobs, siehe Blocker)
+- [x] AK1.4 Image per Digest gepinnt, nicht aus Arbeitsbaum/Release gebaut (Digest `sha256:a72b…`; Ladbarkeit belegt durch grünen `fetch-container-smoke` auf PR #65)
 - [x] AK2.1 Nach dem Container nur der Upload der Bundle-Datei; kein git/keine Ausführung im Container-Verzeichnis
 - [x] AK2.2 Manipulation von `.git/config`/Hooks wird auf dem Host nie ausgeführt
 - [x] AK3.1 Bundle und Update-PR unverändert
 - [x] AK3.2 Tests zu #23/#24/#37 grün, geänderte Anker mindestens gleich streng
 - [x] AK4.1 Wiring-Tests an der echten `factory-update.yml`, ohne Docker lauffähig
 - [x] AK4.2 Mutationsbeleg je tragender Eigenschaft
-- [ ] AK4.3 Smoke-Job in `factory-ci.yml`: Image echt bauen und mit echten Optionen starten (Job angelegt und verdrahtet; erster echter Lauf in CI steht aus)
+- [x] AK4.3 Smoke-Job in `factory-ci.yml`: Image echt bauen und mit echten Optionen starten (erster Lauf grün, PR #65)
 - [x] AK5.1 ADR-063-Nachtrag (#41) inkl. Korrektur der `sudo`-Aussage in E17
 - [x] AK5.2 OPERATING §0.6: Container, Docker-Voraussetzung, Restrisiko für Caches
 - [x] F1 Kein Docker → `fetch` rot, kein stiller Rückfall
@@ -129,6 +129,8 @@ Zwei neue Lessons in `docs/factory/lessons/factory-workflow.md` und `lessons/IND
 Fremdcode-Isolation (W1) und Pin-Wert ohne Netz nicht erfinden (Null-Digest). Details: `tasks/codify-41.md`.
 Offen: Issue „Fetch-Container vom Host-Gateway und Link-Local-Diensten abschotten" (`enhancement` + `security`) ist noch
 anzulegen, die Anlage lehnte der Permission-Layer ab. DoS durch riesiges Bundle steht in `docs/factory/kleinfunde.md`.
+
+PR-Shepherd 2026-11-21: Merge freigegeben – alle Gates grün (CI inkl. `fetch-container-smoke` grün auf PR #65).
 
 ---
 Branch: `fix/41-fetch-token-abschirmen`
