@@ -21,7 +21,7 @@ ADR-Trigger: ja (Jobstruktur/Isolationsgrenze) → `/architecture 41` vor `/impl
 - [x] AK1.1 Release-Code (Abholung, Commit, Bundle) läuft im `fetch`-Job nur im Container
 - [x] AK1.2 Container ohne Sonderrechte (kein privileged/pid/network/ipc host, kein cap-add, kein Docker-Socket; cap-drop ALL, no-new-privileges)
 - [x] AK1.3 Keine ACTIONS_*-/Token-Variablen, kein env-file, keine Runner-Dateien; nur Arbeits- und Ausgabeverzeichnis eingebunden
-- [ ] AK1.4 Image per Digest gepinnt, nicht aus Arbeitsbaum/Release gebaut (Build ohne Kontext erledigt; **echter Digest fehlt**, siehe Blocker)
+- [ ] AK1.4 Image per Digest gepinnt, nicht aus Arbeitsbaum/Release gebaut (Build ohne Kontext erledigt; Digest `sha256:a72b…` eingetragen, Ladbarkeit belegt erst der erste Lauf des Smoke-Jobs, siehe Blocker)
 - [x] AK2.1 Nach dem Container nur der Upload der Bundle-Datei; kein git/keine Ausführung im Container-Verzeichnis
 - [x] AK2.2 Manipulation von `.git/config`/Hooks wird auf dem Host nie ausgeführt
 - [x] AK3.1 Bundle und Update-PR unverändert
@@ -79,6 +79,13 @@ Blocker 2026-11-20: In `scripts/factory-update.sh` steht für `FETCH_BASE_IMAGE`
 Digest konnte die Session nicht holen, weil sie keinen Netz- oder Docker-Zugriff hatte. Der Test „#41 AK1.4: echter
 Digest“ ist deshalb bewusst rot und hält das pre-push-Gate an. Ermitteln:
 `docker buildx imagetools inspect debian:trixie-slim --format '{{json .Manifest.Digest}}'`, dann die eine Zeile ersetzen.
+
+Update 2026-11-20 (/implement, Folgesession): In Commit 03359c5 steht für `FETCH_BASE_IMAGE` der Digest
+`sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2`. Der Test „#41 AK1.4: echter Digest" ist
+grün, die ausgelieferte Suite steht bei 2633/0, die Projekt-Suite bei 249/0, `pre-push.sh` ist grün. Gegen die Registry
+geprüft ist der Digest noch nicht, weil die Session keine Docker-Freigabe hatte. Der Test schließt nur den
+Nullen-Platzhalter aus. Ob das Image ladbar ist, zeigt erst der Job `fetch-container-smoke` in CI (F2: falscher Digest →
+rot). Mit dessen erstem grünen Lauf werden AK1.4 und AK4.3 abgehakt.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
