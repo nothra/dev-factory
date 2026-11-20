@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -103,6 +103,14 @@ Runde 1 (2026-11-20): **APPROVED**, 0 kritische, 2 wichtige, 4 Nitpicks. Details
   `FETCH_BUNDLE` und der feste Ausgabepfad in `FETCH_CONTAINER_SCRIPT` übereinstimmen.
 - Nicht in diesem Schritt: Die Erweiterung des Smoke-Befehls (Produktionscode, Review-Finding „wichtig") und die
   Registry-Prüfung des Digests. Beides gehört in `/implement` bzw. in den ersten Lauf von `fetch-container-smoke`.
+
+## Refactoring-Notizen (/refactor, 2026-11-20)
+- Kein Code geändert. Geprüft: Naming, Funktionslänge (alle neuen Funktionen ≤ 10 Zeilen), Parameter (≤ 3), Duplikation, Magic Strings.
+- Bewusst belassen: `FETCH_CONTAINER_SCRIPT` schreibt `/out/update.bundle` fest. Ein Ableiten aus `FETCH_BUNDLE` änderte den
+  exakt gepinnten Aufruf (E31) und den Test-Anker `SCRIPT_41`; die Übereinstimmung sichert schon `bundle_const_ok_41`
+  mit Mutationsbeleg. Der Gewinn rechtfertigt die gelockerte Pinnung nicht.
+- Nicht Refactoring (neues Verhalten, bleibt für /implement): Smoke-Befehl erweitern, `docker build --no-cache`.
+- Tests unverändert (kein Code geändert; Stand /test: 2637/0).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
