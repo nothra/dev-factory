@@ -2,8 +2,8 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
-- [ ] Tests vollständig
+- [x] Review bestanden
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -89,6 +89,20 @@ rot). Mit dessen erstem grünen Lauf werden AK1.4 und AK4.3 abgehakt.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+Runde 1 (2026-11-20): **APPROVED**, 0 kritische, 2 wichtige, 4 Nitpicks. Details in `tasks/review-41.md`.
+- Wichtig: Der Smoke-Befehl lässt die fetch-eigenen Schritte im Container nicht laufen (`cp -a`, git in der Kopie,
+  Commit als UID ohne passwd-Eintrag). Ergänzen, bevor `fetch-container-smoke` zum ersten Mal läuft.
+- Wichtig: AK1.4 und AK4.3 erst nach grünem `fetch-container-smoke` auf dem PR abhaken. Vor dem Merge darauf warten.
+
+## Test-Notizen (/test, 2026-11-20)
+- Jedes AK und F1–F4 hat Happy- und Fehlerfall plus Mutationsbeleg. Es gab keine AK-Lücke. Die Gruppe `factory-lock-41-tests.sh`
+  steht bei 82 grün (vorher 78), die ausgelieferte Suite bei 2637/0, die Projekt-Suite bei 249/0. Coverage gibt es im
+  Bash-Repo nicht, die Mutationsbelege stehen an ihrer Stelle.
+- Zwei Review-Nitpicks sind jetzt im Test abgedeckt. Der Verbots-Prüfer erkennt `--cgroupns=host` und ein getrennt
+  übergebenes `--security-opt <wert>` ≠ `no-new-privileges`, jeweils mit Mutationsbeleg. Zudem prüft ein Test, dass
+  `FETCH_BUNDLE` und der feste Ausgabepfad in `FETCH_CONTAINER_SCRIPT` übereinstimmen.
+- Nicht in diesem Schritt: Die Erweiterung des Smoke-Befehls (Produktionscode, Review-Finding „wichtig") und die
+  Registry-Prüfung des Digests. Beides gehört in `/implement` bzw. in den ersten Lauf von `fetch-container-smoke`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

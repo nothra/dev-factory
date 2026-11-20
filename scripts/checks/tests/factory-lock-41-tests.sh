@@ -98,10 +98,13 @@ run_exact_41() {
 }
 # run_forbidden_free_41 <argv> – unabhängige Prüfung: keine Sonderrechte, keine Runner-Dateien/Token, genau drei Mounts, ein -e
 run_forbidden_free_41() {
-  local x n_v=0 n_e=0 p
+  local x n_v=0 n_e=0 p prev=""
   while IFS= read -r -d '' x; do
+    # getrennt übergebenes --security-opt <wert>: nur no-new-privileges ist erlaubt (systempaths=unconfined u. a. nicht)
+    [ "$prev" != --security-opt ] || [ "$x" = no-new-privileges ] || return 1
+    prev="$x"
     case "$x" in
-      --privileged*|--pid*|--ipc*|--uts*|--userns*|--network*|--net|--net=*|--cap-add*|--device*|--env-file*|--mount*) return 1 ;;
+      --privileged*|--pid*|--ipc*|--uts*|--userns*|--cgroupns*|--network*|--net|--net=*|--cap-add*|--device*|--env-file*|--mount*) return 1 ;;
       --volumes-from*|--security-opt=*|--group-add*|*docker.sock*|*seccomp*|*apparmor*|*ACTIONS_*|*GITHUB_*|*TOKEN*) return 1 ;;
       "$RT_41:"*) return 1 ;;
       -v|--volume) n_v=$((n_v + 1)) ;;
@@ -149,10 +152,19 @@ sed -E 's#@sha256:[0-9a-f]{64}"#@sha256:'"$(printf '0%.0s' $(seq 64))"'"#' "$UPD
 digest_real_41 "$T23/m41-digest.sh"; assert_exit 1 "$?" "#41 AK1.4 (Mutation): Platzhalter-Digest → derselbe Prüfer ist rot"
 # Der unabhängige Verbots-Prüfer allein (falls der exakte Vergleich einmal mitgezogen würde)
 fd_41 fv1 file; iso_41; run_forbidden_free_41 "$FD_41/run.argv"; assert_exit 0 "$?" "#41 AK1.2/AK1.3: Verbots-Prüfer grün am echten Aufruf"
-for bad_41 in --privileged --pid=host --network=host --cap-add=ALL "-v /var/run/docker.sock:/var/run/docker.sock" "--env-file x" "-e ACTIONS_RUNTIME_TOKEN" "-v $RT_41:/rt"; do
+for bad_41 in --privileged --pid=host --network=host --cap-add=ALL "-v /var/run/docker.sock:/var/run/docker.sock" "--env-file x" "-e ACTIONS_RUNTIME_TOKEN" "-v $RT_41:/rt" --cgroupns=host "--security-opt systempaths=unconfined"; do
   { tr '\0' '\n' < "$FD_41/run.argv" | sed -n 1p; printf '%s\n' $bad_41; tr '\0' '\n' < "$FD_41/run.argv" | sed '1d'; } | tr '\n' '\0' > "$FD_41/bad.argv"
   run_forbidden_free_41 "$FD_41/bad.argv"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): Verbots-Prüfer erkennt „${bad_41}“"
 done
+
+# Der feste Pfad im Container-Skript und die Konstante, gegen die der Rückweg prüft, bleiben gleich (sonst fiele es erst in E32 auf)
+bundle_const_ok_41() { # <skript>
+  local c; c="$(sed -n 's/^FETCH_BUNDLE="\(.*\)"$/\1/p' "$1")"
+  [ -n "$c" ] && grep -qE "^FETCH_CONTAINER_SCRIPT=.* /out/${c}'\$" "$1"
+}
+bundle_const_ok_41 "$UPD_24"; assert_exit 0 "$?" "#41 E32: FETCH_BUNDLE und der Ausgabepfad im Container-Skript stimmen überein"
+mutant_37 41-bundle-name 's#^FETCH_BUNDLE="update.bundle"#FETCH_BUNDLE="other.bundle"#'
+bundle_const_ok_41 "$MUT37"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): abweichender Bundle-Name → derselbe Prüfer ist rot"
 
 # ── E32/E33: Rückweg und Fail-closed (Spec F1–F4) ────────────────────────────────────────────────────────────────────
 # ret_41 <out-mode> [<skript>] – Exit von fetch-isolated bei dieser Container-Ausgabe
