@@ -964,7 +964,7 @@ werden in `fetch` rot; das gehört in die Release-Notes.
 
 ## Nachtrag 2026-11-21 · Netz des Fetch-Containers abschotten (Spec #66, Q1–Q5)
 
-Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Proposed.
+Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Accepted (2026-11-21, Entscheidung Mensch; Umsetzung in #66).
 **Ersetzt** E31 *Netz (Q3)* („Standard-Bridge, keine weitere Einschränkung") und **präzisiert** Restrisiko 2 des
 Nachtrags zu #41. E28–E34 gelten sonst unverändert. Die Verhaltensentscheidungen stehen in
 `docs/specs/spec-66-fetch-container-netz-abschotten.md`.

@@ -37,7 +37,7 @@ ADR-Trigger: kehrt Factory-ADR-063 E31 Q3 um → `/architecture` vor `/implement
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
-Entscheidung: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40), Status Proposed. Kurzfassung für `/implement`:
+Entscheidung: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40), Status Accepted (2026-11-21). Kurzfassung für `/implement`:
 
 - **Netz (E35):** Konstanten `FETCH_NETWORK=factory-fetch`, `FETCH_BRIDGE=factory-fetch0`;
   `docker network create --driver bridge -o com.docker.network.bridge.name=factory-fetch0 factory-fetch`.
@@ -60,7 +60,7 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40), Status Proposed.
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->
 - [x] Q1–Q5 geklärt in Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40)
-- [ ] ADR-Nachtrag annehmen (Status Proposed → Accepted)
+- [x] ADR-Nachtrag angenommen (Accepted, 2026-11-21)
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
