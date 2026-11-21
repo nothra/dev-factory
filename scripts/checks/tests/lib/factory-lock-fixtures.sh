@@ -226,7 +226,8 @@ token_refused_24() {
 # Zustand je Lauf unter $FAKE_DOCKER_STATE: calls.log (info | build | run | network-<op> | flock | sudo -n iptables |
 # iptables <op> <kette> | sudo-ohne-n), out-mode, chains/<kette> (eine Regel je Zeile, oben = Kettenanfang), net (Netz existiert),
 # gateway (sonst FAKE_GATEWAY_66), Schalter fail-*/no-*/flock-busy.
-# Beim run hält der Fake fest, welche Regeln und ob das Netz in diesem Moment bestehen (chains-at-run/, net-at-run).
+# Beim run hält der Fake fest, welche Regeln und ob das Netz in diesem Moment bestehen (chains-at-run/, net-at-run); bei run,
+# network rm und dem Lauscher, ob fd 9 (Lock, E41) offen ist (lock-at-run, lock-at-net-rm, lock-at-listener: 1/0).
 # out-mode: none | file | symlink | dir | two | smoke | probe | emulate. „probe" führt das Smoke-Skript aus (#66). „emulate" bildet den Container nach: Arbeitskopie aus dem
 # /src-Mount, Pfade /tmp/work, /src, /out umgelenkt, Umgebung NUR aus den -e-Argumenten (wie docker) – plus die offline-Umlenkung
 # der Fixture-Quellen (FACTORY_UPSTREAM_GIT_URL/FACTORY_RELEASE_BASE_URL), die es im echten Lauf nicht gibt.
@@ -236,6 +237,7 @@ fetch_fakes_41() {
   cat > "$FAKE_41/docker" <<'FAKE'
 #!/usr/bin/env bash
 d="$FAKE_DOCKER_STATE"
+lock_open() { if { : >&9; } 2>/dev/null; then echo 1; else echo 0; fi; }   # 1 = fd 9 (host-weiter Lock, E41) ist geerbt
 case "$1" in network) printf 'network-%s\n' "$2" >> "$d/calls.log" ;; *) printf '%s\n' "$1" >> "$d/calls.log" ;; esac
 case "$1" in
   info) [ ! -e "$d/fail-info" ] ;;
@@ -245,11 +247,12 @@ case "$1" in
       inspect) [ -e "$d/net" ] || exit 1
                case " $* " in *" -f "*) cat "$d/gateway" 2>/dev/null || echo "$FAKE_GATEWAY_66" ;; esac ;;
       create) printf '%s\0' "$@" > "$d/net-create.argv"; [ ! -e "$d/fail-net-create" ] && [ ! -e "$d/net" ] || exit 1; : > "$d/net" ;;
-      rm) [ ! -e "$d/fail-net-rm" ] && [ -e "$d/net" ] || exit 1; rm -f "$d/net" ;;
+      rm) lock_open > "$d/lock-at-net-rm"
+          [ ! -e "$d/fail-net-rm" ] && [ -e "$d/net" ] || exit 1; rm -f "$d/net" ;;
       *) exit 9 ;;
     esac ;;
   run)
-    printf '%s\0' "$@" > "$d/run.argv"
+    printf '%s\0' "$@" > "$d/run.argv"; lock_open > "$d/lock-at-run"
     rm -rf "$d/chains-at-run"; mkdir -p "$d/chains"; cp -R "$d/chains" "$d/chains-at-run"
     [ ! -e "$d/net" ] || : > "$d/net-at-run"
     [ ! -e "$d/fail-run" ] || exit 3
@@ -324,6 +327,7 @@ FAKE
   cat > "$FAKE_HOST_66/python3" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\0' "$@" > "$FAKE_DOCKER_STATE/listener.argv"; printf '%s\n' "$$" > "$FAKE_DOCKER_STATE/listener.pid"
+if { : >&9; } 2>/dev/null; then echo 1; else echo 0; fi > "$FAKE_DOCKER_STATE/lock-at-listener"   # erbt der Lauscher den Lock?
 [ -e "$FAKE_DOCKER_STATE/fail-listener" ] || : > "$FAKE_DOCKER_STATE/listener-up"
 exec sleep 30
 FAKE

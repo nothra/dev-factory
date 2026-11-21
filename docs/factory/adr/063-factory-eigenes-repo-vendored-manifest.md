@@ -964,7 +964,8 @@ werden in `fetch` rot; das gehört in die Release-Notes.
 
 ## Nachtrag 2026-11-21 · Netz des Fetch-Containers abschotten (Spec #66, Q1–Q5)
 
-Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Accepted (2026-11-21, Entscheidung Mensch; Umsetzung in #66).
+Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Accepted (2026-11-21, Entscheidung Mensch; Umsetzung in #66) für E35–E40. **E41** ist **Proposed** (aus `/implement`
+nach `/review` Runde 1) – Annahme durch den Menschen ausstehend.
 **Ersetzt** E31 *Netz (Q3)* („Standard-Bridge, keine weitere Einschränkung") und **präzisiert** Restrisiko 2 des
 Nachtrags zu #41. E28–E34 gelten sonst unverändert. Die Verhaltensentscheidungen stehen in
 `docs/specs/spec-66-fetch-container-netz-abschotten.md`.
@@ -1039,9 +1040,13 @@ und HTTPS ins öffentliche Internet.
   Namensauflösung und HTTPS zu `github.com` (mit `curl --retry`, gegen kurze Aussetzer, Q5). `/proc/net/if_inet6`
   enthält keine Adresse außer gegebenenfalls `lo` (E37). Jede Abweichung → Exit 1. Kein Angriffsversuch, kein
   Release-Code. „Scheitern" heißt *abgewiesen*: `curl` endet mit Exit 7 (die `REJECT`-Regeln antworten mit ICMP
-  port-unreachable); ein Timeout oder eine fehlende Route ist rot, weil er die Regel nicht belegt (Ergänzung aus
-  `/review` Runde 1).
-- **E41 · Ein fetch-Lauf je Docker-Host (ergänzt E38, E39; aus `/review` Runde 1, in `/implement` entschieden).** Netz,
+  port-unreachable); ein Timeout (Exit 28) ist rot, weil er die Regel nicht belegt (Ergänzung aus `/review` Runde 1).
+  Grenze: `curl` meldet jeden gescheiterten `connect()` mit 7, auch eine fehlende Route (ENETUNREACH/EHOSTUNREACH). Die
+  Probe belegt die Regeln deshalb nur auf einem Runner, auf dem die Ziele ohne Regel antworten – auf `ubuntu-latest`
+  (Azure) tun IMDS und WireServer das; dort wäre eine fehlende Regel rot. Eine Prüfung des stderr-Textes („Connection
+  refused") ist verworfen: neuere `curl`-Versionen melden dort teils nur „Couldn't connect to server" (`/review` Runde 2).
+- **E41 · Ein fetch-Lauf je Docker-Host (ergänzt E38, E39; aus `/review` Runde 1, in `/implement` entschieden; Status
+  Proposed, Annahme durch den Menschen ausstehend).** Netz,
   Bridge und Regeln tragen feste Namen; `iptables -C`/`-D` kann nicht unterscheiden, wessen Regel es ist. Zwei Läufe an
   einem Docker-Daemon (selbst gehostete Runner mit mehreren Instanzen; die `concurrency`-Gruppe greift nur je Repo)
   entfernten sich sonst gegenseitig die Sperre – stilles Fail-open. Deshalb hält `fetch-isolated` bzw. `fetch-smoke`
@@ -1049,8 +1054,8 @@ und HTTPS ins öffentliche Internet.
   Prozessende, also über Container und Abräumen). Erst mit dem Lock gilt das Netz als „eigenes" und wird im EXIT-Trap
   abgeräumt. Bekommt der Lauf den Lock nicht (anderer Lauf länger als 900 s, `flock` fehlt, Datei nicht öffenbar),
   endet er mit Exit 1, ohne Netz oder Regeln anzufassen. Voraussetzung: alle Runner-Instanzen eines Hosts öffnen
-  dieselbe Datei (gleiches `/tmp`, Schreibrecht). Auf GitHub-gehosteten Runnern (ein Job je VM) ist der Lock nie
-  belegt.
+  dieselbe Datei (gleiches `/tmp`, Schreibrecht für jede Instanz, `flock` vorhanden). Wo das nicht gilt, bleibt die
+  Lücke (Restrisiko 6). Auf GitHub-gehosteten Runnern (ein Job je VM) ist der Lock nie belegt.
 
 **Alternativen:**
 - *Keine Sperre* (E31 Q3 bisher): kein Aufwand, aber Host-Dienste, IMDS und WireServer bleiben erreichbar; verworfen
@@ -1066,6 +1071,13 @@ und HTTPS ins öffentliche Internet.
   eigenem Image und eigener Lieferkette; die Spec verlangt keine Allowlist. Verworfen.
 - *Regeln im Container:* brauchen `CAP_NET_ADMIN`, und Release-Code könnte sie aufheben. Verworfen.
 - *Pauschale Sperre von `168.63.129.16`:* bräche DNS auf Azure (Befund oben). Verworfen zugunsten der Port-53-Ausnahme.
+- *Namen je Lauf statt Lock (zu E41):* Netz und Bridge je Lauf eindeutig benannt, Regeln mit `-m comment` dem Lauf
+  zugeordnet; parallele Läufe kämen sich nicht in die Quere, auch bei getrenntem `/tmp` (Restrisiko 6). Verworfen: Ein
+  Bridge-Name hat höchstens 15 Zeichen (`factory-fetch0` belegt 14), ein Lauf-Kennzeichen passt kaum hinein; Reste
+  abgebrochener Läufe tragen fremde Namen, ihr Abräumen (E38) müsste fremde Läufe von toten unterscheiden; Regeln mit
+  Kommentar ändern den festen Regelsatz aus E36, und die Offline-Tests (Fakes, Mutanten) wüchsen deutlich. Der Lock deckt
+  den bekannten Fall (mehrere Instanzen auf einem Host) mit einer Zeile ab; möglicher späterer Schritt, falls Restrisiko 6
+  real wird.
 
 **Restrisiko (präzisiert Restrisiko 2 des Nachtrags zu #41):**
 1. *Datenabfluss:* Der Container erreicht das öffentliche Internet und kann Inhalte des Checkouts hinaussenden
@@ -1083,11 +1095,18 @@ und HTTPS ins öffentliche Internet.
    der Container noch laufen kann (`--rm` greift erst an seinem Ende). Hängt ein verwaister Container noch an
    `factory-fetch`, scheitert jeder weitere Lauf (Netz nicht entfernbar, fail-closed), bis er von Hand entfernt ist.
    Auf Wegwerf-Runnern folgenlos.
+6. *Gemeinsamer Docker-Daemon, getrenntes `/tmp`:* Der Lock (E41) serialisiert je Dateisystem von `/tmp`, nicht je
+   Docker-Daemon. Laufen Runner-Instanzen in eigenen Containern mit gemountetem Docker-Socket (je eigenes `/tmp`), greift
+   er nicht: Zwei Läufe können sich dann gegenseitig die Sperre entfernen (stilles Fail-open wie vor E41). Das Skript
+   erkennt diesen Aufbau nicht und ist dort nicht fail-closed. Abhilfe beim Betreiber: `/tmp/factory-fetch.lock` aus einem
+   gemeinsamen Verzeichnis in alle Instanzen einbinden oder `fetch` je Daemon nur auf einer Instanz laufen lassen.
+   GitHub-gehostete Runner betrifft es nicht.
 
-**Konsequenzen:** geändert `scripts/factory-update.sh` (Netz, Regeln, Lebenszyklus, `docker run`-Optionen,
-Smoke-Probe), `.github/workflows/factory-ci.yml` (Gateway-Lauscher bzw. Aufruf im Smoke-Job, falls nötig), Tests in
-`scripts/checks/tests/factory-lock-41-tests.sh` oder einer neuen Gruppe `factory-lock-66-tests.sh` (dann mit
-`OWNERSHIP.md`-Zeile und Eintrag in `run-tests.sh`), `docs/factory/OPERATING.md` §0.6 (Voraussetzung passwortloses
-`sudo` und `iptables`, Restrisiko), Verweise in E31 und im Restrisiko des Nachtrags zu #41, `tasks/security-41.md`
-(Hinweis „Netz" → #66). Konsumenten auf GitHub-gehosteten Runnern brauchen nichts einzurichten. Selbst gehostete Runner
-ohne passwortloses `sudo` oder `iptables` werden in `fetch` rot; das gehört in die Release-Notes.
+**Konsequenzen:** geändert `scripts/factory-update.sh` (Netz, Regeln, Lebenszyklus, Lock, `docker run`-Optionen,
+Smoke-Probe), `.github/workflows/factory-ci.yml` (Kommentar im Smoke-Job), Tests in der neuen Gruppe
+`scripts/checks/tests/factory-lock-66-tests.sh` (per Glob in `run-tests.sh`, von `scripts/checks/tests/**` in
+`OWNERSHIP.md` gedeckt) mit gemeinsamen Fakes in `lib/factory-lock-fixtures.sh`, `docs/factory/OPERATING.md` §0.6
+(Voraussetzungen passwortloses `sudo`, `iptables` und `flock`, Restrisiko), Verweise in E31 und im Restrisiko des
+Nachtrags zu #41, `tasks/security-41.md` (Hinweis „Netz" → #66). Konsumenten auf GitHub-gehosteten Runnern brauchen
+nichts einzurichten. Selbst gehostete Runner ohne passwortloses `sudo`, `iptables` oder `flock` werden in `fetch` rot; das
+gehört in die Release-Notes.

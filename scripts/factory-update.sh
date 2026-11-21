@@ -68,7 +68,9 @@ FETCH_CONTAINER_SCRIPT='cp -a /src/. /tmp/work && bash /tmp/work/scripts/factory
 # Harmloser Nachweis für den Smoke-Job (E34 f): Werkzeuge da, kein root, keine Runner-Umgebung, Checkout nur lesend, /out beschreibbar.
 # Dazu die Netz-Probe (E40 c, $1 = Gateway, $2 = Port des Host-Lauschers): Gateway, IMDS und WireServer abgewiesen, DNS und HTTPS
 # zu GitHub erreichbar, keine IPv6-Adresse außer lo. Abgewiesen heißt curl-Exit 7: REJECT antwortet mit ICMP port-unreachable;
-# ein Timeout (28) oder eine fehlende Route belegen die Regel nicht. Fehlt /proc/net/if_inet6 (kein IPv6), ist das erfüllt;
+# ein Timeout (28) belegt die Regel nicht. Grenze: curl meldet jeden gescheiterten connect() mit 7, auch eine fehlende Route –
+# die Probe setzt einen Runner voraus, auf dem die Ziele ohne Regel antworten (GitHub-gehostet: ja, ADR-063 E40 c).
+# Fehlt /proc/net/if_inet6 (kein IPv6), ist das erfüllt;
 # grep kann dort nicht zwischen „Datei fehlt“ und „nicht lesbar“ unterscheiden – beides gilt als ohne IPv6.
 FETCH_SMOKE_SCRIPT='blocked() { curl -s -o /dev/null --max-time 5 "$1"; rc=$?; [ "$rc" = 7 ] || { echo "✗ Netz-Sperre nicht belegt: $1 → curl-Exit $rc (erwartet 7 = abgewiesen)" >&2; return 1; }; }
 git --version && jq --version && yq --version && curl --version && sha256sum --version \
@@ -94,7 +96,8 @@ FETCH_NET_RULES=(
 FETCH_NET_HINT="fetch braucht passwortloses sudo und iptables auf dem Runner (GitHub-gehostet vorhanden) – kein Container ohne Netz-Sperre"
 # Host-weiter Lock (E41): Netz, Bridge und Regeln tragen feste Namen – zwei Läufe an einem Docker-Daemon entfernten sich sonst
 # gegenseitig die Sperre. Gehalten auf fd 9 bis zum Prozessende, also über Einrichten → Container → Abräumen (EXIT-Trap).
-# FACTORY_FETCH_LOCK nur für Tests.
+# FACTORY_FETCH_LOCK lenkt die Datei um (gedacht für Tests). Er wirkt überall, auch in CI: Instanzen mit verschiedenen Werten
+# serialisieren nicht mehr gegeneinander – nie nur für einen Teil der Runner eines Hosts setzen.
 FETCH_LOCK_FILE="${FACTORY_FETCH_LOCK:-/tmp/factory-fetch.lock}"
 FETCH_LOCK_WAIT_SECONDS=900
 # Smoke-Probe (E40 c): Port des Host-Lauschers auf dem Gateway; Gegenprobe vom Host bis zu N Versuche im Abstand von S Sekunden
@@ -332,9 +335,10 @@ start_gateway_listener() {
   mkdir "$WORK/listener" || die "Verzeichnis für den Lauscher nicht anlegbar"
   python3 -m http.server --bind "$SMOKE_GATEWAY" --directory "$WORK/listener" "$FETCH_SMOKE_PORT" >/dev/null 2>&1 9>&- &
   SMOKE_LISTENER_PID=$!
-  while [ "$tries" -gt 0 ]; do
+  while :; do
     curl -s -o /dev/null --max-time 2 "http://$SMOKE_GATEWAY:$FETCH_SMOKE_PORT/" && return 0
-    tries=$((tries - 1)); sleep "$SMOKE_LISTENER_PAUSE"
+    tries=$((tries - 1)); [ "$tries" -gt 0 ] || break
+    sleep "$SMOKE_LISTENER_PAUSE"
   done
   die "Gegenprobe gescheitert: der Host erreicht den Lauscher auf $SMOKE_GATEWAY:$FETCH_SMOKE_PORT nicht – Smoke-Probe ohne Aussage"
 }
@@ -516,6 +520,7 @@ mode_fetch() {
 mode_fetch_isolated() {
   require_handover_args "${1:-}" "${2:-}" "${3:-}"
   require_docker
+  # Vor dem Lock: endet der Lauf am Lock, bleibt das Verzeichnis leer liegen – ein Retry braucht einen neuen Pfad (CI: je Lauf frisch).
   make_out_dir "$3"
   setup_fetch_network
   build_fetch_image

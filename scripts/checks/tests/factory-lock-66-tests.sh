@@ -54,7 +54,8 @@ run_66() {
   else
     printf '%s\n' "${3:-smoke}" > "$D66/out-mode"; args=(fetch-smoke "$O66"); path="$FAKE_HOST_66:$path"
   fi
-  out_66="$(FACTORY_DIR="$R66" PATH="$path" FAKE_DOCKER_STATE="$D66" FAKE_CTR_66="$FAKE_CTR_66" bash "${2:-$UPD_24}" "${args[@]}" 2>&1)"; rc_66=$?
+  # 9>&-: ein fd 9 der Test-Umgebung darf die Lock-Prüfer (lock-at-*) nicht grün färben
+  out_66="$(FACTORY_DIR="$R66" PATH="$path" FAKE_DOCKER_STATE="$D66" FAKE_CTR_66="$FAKE_CTR_66" bash "${2:-$UPD_24}" "${args[@]}" 2>&1 9>&-)"; rc_66=$?
 }
 # fresh_66 <iso|smoke> [<skript>] [<out-mode>] – st_66 + run_66
 fresh_66() { st_66; run_66 "$@"; }
@@ -192,8 +193,8 @@ assert_true "$([ "$rc_66" -eq 1 ] && [ "$(cat "$D66/calls.log")" = info ]; echo 
 # ── E41: ein fetch-Lauf je Docker-Host (host-weiter Lock) ───────────────────────────────────────────────────────────
 # lock_first_66 – der Lock kommt direkt nach require_docker, vor jedem Netz- oder iptables-Aufruf; Wartezeit begrenzt, fd 9
 lock_first_66() {
-  awk '/^flock$/ && !lock { lock = NR } /^(network-|iptables |sudo -n )/ && !first { first = NR }
-       END { exit !(lock == 2 && first > lock) }' "$D66/calls.log" \
+  awk '/^flock$/ && !lock { lock = NR; after_info = (prev == "info") } /^(network-|iptables |sudo -n )/ && !first { first = NR }
+       { prev = $0 } END { exit !(lock && after_info && first > lock) }' "$D66/calls.log" \
     && [ "$(tr '\0' ' ' < "$D66/flock.argv")" = "-w 900 9 " ]
 }
 for mode_66 in iso smoke; do
@@ -217,6 +218,17 @@ mut_busy_66() { # <name> <sed-ausdruck> – Mutante → der parallele Lauf zerst
 mut_busy_66 ohne-lock 's#^  acquire_fetch_lock$#  :#'
 mut_busy_66 lock-fehler-ignoriert 's#\|\| die "host-weiter Lock#|| true "host-weiter Lock#'
 mut_busy_66 abraeumen-vor-lock 's#^  acquire_fetch_lock$#  FETCH_NET_ACTIVE=1; acquire_fetch_lock#'
+# lock_held_66 – fd 9 ist beim Container-Start und beim Abräumen des Netzes noch offen: gehalten bis zum Prozessende
+lock_held_66() { [ "$(cat "$D66/lock-at-run" 2>/dev/null)" = 1 ] && [ "$(cat "$D66/lock-at-net-rm" 2>/dev/null)" = 1 ]; }
+for mode_66 in iso smoke; do
+  fresh_66 "$mode_66"; assert_true "$([ "$rc_66" -eq 0 ] && lock_held_66; echo $?)" "#66 E41 ($mode_66): Lock über Container und Abräumen gehalten"
+done
+mutant_37 66-lock-vor-container-frei '/^mode_fetch_isolated\(\)/,/^\}/s#^  setup_fetch_network$#  setup_fetch_network; exec 9>\&-#'
+fresh_66 iso "$MUT37"; assert_true "$(! lock_held_66; echo $?)" "#66 AK4.2 (Mutation): Lock vor dem Container freigegeben → derselbe Prüfer ist rot"
+# Der Lauscher der Smoke-Probe läuft im Hintergrund und erbt fd 9 nicht – sonst hielte er den Lock über das Skriptende hinaus
+fresh_66 smoke; assert_true "$([ "$rc_66" -eq 0 ] && [ "$(cat "$D66/lock-at-listener")" = 0 ]; echo $?)" "#66 E41: der Lauscher erbt den Lock nicht"
+mutant_37 66-lauscher-erbt-lock 's#2>&1 9>&- &$#2>\&1 \&#'
+fresh_66 smoke "$MUT37"; assert_true "$([ "$(cat "$D66/lock-at-listener")" = 1 ]; echo $?)" "#66 AK4.2 (Mutation): Lauscher ohne 9>&- → derselbe Prüfer ist rot"
 
 # ── E40 c/AK4.3: Netz-Probe des Smoke-Jobs ───────────────────────────────────────────────────────────────────────────
 # Der Host startet den Lauscher auf dem Gateway, reicht Gateway und Port in den Container und räumt den Lauscher ab
@@ -262,8 +274,8 @@ timeout_66() { # <ziel> [<skript>] – Exit von fetch-smoke, wenn <ziel> in den 
 }
 for target_66 in "http://$GATEWAY_66:$PORT_66/" http://169.254.169.254/ http://168.63.129.16/; do
   timeout_66 "$target_66"; assert_exit 1 "$?" "#66 AK4.3: $target_66 läuft in den Timeout statt abgewiesen zu werden → Smoke-Job rot (Regel nicht belegt)"
+  assert_true "$(grep -qF "$target_66 → curl-Exit 28" <<< "$out_66"; echo $?)" "#66 AK4.3: die Meldung nennt Ziel und curl-Exit (${target_66})"
 done
-assert_true "$(grep -qF 'curl-Exit 28' <<< "$out_66"; echo $?)" "#66 AK4.3: die Meldung nennt den curl-Exit"
 mutant_37 66-probe-jeder-fehler 's#^FETCH_SMOKE_SCRIPT=.blocked\(\) \{.*$#FETCH_SMOKE_SCRIPT='"'"'blocked() { ! curl -s -o /dev/null --max-time 5 "$1"; }#'
 timeout_66 http://169.254.169.254/ "$MUT37"; assert_exit 0 "$?" "#66 AK4.2 (Mutation): jeder curl-Fehler gilt als gesperrt → derselbe Fall ist nicht mehr rot"
 
@@ -271,14 +283,14 @@ timeout_66 http://169.254.169.254/ "$MUT37"; assert_exit 0 "$?" "#66 AK4.2 (Muta
 ops_ok_66() { # $1 = geglätteter Text von OPERATING.md
   local p
   for p in 'vom Host und von den Link-Local-Diensten' 'passwortloses `sudo` und `iptables`' 'Nachtrag 2026-11-21' 'Restrisiko im Netz' \
-    'nur ein `fetch` je Docker-Host'; do
+    'nur ein `fetch` je Docker-Host' 'greift der Lock **nicht**'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
 }
 adr_ok_66() { # $1 = geglätteter Text von ADR-063
   local p
   for p in 'Status: Accepted (2026-11-21' '**Ersetzt** durch den Nachtrag 2026-11-21 (#66,' 'Präzisiert im Nachtrag 2026-11-21 (#66)' 'E40 · Tests (ergänzt E34).' \
-    'E41 · Ein fetch-Lauf je Docker-Host'; do
+    'E41 · Ein fetch-Lauf je Docker-Host' '*Gemeinsamer Docker-Daemon, getrenntes `/tmp`:*' '*Namen je Lauf statt Lock (zu E41):*'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
 }
