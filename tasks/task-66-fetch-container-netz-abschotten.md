@@ -35,7 +35,8 @@ ADR-Trigger: kehrt Factory-ADR-063 E31 Q3 um → `/architecture` vor `/implement
 - [x] AK5.3 `tasks/security-41.md` Hinweis „Netz" verweist auf #66
 - [ ] F1, F3, F4 Fehlerszenarien abgedeckt (F2 entfällt, E39; siehe Spec)
 
-**Stand `/implement` (2026-11-21):** Offline vollständig belegt (`factory-lock-66-tests.sh`, 62 grün; #41-Gruppe 88 grün).
+**Stand `/implement` (2026-11-21, nach Review-Runde 2):** Offline vollständig belegt (`factory-lock-66-tests.sh`, 77 grün;
+#41-Gruppe 93 grün; ganze Suite 2725 grün, Projekt-Suite 249 grün).
 Offen bis zum ersten grünen CI-Lauf des Jobs `fetch-container-smoke` am PR: AK1.1–AK1.4, AK2.1, AK4.3 und F3 – deren
 Wirkung im echten Container (iptables-Backend, `DOCKER-USER`, DNS über `168.63.129.16`) ist offline nicht belegbar
 (ADR-063 Nachtrag 2026-11-21, Restrisiko 4). F1 und F4 sind offline belegt.
@@ -74,9 +75,20 @@ Notizen aus `/implement`:
 - Neue Gruppe `factory-lock-66-tests.sh` (per Glob in `run-tests.sh`, `OWNERSHIP.md` deckt `scripts/checks/tests/**` schon ab).
 - Smoke-Probe: Port des Host-Lauschers fest `18066`; die Gegenprobe vom Host läuft vor dem Container, sonst Smoke rot.
 - Mit kaputtem `iptables -C` kann auch das Abräumen keine Regel finden (Test lässt dort nur die Abräum-Prüfung weg).
+- Runde 2: Der Lock liegt auf fd 9 (bash 3.2 kennt `{var}>` nicht); der Lauscher der Smoke-Probe startet mit `9>&-`, sonst
+  hielte er den Lock über das Skriptende hinaus. `FACTORY_FETCH_LOCK` lenkt die Lock-Datei nur in Tests um.
+- In Testnamen `${var}` vor „“ schreiben: bash liest das typografische Anführungszeichen sonst als Teil des Namens (unbound variable).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+Runde 1 (2026-11-21): **NEEDS_REWORK**, Details in [`review-66.md`](review-66.md). 0 Kritisch, 3 Wichtig: parallele Läufe
+auf einem Docker-Host entfernen sich gegenseitig die Sperre; die Smoke-Probe trennt „gesperrt“ nicht von „unerreichbar“
+(Exit 7 verlangen); der #41-Anker `docker_calls_41` ist schwächer geworden (AK2.2). Dazu 10 Nitpicks.
+
+Runde 2 (`/implement`, 2026-11-21): alle drei wichtigen Findings behoben, 9 von 10 Nitpicks umgesetzt (Details mit „→" in
+`review-66.md`). Entscheidung zum Nebenläufigkeits-Finding: host-weiter Lock per `flock` (fail-closed), als **E41** im
+ADR-063-Nachtrag 2026-11-21 ergänzt – vom Review an `/implement` delegiert, bitte beim nächsten `/review` mitprüfen.
+Nicht umgesetzt: `--name`/`docker rm -f` bei Abbruch (Restrisiko 5 im ADR, Abhilfe von Hand in `OPERATING.md` §0.6).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

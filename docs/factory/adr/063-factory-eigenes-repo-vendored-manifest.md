@@ -1016,7 +1016,8 @@ und HTTPS ins öffentliche Internet.
   Prüfung mit `-C`, oder fehlt die Kette `DOCKER-USER`, endet `fetch-isolated` bzw. `fetch-smoke` mit Exit 1 und dem
   Hinweis „fetch braucht passwortloses sudo und iptables auf dem Runner (GitHub-gehostet vorhanden) – kein Container
   ohne Netz-Sperre". Es gibt keinen Rückfall auf das Standard-Bridge-Netz, weder per Schalter noch automatisch. Die
-  Reihenfolge in beiden Modi ist fest: `require_docker` → Netz und Regeln (E35, E36) → Image bauen → Container. Der
+  Reihenfolge in beiden Modi ist fest (Hilfsschritte wie Ausgabe-/Arbeitsverzeichnis und der Lauscher der Smoke-Probe
+  ausgenommen): `require_docker` → Lock (E41) → Netz und Regeln (E35, E36) → Image bauen → Container. Der
   Gateway-Wert wird nicht gebraucht (E36 sperrt die Schnittstelle, nicht eine Adresse); Spec F2 entfällt damit als
   eigener Fall.
 - **E40 · Tests (ergänzt E34).**
@@ -1037,7 +1038,19 @@ und HTTPS ins öffentliche Internet.
   Container scheitern dann: HTTP zum Lauscher, HTTP zu `169.254.169.254` und zu `168.63.129.16:80`. Es gelingen:
   Namensauflösung und HTTPS zu `github.com` (mit `curl --retry`, gegen kurze Aussetzer, Q5). `/proc/net/if_inet6`
   enthält keine Adresse außer gegebenenfalls `lo` (E37). Jede Abweichung → Exit 1. Kein Angriffsversuch, kein
-  Release-Code.
+  Release-Code. „Scheitern" heißt *abgewiesen*: `curl` endet mit Exit 7 (die `REJECT`-Regeln antworten mit ICMP
+  port-unreachable); ein Timeout oder eine fehlende Route ist rot, weil er die Regel nicht belegt (Ergänzung aus
+  `/review` Runde 1).
+- **E41 · Ein fetch-Lauf je Docker-Host (ergänzt E38, E39; aus `/review` Runde 1, in `/implement` entschieden).** Netz,
+  Bridge und Regeln tragen feste Namen; `iptables -C`/`-D` kann nicht unterscheiden, wessen Regel es ist. Zwei Läufe an
+  einem Docker-Daemon (selbst gehostete Runner mit mehreren Instanzen; die `concurrency`-Gruppe greift nur je Repo)
+  entfernten sich sonst gegenseitig die Sperre – stilles Fail-open. Deshalb hält `fetch-isolated` bzw. `fetch-smoke`
+  vor dem Abräumen der Reste einen host-weiten Lock (`flock -w 900` auf `/tmp/factory-fetch.lock`, gehalten bis zum
+  Prozessende, also über Container und Abräumen). Erst mit dem Lock gilt das Netz als „eigenes" und wird im EXIT-Trap
+  abgeräumt. Bekommt der Lauf den Lock nicht (anderer Lauf länger als 900 s, `flock` fehlt, Datei nicht öffenbar),
+  endet er mit Exit 1, ohne Netz oder Regeln anzufassen. Voraussetzung: alle Runner-Instanzen eines Hosts öffnen
+  dieselbe Datei (gleiches `/tmp`, Schreibrecht). Auf GitHub-gehosteten Runnern (ein Job je VM) ist der Lock nie
+  belegt.
 
 **Alternativen:**
 - *Keine Sperre* (E31 Q3 bisher): kein Aufwand, aber Host-Dienste, IMDS und WireServer bleiben erreichbar; verworfen
@@ -1064,7 +1077,12 @@ und HTTPS ins öffentliche Internet.
    anders sein.
 4. *Annahmen über den Runner:* Backend von `iptables` (nft/legacy) wie von Docker genutzt, Kette `DOCKER-USER`
    vorhanden, DNS-Upstream `168.63.129.16`. Belegt nur durch die Smoke-Probe im Factory-CI; ändert GitHub das Image,
-   wird zuerst dieser Job rot.
+   wird zuerst dieser Job rot. Auf selbst gehosteten Runnern sperrt die `INPUT`-Regel auch einen DNS-Upstream auf einer
+   Host-Adresse (z. B. lokaler Resolver) – `fetch` scheitert dann an der Namensauflösung (fail-closed).
+5. *Abbruch und verwaiste Container:* Wird das Skript per Signal beendet, räumt der EXIT-Trap Regeln und Netz ab, während
+   der Container noch laufen kann (`--rm` greift erst an seinem Ende). Hängt ein verwaister Container noch an
+   `factory-fetch`, scheitert jeder weitere Lauf (Netz nicht entfernbar, fail-closed), bis er von Hand entfernt ist.
+   Auf Wegwerf-Runnern folgenlos.
 
 **Konsequenzen:** geändert `scripts/factory-update.sh` (Netz, Regeln, Lebenszyklus, `docker run`-Optionen,
 Smoke-Probe), `.github/workflows/factory-ci.yml` (Gateway-Lauscher bzw. Aufruf im Smoke-Job, falls nötig), Tests in

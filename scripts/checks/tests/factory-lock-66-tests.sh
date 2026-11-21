@@ -32,7 +32,7 @@ EXP_DOCKER_USER_66='-i factory-fetch0 -d 168.63.129.16/32 -p udp --dport 53 -j R
 -i factory-fetch0 -d 169.254.0.0/16 -j REJECT'
 FOREIGN_RULE_66='-i docker0 -j ACCEPT'
 HINT_66='passwortloses sudo und iptables'
-GATEWAY_66=172.30.66.1
+GATEWAY_66="$FAKE_GATEWAY_66"
 PORT_66=18066
 BASE_66="$(printf 'a%.0s' $(seq 40))"
 
@@ -110,9 +110,17 @@ for mode_66 in iso smoke; do
   ok_run_66 "$mode_66"; assert_exit 0 "$?" "#66 AK1.1–AK1.4/E35–E37 ($mode_66): beim Container-Start stehen INPUT-Sperre des Hosts, DNS-Ausnahme vor Sperre von 168.63.129.16 und Sperre von 169.254.0.0/16 an factory-fetch0; Netz factory-fetch, IPv6 aus, danach abgeräumt"
 done
 # AK1.5: Regeln liegen auf dem Host und werden mit sudo -n gesetzt – nie im Container (der hat kein CAP_NET_ADMIN, #41 prüft cap-drop ALL)
+# via_sudo_66 – jeder iptables-Aufruf lief über „sudo -n“ (der Fake-sudo protokolliert ihn vor dem iptables-Fake)
+via_sudo_66() {
+  local n_ipt n_sudo
+  n_ipt="$(grep -cE '^iptables -' "$D66/calls.log")"; n_sudo="$(grep -cx 'sudo -n iptables' "$D66/calls.log")"
+  [ "$n_ipt" -gt 0 ] && [ "$n_ipt" = "$n_sudo" ] && ! grep -qx sudo-ohne-n "$D66/calls.log"
+}
 fresh_66 iso
-assert_true "$(grep -qx 'iptables -I INPUT' "$D66/calls.log" && ! grep -qx sudo-ohne-n "$D66/calls.log" && ! tr '\0' '\n' < "$D66/run.argv" | grep -qE '^(--cap-add|--privileged)'; echo $?)" \
+assert_true "$(grep -qx 'iptables -I INPUT' "$D66/calls.log" && via_sudo_66 && ! tr '\0' '\n' < "$D66/run.argv" | grep -qE '^(--cap-add|--privileged)'; echo $?)" \
   "#66 AK1.5: Regeln per sudo -n iptables auf dem Host, der Container bekommt keine Netz-Rechte"
+mutant_37 66-ohne-sudo 's#^host_iptables\(\) \{ sudo -n iptables "\$@"; \}#host_iptables() { iptables "$@"; }#'
+fresh_66 iso "$MUT37"; assert_true "$(! via_sudo_66; echo $?)" "#66 AK4.2 (Mutation): iptables ohne sudo → derselbe Prüfer ist rot"
 
 # ── E40 b: Mutationsbelege für Regelsatz, Reihenfolge, Netz, Optionen ────────────────────────────────────────────────
 mut_ok_66() { # <name> <sed-ausdruck> [<modus>] – Mutante → ok_run_66 rot
@@ -181,6 +189,35 @@ done
 st_66; : > "$D66/fail-info"; run_66 iso
 assert_true "$([ "$rc_66" -eq 1 ] && [ "$(cat "$D66/calls.log")" = info ]; echo $?)" "#66 E39: ohne Docker weder Netz noch Regeln"
 
+# ── E41: ein fetch-Lauf je Docker-Host (host-weiter Lock) ───────────────────────────────────────────────────────────
+# lock_first_66 – der Lock kommt direkt nach require_docker, vor jedem Netz- oder iptables-Aufruf; Wartezeit begrenzt, fd 9
+lock_first_66() {
+  awk '/^flock$/ && !lock { lock = NR } /^(network-|iptables |sudo -n )/ && !first { first = NR }
+       END { exit !(lock == 2 && first > lock) }' "$D66/calls.log" \
+    && [ "$(tr '\0' ' ' < "$D66/flock.argv")" = "-w 900 9 " ]
+}
+for mode_66 in iso smoke; do
+  fresh_66 "$mode_66"; assert_true "$([ "$rc_66" -eq 0 ] && lock_first_66; echo $?)" "#66 E41 ($mode_66): host-weiter Lock vor Netz und Regeln"
+done
+# busy_66 <modus> [<skript>] – ein anderer Lauf hält den Lock und hat Netz und Regeln gesetzt: rot, sein Zustand bleibt unberührt
+busy_66() {
+  st_66; : > "$D66/net"; : > "$D66/flock-busy"
+  printf '%s\n' "$EXP_INPUT_66" > "$D66/chains/INPUT"; printf '%s\n' "$EXP_DOCKER_USER_66" > "$D66/chains/DOCKER-USER"
+  run_66 "$@"
+  [ "$rc_66" -eq 1 ] && grep -qF 'anderer fetch-Lauf' <<< "$out_66" && [ -e "$D66/net" ] \
+    && [ "$(cat "$D66/chains/INPUT")" = "$EXP_INPUT_66" ] && [ "$(cat "$D66/chains/DOCKER-USER")" = "$EXP_DOCKER_USER_66" ] \
+    && ! grep -qE '^(network-(create|rm)|iptables -[ID] |build$|run$)' "$D66/calls.log"
+}
+for mode_66 in iso smoke; do
+  busy_66 "$mode_66"; assert_exit 0 "$?" "#66 E41/E39 ($mode_66): Lock gehalten (paralleler Lauf auf demselben Docker-Host) → rot, Netz und Regeln des anderen Laufs unberührt, kein Container"
+done
+mut_busy_66() { # <name> <sed-ausdruck> – Mutante → der parallele Lauf zerstört die Sperre des anderen
+  mutant_37 "66-$1" "$2"; busy_66 iso "$MUT37"; assert_exit 1 "$?" "#66 AK4.2 (Mutation): $1 → derselbe Prüfer ist rot"
+}
+mut_busy_66 ohne-lock 's#^  acquire_fetch_lock$#  :#'
+mut_busy_66 lock-fehler-ignoriert 's#\|\| die "host-weiter Lock#|| true "host-weiter Lock#'
+mut_busy_66 abraeumen-vor-lock 's#^  acquire_fetch_lock$#  FETCH_NET_ACTIVE=1; acquire_fetch_lock#'
+
 # ── E40 c/AK4.3: Netz-Probe des Smoke-Jobs ───────────────────────────────────────────────────────────────────────────
 # Der Host startet den Lauscher auf dem Gateway, reicht Gateway und Port in den Container und räumt den Lauscher ab
 fresh_66 smoke
@@ -191,9 +228,14 @@ assert_true "$([ "$rc_66" -eq 0 ] && tr '\0' ' ' < "$D66/listener.argv" | grep -
 st_66; : > "$D66/fail-listener"; run_66 smoke
 assert_true "$([ "$rc_66" -eq 1 ] && grep -qF 'Gegenprobe' <<< "$out_66" && ! grep -qx run "$D66/calls.log" && cleaned_66; echo $?)" \
   "#66 E40 c: Gegenprobe scheitert (Host erreicht den Lauscher nicht) → rot, kein Container – die Probe hätte keine Aussage"
-st_66; : > "$D66/gateway"; run_66 smoke
-assert_true "$([ "$rc_66" -eq 1 ] && grep -qF 'Gateway' <<< "$out_66" && ! grep -qx run "$D66/calls.log"; echo $?)" \
-  "#66 E39: Gateway für die Smoke-Probe nicht ermittelbar → Smoke-Job rot"
+gateway_refused_66() { # <gateway-ausgabe> [<skript>] – 0 = Smoke rot mit Meldung, kein Container
+  st_66; printf '%s\n' "$1" > "$D66/gateway"; run_66 smoke "${2:-}"
+  [ "$rc_66" -eq 1 ] && grep -qF 'Gateway' <<< "$out_66" && ! grep -qx run "$D66/calls.log"
+}
+gateway_refused_66 ''; assert_exit 0 "$?" "#66 E39: Gateway für die Smoke-Probe nicht ermittelbar → Smoke-Job rot"
+gateway_refused_66 '0.0.0.0 --directory /'; assert_exit 0 "$?" "#66 E39: Gateway keine IPv4-Adresse → Smoke-Job rot, bevor der Lauscher startet"
+mutant_37 66-gateway-ohne-form 's#\|\| die "Gateway von#|| true "Gateway von#'
+gateway_refused_66 '0.0.0.0 --directory /' "$MUT37"; assert_exit 1 "$?" "#66 AK4.2 (Mutation): ohne Formprüfung des Gateways ist derselbe Fall nicht mehr rot"
 
 # Das Smoke-Skript selbst (out-mode probe: läuft echt, curl im Container erreicht nur, was in reachable steht)
 probe_66() { # [<ziel, das erreichbar ist>] [<skript>] – Exit von fetch-smoke
@@ -214,17 +256,29 @@ mut_probe_66() { # <name> <sed-ausdruck> <erreichbares-ziel> – Mutante des Smo
 mut_probe_66 probe-ohne-gateway 's#&& blocked "http://\$1:\$2/" ##' "http://$GATEWAY_66:$PORT_66/"
 mut_probe_66 probe-ohne-imds 's#&& blocked http://169\.254\.169\.254/ ##' http://169.254.169.254/
 mut_probe_66 probe-ohne-wireserver 's#&& blocked http://168\.63\.129\.16/ ##' http://168.63.129.16/
+# Gesperrt heißt abgewiesen (REJECT → curl-Exit 7), nicht bloß unerreichbar: ein Timeout belegt die Regel nicht
+timeout_66() { # <ziel> [<skript>] – Exit von fetch-smoke, wenn <ziel> in den Timeout läuft
+  st_66; printf '%s\n' "$1" > "$D66/timeout"; run_66 smoke "${2:-}" probe; return "$rc_66"
+}
+for target_66 in "http://$GATEWAY_66:$PORT_66/" http://169.254.169.254/ http://168.63.129.16/; do
+  timeout_66 "$target_66"; assert_exit 1 "$?" "#66 AK4.3: $target_66 läuft in den Timeout statt abgewiesen zu werden → Smoke-Job rot (Regel nicht belegt)"
+done
+assert_true "$(grep -qF 'curl-Exit 28' <<< "$out_66"; echo $?)" "#66 AK4.3: die Meldung nennt den curl-Exit"
+mutant_37 66-probe-jeder-fehler 's#^FETCH_SMOKE_SCRIPT=.blocked\(\) \{.*$#FETCH_SMOKE_SCRIPT='"'"'blocked() { ! curl -s -o /dev/null --max-time 5 "$1"; }#'
+timeout_66 http://169.254.169.254/ "$MUT37"; assert_exit 0 "$?" "#66 AK4.2 (Mutation): jeder curl-Fehler gilt als gesperrt → derselbe Fall ist nicht mehr rot"
 
 # ── AK5: Doku-Guards ─────────────────────────────────────────────────────────────────────────────────────────────────
 ops_ok_66() { # $1 = geglätteter Text von OPERATING.md
   local p
-  for p in 'vom Host und von den Link-Local-Diensten' 'passwortloses `sudo` und `iptables`' 'Nachtrag 2026-11-21' 'Restrisiko im Netz'; do
+  for p in 'vom Host und von den Link-Local-Diensten' 'passwortloses `sudo` und `iptables`' 'Nachtrag 2026-11-21' 'Restrisiko im Netz' \
+    'nur ein `fetch` je Docker-Host'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
 }
 adr_ok_66() { # $1 = geglätteter Text von ADR-063
   local p
-  for p in 'Status: Accepted (2026-11-21' '**Ersetzt** durch den Nachtrag 2026-11-21 (#66,' 'Präzisiert im Nachtrag 2026-11-21 (#66)' 'E40 · Tests (ergänzt E34).'; do
+  for p in 'Status: Accepted (2026-11-21' '**Ersetzt** durch den Nachtrag 2026-11-21 (#66,' 'Präzisiert im Nachtrag 2026-11-21 (#66)' 'E40 · Tests (ergänzt E34).' \
+    'E41 · Ein fetch-Lauf je Docker-Host'; do
     grep -qF -- "$p" <<< "$1" || return 1
   done
 }

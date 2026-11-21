@@ -200,7 +200,11 @@ andere Host-Adresse), `169.254.0.0/16` (Metadaten-Dienst) und den Azure-WireServ
 Internet bleibt erreichbar, die Abholung läuft unverändert. Die Regeln setzt `fetch` vor dem Container und räumt sie danach
 wieder ab; dafür braucht der Runner **passwortloses `sudo` und `iptables`** (GitHub-gehostete Runner haben beides). Fehlt das,
 endet `fetch` rot, bevor ein Container startet – ohne Rückfall auf ein Netz ohne Sperre. Den Nachweis im echten Container führt
-der Job `fetch-container-smoke` der Factory-CI. **Restrisiko im Netz:** Der Container erreicht weiter das Internet (Datenabfluss
+der Job `fetch-container-smoke` der Factory-CI. Netz und Regeln tragen feste Namen; deshalb läuft nur ein `fetch` je Docker-Host
+gleichzeitig (Lock `/tmp/factory-fetch.lock` per `flock`, bis 900 s Wartezeit, sonst rot) – auf selbst gehosteten Runnern mit
+mehreren Instanzen müssen alle dasselbe `/tmp` sehen. Hängt nach einem Abbruch noch ein Container an `factory-fetch`, bleibt jeder
+weitere Lauf rot, bis er entfernt ist (`docker ps --filter network=factory-fetch`, dann `docker rm -f`). Auf selbst gehosteten
+Runnern sperrt die Regel auch einen DNS-Resolver auf dem Host selbst. **Restrisiko im Netz:** Der Container erreicht weiter das Internet (Datenabfluss
 von Inhalten des Checkouts), DNS am WireServer und private Netze (RFC1918) außerhalb des Hosts; auf selbst gehosteten Runnern
 kann dort mehr liegen. Details: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40).
 

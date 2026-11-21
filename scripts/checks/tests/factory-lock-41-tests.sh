@@ -34,8 +34,11 @@ CI_WF_41="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 
 # Fakes für docker, sudo und iptables (lib/factory-lock-fixtures.sh); FAKE_HOST_66 nur für fetch-smoke (Lauscher der Netz-Probe, #66)
 fetch_fakes_41
-# docker_calls_41 <calls.log> – nur die Container-Schritte (info/build/run); Netz und Regeln prüft factory-lock-66-tests.sh
-docker_calls_41() { grep -xE 'info|build|run' "$1" | tr '\n' ' '; }
+# docker_calls_41 <calls.log> – das Protokoll ohne genau die bekannten Zeilen der Netz-Sperre (#66: Lock, Netz, Regeln; die prüft
+# factory-lock-66-tests.sh); jeder andere Aufruf (exec, cp, pull …) bleibt im exakten Vergleich stehen
+docker_calls_41() {
+  grep -vxE 'flock|network-(inspect|create|rm)|sudo -n iptables|iptables -[ICD] (INPUT|DOCKER-USER)' "$1" | tr '\n' ' '
+}
 
 # fd_41 <name> <out-mode> – frischer Zustand des Fakes; setzt FD_41 (Zustand), RT_41 (RUNNER_TEMP), OUT_41, ROOT_41 (Checkout)
 fd_41() {
@@ -115,6 +118,8 @@ mut_args_41 als-root 's#--user "\$\(id -u\):\$\(id -g\)"#--user 0:0#'
 mut_args_41 checkout-schreibbar 's#:/src:ro#:/src#'
 mut_args_41 image-ohne-digest 's#^(FETCH_BASE_IMAGE="debian:[a-z]+-slim)@sha256:[0-9a-f]+"#\1"#'
 mut_args_41 build-mit-kontext 's#docker build -t "\$FETCH_IMAGE" -#docker build -t "$FETCH_IMAGE" -f - .#'
+# Ein zusätzlicher, tolerierter docker-Aufruf fällt im Protokollvergleich auf (der Filter für #66 nimmt nur bekannte Zeilen heraus)
+mut_args_41 zusaetzlicher-docker-aufruf 's#^  fetch_dockerfile \| docker build#  docker pull "$FETCH_BASE_IMAGE" >/dev/null 2>\&1 || true; fetch_dockerfile | docker build#'
 # Der Digest ist ein echter Pin, kein Platzhalter aus lauter Nullen (die Form allein belegt nichts)
 digest_real_41() { ! grep -qE '^FETCH_BASE_IMAGE=".*@sha256:0{64}"$' "$1" && grep -qE '^FETCH_BASE_IMAGE="debian:[a-z]+-slim@sha256:[0-9a-f]{64}"$' "$1"; }
 digest_real_41 "$UPD_24"; assert_exit 0 "$?" "#41 AK1.4: FETCH_BASE_IMAGE trägt einen echten Digest (kein Nullen-Platzhalter)"
@@ -126,6 +131,12 @@ for bad_41 in --privileged --pid=host --network=host "--network host" "--network
   "--sysctl kernel.shm_rmid_forced=1" --add-host=x:1.2.3.4 --cap-add=ALL "-v /var/run/docker.sock:/var/run/docker.sock" "--env-file x" "-e ACTIONS_RUNTIME_TOKEN" "-v $RT_41:/rt" --cgroupns=host "--security-opt systempaths=unconfined"; do
   { tr '\0' '\n' < "$FD_41/run.argv" | sed -n 1p; printf '%s\n' $bad_41; tr '\0' '\n' < "$FD_41/run.argv" | sed '1d'; } | tr '\n' '\0' > "$FD_41/bad.argv"
   run_forbidden_free_41 "$FD_41/bad.argv"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): Verbots-Prüfer erkennt „${bad_41}“"
+done
+# Wertprüfung isoliert (#66): der Wert von --network bzw. --sysctl wird ersetzt, die Anzahl bleibt gleich
+for swap_41 in 's#^factory-fetch$#host#' 's#^net\.ipv6\.conf\.all\.disable_ipv6=1$#net.ipv6.conf.all.disable_ipv6=0#'; do
+  tr '\0' '\n' < "$FD_41/run.argv" | sed "$swap_41" | tr '\n' '\0' > "$FD_41/swap.argv"
+  assert_true "$(! cmp -s "$FD_41/run.argv" "$FD_41/swap.argv"; echo $?)" "#41 Mutation „${swap_41}“: der Aufruf ist verändert (Voraussetzung)"
+  run_forbidden_free_41 "$FD_41/swap.argv"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): Verbots-Prüfer erkennt den ersetzten Wert „${swap_41}“"
 done
 
 # Der feste Pfad im Container-Skript und die Konstante, gegen die der Rückweg prüft, bleiben gleich (sonst fiele es erst in E32 auf)
