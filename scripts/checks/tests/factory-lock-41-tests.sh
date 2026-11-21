@@ -32,48 +32,13 @@ SMOKE_LINE_41='bash scripts/factory-update.sh fetch-smoke "$RUNNER_TEMP/fetch-sm
 YQ_41="$(command -v yq)"
 CI_WF_41="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 
-# ── Fake-docker: protokolliert info/build/run, legt die Ausgabe nach $FAKE_DOCKER_STATE/out-mode an ──────────────────
-# out-mode: none | file | symlink | dir | two | smoke | emulate. „emulate" bildet den Container nach: Arbeitskopie aus dem
-# /src-Mount, Pfade /tmp/work, /src, /out umgelenkt, Umgebung NUR aus den -e-Argumenten (wie docker) – plus die offline-Umlenkung
-# der Fixture-Quellen (FACTORY_UPSTREAM_GIT_URL/FACTORY_RELEASE_BASE_URL), die es im echten Lauf nicht gibt.
-FAKE_41="$T23/fakedocker"; mkdir -p "$FAKE_41"
-cat > "$FAKE_41/docker" <<'FAKE'
-#!/usr/bin/env bash
-d="$FAKE_DOCKER_STATE"
-printf '%s\n' "$1" >> "$d/calls.log"
-case "$1" in
-  info) [ ! -e "$d/fail-info" ] ;;
-  build) printf '%s\0' "$@" > "$d/build.argv"; cat > "$d/Dockerfile"; [ ! -e "$d/fail-build" ] ;;
-  run)
-    printf '%s\0' "$@" > "$d/run.argv"
-    [ ! -e "$d/fail-run" ] || exit 3
-    out=""; src=""; envs=(); script=""; pos=()
-    while [ $# -gt 0 ]; do
-      case "$1" in
-        -v) case "$2" in *:/out) out="${2%:/out}" ;; *:/src:ro) src="${2%:/src:ro}" ;; esac; shift 2 ;;
-        -e) envs+=("$2"); shift 2 ;;
-        bash) if [ "${2:-}" = -c ]; then script="$3"; shift 3; pos=("$@"); break; fi; shift ;;
-        *) shift ;;
-      esac
-    done
-    case "$(cat "$d/out-mode")" in
-      none) ;;
-      file) printf 'bundle' > "$out/update.bundle" ;;
-      symlink) ln -s /etc/hosts "$out/update.bundle" ;;
-      dir) mkdir "$out/update.bundle" ;;
-      two) printf 'bundle' > "$out/update.bundle"; printf x > "$out/extra" ;;
-      smoke) printf 'ok\n' > "$out/smoke.txt" ;;
-      emulate)
-        w="$d/ctr"; rm -rf "$w"; mkdir -p "$w"
-        s="${script//\/tmp\/work/$w/work}"; s="${s//\/src/$src}"; s="${s//\/out/$out}"
-        ea=(PATH="$PATH" FACTORY_UPSTREAM_GIT_URL="${FACTORY_UPSTREAM_GIT_URL:-}" FACTORY_RELEASE_BASE_URL="${FACTORY_RELEASE_BASE_URL:-}")
-        for e in "${envs[@]}"; do case "$e" in *=*) ea+=("$e") ;; *) ea+=("$e=${!e:-}") ;; esac; done
-        env -i "${ea[@]}" bash -c "$s" "${pos[@]}" ;;
-    esac ;;
-  *) exit 9 ;;
-esac
-FAKE
-chmod +x "$FAKE_41/docker"
+# Fakes für docker, sudo und iptables (lib/factory-lock-fixtures.sh); FAKE_HOST_66 nur für fetch-smoke (Lauscher der Netz-Probe, #66)
+fetch_fakes_41
+# docker_calls_41 <calls.log> – das Protokoll ohne genau die bekannten Zeilen der Netz-Sperre (#66: Lock, Netz, Regeln; die prüft
+# factory-lock-66-tests.sh); jeder andere Aufruf (exec, cp, pull …) bleibt im exakten Vergleich stehen
+docker_calls_41() {
+  grep -vxE 'flock|network-(inspect|create|rm)|sudo -n iptables|iptables -[ICD] (INPUT|DOCKER-USER)' "$1" | tr '\n' ' '
+}
 
 # fd_41 <name> <out-mode> – frischer Zustand des Fakes; setzt FD_41 (Zustand), RT_41 (RUNNER_TEMP), OUT_41, ROOT_41 (Checkout)
 fd_41() {
@@ -91,28 +56,36 @@ iso_41() {
 }
 
 # ── E31: Argumente von docker run ────────────────────────────────────────────────────────────────────────────────────
-# run_exact_41 <argv> <root> <out> <version> <base> – argv ist genau der Aufruf aus E31 (jede Zusatzoption macht ihn rot)
+# run_exact_41 <argv> <root> <out> <version> <base> – argv ist genau der Aufruf aus E31, ergänzt um Netz und IPv6-Sperre aus
+# E35/E37 (#66) (jede Zusatzoption macht ihn rot)
 run_exact_41() {
-  printf '%s\0' run --rm --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  printf '%s\0' run --rm --network factory-fetch --sysctl net.ipv6.conf.all.disable_ipv6=1 --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$2:/src:ro" -v "$3:/out" -v "$YQ_41:/usr/local/bin/yq:ro" "$IMAGE_41" bash -c "$SCRIPT_41" _ "$4" "$5" | cmp -s - "$1"
 }
-# run_forbidden_free_41 <argv> – unabhängige Prüfung: keine Sonderrechte, keine Runner-Dateien/Token, genau drei Mounts, ein -e
+# run_forbidden_free_41 <argv> – unabhängige Prüfung: keine Sonderrechte, keine Runner-Dateien/Token, genau drei Mounts, ein -e,
+# genau ein Netz (getrennt übergebenes --network factory-fetch, E35) und genau ein --sysctl (IPv6 aus, E37)
 run_forbidden_free_41() {
-  local x n_v=0 n_e=0 p prev=""
+  local x n_v=0 n_e=0 n_net=0 n_sys=0 p prev=""
   while IFS= read -r -d '' x; do
     # getrennt übergebenes --security-opt <wert>: nur no-new-privileges ist erlaubt (systempaths=unconfined u. a. nicht)
     [ "$prev" != --security-opt ] || [ "$x" = no-new-privileges ] || return 1
+    # getrennt übergebenes --network <wert>: nur das eigene Netz (host, bridge, none, container:… nicht)
+    [ "$prev" != --network ] || [ "$x" = factory-fetch ] || return 1
+    # getrennt übergebenes --sysctl <wert>: nur IPv6 aus
+    [ "$prev" != --sysctl ] || [ "$x" = net.ipv6.conf.all.disable_ipv6=1 ] || return 1
     prev="$x"
     case "$x" in
+      --network) n_net=$((n_net + 1)) ;;
+      --sysctl) n_sys=$((n_sys + 1)) ;;
       --privileged*|--pid*|--ipc*|--uts*|--userns*|--cgroupns*|--network*|--net|--net=*|--cap-add*|--device*|--env-file*|--mount*) return 1 ;;
-      --volumes-from*|--security-opt=*|--group-add*|*docker.sock*|*seccomp*|*apparmor*|*ACTIONS_*|*GITHUB_*|*TOKEN*) return 1 ;;
+      --volumes-from*|--security-opt=*|--sysctl*|--group-add*|--add-host*|*docker.sock*|*seccomp*|*apparmor*|*ACTIONS_*|*GITHUB_*|*TOKEN*) return 1 ;;
       "$RT_41:"*) return 1 ;;
       -v|--volume) n_v=$((n_v + 1)) ;;
       -e|--env) n_e=$((n_e + 1)) ;;
     esac
     for p in runtime-token-41 "$GOOD_TOKEN_24" _runner_file_commands; do [[ "$x" != *"$p"* ]] || return 1; done
   done < "$1"
-  [ "$n_v" = 3 ] && [ "$n_e" = 1 ]
+  [ "$n_v" = 3 ] && [ "$n_e" = 1 ] && [ "$n_net" = 1 ] && [ "$n_sys" = 1 ]
 }
 # dockerfile_ok_41 – Image: Basis per Digest, nur die vier Pakete, Build ohne Kontext (E30)
 dockerfile_ok_41() {
@@ -124,7 +97,7 @@ dockerfile_ok_41() {
 # args_ok_41 [<skript>] – fetch-isolated mit Fake (Ausgabe: reguläre Datei): grün, Reihenfolge info → build → run, Aufruf genau E31
 args_ok_41() {
   fd_41 "args$((N_24 += 1))" file; iso_41 "${1:-}"
-  [ "$rc_41" -eq 0 ] && [ "$(tr '\n' ' ' < "$FD_41/calls.log")" = 'info build run ' ] && dockerfile_ok_41 \
+  [ "$rc_41" -eq 0 ] && [ "$(docker_calls_41 "$FD_41/calls.log")" = 'info build run ' ] && dockerfile_ok_41 \
     && run_exact_41 "$FD_41/run.argv" "$ROOT_41" "$OUT_41" v1.1.0 "$(printf 'a%.0s' $(seq 40))" && run_forbidden_free_41 "$FD_41/run.argv"
 }
 args_ok_41; assert_exit 0 "$?" "#41 AK1.2–AK1.4/E31: docker run genau mit E31 (cap-drop ALL, no-new-privileges, Runner-UID, nur HOME, drei Mounts), Image aus gepinnter Basis ohne Kontext"
@@ -145,6 +118,8 @@ mut_args_41 als-root 's#--user "\$\(id -u\):\$\(id -g\)"#--user 0:0#'
 mut_args_41 checkout-schreibbar 's#:/src:ro#:/src#'
 mut_args_41 image-ohne-digest 's#^(FETCH_BASE_IMAGE="debian:[a-z]+-slim)@sha256:[0-9a-f]+"#\1"#'
 mut_args_41 build-mit-kontext 's#docker build -t "\$FETCH_IMAGE" -#docker build -t "$FETCH_IMAGE" -f - .#'
+# Ein zusätzlicher, tolerierter docker-Aufruf fällt im Protokollvergleich auf (der Filter für #66 nimmt nur bekannte Zeilen heraus)
+mut_args_41 zusaetzlicher-docker-aufruf 's#^  fetch_dockerfile \| docker build#  docker pull "$FETCH_BASE_IMAGE" >/dev/null 2>\&1 || true; fetch_dockerfile | docker build#'
 # Der Digest ist ein echter Pin, kein Platzhalter aus lauter Nullen (die Form allein belegt nichts)
 digest_real_41() { ! grep -qE '^FETCH_BASE_IMAGE=".*@sha256:0{64}"$' "$1" && grep -qE '^FETCH_BASE_IMAGE="debian:[a-z]+-slim@sha256:[0-9a-f]{64}"$' "$1"; }
 digest_real_41 "$UPD_24"; assert_exit 0 "$?" "#41 AK1.4: FETCH_BASE_IMAGE trägt einen echten Digest (kein Nullen-Platzhalter)"
@@ -152,9 +127,16 @@ sed -E 's#@sha256:[0-9a-f]{64}"#@sha256:'"$(printf '0%.0s' $(seq 64))"'"#' "$UPD
 digest_real_41 "$T23/m41-digest.sh"; assert_exit 1 "$?" "#41 AK1.4 (Mutation): Platzhalter-Digest → derselbe Prüfer ist rot"
 # Der unabhängige Verbots-Prüfer allein (falls der exakte Vergleich einmal mitgezogen würde)
 fd_41 fv1 file; iso_41; run_forbidden_free_41 "$FD_41/run.argv"; assert_exit 0 "$?" "#41 AK1.2/AK1.3: Verbots-Prüfer grün am echten Aufruf"
-for bad_41 in --privileged --pid=host --network=host --cap-add=ALL "-v /var/run/docker.sock:/var/run/docker.sock" "--env-file x" "-e ACTIONS_RUNTIME_TOKEN" "-v $RT_41:/rt" --cgroupns=host "--security-opt systempaths=unconfined"; do
+for bad_41 in --privileged --pid=host --network=host "--network host" "--network bridge" "--network none" "--network container:x" \
+  "--sysctl kernel.shm_rmid_forced=1" --add-host=x:1.2.3.4 --cap-add=ALL "-v /var/run/docker.sock:/var/run/docker.sock" "--env-file x" "-e ACTIONS_RUNTIME_TOKEN" "-v $RT_41:/rt" --cgroupns=host "--security-opt systempaths=unconfined"; do
   { tr '\0' '\n' < "$FD_41/run.argv" | sed -n 1p; printf '%s\n' $bad_41; tr '\0' '\n' < "$FD_41/run.argv" | sed '1d'; } | tr '\n' '\0' > "$FD_41/bad.argv"
   run_forbidden_free_41 "$FD_41/bad.argv"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): Verbots-Prüfer erkennt „${bad_41}“"
+done
+# Wertprüfung isoliert (#66): der Wert von --network bzw. --sysctl wird ersetzt, die Anzahl bleibt gleich
+for swap_41 in 's#^factory-fetch$#host#' 's#^net\.ipv6\.conf\.all\.disable_ipv6=1$#net.ipv6.conf.all.disable_ipv6=0#'; do
+  tr '\0' '\n' < "$FD_41/run.argv" | sed "$swap_41" | tr '\n' '\0' > "$FD_41/swap.argv"
+  assert_true "$(! cmp -s "$FD_41/run.argv" "$FD_41/swap.argv"; echo $?)" "#41 Mutation „${swap_41}“: der Aufruf ist verändert (Voraussetzung)"
+  run_forbidden_free_41 "$FD_41/swap.argv"; assert_exit 1 "$?" "#41 AK4.2 (Mutation): Verbots-Prüfer erkennt den ersetzten Wert „${swap_41}“"
 done
 
 # Der feste Pfad im Container-Skript und die Konstante, gegen die der Rückweg prüft, bleiben gleich (sonst fiele es erst in E32 auf)
@@ -265,13 +247,13 @@ assert_exit 1 "$(no_secret_marker_41; echo $?)" "#41 AK1.3 (Gegenprobe): mit dur
 # ── E34 f: Smoke-Modus nutzt denselben Aufruf ────────────────────────────────────────────────────────────────────────
 fd_41 sm1 file; iso_41; cp "$FD_41/run.argv" "$T23/iso-41.argv"
 fd_41 sm2 smoke
-out_41="$(env_23 "$ROOT_41" env PATH="$FAKE_41:$PATH" FAKE_DOCKER_STATE="$FD_41" bash "$UPD_24" fetch-smoke "$RT_41/fetch-out")"; rc_41=$?
+out_41="$(env_23 "$ROOT_41" env PATH="$FAKE_HOST_66:$FAKE_41:$PATH" FAKE_DOCKER_STATE="$FD_41" bash "$UPD_24" fetch-smoke "$RT_41/fetch-out")"; rc_41=$?
 opts_41() { tr '\0' '\n' < "$1" | awk -v img="$IMAGE_41" '$0 == img { exit } { print }' | sed "s#^$2:/out\$#OUT#; s#^$3:/src:ro\$#SRC#"; }
 assert_exit 0 "$rc_41" "#41 E34 f: fetch-smoke mit Fake → grün, auch ohne factory.lock (Factory-Repo selbst)"
-assert_true "$([ "$(opts_41 "$T23/iso-41.argv" "$T23/fd-sm1/rt/fetch-out" "$T23/fd-sm1/root")" = "$(opts_41 "$FD_41/run.argv" "$OUT_41" "$ROOT_41")" ] && [ "$(tr '\n' ' ' < "$FD_41/calls.log")" = 'info build run ' ]; echo $?)" \
+assert_true "$([ "$(opts_41 "$T23/iso-41.argv" "$T23/fd-sm1/rt/fetch-out" "$T23/fd-sm1/root")" = "$(opts_41 "$FD_41/run.argv" "$OUT_41" "$ROOT_41")" ] && [ "$(docker_calls_41 "$FD_41/calls.log")" = 'info build run ' ]; echo $?)" \
   "#41 E34 f: fetch-smoke startet das Image mit genau denselben Optionen wie fetch-isolated (eine Stelle im Skript)"
 fd_41 sm3 none
-env_23 "$ROOT_41" env PATH="$FAKE_41:$PATH" FAKE_DOCKER_STATE="$FD_41" bash "$UPD_24" fetch-smoke "$RT_41/fetch-out" >/dev/null; assert_exit 1 "$?" "#41 E34 f: fetch-smoke ohne Nachweis aus dem Container (/out leer) → rot"
+env_23 "$ROOT_41" env PATH="$FAKE_HOST_66:$FAKE_41:$PATH" FAKE_DOCKER_STATE="$FD_41" bash "$UPD_24" fetch-smoke "$RT_41/fetch-out" >/dev/null; assert_exit 1 "$?" "#41 E34 f: fetch-smoke ohne Nachweis aus dem Container (/out leer) → rot"
 
 # ── AK4.1/AK2.1: Verdrahtung an der echten factory-update.yml ────────────────────────────────────────────────────────
 # wf_fetch_ok_41 <workflow> – fetch hat genau: Checkout (main), yq, fetch-isolated, Upload des Bundles; sonst nichts
