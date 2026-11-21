@@ -964,8 +964,8 @@ werden in `fetch` rot; das gehört in die Release-Notes.
 
 ## Nachtrag 2026-11-21 · Netz des Fetch-Containers abschotten (Spec #66, Q1–Q5)
 
-Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Accepted (2026-11-21, Entscheidung Mensch; Umsetzung in #66) für E35–E40. **E41** ist **Proposed** (aus `/implement`
-nach `/review` Runde 1) – Annahme durch den Menschen ausstehend.
+Aus `/architecture` zu #66 (Hinweis „Netz" im Security-Review zu #41, `tasks/security-41.md`); Status: Accepted (2026-11-21, Entscheidung Mensch; Umsetzung in #66) für E35–E41 (**E41** aus `/implement`
+nach `/review` Runde 1, am 2026-11-21 vom Menschen angenommen).
 **Ersetzt** E31 *Netz (Q3)* („Standard-Bridge, keine weitere Einschränkung") und **präzisiert** Restrisiko 2 des
 Nachtrags zu #41. E28–E34 gelten sonst unverändert. Die Verhaltensentscheidungen stehen in
 `docs/specs/spec-66-fetch-container-netz-abschotten.md`.
@@ -1046,7 +1046,7 @@ und HTTPS ins öffentliche Internet.
   (Azure) tun IMDS und WireServer das; dort wäre eine fehlende Regel rot. Eine Prüfung des stderr-Textes („Connection
   refused") ist verworfen: neuere `curl`-Versionen melden dort teils nur „Couldn't connect to server" (`/review` Runde 2).
 - **E41 · Ein fetch-Lauf je Docker-Host (ergänzt E38, E39; aus `/review` Runde 1, in `/implement` entschieden; Status
-  Proposed, Annahme durch den Menschen ausstehend).** Netz,
+  Accepted, 2026-11-21, Entscheidung Mensch).** Netz,
   Bridge und Regeln tragen feste Namen; `iptables -C`/`-D` kann nicht unterscheiden, wessen Regel es ist. Zwei Läufe an
   einem Docker-Daemon (selbst gehostete Runner mit mehreren Instanzen; die `concurrency`-Gruppe greift nur je Repo)
   entfernten sich sonst gegenseitig die Sperre – stilles Fail-open. Deshalb hält `fetch-isolated` bzw. `fetch-smoke`

@@ -67,7 +67,7 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40), Status Accepted 
 <!-- Fragen, die noch geklärt werden müssen -->
 - [x] Q1–Q5 geklärt in Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40)
 - [x] ADR-Nachtrag angenommen (Accepted, 2026-11-21) – E35–E40
-- [ ] E41 (host-weiter Lock, aus `/implement` Runde 2) vom Menschen angenommen – steht als Proposed im ADR
+- [x] E41 (host-weiter Lock, aus `/implement` Runde 2) vom Menschen angenommen (Accepted, 2026-11-21)
 
 Notizen aus `/implement`:
 - Fakes für `docker`/`sudo`/`iptables` (und Host-Lauscher, Container-`curl`) liegen jetzt in `lib/factory-lock-fixtures.sh`
@@ -105,6 +105,11 @@ Runde 3 (`/implement`, 2026-11-21): beide wichtigen Findings und alle 10 Nitpick
 „Umsetzung Runde 3“). E41 ist im ADR jetzt als **Proposed** gekennzeichnet; die Annahme durch den Menschen steht aus und
 ist Voraussetzung für den Merge. Neu: Restrisiko 6 (gemeinsamer Daemon, getrenntes `/tmp`), Alternative „Namen je Lauf“,
 zwei Lock-Mutanten (Lock vor dem Container frei, Lauscher erbt den Lock).
+
+Runde 3 (`/review`, 2026-11-21): **NEEDS_REWORK – Circuit Breaker erreicht (3. Review), Eskalation an den Menschen.**
+Am Code ist nichts mehr nachzuarbeiten (Suite 2732 grün, Projekt-Suite 249 grün). Offen ist allein ein wichtiges Finding:
+die **Annahme von E41 durch den Menschen**. Nach der Annahme (Status in ADR und „Offene Fragen“) gilt der Review ohne
+weitere Runde als bestanden. Dazu 3 optionale Nitpicks: CHANGELOG ohne Grenze aus Restrisiko 6, zwei Umbrüche.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

@@ -1,5 +1,63 @@
 # Review: Task 66
 
+Runde 3 (2026-11-21, **Iteration 3 von 3, Circuit Breaker**): Gegenstand ist das Delta 63d456a..02659f0 (Runde-3-Fix:
+ADR, `OPERATING.md`, Lock-Mutanten, Exit-7-Kommentar, Kleinigkeiten). Der Code war nach Runde 2 schon in Ordnung. Das
+Delta umfasst rund 100 Zeilen, deshalb liefen die drei Personas (Logik, Code-Qualität, Architektur) als Durchgänge des
+Orchestrators und nicht als eigene Sub-Agenten. Lokal gelaufen: ausgelieferte Suite 2732 grün / 0 rot, Projekt-Suite 249 grün (Exit 0).
+
+## Kritische Findings (müssen behoben werden)
+
+_(keine)_
+
+## Wichtige Findings (sollten behoben werden)
+
+- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:967–968, :1048–1049] **Die Annahme von E41
+  durch den Menschen steht weiter aus.** E41 ist jetzt korrekt als „Proposed“ gekennzeichnet (Finding aus Runde 2
+  behoben). Die Annahme selbst kann aber kein Pipeline-Schritt ersetzen. **Eskalation an den Menschen (Circuit
+  Breaker):** E41 annehmen, also Status „Accepted“ samt Datum in Kopfzeile und E41 setzen und die Checkbox in der
+  Task-Datei unter „Offene Fragen“ abhaken. Oder E41 ablehnen; dann wäre das Nebenläufigkeits-Finding aus Runde 1 neu zu
+  entscheiden. Bis dahin kein Merge.
+
+## Nitpicks (optional)
+
+- [ ] [CHANGELOG.md:20–21] „Mehrere Runner-Instanzen an einem Docker-Host führen `fetch` nacheinander aus“ stimmt
+  pauschal nicht: Bei Instanzen in eigenen Containern mit gemeinsamem Daemon greift der Lock nicht (Restrisiko 6). Wer
+  selbst gehostete Runner betreibt, liest zuerst die Release-Notes. Vorschlag: anhängen „sofern sie dasselbe `/tmp` sehen
+  (sonst Factory-ADR-063 Restrisiko 6, `OPERATING.md` §0.6)“.
+- [ ] [docs/factory/OPERATING.md:208] Die Zeile ist beim Einfügen von Restrisiko 6 nicht umbrochen (~170 Zeichen gegen
+  sonst ~125). Rein kosmetisch.
+- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:1049] Nach dem Einschub des Status endet die Zeile
+  „… ausstehend).** Netz,“ kurz, der Absatz ist nicht neu umbrochen. Kosmetisch.
+
+## Positives
+
+- Beide wichtigen Findings aus Runde 2 sind sauber umgesetzt. E41 trägt den Status „Proposed“ an beiden Stellen.
+  Restrisiko 6 ist ehrlich formuliert: nicht erkennbar, nicht fail-closed, Abhilfe beim Betreiber. Die Alternative „Namen
+  je Lauf“ hat einen tragfähigen Verwerfungsgrund (15-Zeichen-Bridge, fremde Reste, Regelsatz E36, Testumfang).
+- Die Lock-Mutanten sind gut gebaut. `lock_open` im Fake (`{ : >&9; }`) prüft beim Container-Start, beim
+  `network rm` und beim Lauscher, ob fd 9 noch offen ist. Die Mutanten `lock-vor-container-frei` und
+  `lauscher-erbt-lock` treffen je einen eigenen Prüfer. `run_66` startet mit `9>&-`, damit ein fd 9 der Testumgebung
+  nichts grün färbt. `mutant_37` bricht fail-closed ab, wenn ein Ausdruck nichts ändert.
+- Die Prüfung `lock_first_66` hängt nicht mehr an der Zeilennummer, sondern prüft „direkt nach `info`“. Die Prüfung auf
+  `curl-Exit 28` läuft je Ziel im Schleifenkörper. Die Schleife des Lauschers endet ohne überflüssiges `sleep`.
+- Die Grenze von Exit 7 steht in Kommentar und E40 c. Begründet ist dort auch, warum stderr nicht geprüft wird.
+- Die Doku-Guards decken die neuen Stellen ab (`greift der Lock **nicht**`, Restrisiko 6, Alternative). Die Konsequenzen
+  im ADR sind aktualisiert (`flock`, Gruppe `factory-lock-66-tests.sh`).
+- Die Projektregeln sind eingehalten: keine neuen getrackten Dateien in diesem Delta, keine Herkunftsbegriffe, Verweise
+  qualifiziert.
+
+## Empfehlung
+NEEDS_REWORK
+
+Am Code ist nichts mehr nachzuarbeiten. Offen ist allein die **Annahme von E41 durch den Menschen**; die drei Nitpicks
+sind optional. Der Circuit Breaker ist erreicht (3. Review): kein weiterer `/implement`↔`/review`-Durchlauf, sondern
+Eskalation an den Menschen. Nimmt der Mensch E41 an (Status in ADR und Task-Datei), gilt der Review ohne weitere Runde als
+bestanden.
+
+---
+
+## Archiv Runde 2 (2026-11-21, abgeschlossen)
+
 Runde 2 (2026-11-21): drei Personas (Logik, Code-Qualität, Architektur) gegen `git diff origin/main...HEAD`
 (Runde-2-Fix 63d456a), Spec #66 und Factory-ADR-063 Nachtrag 2026-11-21 (E35–E41). Die Findings der Sub-Agenten sind
 vom Orchestrator am Code bzw. Text nachgeprüft, die Einstufungen teils angepasst (Begründung je Finding). Die Sub-Agenten
@@ -13,7 +71,7 @@ nicht umgesetzte (`--name`/`docker rm -f`) ist als Restrisiko 5 tragfähig begr�
 Rückgabewerte in `setup_fetch_network` (`remove_fetch_rules; remove_fetch_network`, Skript ohne `set -e`) sind geprüft:
 kein Fail-open (Altregeln sperren nur zusätzlich, ein verbliebenes Netz lässt `network create` scheitern → `die`).
 
-## Umsetzung Runde 3 (`/implement`, 2026-11-21)
+### Umsetzung Runde 3 (`/implement`, 2026-11-21)
 
 Alle Findings umgesetzt; offen bleibt allein die **Annahme von E41 durch den Menschen** (erstes wichtiges Finding,
 Checkbox bleibt bis dahin offen).
@@ -35,13 +93,14 @@ Checkbox bleibt bis dahin offen).
 - `curl-Exit 28` → Prüfung je Ziel im Schleifenkörper, mit Ziel in der Meldung.
 - `sleep` nach dem letzten Versuch → Schleife bricht vor dem `sleep` ab.
 
-## Kritische Findings (müssen behoben werden)
+### Kritische Findings – Runde 2
 
 _(keine)_
 
-## Wichtige Findings (sollten behoben werden)
+### Wichtige Findings – Runde 2
 
-- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:967, :1044] **E41 steht unter einem
+- [x] (Runde 3: Status „Proposed“ gesetzt; die Annahme ist als offenes Finding von Runde 3 oben übernommen)
+  [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:967, :1044] **E41 steht unter einem
   Menschen-Status, den es für E41 nicht gibt.** Die Kopfzeile des Nachtrags sagt „Status: Accepted (2026-11-21,
   Entscheidung Mensch)“ und nennt nur „Q1–Q5“. Angenommen hat der Mensch E35–E40 (Commit fa21f6d, Task-Datei „Offene
   Fragen“); E41 hat `/implement` aus dem Review heraus entschieden, das sagt E41 selbst. *Abhilfe:* E41 eigens als
@@ -56,7 +115,7 @@ _(keine)_
   Grund der Verwerfung nennen (u. a. Bridge-Name max. 15 Zeichen, Abräumen fremder Reste, Testumfang). `OPERATING.md`
   §0.6 erhält denselben Satz. Reine Doku-Änderung, kein Code.
 
-## Nitpicks (optional)
+### Nitpicks – Runde 2
 
 - [x] [scripts/factory-update.sh:70–71; ADR-063 E40 c :1041–1043] **Exit 7 heißt nicht nur „abgewiesen“.**
   Kommentar und ADR sagen „ein Timeout (28) oder eine fehlende Route belegen die Regel nicht“ bzw. „ist rot“. curl
@@ -91,7 +150,7 @@ _(keine)_
   des letzten Schleifendurchlaufs (WireServer) zu. Sie sollte in den Schleifenkörper.
 - [x] [scripts/factory-update.sh:337] Nach dem letzten gescheiterten Versuch folgt noch ein `sleep` vor dem `die`.
 
-## Positives
+### Positives – Runde 2
 
 - Saubere Schichtung in Abschnitt 5b: `host_iptables` → `fetch_rule` → Einrichten/Abräumen; Regeln weiter als ein Array an
   einer Stelle (E36).
@@ -104,7 +163,7 @@ _(keine)_
 - Timeout und Abweisung sind im Fake-curl zustandsbasiert getrennt, je Ziel gibt es einen roten Timeout-Fall.
 - Projektregeln eingehalten: `ownership-check.sh` grün, keine Herkunftsbegriffe, ausgelieferte Suite konsumenten-neutral.
 
-## Empfehlung
+### Empfehlung – Runde 2
 NEEDS_REWORK
 
 Beide wichtigen Findings sind reine ADR-/Doku-Änderungen; der Code ist nach Runde 2 in Ordnung. Das erste braucht die
