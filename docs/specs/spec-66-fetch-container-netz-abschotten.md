@@ -116,14 +116,18 @@ ADR-Nachtrag (`/architecture`).
 
 ## Offene Fragen (für `/architecture`)
 
-- [ ] **Q1** Mechanismus der Sperre: Firewall-Regeln auf dem Host (z. B. `DOCKER-USER`-Kette, braucht `sudo`), eigenes
-  Docker-Netz mit Einschränkungen, oder Netz-Namensraum mit eigener Regel. Welcher ist auf GitHub-gehosteten Runnern
-  verlässlich, und wie lässt er sich offline belegen?
-- [ ] **Q2** Gilt die Sperre nur für den Fetch-Container oder für jeden Container auf dem Runner? Muss sie nach dem Lauf
-  wieder entfernt werden (F4, selbst gehostete Runner)?
-- [ ] **Q3** DNS: Welcher Resolver ist im Container eingetragen, und liegt er in der Zielmenge (z. B. ein lokaler Resolver
-  am Gateway)? Falls ja: wie bleibt die Namensauflösung möglich, ohne das Gateway allgemein zu öffnen?
-- [ ] **Q4** IPv6: Hat der Container auf GitHub-gehosteten Runnern IPv6? Reicht „kein IPv6 im Container“ als Nachweis
-  für AK1.4?
-- [ ] **Q5** Wie verhält sich der Smoke-Test, wenn `github.com` vorübergehend nicht erreichbar ist (Flakiness gegen
-  fail-closed)?
+Alle geklärt in Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40):
+
+- [x] **Q1** Mechanismus: eigenes Docker-Netz `factory-fetch` mit Bridge `factory-fetch0`, Regeln auf dem Host per
+  `sudo -n iptables`: `INPUT` sperrt den Host ganz, `DOCKER-USER` sperrt `169.254.0.0/16` und `168.63.129.16` (E35, E36).
+  Offline belegt mit Fake-`docker`/`sudo`/`iptables` (E40 a, b).
+- [x] **Q2** Geltung nur für die Schnittstelle des Fetch-Containers; idempotent anlegen, nach dem Lauf per `trap`
+  abräumen (E35, E38).
+- [x] **Q3** DNS läuft auf Azure über `168.63.129.16`; dort bleibt nur Port 53 (UDP/TCP) frei (E36, Restrisiko 2).
+- [x] **Q4** IPv6 im Container per `--sysctl net.ipv6.conf.all.disable_ipv6=1` aus, Netz ohne IPv6; belegt durch die
+  Smoke-Probe (E37, E40 c).
+- [x] **Q5** `curl --retry` gegen kurze Aussetzer; bleibt `github.com` unerreichbar, wird der Smoke-Job rot (E40 c).
+
+**Präzisierung aus `/architecture`:** F2 (Gateway nicht ermittelbar) entfällt für die Sperre: Die Regel hängt an der
+Schnittstelle, nicht an der Adresse (E39). Die Gateway-Adresse braucht nur noch die Smoke-Probe; ist sie dort nicht
+ermittelbar, wird der Smoke-Job rot.
