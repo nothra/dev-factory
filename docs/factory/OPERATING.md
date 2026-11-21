@@ -194,6 +194,16 @@ Scope von `main` schreiben, die `pull_request`-Workflows lesen. Ein Ausbruch aus
 öffnete diesen Weg wieder. Betroffen sind nur Repos mit Caches (`actions/cache`, `setup-*` mit `cache`). Details: Factory-ADR-063,
 Nachtrag 2026-11-20 (E28–E34).
 
+Das Netz des Containers ist vom Host und von den Link-Local-Diensten der Cloud abgeschottet: Er hängt in einem eigenen
+Docker-Netz (`factory-fetch`, ohne IPv6), und Regeln auf dem Runner sperren für ihn den Host selbst (Bridge-Gateway und jede
+andere Host-Adresse), `169.254.0.0/16` (Metadaten-Dienst) und den Azure-WireServer `168.63.129.16` außer DNS. Das öffentliche
+Internet bleibt erreichbar, die Abholung läuft unverändert. Die Regeln setzt `fetch` vor dem Container und räumt sie danach
+wieder ab; dafür braucht der Runner **passwortloses `sudo` und `iptables`** (GitHub-gehostete Runner haben beides). Fehlt das,
+endet `fetch` rot, bevor ein Container startet – ohne Rückfall auf ein Netz ohne Sperre. Den Nachweis im echten Container führt
+der Job `fetch-container-smoke` der Factory-CI. **Restrisiko im Netz:** Der Container erreicht weiter das Internet (Datenabfluss
+von Inhalten des Checkouts), DNS am WireServer und private Netze (RFC1918) außerhalb des Hosts; auf selbst gehosteten Runnern
+kann dort mehr liegen. Details: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40).
+
 **Warum ein PAT und nicht `GITHUB_TOKEN`:** Pushes und PRs mit dem eingebauten Token lösen keine
 `pull_request`-Workflows aus – die Gates am Update-PR liefen nie. Der eingebaute Token bleibt im
 Workflow auf `contents: read`; das Skript liest ihn nie.

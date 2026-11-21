@@ -8,7 +8,8 @@
 #                                                        Job „fetch“ (ohne Token): Image bauen, Release-Code im Container,
 #                                                        Ergebnis = <out_dir>/update.bundle (Factory-ADR-063 E28–E33)
 #   factory-update.sh fetch   <version> <base> <bundle>  Einstieg im Container (und der Kurzform); in CI direkt verweigert
-#   factory-update.sh fetch-smoke <out_dir>              Smoke-Job in factory-ci.yml: dasselbe Image, harmloses Kommando
+#   factory-update.sh fetch-smoke <out_dir>              Smoke-Job in factory-ci.yml: dasselbe Image, harmloses Kommando + Netz-Probe
+#   (fetch-isolated und fetch-smoke schotten das Netz des Containers per sudo -n iptables ab, E35–E39 – sonst Exit 1)
 #   factory-update.sh publish <version> <base> <bundle>  Job „publish“ (Token): Bundle prüfen, pushen, PR pflegen
 #   FACTORY_SYNC_TOKEN=<pat> GITHUB_REPOSITORY=<owner>/<repo> bash scripts/factory-update.sh
 #                                                        Kurzform (nur Tests/lokal, in CI verweigert): alle Schritte hintereinander
@@ -64,16 +65,47 @@ FETCH_BUNDLE="update.bundle"
 # Im Container: Arbeitskopie des nur lesend eingebundenen Checkouts, darin die Abholung. Version und Basis als Positionsargumente.
 FETCH_CONTAINER_SCRIPT='cp -a /src/. /tmp/work && bash /tmp/work/scripts/factory-update.sh fetch "$1" "$2" /out/update.bundle'
 # Harmloser Nachweis für den Smoke-Job (E34 f): Werkzeuge da, kein root, keine Runner-Umgebung, Checkout nur lesend, /out beschreibbar.
-FETCH_SMOKE_SCRIPT='git --version && jq --version && yq --version && curl --version && sha256sum --version \
+# Dazu die Netz-Probe (E40 c, $1 = Gateway, $2 = Port des Host-Lauschers): Gateway, IMDS und WireServer unerreichbar, DNS und HTTPS
+# zu GitHub erreichbar, keine IPv6-Adresse außer lo.
+FETCH_SMOKE_SCRIPT='blocked() { ! curl -s -o /dev/null --max-time 5 "$1" || { echo "✗ Netz-Sperre wirkt nicht: $1 erreichbar" >&2; return 1; }; }
+git --version && jq --version && yq --version && curl --version && sha256sum --version \
   && [ "$(id -u)" != 0 ] && ! env | grep -qE "^(ACTIONS|GITHUB|RUNNER)_" && ! touch /src/.smoke 2>/dev/null \
+  && blocked "http://$1:$2/" && blocked http://169.254.169.254/ && blocked http://168.63.129.16/ \
+  && curl -sS -o /dev/null --retry 3 --retry-all-errors --max-time 20 https://github.com \
+  && ! grep -vE "[[:space:]]lo\$" /proc/net/if_inet6 2>/dev/null \
   && echo ok > /out/smoke.txt'
 
+# Netz des Containers (E35–E39): eigenes Docker-Netz mit fester Bridge; alle Regeln hängen an dieser Schnittstelle und lassen
+# andere Container und Dienste des Runners unberührt.
+FETCH_NETWORK="factory-fetch"
+FETCH_BRIDGE="factory-fetch0"
+# Regeln (E36) – einzige Stelle, je Eintrag Kette und Regel, in Zielreihenfolge: so stehen sie nach dem Einfügen am Kettenanfang.
+# INPUT sperrt den Host ganz (Verkehr zum Host läuft nicht durch FORWARD/DOCKER-USER); DNS am WireServer vor dessen Sperre.
+FETCH_NET_RULES=(
+  "INPUT -i $FETCH_BRIDGE -j REJECT"
+  "DOCKER-USER -i $FETCH_BRIDGE -d 168.63.129.16/32 -p udp --dport 53 -j RETURN"
+  "DOCKER-USER -i $FETCH_BRIDGE -d 168.63.129.16/32 -p tcp --dport 53 -j RETURN"
+  "DOCKER-USER -i $FETCH_BRIDGE -d 168.63.129.16/32 -j REJECT"
+  "DOCKER-USER -i $FETCH_BRIDGE -d 169.254.0.0/16 -j REJECT"
+)
+FETCH_NET_HINT="fetch braucht passwortloses sudo und iptables auf dem Runner (GitHub-gehostet vorhanden) – kein Container ohne Netz-Sperre"
+# Port des Host-Lauschers auf dem Gateway (Smoke-Probe, E40 c)
+FETCH_SMOKE_PORT=18066
+
 WORK=""
+FETCH_NET_ACTIVE=""
+SMOKE_LISTENER_PID=""
 
 die() { printf '✗ factory-update: %s\n' "$1" >&2; exit 1; }
 note() { printf 'ℹ factory-update: %s\n' "$1"; }
+warn() { printf '⚠ factory-update: %s\n' "$1" >&2; }
 
-cleanup() { [ -z "$WORK" ] || rm -rf "$WORK"; }
+# Läuft per trap auf EXIT, nach Erfolg und nach Fehler: erst der Lauscher, dann Netz-Sperre und Netz (E38), zuletzt WORK.
+cleanup() {
+  [ -z "$SMOKE_LISTENER_PID" ] || kill "$SMOKE_LISTENER_PID" 2>/dev/null
+  [ -z "$FETCH_NET_ACTIVE" ] || teardown_fetch_network
+  [ -z "$WORK" ] || rm -rf "$WORK"
+}
 
 # Ausgabe für nachfolgende Jobs (GitHub Actions); ohne $GITHUB_OUTPUT (Tests, lokal) nur auf stdout.
 emit_output() {
@@ -216,12 +248,76 @@ make_out_dir() {
 }
 
 # Die Optionen von docker run (E31) – einzige Stelle, fetch-isolated und fetch-smoke starten beide hierüber. Keine Sonderrechte,
-# keine Umgebung außer HOME, genau drei Mounts: Checkout und yq nur lesend, dazu das Ausgabeverzeichnis.
+# keine Umgebung außer HOME, genau drei Mounts: Checkout und yq nur lesend, dazu das Ausgabeverzeichnis. Netz: nur das eigene
+# (E35), ohne IPv6 (E37).
 run_in_fetch_container() { # <out_dir> <kommando…>
   local out="$1" yq_bin; shift
   yq_bin="$(command -v yq)" || die "yq nicht gefunden (scripts/install-yq.sh, fail-closed)"
-  docker run --rm --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  docker run --rm --network "$FETCH_NETWORK" --sysctl net.ipv6.conf.all.disable_ipv6=1 --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$ROOT:/src:ro" -v "$out:/out" -v "$yq_bin:/usr/local/bin/yq:ro" "$FETCH_IMAGE" "$@"
+}
+
+# ─── 5b. Netz-Sperre des Containers (E35–E39) ─────────────────────────────────────────────────────────────────────────
+
+# -n: ohne passwortloses sudo scheitert der Aufruf, statt auf ein Passwort zu warten.
+host_iptables() { sudo -n iptables "$@"; }
+
+# Entfernt jede Regel aus FETCH_NET_RULES, solange -C sie findet (auch mehrfach vorhandene Reste); Exit 1, wenn eine bleibt.
+remove_fetch_rules() {
+  local rule rc=0 args
+  for rule in "${FETCH_NET_RULES[@]}"; do
+    read -ra args <<< "$rule"
+    while host_iptables -C "${args[@]}" 2>/dev/null; do
+      host_iptables -D "${args[@]}" 2>/dev/null || { rc=1; break; }
+    done
+  done
+  return "$rc"
+}
+
+remove_fetch_network() {
+  docker network inspect "$FETCH_NETWORK" >/dev/null 2>&1 || return 0
+  docker network rm "$FETCH_NETWORK" >/dev/null
+}
+
+# Vor Image und Container (E39): Reste abräumen, Netz anlegen, Regeln in umgekehrter Folge an den Kettenanfang einfügen (danach
+# stehen sie in der Folge von FETCH_NET_RULES), jede per -C prüfen. Jeder Fehler → Exit 1, kein Rückfall aufs Standard-Netz.
+setup_fetch_network() {
+  local i rule args
+  FETCH_NET_ACTIVE=1
+  remove_fetch_rules; remove_fetch_network
+  docker network create --driver bridge -o "com.docker.network.bridge.name=$FETCH_BRIDGE" "$FETCH_NETWORK" >/dev/null \
+    || die "Docker-Netz $FETCH_NETWORK nicht anlegbar. $FETCH_NET_HINT"
+  for ((i = ${#FETCH_NET_RULES[@]} - 1; i >= 0; i--)); do
+    read -ra args <<< "${FETCH_NET_RULES[i]}"
+    host_iptables -I "${args[@]}" || die "Regel nicht setzbar: ${FETCH_NET_RULES[i]}. $FETCH_NET_HINT"
+  done
+  for rule in "${FETCH_NET_RULES[@]}"; do
+    read -ra args <<< "$rule"
+    host_iptables -C "${args[@]}" 2>/dev/null || die "Regel nach dem Setzen nicht vorhanden: $rule. $FETCH_NET_HINT"
+  done
+}
+
+# Nach dem Container (E38): Fehler sind nur eine Warnung – der Container ist dann schon beendet (--rm).
+teardown_fetch_network() {
+  remove_fetch_rules || warn "Netz-Sperre nicht abgeräumt (iptables -D gescheitert) – Regeln an $FETCH_BRIDGE bleiben stehen"
+  remove_fetch_network || warn "Docker-Netz $FETCH_NETWORK nicht abgeräumt"
+}
+
+# Smoke-Probe (E40 c): Lauscher auf dem Gateway von FETCH_NETWORK; die Gegenprobe vom Host belegt, dass er läuft – sonst sagte
+# „im Container unerreichbar" nichts. Setzt SMOKE_GATEWAY.
+start_gateway_listener() {
+  local try
+  command -v python3 >/dev/null 2>&1 || die "python3 fehlt – Smoke-Probe der Netz-Sperre nicht möglich"
+  SMOKE_GATEWAY="$(docker network inspect -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' "$FETCH_NETWORK" 2>/dev/null)"
+  [[ "$SMOKE_GATEWAY" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || die "Gateway von $FETCH_NETWORK nicht ermittelbar – Smoke-Probe nicht möglich"
+  mkdir "$WORK/listener" || die "Verzeichnis für den Lauscher nicht anlegbar"
+  python3 -m http.server --bind "$SMOKE_GATEWAY" --directory "$WORK/listener" "$FETCH_SMOKE_PORT" >/dev/null 2>&1 &
+  SMOKE_LISTENER_PID=$!
+  for try in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s -o /dev/null --max-time 2 "http://$SMOKE_GATEWAY:$FETCH_SMOKE_PORT/" && return 0
+    sleep 0.5
+  done
+  die "Gegenprobe gescheitert: der Host erreicht den Lauscher auf $SMOKE_GATEWAY:$FETCH_SMOKE_PORT nicht – Smoke-Probe ohne Aussage"
 }
 
 # Rückweg (E32): genau ein Eintrag, die reguläre Datei update.bundle – kein Symlink, kein Verzeichnis. Der Host liest sie nicht.
@@ -402,6 +498,7 @@ mode_fetch_isolated() {
   require_handover_args "${1:-}" "${2:-}" "${3:-}"
   require_docker
   make_out_dir "$3"
+  setup_fetch_network
   build_fetch_image
   run_in_fetch_container "$OUT_DIR" bash -c "$FETCH_CONTAINER_SCRIPT" _ "$1" "$2" \
     || die "Abholung von $1 im Container gescheitert (Meldung oben) – kein Artefakt"
@@ -409,12 +506,17 @@ mode_fetch_isolated() {
   note "Übergabe liegt in $OUT_DIR/$FETCH_BUNDLE – geprüft wird sie in publish"
 }
 
-# Smoke-Job in factory-ci.yml (E34 f): dasselbe Image, derselbe Aufruf, ein harmloses Kommando statt der Abholung.
+# Smoke-Job in factory-ci.yml (E34 f, E40 c): dasselbe Image, derselbe Aufruf, dieselbe Netz-Sperre, ein harmloses Kommando samt
+# Netz-Probe statt der Abholung.
 mode_fetch_smoke() {
   require_docker
   make_out_dir "${1:-}"
+  make_work_dir
+  setup_fetch_network
   build_fetch_image
-  run_in_fetch_container "$OUT_DIR" bash -c "$FETCH_SMOKE_SCRIPT" || die "Smoke im Container gescheitert (Meldung oben)"
+  start_gateway_listener
+  run_in_fetch_container "$OUT_DIR" bash -c "$FETCH_SMOKE_SCRIPT" _ "$SMOKE_GATEWAY" "$FETCH_SMOKE_PORT" \
+    || die "Smoke im Container gescheitert (Meldung oben)"
   [ "$(cat "$OUT_DIR/smoke.txt" 2>/dev/null)" = ok ] || die "Smoke ohne Nachweis aus dem Container (/out/smoke.txt fehlt)"
   echo "✓ factory-update: Image und Aufruf des fetch-Containers tragen"
 }

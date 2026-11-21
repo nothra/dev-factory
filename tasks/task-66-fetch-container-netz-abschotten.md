@@ -1,7 +1,7 @@
 # Task 66: fetch-container-netz-abschotten
 
 ## Status
-- [ ] In Bearbeitung
+- [x] In Bearbeitung
 - [ ] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
@@ -22,18 +22,23 @@ ADR-Trigger: kehrt Factory-ADR-063 E31 Q3 um → `/architecture` vor `/implement
 - [ ] AK1.2 `169.254.0.0/16` (inkl. `169.254.169.254`) unerreichbar
 - [ ] AK1.3 `168.63.129.16` unerreichbar
 - [ ] AK1.4 `fe80::/10` unerreichbar (oder kein IPv6 im Container)
-- [ ] AK1.5 Sperre aus dem Container heraus nicht aufhebbar
+- [x] AK1.5 Sperre aus dem Container heraus nicht aufhebbar
 - [ ] AK2.1 DNS + HTTPS zu GitHub funktionieren, Bundle unverändert
-- [ ] AK2.2 Tests #23/#24/#37/#41 grün, Anker mindestens gleich streng
-- [ ] AK3.1 `fetch-isolated` fail-closed, wenn Sperre nicht einrichtbar
-- [ ] AK3.2 `fetch-smoke` ebenso rot
-- [ ] AK4.1 Offline-Guard-Tests (ohne Docker) für Zielmenge, Reihenfolge, beide Modi, Fehlerfall
-- [ ] AK4.2 Mutationsbelege je tragender Eigenschaft
+- [x] AK2.2 Tests #23/#24/#37/#41 grün, Anker mindestens gleich streng
+- [x] AK3.1 `fetch-isolated` fail-closed, wenn Sperre nicht einrichtbar
+- [x] AK3.2 `fetch-smoke` ebenso rot
+- [x] AK4.1 Offline-Guard-Tests (ohne Docker) für Zielmenge, Reihenfolge, beide Modi, Fehlerfall
+- [x] AK4.2 Mutationsbelege je tragender Eigenschaft
 - [ ] AK4.3 Smoke-Probe in `fetch-container-smoke`: gesperrte Ziele scheitern, `github.com` erreichbar
-- [ ] AK5.1 ADR-063-Nachtrag (#66), Verweise aus E31 Q3 und Restrisiko 2
-- [ ] AK5.2 `OPERATING.md` §0.6 ergänzt
-- [ ] AK5.3 `tasks/security-41.md` Hinweis „Netz" verweist auf #66
+- [x] AK5.1 ADR-063-Nachtrag (#66), Verweise aus E31 Q3 und Restrisiko 2
+- [x] AK5.2 `OPERATING.md` §0.6 ergänzt
+- [x] AK5.3 `tasks/security-41.md` Hinweis „Netz" verweist auf #66
 - [ ] F1, F3, F4 Fehlerszenarien abgedeckt (F2 entfällt, E39; siehe Spec)
+
+**Stand `/implement` (2026-11-21):** Offline vollständig belegt (`factory-lock-66-tests.sh`, 62 grün; #41-Gruppe 88 grün).
+Offen bis zum ersten grünen CI-Lauf des Jobs `fetch-container-smoke` am PR: AK1.1–AK1.4, AK2.1, AK4.3 und F3 – deren
+Wirkung im echten Container (iptables-Backend, `DOCKER-USER`, DNS über `168.63.129.16`) ist offline nicht belegbar
+(ADR-063 Nachtrag 2026-11-21, Restrisiko 4). F1 und F4 sind offline belegt.
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
@@ -61,6 +66,14 @@ Entscheidung: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40), Status Accepted 
 <!-- Fragen, die noch geklärt werden müssen -->
 - [x] Q1–Q5 geklärt in Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40)
 - [x] ADR-Nachtrag angenommen (Accepted, 2026-11-21)
+
+Notizen aus `/implement`:
+- Fakes für `docker`/`sudo`/`iptables` (und Host-Lauscher, Container-`curl`) liegen jetzt in `lib/factory-lock-fixtures.sh`
+  (`fetch_fakes_41`), geteilt von den Gruppen #41 und #66. Der Fake-`iptables` nutzt nur Builtins: mit Hilfsprozessen je Aufruf
+  lief die Gruppe lokal 302 s statt 86 s.
+- Neue Gruppe `factory-lock-66-tests.sh` (per Glob in `run-tests.sh`, `OWNERSHIP.md` deckt `scripts/checks/tests/**` schon ab).
+- Smoke-Probe: Port des Host-Lauschers fest `18066`; die Gegenprobe vom Host läuft vor dem Container, sonst Smoke rot.
+- Mit kaputtem `iptables -C` kann auch das Abräumen keine Regel finden (Test lässt dort nur die Abräum-Prüfung weg).
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->

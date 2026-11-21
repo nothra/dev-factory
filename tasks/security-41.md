@@ -60,9 +60,8 @@ Ein echter Rückkanal bleibt: Der Host wertet die Ausgabe des Containers aus (Fi
     für `168.63.129.16/32` und das Bridge-Gateway setzen.
   - **Out-of-Scope** (Q3 bewusst entschieden, offline nicht testbar). Sicherheitsrisiko gering bis unbekannt, eher als
     Folge-Issue bzw. Restrisiko-Präzisierung im ADR.
-  - **Ablage (ADR-043, Zweifelsregel → Issue): offen.** Die Anlage über `scripts/lib/create-issue.sh` (Titel „Fetch-Container
-    vom Host-Gateway und Link-Local-Diensten abschotten", `enhancement` + `security`) brauchte eine Freigabe, die die
-    Session nicht hatte. Vor dem Merge nachholen und die Nummer hier eintragen.
+  - **Ablage: #66** (ADR-043, Zweifelsregel → Issue; Titel „Fetch-Container vom Host-Gateway und Link-Local-Diensten
+    abschotten"). Umgesetzt in #66, Entscheidung in Factory-ADR-063, Nachtrag 2026-11-21 (E35–E40).
 - [ ] [Restrisiko Kernel] Ein Ausbruch über einen Fehler im Kernel oder in Docker öffnet Weg 2 wieder: root auf dem
   Runner, dann der Speicher von `Runner.Worker`. Das ADR dokumentiert es ehrlich als Restrisiko 1. Die Optionen
   (`--cap-drop ALL`, `no-new-privileges`, Default-Seccomp/AppArmor, keine Runner-UID 0) sind für diesen Aufwand
