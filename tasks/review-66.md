@@ -48,9 +48,15 @@ _(keine)_
   qualifiziert.
 
 ## Empfehlung
-NEEDS_REWORK → nach Annahme von E41 durch den Menschen **bestanden** (ohne weitere Runde, siehe unten).
+APPROVED
 
-Am Code ist nichts mehr nachzuarbeiten. Offen ist allein die **Annahme von E41 durch den Menschen**; die drei Nitpicks
+**Abschluss (2026-11-22, keine 4. Runde – Circuit Breaker):** Das Delta 02659f0..e81163f ist reine Doku. Es nimmt E41 in
+der ADR-Kopfzeile und in E41 selbst an („Accepted, 2026-11-21, Entscheidung Mensch“, ac18515), hakt in der Task-Datei die
+offene Frage ab und setzt die drei Nitpicks aus Runde 3 wie vorgeschlagen um (e81163f). Es enthält keine Code- oder
+Teständerung und keine neue getrackte Datei. Die Doku-Guards in `factory-lock-66-tests.sh` prüfen weiterhin die
+unveränderten Anker („greift der Lock **nicht**“, Restrisiko 6). Damit gilt die Bedingung aus Runde 3 als erfüllt.
+
+Bewertung aus Runde 3: Am Code ist nichts mehr nachzuarbeiten. Offen ist allein die **Annahme von E41 durch den Menschen**; die drei Nitpicks
 sind optional. Der Circuit Breaker ist erreicht (3. Review): kein weiterer `/implement`↔`/review`-Durchlauf, sondern
 Eskalation an den Menschen. Nimmt der Mensch E41 an (Status in ADR und Task-Datei), gilt der Review ohne weitere Runde als
 bestanden.

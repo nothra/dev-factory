@@ -267,7 +267,8 @@ make_out_dir() {
 run_in_fetch_container() { # <out_dir> <kommando…>
   local out="$1" yq_bin; shift
   yq_bin="$(command -v yq)" || die "yq nicht gefunden (scripts/install-yq.sh, fail-closed)"
-  docker run --rm --network "$FETCH_NETWORK" --sysctl net.ipv6.conf.all.disable_ipv6=1 --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  docker run --rm --network "$FETCH_NETWORK" --sysctl net.ipv6.conf.all.disable_ipv6=1 \
+    --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$ROOT:/src:ro" -v "$out:/out" -v "$yq_bin:/usr/local/bin/yq:ro" "$FETCH_IMAGE" "$@"
 }
 

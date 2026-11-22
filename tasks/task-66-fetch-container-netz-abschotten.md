@@ -3,9 +3,9 @@
 ## Status
 - [x] In Bearbeitung
 - [x] Review bestanden
-- [ ] Tests vollständig
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -113,6 +113,11 @@ weitere Runde als bestanden. Dazu 3 optionale Nitpicks: CHANGELOG ohne Grenze au
 
 Nach Runde 3 (`/implement`, 2026-11-22): E41 angenommen (ac18515) → Review bestanden. Die drei optionalen Nitpicks
 sind umgesetzt (CHANGELOG mit der Grenze aus Restrisiko 6, Umbrüche in `OPERATING.md` und ADR-063).
+
+## Refactoring (2026-11-22)
+Checkliste durchgegangen: Namen, Funktionsgrößen (alle ≤ ~20 Zeilen), Konstanten und Kommentare (WHY) sind bereits sauber.
+Einzige Änderung: die überlange `docker run`-Zeile in `run_in_fetch_container` umgebrochen (kein neues Verhalten).
+Gruppen #66 (84 grün) und #41 (93 grün) nach der Änderung grün.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
