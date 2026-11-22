@@ -1850,3 +1850,11 @@ Ohne Netz- und Docker-Zugriff stand für den Image-Digest ein Nullen-Platzhalter
 **Regel:** Einen Pin, den die Session nicht gegen die Quelle prüfen kann, nicht mit einem Platzhalter plus rotem Test einchecken, sondern als Blocker melden. Den Format-Test nie als Ladbarkeitsbeleg ausgeben; die zugehörigen AK erst nach dem CI-Lauf abhaken, der die Quelle wirklich anspricht.
 
 → `/implement`, `/review` – bei Pin-Werten (Digest, Version, Prüfsumme), die ohne Netz nicht ermittelbar sind
+
+## Schutz nie vor dem Geschützten abbauen (aus Factory-Task #66, `/security-review` W1)
+
+Die Netz-Sperre des Fetch-Containers (iptables-Regeln) wurde im EXIT-Trap und beim Abräumen von Resten vor dem nächsten Lauf **vor** dem Netz entfernt. Hing noch ein verwaister Container am Netz, scheiterte `docker network rm`, und der Container lief ohne Sperre weiter – genau der Zustand, den der PR verhindern sollte. Drei Review-Runden und die Test-Fakes prüften nur die Einrichtungs-Reihenfolge; die Abbau-Reihenfolge fiel erst in `/security-review` auf.
+
+**Regel:** Jede Schutzmaßnahme (Firewall-Regel, Lock, Berechtigung, Isolation) beim Abräumen erst entfernen, wenn das Geschützte nachweislich weg ist (Container entfernt); sonst Schutz stehen lassen und warnen (fail-safe). Der Abbaupfad gehört wie der Aufbaupfad in Spec, Test (Fake „Geschütztes lebt noch“ + Mutant mit alter Reihenfolge) und Review-Checkliste.
+
+→ `/architecture`, `/implement`, `/security-review` – bei Trap-/Cleanup-Code, der Schutzmaßnahmen um einen Prozess oder Container abbaut

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # factory-lock-fixtures.sh – gemeinsame Fixtures der Testgruppen zu Abholen, factory.lock und Integritäts-Gate (Factory-Issue #23),
-# Update-Workflow (#24) und Token-Trennung (#37); Schnitt in Teilgruppen: Factory-ADR-066 D2
+# Update-Workflow (#24), Token-Trennung (#37) und Fetch-Container (#41, #66); Schnitt in Teilgruppen: Factory-ADR-066 D2
 #
-# Wird gesourct, nie direkt ausgeführt – von scripts/checks/tests/factory-lock-{23,24a,24b,37a,37b}-tests.sh. Alles läuft offline
+# Wird gesourct, nie direkt ausgeführt – von scripts/checks/tests/factory-lock-{23,24a,24b,37a,37b,41,66}-tests.sh. Alles läuft offline
 # gegen ein Fixture-Factory-Repo (lokales Git-Repo mit Tags) und handgebaute Release-Manifeste; Netzzugriffe sind über
 # FACTORY_UPSTREAM_GIT_URL/FACTORY_RELEASE_BASE_URL (`file://`) umgelenkt. Konsumenten-neutral: liest nur Dateien der Seite
 # `factory` und baut alles Übrige selbst. Setzt die Helfer aus lib/assert-helpers.sh und lib/test-groups.sh voraus.
@@ -218,6 +218,143 @@ next_world_24() { N_24=$((N_24 + 1)); world_24 "$1$N_24"; }
 # token_refused_24 <exit> <ausgabe> <protokoll-datei> – rot, Meldung nennt Token + OPERATING.md, Release-Liste nie gelesen
 token_refused_24() {
   [ "$1" -eq 1 ] && grep -qF 'FACTORY_SYNC_TOKEN' <<< "$2" && grep -qF 'OPERATING.md' <<< "$2" && ! grep -qF 'releases' "$3"
+}
+
+# ═══ #41/#66: Fakes für den Fetch-Container (docker, sudo, iptables; Host-Lauscher der Smoke-Probe) ═════════════════════
+# fetch_fakes_41 – legt die Fakes an; setzt FAKE_41 (docker, sudo, iptables – für fetch-isolated und fetch-smoke) und FAKE_HOST_66
+# (python3, curl – nur für fetch-smoke, NIE für die Container-Nachbildung: dort holt factory-sync.sh per curl ab).
+# Zustand je Lauf unter $FAKE_DOCKER_STATE: calls.log (info | build | run | network-<op> | flock | sudo -n iptables |
+# iptables <op> <kette> | sudo-ohne-n), out-mode, chains/<kette> (eine Regel je Zeile, oben = Kettenanfang), net (Netz existiert),
+# gateway (sonst FAKE_GATEWAY_66), Schalter fail-*/no-*/flock-busy.
+# Beim run hält der Fake fest, welche Regeln und ob das Netz in diesem Moment bestehen (chains-at-run/, net-at-run); bei run,
+# network rm und dem Lauscher, ob fd 9 (Lock, E41) offen ist (lock-at-run, lock-at-net-rm, lock-at-listener: 1/0).
+# out-mode: none | file | symlink | dir | two | smoke | probe | emulate. „probe" führt das Smoke-Skript aus (#66). „emulate" bildet den Container nach: Arbeitskopie aus dem
+# /src-Mount, Pfade /tmp/work, /src, /out umgelenkt, Umgebung NUR aus den -e-Argumenten (wie docker) – plus die offline-Umlenkung
+# der Fixture-Quellen (FACTORY_UPSTREAM_GIT_URL/FACTORY_RELEASE_BASE_URL), die es im echten Lauf nicht gibt.
+fetch_fakes_41() {
+  FAKE_41="$T23/fakedocker"; FAKE_HOST_66="$T23/fakehost"; mkdir -p "$FAKE_41" "$FAKE_HOST_66"
+  export FAKE_GATEWAY_66=172.30.66.1   # Gateway von factory-fetch, das der Fake-docker meldet
+  cat > "$FAKE_41/docker" <<'FAKE'
+#!/usr/bin/env bash
+d="$FAKE_DOCKER_STATE"
+lock_open() { if { : >&9; } 2>/dev/null; then echo 1; else echo 0; fi; }   # 1 = fd 9 (host-weiter Lock, E41) ist geerbt
+case "$1" in network) printf 'network-%s\n' "$2" >> "$d/calls.log" ;; *) printf '%s\n' "$1" >> "$d/calls.log" ;; esac
+case "$1" in
+  info) [ ! -e "$d/fail-info" ] ;;
+  build) printf '%s\0' "$@" > "$d/build.argv"; cat > "$d/Dockerfile"; [ ! -e "$d/fail-build" ] ;;
+  network)
+    case "$2" in
+      inspect) [ -e "$d/net" ] || exit 1
+               case " $* " in *" -f "*) cat "$d/gateway" 2>/dev/null || echo "$FAKE_GATEWAY_66" ;; esac ;;
+      create) printf '%s\0' "$@" > "$d/net-create.argv"; [ ! -e "$d/fail-net-create" ] && [ ! -e "$d/net" ] || exit 1; : > "$d/net" ;;
+      rm) lock_open > "$d/lock-at-net-rm"
+          [ ! -e "$d/fail-net-rm" ] && [ -e "$d/net" ] && [ ! -e "$d/orphan" ] || exit 1; rm -f "$d/net" ;;   # wie Docker: mit angehängtem Container nicht entfernbar
+      *) exit 9 ;;
+    esac ;;
+  ps) [ ! -e "$d/fail-ps" ] || exit 1; [ ! -e "$d/orphan" ] || echo cafe66 ;;   # Container am Netz (#66 W1): Datei orphan = einer hängt dran
+  rm) [ ! -e "$d/fail-rm" ] || exit 1; rm -f "$d/orphan" ;;
+  run)
+    [ ! -e "$d/orphan-after-run" ] || : > "$d/orphan"   # der Container überlebt den Lauf (Signal, --rm greift erst an seinem Ende)
+    printf '%s\0' "$@" > "$d/run.argv"; lock_open > "$d/lock-at-run"
+    rm -rf "$d/chains-at-run"; mkdir -p "$d/chains"; cp -R "$d/chains" "$d/chains-at-run"
+    [ ! -e "$d/net" ] || : > "$d/net-at-run"
+    [ ! -e "$d/fail-run" ] || exit 3
+    out=""; src=""; envs=(); script=""; pos=()
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -v) case "$2" in *:/out) out="${2%:/out}" ;; *:/src:ro) src="${2%:/src:ro}" ;; esac; shift 2 ;;
+        -e) envs+=("$2"); shift 2 ;;
+        bash) if [ "${2:-}" = -c ]; then script="$3"; shift 3; pos=("$@"); break; fi; shift ;;
+        *) shift ;;
+      esac
+    done
+    printf '%s\0' "${pos[@]}" > "$d/run-pos.argv"
+    case "$(cat "$d/out-mode")" in
+      none) ;;
+      file) printf 'bundle' > "$out/update.bundle" ;;
+      symlink) ln -s /etc/hosts "$out/update.bundle" ;;
+      dir) mkdir "$out/update.bundle" ;;
+      two) printf 'bundle' > "$out/update.bundle"; printf x > "$out/extra" ;;
+      smoke) printf 'ok\n' > "$out/smoke.txt" ;;
+      probe)   # Smoke-Skript echt ausführen: /out umgelenkt, /src unerreichbar, /proc/net/if_inet6 aus dem Zustand, curl aus FAKE_CTR_66
+        s="${script//\/out/$out}"; s="${s//\/src/$d/keine-src}"; s="${s//\/proc\/net\/if_inet6/$d/if_inet6}"
+        env -i PATH="$FAKE_CTR_66:$PATH" FAKE_DOCKER_STATE="$d" bash -c "$s" "${pos[@]}" ;;
+      emulate)
+        w="$d/ctr"; rm -rf "$w"; mkdir -p "$w"
+        s="${script//\/tmp\/work/$w/work}"; s="${s//\/src/$src}"; s="${s//\/out/$out}"
+        ea=(PATH="$PATH" FACTORY_UPSTREAM_GIT_URL="${FACTORY_UPSTREAM_GIT_URL:-}" FACTORY_RELEASE_BASE_URL="${FACTORY_RELEASE_BASE_URL:-}")
+        for e in "${envs[@]}"; do case "$e" in *=*) ea+=("$e") ;; *) ea+=("$e=${!e:-}") ;; esac; done
+        env -i "${ea[@]}" bash -c "$s" "${pos[@]}" ;;
+    esac ;;
+  *) exit 9 ;;
+esac
+FAKE
+  # sudo: ohne -n schlüge der echte Aufruf auf einem Runner ohne passwortloses sudo nicht fehl, sondern wartete – hier: rot.
+  # Protokolliert „sudo -n <befehl>“: so ist prüfbar, dass jeder iptables-Aufruf über sudo lief.
+  cat > "$FAKE_41/sudo" <<'FAKE'
+#!/usr/bin/env bash
+d="$FAKE_DOCKER_STATE"
+[ ! -e "$d/no-sudo" ] || exit 1
+[ "${1:-}" = -n ] || { printf 'sudo-ohne-n\n' >> "$d/calls.log"; exit 1; }
+shift; printf 'sudo -n %s\n' "$1" >> "$d/calls.log"; exec "$@"
+FAKE
+  # flock: host-weiter Lock der Netz-Sperre; „flock-busy“ = ein anderer Lauf hält ihn (Wartezeit abgelaufen)
+  cat > "$FAKE_41/flock" <<'FAKE'
+#!/usr/bin/env bash
+d="$FAKE_DOCKER_STATE"
+printf 'flock\n' >> "$d/calls.log"; printf '%s\0' "$@" > "$d/flock.argv"
+[ ! -e "$d/flock-busy" ]
+FAKE
+  # iptables: -I fügt am Kettenanfang ein, -C prüft, -D entfernt das erste Vorkommen (wie das echte iptables). Nur Builtins: je
+  # Lauf gibt es Dutzende Aufrufe, und jeder Hilfsprozess kostet Zeit.
+  cat > "$FAKE_41/iptables" <<'FAKE'
+#!/usr/bin/env bash
+d="$FAKE_DOCKER_STATE"; op="$1"; chain="$2"; shift 2; rule="$*"
+printf 'iptables %s %s\n' "$op" "$chain" >> "$d/calls.log"
+[ ! -e "$d/no-iptables" ] || exit 1
+[ "$chain" != DOCKER-USER ] || [ ! -e "$d/no-docker-user" ] || exit 1
+[ -d "$d/chains" ] || mkdir "$d/chains"
+f="$d/chains/$chain"; lines=(); found=0
+if [ -e "$f" ]; then while IFS= read -r l; do lines+=("$l"); [ "$l" != "$rule" ] || found=1; done < "$f"; fi
+case "$op" in
+  -I) [ ! -e "$d/fail-ipt-I" ] || exit 1; [ ! -e "$d/noop-ipt-I" ] || exit 0; lines=("$rule" "${lines[@]}") ;;
+  -C) [ ! -e "$d/fail-ipt-C" ] && [ "$found" = 1 ]; exit ;;
+  -D) [ ! -e "$d/fail-ipt-D" ] && [ "$found" = 1 ] || exit 1
+      kept=(); for l in "${lines[@]}"; do if [ "$found" = 1 ] && [ "$l" = "$rule" ]; then found=0; else kept+=("$l"); fi; done
+      lines=("${kept[@]}") ;;
+  *) exit 9 ;;
+esac
+{ [ "${#lines[@]}" -eq 0 ] || printf '%s\n' "${lines[@]}"; } > "$f"
+FAKE
+  # Host-Lauscher (python3 -m http.server) und Gegenprobe (curl) der Smoke-Probe
+  cat > "$FAKE_HOST_66/python3" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\0' "$@" > "$FAKE_DOCKER_STATE/listener.argv"; printf '%s\n' "$$" > "$FAKE_DOCKER_STATE/listener.pid"
+if { : >&9; } 2>/dev/null; then echo 1; else echo 0; fi > "$FAKE_DOCKER_STATE/lock-at-listener"   # erbt der Lauscher den Lock?
+[ -e "$FAKE_DOCKER_STATE/fail-listener" ] || : > "$FAKE_DOCKER_STATE/listener-up"
+exec sleep 30
+FAKE
+  cat > "$FAKE_HOST_66/curl" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\0' "$@" > "$FAKE_DOCKER_STATE/curl.argv"
+[ -e "$FAKE_DOCKER_STATE/listener-up" ]
+FAKE
+  # Im nachgebildeten Container (out-mode probe): curl erreicht nur, was in $FAKE_DOCKER_STATE/reachable steht; Ziele in
+  # $FAKE_DOCKER_STATE/timeout laufen in den Timeout (Exit 28), alle übrigen weist eine REJECT-Regel ab (Exit 7, Connection
+  # refused). sha256sum fehlt unter macOS.
+  FAKE_CTR_66="$T23/fakectr"; mkdir -p "$FAKE_CTR_66"
+  cat > "$FAKE_CTR_66/curl" <<'FAKE'
+#!/usr/bin/env bash
+[ "${1:-}" != --version ] || { echo 'curl (Fake)'; exit 0; }
+printf '%s\n' "$*" >> "$FAKE_DOCKER_STATE/ctr-curl.log"
+! grep -qxF -- "${@: -1}" "$FAKE_DOCKER_STATE/timeout" 2>/dev/null || exit 28
+grep -qxF -- "${@: -1}" "$FAKE_DOCKER_STATE/reachable" 2>/dev/null || exit 7
+FAKE
+  printf '#!/bin/sh\nexit 0\n' > "$FAKE_CTR_66/sha256sum"
+  chmod +x "$FAKE_41/docker" "$FAKE_41/sudo" "$FAKE_41/flock" "$FAKE_41/iptables" "$FAKE_HOST_66/python3" "$FAKE_HOST_66/curl" \
+    "$FAKE_CTR_66/curl" "$FAKE_CTR_66/sha256sum"
+  # Lock-Datei je Testgruppe statt der festen Datei des Runners (factory-update.sh: FACTORY_FETCH_LOCK)
+  export FACTORY_FETCH_LOCK="$T23/factory-fetch.lock"
 }
 
 # ═══ #37: Mutanten, Modus publish, Übergabe-Bundles ═══════════════════════════════════════════════════════════════════

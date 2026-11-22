@@ -115,7 +115,9 @@ jobs:
   # Der Job fetch von factory-update.yml führt Release-Code nur in einem unprivilegierten Container aus. Im Factory-Repo
   # läuft factory-update.yml nie (kein factory.lock) – ohne diesen Job liefe der Container-Pfad erst beim Konsumenten
   # zum ersten Mal. Baut das Image echt und startet es mit denselben Optionen (eine Stelle im Skript) und einem
-  # harmlosen Kommando; kein Release, kein Angriffsversuch.
+  # harmlosen Kommando; kein Release, kein Angriffsversuch. Dazu die Netz-Probe (Factory-ADR-063 E40 c, #66): mit derselben
+  # Netz-Sperre scheitern im Container Bridge-Gateway (Lauscher auf dem Host), 169.254.169.254 und 168.63.129.16, DNS und
+  # HTTPS zu github.com gelingen; jede Abweichung macht den Job rot.
   fetch-container-smoke:
     runs-on: ubuntu-latest
     steps:

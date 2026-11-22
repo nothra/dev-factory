@@ -13,6 +13,13 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   Caches im Scope von `main` schreiben darf. Bundle und Update-PR bleiben unverändert. Neuer CI-Job `fetch-container-smoke`.
   **Breaking für selbst gehostete Runner ohne Docker:** Dort endet der Job `fetch` rot, ohne Rückfall auf eine Ausführung ohne
   Container. GitHub-gehostete Runner haben Docker, dort ist nichts zu tun.
+- **Netz des Fetch-Containers abgeschottet (Factory-ADR-063, Nachtrag 2026-11-21 E35–E41, #66):** Der Container hängt in einem
+  eigenen Docker-Netz ohne IPv6; Regeln auf dem Runner sperren für ihn den Host (Bridge-Gateway), `169.254.0.0/16`
+  (Metadaten-Dienst) und den Azure-WireServer `168.63.129.16` außer DNS. Das Internet bleibt erreichbar. Der Smoke-Job
+  `fetch-container-smoke` prüft die Sperre im echten Container. **Breaking für selbst gehostete Runner ohne passwortloses `sudo`
+  oder `iptables`:** Dort endet der Job `fetch` rot, ohne Rückfall auf ein Netz ohne Sperre. Mehrere Runner-Instanzen an einem
+  Docker-Host führen `fetch` nacheinander aus (Lock `/tmp/factory-fetch.lock`, `flock`), sofern sie dasselbe `/tmp` sehen
+  (sonst Factory-ADR-063 Restrisiko 6, `OPERATING.md` §0.6). GitHub-gehostete Runner: nichts zu tun.
 
 ## v0.8.0 – 2026-11-15
 
