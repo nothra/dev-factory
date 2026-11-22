@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -134,6 +134,7 @@ bei Docker); 4 Fälle und 3 Mutanten (ohne Entfernen, alte Reihenfolge, Abbau oh
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Report: [`codify-66.md`](codify-66.md). Zwei Lessons: „Schutz nie vor dem Geschützten abbauen“ (`factory-workflow.md`) und „Fake-Werkzeuge nur mit Builtins“ (`testing.md`), beide mit Index-Zeile.
 
 ---
 Branch: `fix/66-fetch-container-netz-abschotten`
