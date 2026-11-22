@@ -399,8 +399,8 @@ rm -rf "$H23"
 # ── Verdrahtung: pre-commit, pre-push, CI-Job ────────────────────────────────────────────────────────────────────────
 # wired_23 <datei-inhalt> – beide Anker (Zielpfad + echte Aufrufzeile) stehen im Inhalt; derselbe Ausdruck prüft Original und Mutante
 wired_23() {
-  printf '%s\n' "$1" | grep -qF 'INTEGRITY_CHECK="$FACTORY_DIR/scripts/checks/factory-integrity-check.sh"' \
-    && printf '%s\n' "$1" | grep -qF 'bash "$INTEGRITY_CHECK"'
+  grep_in "$1" -qF 'INTEGRITY_CHECK="$FACTORY_DIR/scripts/checks/factory-integrity-check.sh"' \
+    && grep_in "$1" -qF 'bash "$INTEGRITY_CHECK"'
 }
 for hook_23 in pre-commit pre-push; do
   hook_src_23="$(cat "$FACTORY_ROOT/scripts/checks/$hook_23.sh")"

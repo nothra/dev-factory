@@ -166,7 +166,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m real-override
   real_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
   def_turns_348="$(yq '.skills.implement.max_turns_by_size.high.max_turns' "$DEFAULTS")"
-  printf '%s' "$real_out" | grep -qE "Starte: /implement 1 \(model: [^,]+, max ${def_turns_348} turns\)"
+  grep_in "$real_out" -qE "Starte: /implement 1 \(model: [^,]+, max ${def_turns_348} turns\)"
   assert_true "$?" "#348/#49 AK19: realer Repo-Override löst implement (18 AK) end-to-end auf die Default-Staffelung (max ${def_turns_348} turns) auf"
   assert_true "$([ "$(yq 'has("skills")' "$FACTORY_ROOT/factory.config.yml")" = "false" ]; echo $?)" \
     "#348/#49 AK19: factory.config.yml dieses Repos setzt keine skills.*-Werte (Dogfooding-Garantie)"
@@ -408,7 +408,7 @@ if [ "$HAS_YQ" = 1 ]; then
   # Die Werte des Factory-Repos (ADR-063 D9): Syntaxprüfung per `bash -n`, Self-Test-Suite, kein install, kein pnpm.
   cfg_431="$FACTORY_ROOT/factory.config.yml"
   # commands.test ist seit Factory-Issue #51 der Suite-Gate-Wrapper (überspringt die Suite bei reinem Spec-/Task-Diff).
-  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/project/checks/factory-suite-gate.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep -v '^[[:space:]]*#' "$cfg_431" | grep -q pnpm; echo $?)" \
+  assert_true "$([ "$(yq '.commands.lint' "$cfg_431")" = "git ls-files -z '*.sh' | xargs -0 -n1 bash -n" ] && [ "$(yq '.commands.test' "$cfg_431")" = "bash scripts/project/checks/factory-suite-gate.sh" ] && [ -z "$(yq '.commands.install // ""' "$cfg_431")" ] && ! grep_in "$(grep -v '^[[:space:]]*#' "$cfg_431")" -q pnpm; echo $?)" \
     "#431 AK-H1: commands.* tragen die Werte des Factory-Repos (bash -n, Suite-Gate-Wrapper, kein install, kein pnpm)"
 else
   skip_yq "#431 AK-H1 Werte"
@@ -911,6 +911,11 @@ else
 fi
 # Der Wrapper startet die ausgelieferte Suite per exec (Exit-Code unverändert, AK2)
 assert_true "$(grep -qF -- 'exec bash "$SUITE"' "$GATE_51"; echo $?)" "#51 AK2: der Wrapper startet die Suite per exec"
+
+# ─── Factory-Issue #61 AK6: keine Pipe in grep -q in der Projekt-Suite (SIGPIPE-Race unter pipefail) ───
+# Die ausgelieferte Suite prüft scripts/checks/tests/ und belegt den Guard per Mutation; hier läuft er über das eigene Verzeichnis.
+guard_out_61="$(pipe_grep_q_lines "$PROJECT_TESTS_DIR"/*.sh)"
+assert_exit 0 "$?" "#61 AK6: keine Pipe in grep -q in scripts/project/tests/ ${guard_out_61:+– Funde: $guard_out_61}"
 
 # ─── Ergebnis ────────────────────────────────────────────────────────────────
 print_summary

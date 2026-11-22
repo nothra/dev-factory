@@ -320,3 +320,10 @@
 - **Was:** Wer auf einem selbst gehosteten Runner `sudo` per sudoers auf `iptables` beschränkt, gewinnt keine Grenze: `iptables --modprobe=<programm>` führt ein beliebiges Programm als root aus. Am Risiko ändert das nichts, denn die Runner-UID ist mit Docker-Zugriff ohnehin root-äquivalent. Die Lücke liegt nur in der Doku, die falsche Sicherheit nahelegen kann.
 - **Fix:** In §0.6 einen Satz ergänzen: Die sudoers-Einschränkung auf `iptables` ist root-äquivalent und keine Sicherheitsgrenze. Etwa eine Zeile.
 - **Herkunft:** `/security-review` zu Task 66 (Hinweis, Out-of-Scope, kein zusätzliches Risiko).
+
+### Produktiv-Skripte prüfen kurze Werte per `printf | grep -q`
+
+- **Wo:** `scripts/factory-sync.sh:374`, `scripts/install-yq.sh:97`, `scripts/lib/factory-lock.sh:111`, `scripts/factory-release-check.sh:28`, `scripts/factory-update.sh:150`, `:497`, `:498`, `scripts/checks/check.sh:53`, `:58`, `scripts/checks/branch-name-check.sh:27`, `scripts/checks/git-context-check.sh:36`, `scripts/metrics.sh:59`, verifiziert am 2026-11-22.
+- **Was:** Dasselbe Muster wie in Factory-Issue #61 (SIGPIPE-Race unter `pipefail`), aber jeweils gegen einen kurzen Wert (Tag, SHA, Slug, Tool-Input-Zeile, Task-ID-Liste), den `printf`/`echo` in einem Schreibvorgang übergibt – das Race ist dort praktisch nicht auslösbar. Der Guard `pipe_grep_q_lines` gilt nur für die Test-Suiten.
+- **Fix:** Beim nächsten Anfassen der Datei die Zeile auf Here-String umstellen (`grep -qE … <<< "$wert"`). Je Stelle eine Zeile.
+- **Herkunft:** `/implement` zu Task 61 (Spec „Nicht inbegriffen“).

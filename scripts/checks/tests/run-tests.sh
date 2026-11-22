@@ -288,7 +288,7 @@ command -v jq >/dev/null 2>&1 && HAS_JQ=1 || HAS_JQ=0
 # Output erst einfangen, dann greppen (bash-gotchas.md #3: sonst SIGPIPE-Falschrot
 # unter set -o pipefail, weil grep -q beim ersten Treffer die Pipe schließt).
 avail_locales="$(locale -a 2>/dev/null)"
-printf '%s' "$avail_locales" | grep -qxF "de_DE.UTF-8" && HAS_DE_LOCALE=1 || HAS_DE_LOCALE=0
+grep_in "$avail_locales" -qxF "de_DE.UTF-8" && HAS_DE_LOCALE=1 || HAS_DE_LOCALE=0
 
 if [ "$HAS_JQ" -eq 1 ] && [ "$HAS_DE_LOCALE" -eq 1 ]; then
   TMP_METRICS="$(mktemp -d)"
@@ -335,10 +335,10 @@ printf 'api_key = "abcdef123456"\n# TODO ohne ticket\n' > "$PC_TMP/leak.conf"
 ( cd "$PC_TMP" && git add leak.conf )
 pc_out=$( cd "$PC_TMP" && bash "$PRE_COMMIT" 2>&1 || true )
 # (a) Kein Regex-Engine-Fehler – portabel über BSD/GNU/ugrep (kein \s, kein PCRE-Lookahead)
-printf '%s' "$pc_out" | grep -qiE 'operand invalid|invalid syntax|preceding regular expression'
+grep_in "$pc_out" -qiE 'operand invalid|invalid syntax|preceding regular expression'
 assert_true "$([ $? -ne 0 ]; echo $?)" "pre-commit läuft ohne Regex-Engine-Fehler (portabel)"
 # (b) Credential-Check erkennt das geplantete Secret weiterhin
-printf '%s' "$pc_out" | grep -q 'hardkodierte Credentials'
+grep_in "$pc_out" -q 'hardkodierte Credentials'
 assert_true "$?" "pre-commit Credential-Check erkennt geplantetes Secret"
 rm -rf "$PC_TMP"
 
@@ -398,7 +398,7 @@ assert_true "$?" "CMD-Fehler meldet korrekten Exit-Code (if-ohne-else-Falle verm
 # Output erst in Variable fangen (grep -q + pipefail würde sonst per SIGPIPE rot).
 pmv_out=$(FACTORY_DIR="$TMP_PMV" FACTORY_HEALTHCHECK_CMD="true" FACTORY_HEALTHCHECK_URL="http://x.test" \
   bash "$TMP_PMV/scripts/post-merge-verify.sh" 23 2>&1)
-printf '%s' "$pmv_out" | grep -q 'Smoke-Command'
+grep_in "$pmv_out" -q 'Smoke-Command'
 assert_true "$?" "CMD hat Vorrang vor URL, wenn beide gesetzt"
 
 # nothra/tch-gastro-services#24: Retry/Poll gegen Deploy-Lag. CMs vorgegebener Testfall – Mock liefert erst
@@ -466,9 +466,9 @@ poll_yaml_block() {
 # Kommentar-Nachzug, der die AK3-Assertion in Runde 1 prosa-erfüllbar gemacht hätte
 # (Lesson nothra/tch-gastro-services#114), könnte sonst auch hier greifen – jetzt, wo poll_yaml_block existiert,
 # kostet das Ankern eine Zeile.
-poll_yaml_block "$POLL_YML" jobs | grep -qxF -- '  factory-poll:'
+grep_in "$(poll_yaml_block "$POLL_YML" jobs)" -qxF -- '  factory-poll:'
 assert_true "$?" "factory-poll-Job in factory-poll.yml"
-poll_yaml_block "$POLL_YML" concurrency | grep -qxF -- '  group: factory-runtime'
+grep_in "$(poll_yaml_block "$POLL_YML" concurrency)" -qxF -- '  group: factory-runtime'
 assert_true "$?" "factory-poll hat concurrency-group (Concurrency=1, Idempotenz)"
 
 # poll_trigger_guard <workflow-datei> – 0, wenn der on:-Block KEINEN schedule-/cron-
@@ -610,22 +610,22 @@ chmod +x "$TMP_POLL/bin/gh"
 poll() { PATH="$TMP_POLL/bin:$PATH" FACTORY_DIR="$TMP_POLL" FACTORY_REPO=test/repo \
   FACTORY_MAX_RUNS_PER_DAY="${MAXR:-5}" bash "$TMP_POLL/scripts/factory-poll.sh" --dry-run 2>&1; }
 
-out=$(FAKE_RUNNING='[{"number":7}]' poll); printf '%s' "$out" | grep -q 'Concurrency=1'
+out=$(FAKE_RUNNING='[{"number":7}]' poll); grep_in "$out" -q 'Concurrency=1'
 assert_true "$?" "Guard: laufender Lauf blockiert (Concurrency=1)"
 # K-1: interrupted zählt gegen die Tageskappe (done=1 + interrupted=1 = Kappe 2)
-out=$(MAXR=2 FAKE_DONE='[1]' FAKE_INTR='[9]' poll); printf '%s' "$out" | grep -q 'Tageskappe erreicht (2/2'
+out=$(MAXR=2 FAKE_DONE='[1]' FAKE_INTR='[9]' poll); grep_in "$out" -q 'Tageskappe erreicht (2/2'
 assert_true "$?" "K-1: interrupted zählt gegen die Tageskappe"
-out=$(poll); printf '%s' "$out" | grep -q 'nichts zu tun'
+out=$(poll); grep_in "$out" -q 'nichts zu tun'
 assert_true "$?" "Guard: keine factory::run-Issues → nichts zu tun"
-out=$(FAKE_RUNQ='[{"number":42}]' poll); printf '%s' "$out" | grep -q 'Issue #42'
+out=$(FAKE_RUNQ='[{"number":42}]' poll); grep_in "$out" -q 'Issue #42'
 assert_true "$?" "wählt ältestes factory::run-Issue (#42)"
 # W-3: nicht ermittelbarer Zustand (API-Fehler) → LAUT (exit 3), nicht stiller Leerlauf
 out=$(FAKE_RUNNING='APIERROR' poll); rc=$?
 assert_exit 3 "$rc" "W-3: API-Fehler → exit 3 (laut, roter Job)"
-printf '%s' "$out" | grep -q 'BLOCKED (fail-closed)'
+grep_in "$out" -q 'BLOCKED (fail-closed)'
 assert_true "$?" "W-3: API-Fehler meldet BLOCKED statt still durchzuwinken"
 # W-1: verwaister running-Lauf wird vom Stale-Reaper zurückgesetzt
-out=$(FAKE_STALE='[{"number":5}]' poll); printf '%s' "$out" | grep -q 'verwaisten running-Lauf #5'
+out=$(FAKE_STALE='[{"number":5}]' poll); grep_in "$out" -q 'verwaisten running-Lauf #5'
 assert_true "$?" "W-1: Stale-Reaper setzt verwaisten running-Lauf zurück"
 rm -rf "$TMP_POLL"
 
@@ -725,19 +725,19 @@ FAKE_MISSING="" sync --check >/dev/null 2>&1; assert_exit 0 "$?" "--check: alle 
 # 2. Task #1 ohne Issue → --check exit 1 + Drift-Meldung
 out=$(FAKE_MISSING="1" sync --check); rc=$?
 assert_exit 1 "$rc" "--check: Task ohne Issue → exit 1"
-printf '%s' "$out" | grep -q 'DRIFT'; assert_true "$?" "--check meldet DRIFT bei fehlendem Issue"
-printf '%s' "$out" | grep -q 'Task #1'; assert_true "$?" "--check benennt den betroffenen Task (#1)"
+grep_in "$out" -q 'DRIFT'; assert_true "$?" "--check meldet DRIFT bei fehlendem Issue"
+grep_in "$out" -q 'Task #1'; assert_true "$?" "--check benennt den betroffenen Task (#1)"
 # 3. --create --dry-run → keine Mutation, exit 0
 out=$(FAKE_MISSING="1" sync --create --dry-run); rc=$?
 assert_exit 0 "$rc" "--create --dry-run → exit 0 (keine Mutation)"
-printf '%s' "$out" | grep -q 'dry-run.*Task #1'; assert_true "$?" "--dry-run zeigt geplante Issue-Anlage"
+grep_in "$out" -q 'dry-run.*Task #1'; assert_true "$?" "--dry-run zeigt geplante Issue-Anlage"
 # 4. --create mit passender Nummer → exit 0
 FAKE_MISSING="1" FAKE_NEWNUM="1" sync --create >/dev/null 2>&1
 assert_exit 0 "$?" "--create: neue Issue-Nummer == Task-ID → exit 0"
 # 5. --create mit Nummern-Mismatch (GitHub vergibt andere Nummer) → exit 1 + MISMATCH
 out=$(FAKE_MISSING="1" FAKE_NEWNUM="7" sync --create); rc=$?
 assert_exit 1 "$rc" "--create: Nummern-Mismatch → exit 1"
-printf '%s' "$out" | grep -q 'MISMATCH'; assert_true "$?" "--create meldet MISMATCH bei nicht auflösbarer Nummer"
+grep_in "$out" -q 'MISMATCH'; assert_true "$?" "--create meldet MISMATCH bei nicht auflösbarer Nummer"
 rm -rf "$TMP_SYNC"
 
 # ─── Zentraler Issue-Seam scripts/lib/create-issue.sh (nothra/tch-gastro-services#82, ADR-018) ─────────
@@ -794,15 +794,15 @@ out=$(FAKE_BAD_LABEL="tech-debt" GH_LOG="$LOG" seam "T" "B" "enhancement" "tech-
 assert_exit 0 "$rc" "Seam: fehlendes Aspekt-Label → Issue trotzdem angelegt (exit 0)"
 assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: fehlendes Aspekt-Label verunreinigt stdout nicht"
 grep -q 'tech-debt' "$ERR"; assert_true "$?" "Seam: stderr-Warnung nennt das weggefallene Aspekt-Label"
-tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: Fallback-Anlage trägt das Art-Label"
-assert_true "$(! tail -n1 "$LOG" | grep -q -- 'tech-debt'; echo $?)" "Seam: Fallback-Anlage trägt das fehlende Aspekt-Label NICHT mehr"
+grep_in "$(tail -n1 "$LOG")" -q -- '--label enhancement'; assert_true "$?" "Seam: Fallback-Anlage trägt das Art-Label"
+assert_true "$(! grep_in "$(tail -n1 "$LOG")" -q -- 'tech-debt'; echo $?)" "Seam: Fallback-Anlage trägt das fehlende Aspekt-Label NICHT mehr"
 
 # 4. fehlendes Art-Label → Degradation ganz ohne Label, Issue trotzdem
 LOG="$TMP_SEAM/c4.log"; : > "$LOG"
 out=$(FAKE_BAD_LABEL="enhancement" GH_LOG="$LOG" seam "T" "B" "enhancement" 2>/dev/null); rc=$?
 assert_exit 0 "$rc" "Seam: fehlendes Art-Label → Issue ohne Label angelegt (exit 0)"
 assert_true "$([[ "$out" = "123" ]]; echo $?)" "Seam: fehlendes Art-Label → stdout bleibt reine Nummer"
-assert_true "$(! tail -n1 "$LOG" | grep -q -- '--label'; echo $?)" "Seam: finale Anlage ganz ohne --label"
+assert_true "$(! grep_in "$(tail -n1 "$LOG")" -q -- '--label'; echo $?)" "Seam: finale Anlage ganz ohne --label"
 
 # 5. gar keine Issue-Nummer → fail-closed (Exit ≠ 0, kein stdout)
 out=$(FAKE_FAIL_ALL=1 seam "T" "B" "enhancement" 2>/dev/null); rc=$?
@@ -830,12 +830,12 @@ rc=$(PATH="$TMP_SEAM/bin:$PATH" FACTORY_REPO="test/repo" FAKE_BAD_LABEL="tech-de
   bash -c 'set -euo pipefail; source "$0"; create_issue "T" "B" "enhancement" "tech-debt" >/dev/null; echo "$?"' \
   "$SEAM_LIB" 2>/dev/null)
 assert_true "$([[ "$rc" = "0" ]]; echo $?)" "Seam: bare-Aufruf unter set -e → Degradation läuft durch (rc=0)"
-tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: bare-Aufruf legt via Fallback mit Art-Label an"
+grep_in "$(tail -n1 "$LOG")" -q -- '--label enhancement'; assert_true "$?" "Seam: bare-Aufruf legt via Fallback mit Art-Label an"
 
 # 8. Aspekt-CSV mit Leerfeldern → exakt Art + 2 Aspekt-Labels (Leerfeld übersprungen, kein Leer-Label)
 LOG="$TMP_SEAM/c8.log"; : > "$LOG"
 out=$(GH_LOG="$LOG" seam "T" "B" "enhancement" "security,,tech-debt" 2>/dev/null)
-n_labels=$(tail -n1 "$LOG" | grep -oE -- '--label' | wc -l | tr -d ' ')
+n_labels=$(grep_in "$(tail -n1 "$LOG")" -oE -- '--label' | wc -l | tr -d ' ')
 assert_true "$([[ "$n_labels" = "3" ]]; echo $?)" "Seam: Leerfeld-CSV → genau 3 --label (Art + 2 Aspekte, kein Leer-Label)"
 { grep -q -- '--label security' "$LOG" && grep -q -- '--label tech-debt' "$LOG"; }
 assert_true "$?" "Seam: Leerfeld-CSV behält beide echten Aspekt-Labels"
@@ -844,8 +844,8 @@ assert_true "$?" "Seam: Leerfeld-CSV behält beide echten Aspekt-Labels"
 LOG="$TMP_SEAM/c9.log"; : > "$LOG"
 out=$(FAKE_BAD_LABEL="tech-debt" GH_LOG="$LOG" seam "T" "B" "enhancement" "security,tech-debt" 2>/dev/null); rc=$?
 assert_exit 0 "$rc" "Seam: ein fehlendes von zwei Aspekt-Labels → Issue trotzdem (exit 0)"
-tail -n1 "$LOG" | grep -q -- '--label enhancement'; assert_true "$?" "Seam: Mehr-Aspekt-Fallback trägt das Art-Label"
-assert_true "$(! tail -n1 "$LOG" | grep -qE -- '--label (security|tech-debt)'; echo $?)" \
+grep_in "$(tail -n1 "$LOG")" -q -- '--label enhancement'; assert_true "$?" "Seam: Mehr-Aspekt-Fallback trägt das Art-Label"
+assert_true "$(! grep_in "$(tail -n1 "$LOG")" -qE -- '--label (security|tech-debt)'; echo $?)" \
   "Seam: Mehr-Aspekt-Fallback lässt BEIDE Aspekt-Labels weg (Stufe 2 = nur Art)"
 
 # 10. leeres Art-Label (FS2 „leeres Art-Label") → fail-open: Issue OHNE Label, Warnung auf
@@ -1082,8 +1082,8 @@ CLOG="$TMP_IDEM/w4.create"; : > "$CLOG"; ERR="$TMP_IDEM/w4.err"
 out=$(FAKE_OPEN="" FAKE_BAD_LABEL="tech-debt" GH_LOG="$CLOG" idem "Frischer Fund" "B" "enhancement" "tech-debt" 2>"$ERR"); rc=$?
 assert_exit 0 "$rc" "W4: abgelehntes Aspekt-Label über Wrapper → Issue trotzdem (exit 0, Degradation)"
 assert_true "$([[ "$out" = "123" ]]; echo $?)" "W4: Degradation über Wrapper → stdout bleibt reine Nummer"
-tail -n1 "$CLOG" | grep -q -- '--label enhancement'; assert_true "$?" "W4: Fallback-Anlage trägt das Art-Label (enhancement)"
-assert_true "$(! tail -n1 "$CLOG" | grep -q -- 'tech-debt'; echo $?)" "W4: Fallback-Anlage trägt das abgelehnte Aspekt-Label NICHT mehr"
+grep_in "$(tail -n1 "$CLOG")" -q -- '--label enhancement'; assert_true "$?" "W4: Fallback-Anlage trägt das Art-Label (enhancement)"
+assert_true "$(! grep_in "$(tail -n1 "$CLOG")" -q -- 'tech-debt'; echo $?)" "W4: Fallback-Anlage trägt das abgelehnte Aspekt-Label NICHT mehr"
 
 rm -rf "$TMP_IDEM"
 
@@ -1183,9 +1183,9 @@ cp "$CHECKS_DIR/completion-check.sh" "$CC_SP/scripts/checks/"
 printf '# Task 1: demo\n- [ ] offen\n' > "$CC_SP/tasks/task-1-demo.md"
 cc_out=$(bash "$CC_SP/scripts/checks/completion-check.sh" 2>&1); cc_rc=$?
 assert_exit 0 "$cc_rc" "completion-check: exit 0 bei Leerzeichen im Pfad"
-printf '%s' "$cc_out" | grep -q 'No such file or directory'
+grep_in "$cc_out" -q 'No such file or directory'
 assert_true "$([ $? -ne 0 ]; echo $?)" "completion-check: kein grep-Fehler bei Leerzeichen (Bug #8)"
-printf '%s' "$cc_out" | grep -qF 'task-1-demo.md'
+grep_in "$cc_out" -qF 'task-1-demo.md'
 assert_true "$?" "completion-check: nennt Task-Datei trotz Leerzeichen im Pfad"
 rm -rf "$TMP_CC"
 
@@ -1199,9 +1199,9 @@ chmod +x "$SS_SP/bin/gh"
 ss_out=$(PATH="$SS_SP/bin:$PATH" FACTORY_DIR="$SS_SP" FACTORY_REPO=test/repo \
   bash "$SCRIPTS_DIR/sync-issues.sh" --create --dry-run 2>&1); ss_rc=$?
 assert_exit 0 "$ss_rc" "sync-issues --create --dry-run: exit 0 bei Leerzeichen im Pfad"
-printf '%s' "$ss_out" | grep -q 'No such file or directory'
+grep_in "$ss_out" -q 'No such file or directory'
 assert_true "$([ $? -ne 0 ]; echo $?)" "sync-issues: kein Datei-Fehler bei Leerzeichen (Bug #8)"
-printf '%s' "$ss_out" | grep -qF 'Task #1'
+grep_in "$ss_out" -qF 'Task #1'
 assert_true "$?" "sync-issues: liest Titel aus Datei trotz Leerzeichen im Pfad"
 rm -rf "$TMP_SS2"
 
@@ -1259,7 +1259,7 @@ rm -f "$ZERO_WHILE_LOOP"
 codify_block_awk='/grep "\^- " "\$codify_file" 2>\/dev\/null \| head -3 \| while/{f=1} f{print} f&&/done/{exit}'
 codify_regelzeilen_block="$(awk "$codify_block_awk" "$PIPELINE")"
 assert_true "$([[ -n "$codify_regelzeilen_block" ]]; echo $?)" "Codify-Regelzeilen-Block ist extrahierbar (Issue #261)"
-printf '%s' "$codify_regelzeilen_block" | grep -qE 'done \|\| true'
+grep_in "$codify_regelzeilen_block" -qE 'done \|\| true'
 assert_true "$?" "run-pipeline.sh Codify-Regelzeilen-Block ist set-e-sicher (|| true nach done, Issue #261)"
 
 # Schärfe-Beweis: ein unabhängiges "done || true" an anderer Stelle im Skript darf den
@@ -1268,7 +1268,7 @@ MUT_PIPELINE=$(mktemp)
 sed -e 's/    done || true/    done/' "$PIPELINE" > "$MUT_PIPELINE"
 printf '\ndone || true\n' >> "$MUT_PIPELINE"
 mut_block="$(awk "$codify_block_awk" "$MUT_PIPELINE")"
-! printf '%s' "$mut_block" | grep -qE 'done \|\| true'
+! grep_in "$mut_block" -qE 'done \|\| true'
 assert_true "$?" "Schärfe-Beweis: unabhängiges 'done || true' anderswo täuscht den Block-Guard nicht (Issue #261)"
 rm -f "$MUT_PIPELINE"
 
@@ -1296,26 +1296,26 @@ if [ "$HAS_YQ" = 1 ]; then
   printf -- '- Regel A\n- Regel B\n' > "$TMP_261/tasks/codify-3.md"
   git -C "$TMP_261" add .; git -C "$TMP_261" -c user.email="t@t.com" -c user.name="t" commit -q -m ac2
   ac2_out=$(bash "$TMP_261/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$ac2_out" | grep -qF '2 neue Regel(n) hinzugefügt'
+  grep_in "$ac2_out" -qF '2 neue Regel(n) hinzugefügt'
   assert_true "$?" "#261 AC2: 1-3 Treffer – Regelzahl korrekt im Summary"
-  printf '%s' "$ac2_out" | grep -qF -- '- Regel A'
+  grep_in "$ac2_out" -qF -- '- Regel A'
   assert_true "$?" "#261 AC2: 1-3 Treffer – erste Regelzeile unverändert ausgegeben"
-  printf '%s' "$ac2_out" | grep -qF -- '- Regel B'
+  grep_in "$ac2_out" -qF -- '- Regel B'
   assert_true "$?" "#261 AC2: 1-3 Treffer – zweite Regelzeile unverändert ausgegeben"
-  printf '%s' "$ac2_out" | grep -qF '(weitere in tasks/codify-3.md)'
+  grep_in "$ac2_out" -qF '(weitere in tasks/codify-3.md)'
   assert_true "$([[ $? -ne 0 ]]; echo $?)" "#261 AC2: bei nur 2 Treffern erscheint kein '… weitere'-Hinweis"
 
   # AC3: >3 Treffer → erste 3 Zeilen ausgegeben, vierte gekappt, Hinweis ergänzt
   printf -- '- Regel A\n- Regel B\n- Regel C\n- Regel D\n- Regel E\n' > "$TMP_261/tasks/codify-3.md"
   git -C "$TMP_261" add .; git -C "$TMP_261" -c user.email="t@t.com" -c user.name="t" commit -q -m ac3
   ac3_out=$(bash "$TMP_261/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$ac3_out" | grep -qF '5 neue Regel(n) hinzugefügt'
+  grep_in "$ac3_out" -qF '5 neue Regel(n) hinzugefügt'
   assert_true "$?" "#261 AC3: >3 Treffer – reale Regelzahl (5) im Summary, nicht gekappt"
-  printf '%s' "$ac3_out" | grep -qF -- '- Regel C'
+  grep_in "$ac3_out" -qF -- '- Regel C'
   assert_true "$?" "#261 AC3: >3 Treffer – dritte Regelzeile noch ausgegeben"
-  printf '%s' "$ac3_out" | grep -qF -- '- Regel D'
+  grep_in "$ac3_out" -qF -- '- Regel D'
   assert_true "$([[ $? -ne 0 ]]; echo $?)" "#261 AC3: >3 Treffer – vierte Regelzeile NICHT ausgegeben (Kappung bei 3)"
-  printf '%s' "$ac3_out" | grep -qF '(weitere in tasks/codify-3.md)'
+  grep_in "$ac3_out" -qF '(weitere in tasks/codify-3.md)'
   assert_true "$?" "#261 AC3: >3 Treffer – '… weitere'-Hinweis erscheint"
   rm -rf "$TMP_261"
 else
@@ -1360,13 +1360,13 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_CFG" init -q; git -C "$TMP_CFG" add .
   git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   cfg_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$cfg_out" | grep -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 20 turns)'
+  grep_in "$cfg_out" -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 20 turns)'
   assert_true "$?" "Phase 1b: run-pipeline löst implement (3 AK) aus der Config zu sonnet/20 auf (end-to-end)"
   # Team-Override greift: factory.config.yml setzt implement auf 5 Turns → 5 statt 20
   printf 'skills:\n  implement: { max_turns: 5 }\n' > "$TMP_CFG/factory.config.yml"
   git -C "$TMP_CFG" add .; git -C "$TMP_CFG" -c user.email="t@t.com" -c user.name="t" commit -q -m override
   ovr_out=$(bash "$TMP_CFG/scripts/run-pipeline.sh" 1 --dry-run 2>&1 || true)
-  printf '%s' "$ovr_out" | grep -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 5 turns)'
+  grep_in "$ovr_out" -q 'Starte: /implement 1 (model: claude-sonnet-5-5, max 5 turns)'
   assert_true "$?" "Phase 1b: Team-Override (factory.config.yml) übersteuert Defaults (Turns 20→5)"
 
   rm -rf "$TMP_CFG"
@@ -1384,20 +1384,20 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$TMP_DRY91" init -q; git -C "$TMP_DRY91" add .
   git -C "$TMP_DRY91" -c user.email="t@t.com" -c user.name="t" commit -q -m init
   dry91_out=$(bash "$TMP_DRY91/scripts/run-pipeline.sh" 2 --dry-run 2>&1 || true)
-  printf '%s' "$dry91_out" | grep -q '/review 2 (model: claude-opus-5-5, max 30 turns)'
+  grep_in "$dry91_out" -q '/review 2 (model: claude-opus-5-5, max 30 turns)'
   assert_true "$?" "#91: dry-run zeigt /review mit max 30 turns (Turn-Budget, Lücke 2)"
-  printf '%s' "$dry91_out" | grep -q '/security-review 2 (model: claude-opus-5-5, max 30 turns)'
+  grep_in "$dry91_out" -q '/security-review 2 (model: claude-opus-5-5, max 30 turns)'
   assert_true "$?" "#91: dry-run zeigt /security-review mit max 30 turns (Turn-Budget, Lücke 2)"
   # nothra/tch-gastro-services#212 F4: --dry-run läuft bis zum Ende (APPROVED-Review) und markiert die Endzustands-
   # Verifikation als übersprungen, statt sie auszuführen/abzubrechen.
-  printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
+  grep_in "$dry91_out" -q 'DRY-RUN.*Endzustands-Verifikation übersprungen'
   assert_true "$?" "#212 F4: --dry-run markiert Endzustands-Verifikation als übersprungen (kein Abbruch)"
   # nothra/tch-gastro-services#312: dieselbe Dry-Run-Ausnahme für das jetzt fail-closed Security-Gate. Ohne sie blockierte
   # jeder --dry-run ab Phase 5 – dort läuft kein Skill, also entsteht nie ein Security-Report.
   # Direkte Assertion statt bloß transitiver Absicherung über die Erfolgs-Ausgabe darunter.
-  printf '%s' "$dry91_out" | grep -q 'DRY-RUN.*Security-Gate übersprungen'
+  grep_in "$dry91_out" -q 'DRY-RUN.*Security-Gate übersprungen'
   assert_true "$?" "#312: --dry-run markiert das Security-Gate als übersprungen (kein Abbruch)"
-  printf '%s' "$dry91_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  grep_in "$dry91_out" -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$?" "#212 F4: --dry-run erreicht die Erfolgs-Ausgabe (Verifikation blockiert nicht)"
   rm -rf "$TMP_DRY91"
 else
@@ -1490,14 +1490,14 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   printf 'skills:\n  security-review: { tier: light }\n' > "$GTMP/sr-tier-light.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/sr-tier-light.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK1: security-review.tier=light (unter Mindest-Tier) → fail-closed"
-  printf '%s' "$out" | grep -qi 'Mindest-Tier' && printf '%s' "$out" | grep -q 'security-review'
+  grep_in "$out" -qi 'Mindest-Tier' && grep_in "$out" -q 'security-review'
   assert_true "$?" "Gate #241 AK1: Fehlermeldung nennt Mindest-Tier + Skill (Regel 5 isoliert)"
 
   # AK2 (Negativ): review.tier unter heavy → fail-closed (analog AK1)
   printf 'skills:\n  review: { tier: light }\n' > "$GTMP/rv-tier-light.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/rv-tier-light.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK2: review.tier=light (unter Mindest-Tier) → fail-closed"
-  printf '%s' "$out" | grep -qi 'Mindest-Tier' && printf '%s' "$out" | grep -qw 'review'
+  grep_in "$out" -qi 'Mindest-Tier' && grep_in "$out" -qw 'review'
   assert_true "$?" "Gate #241 AK2: Fehlermeldung nennt Mindest-Tier + Skill (Regel 5 isoliert)"
 
   # AK3a (Negativ, reale Config): Override führt security-review.tier_by_size ein →
@@ -1518,7 +1518,7 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   : > "$GTMP/empty-ovr.yml"
   out="$(bash "$GATE" "$GTMP/def-sr-tbs.yml" "$GTMP/empty-ovr.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #241 AK3b: security-review.tier_by_size (Regel 5 isoliert) → fail-closed"
-  printf '%s' "$out" | grep -q 'tier_by_size' && printf '%s' "$out" | grep -q 'security-review'
+  grep_in "$out" -q 'tier_by_size' && grep_in "$out" -q 'security-review'
   assert_true "$?" "Gate #241 AK3b: Fehlermeldung nennt tier_by_size + Skill (Regel 5, nicht Regel 2)"
 
   # AK4 (Positiv): review.tier_by_size bleibt override-bar, solange tier=heavy → exit 0
@@ -1542,7 +1542,7 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   printf 'model_tiers:\n  heavy: claude-sonnet-5\n' > "$GTMP/heavy-diff.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/heavy-diff.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #249 AK1: model_tiers.heavy-Override (abweichender Wert) → fail-closed"
-  printf '%s' "$out" | grep -q 'model_tiers.heavy' && printf '%s' "$out" | grep -q 'nicht override-bar'
+  grep_in "$out" -q 'model_tiers.heavy' && grep_in "$out" -q 'nicht override-bar'
   assert_true "$?" "Gate #249 AK1: Fehlermeldung nennt den Pfad + 'nicht override-bar' (Regel 6, nicht Regel 2)"
 
   # AK2 (Negativ): redundante Bestätigung des exakten Defaults-Werts wird ebenfalls
@@ -1570,21 +1570,21 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   printf 'just_a_string\n' > "$GTMP/root-scalar.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-scalar.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK1: Skalar-Root im Override → fail-closed"
-  printf '%s' "$out" | grep -qi 'kein YAML-Mapping' && ! printf '%s' "$out" | grep -qi 'max_turns'
+  grep_in "$out" -qi 'kein YAML-Mapping' && ! grep_in "$out" -qi 'max_turns'
   assert_true "$?" "Gate #254 AK1: Fehlermeldung nennt 'kein YAML-Mapping', nicht die max_turns-Folgemeldung"
 
   # AK2 (Negativ): Boolean-Root im Override → dieselbe explizite Meldung.
   printf 'true\n' > "$GTMP/root-bool.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-bool.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK2: Boolean-Root im Override → fail-closed"
-  printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  grep_in "$out" -qi 'kein YAML-Mapping'
   assert_true "$?" "Gate #254 AK2: Fehlermeldung nennt 'kein YAML-Mapping'"
 
   # AK3 (Negativ): Sequence-Root im Override → dieselbe explizite Meldung.
   printf -- '- a\n- b\n' > "$GTMP/root-seq.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-seq.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK3: Sequence-Root im Override → fail-closed"
-  printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  grep_in "$out" -qi 'kein YAML-Mapping'
   assert_true "$?" "Gate #254 AK3: Fehlermeldung nennt 'kein YAML-Mapping'"
 
   # AK4 (Negativ): Mehrdokument-Override (zwei gültige Mapping-Dokumente via '---') →
@@ -1592,7 +1592,7 @@ if [ "$HAS_YQ" = 1 ] && [ -f "$GATE" ]; then
   printf 'skills:\n  implement: { max_turns: 5 }\n---\nskills:\n  test: { max_turns: 10 }\n' > "$GTMP/root-multidoc.yml"
   out="$(bash "$GATE" "$DEFAULTS" "$GTMP/root-multidoc.yml" 2>&1)"; rc=$?
   assert_true "$([[ $rc -ne 0 ]]; echo $?)" "Gate #254 AK4: Mehrdokument-Override → fail-closed"
-  printf '%s' "$out" | grep -qi 'mehrere YAML-Dokumente' && ! printf '%s' "$out" | grep -qi 'kein YAML-Mapping'
+  grep_in "$out" -qi 'mehrere YAML-Dokumente' && ! grep_in "$out" -qi 'kein YAML-Mapping'
   assert_true "$?" "Gate #254 AK4: Fehlermeldung nennt Mehrdokument-Struktur, unterscheidbar vom 'kein Mapping'-Fall"
 
   # AK5 (Positiv, Nicht-Regression): gültiger Override (ein Dokument, Mapping-Root)
@@ -1627,17 +1627,17 @@ assert_true "$?" "config-validation-Job in factory-ci.yml"
 cv_job_block="$(ci_job_block config-validation "$CI_FILE")"
 assert_true "$([[ -n "$cv_job_block" ]]; echo $?)" "config-validation-Job-Block ist extrahierbar"
 
-printf '%s' "$cv_job_block" | grep -q 'actions/checkout'
+grep_in "$cv_job_block" -q 'actions/checkout'
 assert_true "$?" "config-validation-Job checkt das Repo aus"
 
-printf '%s' "$cv_job_block" | grep -qi 'yq'
+grep_in "$cv_job_block" -qi 'yq'
 assert_true "$?" "config-validation-Job stellt yq bereit (Gate-Prerequisite, ADR-009 §A)"
 
-printf '%s' "$cv_job_block" | grep -q 'config-validation-check.sh'
+grep_in "$cv_job_block" -q 'config-validation-check.sh'
 assert_true "$?" "config-validation-Job ruft config-validation-check.sh auf"
 
-printf '%s' "$cv_job_block" | grep -q 'GITHUB_WORKSPACE/factory.defaults.yml' \
-  && printf '%s' "$cv_job_block" | grep -q 'GITHUB_WORKSPACE/factory.config.yml'
+grep_in "$cv_job_block" -q 'GITHUB_WORKSPACE/factory.defaults.yml' \
+  && grep_in "$cv_job_block" -q 'GITHUB_WORKSPACE/factory.config.yml'
 assert_true "$?" "AK3: Job ruft das Gate explizit mit den Pfaden der realen Repo-Dateien auf"
 
 # AK3 (Positions-Reihenfolge): das Gate liest strikt positional ($1=Defaults,
@@ -1648,7 +1648,7 @@ cv_config_line="$(printf '%s\n' "$cv_job_block" | grep -n 'GITHUB_WORKSPACE/fact
 assert_true "$([[ -n "$cv_defaults_line" && -n "$cv_config_line" && "$cv_defaults_line" -lt "$cv_config_line" ]]; echo $?)" \
   "AK3: defaults-Pfad steht als \$1 VOR dem config-Pfad als \$2 (Positions-Reihenfolge)"
 
-! printf '%s' "$cv_job_block" | grep -qE 'pnpm/action-setup|actions/setup-node'
+! grep_in "$cv_job_block" -qE 'pnpm/action-setup|actions/setup-node'
 assert_true "$?" "AK7: config-validation-Job braucht kein Node/pnpm-Setup"
 
 # ── Behavior-Level: derselbe Aufruf wie im config-validation-Job, real ausgeführt ──
@@ -1731,12 +1731,12 @@ if [ "$HAS_YQ" = 1 ]; then
     [ -z "$sk" ] && continue
     has_reason=0
     key_lc=$(yq eval ".skills.\"$sk\" | line_comment" "$DEFAULTS_YML" 2>/dev/null)
-    printf '%s' "$key_lc" | grep -qE '@reason:[[:space:]]*[^[:space:]]' && has_reason=1
+    grep_in "$key_lc" -qE '@reason:[[:space:]]*[^[:space:]]' && has_reason=1
     if [ "$has_reason" -eq 0 ]; then
       while IFS= read -r ch; do
         [ -z "$ch" ] && continue
         ch_lc=$(yq eval ".skills.\"$sk\".\"$ch\" | line_comment" "$DEFAULTS_YML" 2>/dev/null)
-        if printf '%s' "$ch_lc" | grep -qE '@reason:[[:space:]]*[^[:space:]]'; then has_reason=1; break; fi
+        if grep_in "$ch_lc" -qE '@reason:[[:space:]]*[^[:space:]]'; then has_reason=1; break; fi
       done < <(yq eval ".skills.\"$sk\" | keys | .[]" "$DEFAULTS_YML" 2>/dev/null)
     fi
     [ "$has_reason" -eq 1 ] || ca_missing="$ca_missing $sk"
@@ -1769,7 +1769,7 @@ assert_true "$([[ -z "$drift_files" ]]; echo $?)" \
 # C: Test ist scharf — Positiv-Kontrolle (Textkörper matcht) + Negativ-Kontrolle (Verweis matcht NICHT)
 grep -qE "$TEXTBODY_RE" "$DEFAULTS_YML"
 assert_true "$?" "C: Textkörper-Regex matcht in den Defaults (Positiv-Kontrolle)"
-printf '# Begruendung: siehe factory.defaults.yml -> skills.implement (Tag @reason)\n' | grep -qE "$TEXTBODY_RE"
+grep_in '# Begruendung: siehe factory.defaults.yml -> skills.implement (Tag @reason)' -qE "$TEXTBODY_RE"
 assert_true "$([ $? -ne 0 ]; echo $?)" "C: Verweis-Form (Tag-Wort ohne :-Body) matcht den Textkörper-Regex NICHT"
 
 # D: Example verweist auf die Single Source und enthält keinen aktiven Override
@@ -1789,13 +1789,13 @@ fi
 # (von der "Knopf: model_tiers"-Überschrift bis zur nächsten "Knopf:"-Überschrift), analog
 # zur bestehenden skills_block-Extraktion oben (Schreibweise-/Positions-unabhängig).
 model_tiers_block=$(awk '/Knopf: model_tiers/{f=1} f&&/Knopf:/&&!/Knopf: model_tiers/{f=0} f' "$EXAMPLE" 2>/dev/null || true)
-printf '%s\n' "$model_tiers_block" | grep -qE '^#[[:space:]]*heavy:'
+grep_in "$model_tiers_block" -qE '^#[[:space:]]*heavy:'
 assert_true "$([ $? -ne 0 ]; echo $?)" "D (Task 249 AK8): model_tiers-Beispielblock zeigt 'heavy' nicht mehr als Beispiel-Knopf"
-printf '%s\n' "$model_tiers_block" | grep -qi 'nicht override-bar'
+grep_in "$model_tiers_block" -qi 'nicht override-bar'
 assert_true "$?" "D (Task 249 AK8): model_tiers-Beispielblock nennt 'heavy' explizit als nicht override-bar"
 # Negativ-Kontrolle (F1-analog): die Positiv-Regex matcht, wenn der verbotene Beispiel-Knopf
 # tatsächlich vorhanden wäre — belegt, dass der Test scharf ist und nicht zufällig grün läuft.
-printf '#   heavy: claude-opus-4-8\n' | grep -qE '^#[[:space:]]*heavy:'
+grep_in '#   heavy: claude-opus-4-8' -qE '^#[[:space:]]*heavy:'
 assert_true "$?" "D (Task 249 AK8): Positiv-Kontrolle — Regex erkennt einen vorhandenen 'heavy:'-Beispiel-Knopf"
 
 # ─── start-work.sh: Worktree-Isolation (Kern-Vorkehrung gegen Session-Kollisionen, nothra/tch-gastro-services#74) ──
@@ -1895,16 +1895,16 @@ run_create_label() {  # $1 = branch-typ, $2 = desc, $3 = extra-env ("VAR=val" od
   cat "$log"
 }
 
-run_create_label fix aaa "" | grep -q -- "--label bug"
+grep_in "$(run_create_label fix aaa "")" -q -- "--label bug"
 assert_true "$?" "Issue-Anlage: Branch-Typ fix → --label bug"
 
-run_create_label feature bbb "" | grep -q -- "--label enhancement"
+grep_in "$(run_create_label feature bbb "")" -q -- "--label enhancement"
 assert_true "$?" "Issue-Anlage: Branch-Typ feature → --label enhancement"
 
-run_create_label docs ccc "" | grep -q -- "--label documentation"
+grep_in "$(run_create_label docs ccc "")" -q -- "--label documentation"
 assert_true "$?" "Issue-Anlage: Branch-Typ docs → --label documentation"
 
-run_create_label feature ddd "FACTORY_ISSUE_LABEL=security" | grep -q -- "--label security"
+grep_in "$(run_create_label feature ddd "FACTORY_ISSUE_LABEL=security")" -q -- "--label security"
 assert_true "$?" "Issue-Anlage: FACTORY_ISSUE_LABEL übersteuert die Ableitung"
 
 # nothra/tch-gastro-services#82: --labels reicht Aspekt-Labels (zusätzlich zum Art-Label) an den Seam durch.
@@ -1931,7 +1931,7 @@ assert_true "$?" "#82: FACTORY_ASPECT_LABELS reicht Aspekt-Labels an den Seam du
 asp_err=$( cd "$REPO_SW" && PATH="$TMP_SW/bin:$PATH" FACTORY_DIR="$REPO_SW" FACTORY_REPO="acme/demo" \
   bash "$SW" "meine beschreibung" --labels 2>&1 ); asp_rc=$?
 assert_exit 1 "$asp_rc" "#82: start-work --labels ohne Wert → exit 1 (kein wortloser set-e-Abbruch)"
-printf '%s' "$asp_err" | grep -q -- '--labels erwartet einen Wert'
+grep_in "$asp_err" -q -- '--labels erwartet einen Wert'
 assert_true "$?" "#82: start-work --labels ohne Wert nennt die usage()-Ursache"
 
 # ─── Worktree-Dateispiegelung über start_work.copy_files (#47, Ursprung nothra/tch-gastro-services#236) ─────────
@@ -2426,7 +2426,7 @@ sw_header=$(awk '/^set -euo pipefail/{exit} {print}' "$SW")
 # fände den Schalter dann im Produktionscode und bliebe grün, obwohl der Kopf-Kommentar gelöscht sein kann.
 { [ "$(printf '%s\n' "$sw_header" | wc -l)" -lt "$(wc -l < "$SW")" ]; }
 assert_true "$?" "#47 AK17: die Kopf-Extraktion bricht am Sentinel ab (kein Fail-open auf die ganze Datei)"
-printf '%s\n' "$sw_header" | grep -q '^#   FACTORY_WT_SKIP_COPY=1'
+grep_in "$sw_header" -q '^#   FACTORY_WT_SKIP_COPY=1'
 assert_true "$?" "#47 AK17: start-work.sh nennt FACTORY_WT_SKIP_COPY im Kopf-Kommentar"
 assert_contains_286 "$(flat_286 "$GITWF")" '`FACTORY_WT_SKIP_COPY=1` (Alias `FACTORY_WT_SKIP_ENV=1`)' \
   "#47 AK17: git-workflow.md listet FACTORY_WT_SKIP_COPY samt Alias in der Env-Schalter-Liste"
@@ -2607,7 +2607,7 @@ WT=$(fc_repo empty)
 git -C "$WT" checkout -q -b feature/91-empty
 fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: leer" 2>&1 ); fc_rc=$?
 assert_exit 0 "$fc_rc" "factory-commit: nichts zu committen → exit 0 (kein Pipeline-Abbruch)"
-printf '%s' "$fc_out" | grep -qi 'nichts zu committen'
+grep_in "$fc_out" -qi 'nichts zu committen'
 assert_true "$?" "factory-commit: nichts zu committen nennt den Grund"
 
 # 5. Fehlende Message → Aufruf-Fehler exit ≠ 0 (kein --force-Einfallstor via Zusatz-Args).
@@ -2655,9 +2655,9 @@ fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=
 assert_exit 0 "$fc_rc" "factory-commit: nichts zu committen + unpushter Commit → exit 0 (Push nachgeholt)"
 git -C "$WT" diff --quiet HEAD origin/feature/239-pushpending
 assert_true "$?" "factory-commit: holt ausstehenden Push nach (Remote-Ref = lokaler Stand)"
-printf '%s' "$fc_out" | grep -qF 'committet und gepusht'
+grep_in "$fc_out" -qF 'committet und gepusht'
 assert_true "$([ $? -ne 0 ]; echo $?)" "factory-commit: Nachhol-Meldung unterscheidet sich vom Happy-Path-Text"
-printf '%s' "$fc_out" | grep -qF 'ausstehenden Push nachgeholt'
+grep_in "$fc_out" -qF 'ausstehenden Push nachgeholt'
 assert_true "$?" "factory-commit: Nachhol-Meldung bestätigt den nachgeholten Push positiv"
 
 # 10. Nichts zu committen, kein Upstream (frischer Branch mit lokalem Commit) →
@@ -2679,7 +2679,7 @@ git -C "$WT" checkout -q -b feature/239-insync
 git -C "$WT" push -q -u origin feature/239-insync
 fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=$?
 assert_exit 0 "$fc_rc" "factory-commit: deckungsgleich mit Upstream → exit 0, keine Aktion"
-printf '%s' "$fc_out" | grep -qi 'übersprungen'
+grep_in "$fc_out" -qi 'übersprungen'
 assert_true "$?" "factory-commit: deckungsgleicher Branch behält die unveränderte 'übersprungen'-Meldung"
 
 # 12. Nichts zu committen, unpushter Commit vorhanden, Nachhol-Push scheitert →
@@ -2693,7 +2693,7 @@ git -C "$WT" commit -q -m "feat: lokaler commit, nachhol-push scheitert"
 git -C "$WT" remote set-url origin "$TMP_FC/does-not-exist.git"
 fc_out=$( cd "$WT" && bash "$FCOMMIT" "feat: nichts zu committen" 2>&1 ); fc_rc=$?
 assert_true "$([ $fc_rc -ne 0 ]; echo $?)" "factory-commit: Nachhol-Push scheitert → exit ≠ 0"
-printf '%s' "$fc_out" | grep -qF 'hole ausstehenden Push nach'
+grep_in "$fc_out" -qF 'hole ausstehenden Push nach'
 assert_true "$?" "factory-commit: Fehlschlag stammt aus dem erreichten Push-Pfad (nicht aus einem anderen Grund)"
 
 # ─── nothra/tch-gastro-services#262: -h/--help ist eine Hilfe-Anfrage, keine Commit-Message ────────────
@@ -2712,7 +2712,7 @@ for flag_case in "-h|helpshort" "--help|helplong"; do
   echo "darf nicht committet werden" > "$WT/change.txt"
   fc_out=$( cd "$WT" && bash "$FCOMMIT" "$flag_arg" 2>/dev/null ); fc_rc=$?
   assert_exit 0 "$fc_rc" "factory-commit AK4: '$flag_arg' → exit 0"
-  printf '%s' "$fc_out" | grep -qF 'Aufruf: factory-commit.sh'
+  grep_in "$fc_out" -qF 'Aufruf: factory-commit.sh'
   assert_true "$?" "factory-commit AK4: '$flag_arg' gibt die Usage aus"
   [ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
   assert_true "$?" "factory-commit AK4: '$flag_arg' committet nichts"
@@ -2732,7 +2732,7 @@ git -C "$WT" checkout -q -b feature/262-helpextra
 echo "x" > "$WT/change.txt"
 fc_out=$( cd "$WT" && bash "$FCOMMIT" "--help" "extra" 2>&1 ); fc_rc=$?
 assert_true "$([ $fc_rc -ne 0 ]; echo $?)" "factory-commit AK4: '--help' mit Zusatz-Argument → exit ≠ 0 (kein Help-Sonderfall)"
-printf '%s' "$fc_out" | grep -qF 'genau ein Argument erwartet'
+grep_in "$fc_out" -qF 'genau ein Argument erwartet'
 assert_true "$?" "factory-commit AK4: '--help extra' scheitert an der Argumentzahl-Prüfung (pfadspezifisches Signal)"
 
 # Fehlerszenario 2 der Spec, `factory-commit.sh`-Seite: die leere Message läuft weiterhin in
@@ -2744,7 +2744,7 @@ HEAD_BEFORE=$(git -C "$WT" rev-parse HEAD)
 echo "darf nicht committet werden" > "$WT/change.txt"
 fc_out=$( cd "$WT" && bash "$FCOMMIT" "" 2>&1 ); fc_rc=$?
 assert_true "$([ $fc_rc -ne 0 ]; echo $?)" "factory-commit: leere Message ('') → exit ≠ 0 (Leer-Prüfung unverändert wirksam)"
-printf '%s' "$fc_out" | grep -qF 'genau ein Argument erwartet'
+grep_in "$fc_out" -qF 'genau ein Argument erwartet'
 assert_true "$?" "factory-commit: leere Message scheitert an der Leer-/Argumentprüfung (pfadspezifisches Signal)"
 [ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
 assert_true "$?" "factory-commit: leere Message committet nichts"
@@ -2964,21 +2964,21 @@ first_section214="$(printf '%s\n' "$section_headers214" | head -n1)"
 sed "s/^${review_header214}\$/## Fazit/" "$REVIEW_MD214" > "$TMP214/review-verdict-drift.md"
 out214=$(drift_guard "$TMP214/review-verdict-drift.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "AC4: umbenannter review-Verdict-Anker → Guard rot"
-printf '%s' "$out214" | grep -q 'report_verdict(review)'
+grep_in "$out214" -q 'report_verdict(review)'
 assert_true "$?" "AC4: Guard nennt betroffene Konstante report_verdict(review)"
 
 # ── AC4: umbenannter security-Verdict-Anker (## Ergebnis) → rot + nennt Konstante ──
 sed "s/^${security_header214}\$/## Fazit/" "$SECURITY_MD214" > "$TMP214/security-verdict-drift.md"
 out214=$(drift_guard "$REVIEW_MD214" "$TMP214/security-verdict-drift.md" "$RV_LIB214" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "AC4: umbenannter security-Verdict-Anker → Guard rot"
-printf '%s' "$out214" | grep -q 'report_verdict(security-review)'
+grep_in "$out214" -q 'report_verdict(security-review)'
 assert_true "$?" "AC4: Guard nennt betroffene Konstante report_verdict(security-review)"
 
 # ── AC4: umbenannte Findings-Sektion → rot + nennt Konstante (Anker aus der Quelle) ──
 sed "s/^${first_section214}.*/## Blocker/" "$REVIEW_MD214" > "$TMP214/section-drift.md"
 out214=$(drift_guard "$TMP214/section-drift.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "AC4: umbenannte Findings-Sektion → Guard rot"
-printf '%s' "$out214" | grep -q 'count_section_items'
+grep_in "$out214" -q 'count_section_items'
 assert_true "$?" "AC4: Guard nennt betroffene Konstante count_section_items"
 
 # ── Fehlerszenario 1: fehlende Command-Datei → fail-closed (rot), nicht still bestanden ──
@@ -2999,9 +2999,9 @@ sed "s/^${review_header214}\$/Siehe Abschnitt ${review_header214} weiter unten./
   "$REVIEW_MD214" > "$TMP214/prose-only.md"
 out214=$(drift_guard "$TMP214/prose-only.md" "$SECURITY_MD214" "$RV_LIB214" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "F2 (#214): Verdict-Anker nur im Fließtext → Guard rot (exakt-verankert)"
-printf '%s' "$out214" | grep -q 'report_verdict(review)'
+grep_in "$out214" -q 'report_verdict(review)'
 assert_true "$?" "F2 (#214): Guard nennt report_verdict(review) (nicht durch fehlende Sektionen rot)"
-printf '%s' "$out214" | grep -q 'count_section_items'
+grep_in "$out214" -q 'count_section_items'
 assert_true "$([ $? -ne 0 ]; echo $?)" "F2 (#214): Findings-Sektionen bleiben intakt (rot NUR wegen Verdict-Anker)"
 
 # ── AC6 (Parser-Seite): Konstante NUR im Parser umbenannt (Command unverändert) → rot ──
@@ -3011,7 +3011,7 @@ printf "  review)          header='## Fazit' ;;\n  security-review) header='## E
   > "$TMP214/rv-verdict-drift.sh"
 out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$TMP214/rv-verdict-drift.sh" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "AC6: Parser-seitig umbenannter Verdict-Anker (nur report-verdict.sh) → Guard rot"
-printf '%s' "$out214" | grep -q 'report_verdict(review)'
+grep_in "$out214" -q 'report_verdict(review)'
 assert_true "$?" "AC6: Guard nennt report_verdict(review) bei Parser-seitigem Drift"
 
 # ── AC6 (Parser-Seite): count_section_items-Sektion nur im Parser umbenannt → rot ──
@@ -3019,20 +3019,20 @@ printf 'count_section_items "$f" "## Geändert" "## Wichtige Findings"\ncount_se
   > "$TMP214/pipeline-section-drift.sh"
 out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$RV_LIB214" "$TMP214/pipeline-section-drift.sh"); rc214=$?
 assert_exit 1 "$rc214" "AC6: Parser-seitig umbenannte Sektion (nur run-pipeline.sh) → Guard rot"
-printf '%s' "$out214" | grep -q 'count_section_items'
+grep_in "$out214" -q 'count_section_items'
 assert_true "$?" "AC6: Guard nennt count_section_items bei Parser-seitigem Drift"
 
 # ── Fail-closed: Parser-Format ganz verändert (keine Konstante extrahierbar) → rot, nicht grün ──
 printf '# report-verdict.sh ohne case-Zweige (Format geändert)\n' > "$TMP214/rv-empty.sh"
 out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$TMP214/rv-empty.sh" "$PIPELINE214"); rc214=$?
 assert_exit 1 "$rc214" "Fail-closed (#214): Verdict-Anker nicht extrahierbar → Guard rot"
-printf '%s' "$out214" | grep -q 'report_verdict-Anker nicht aus'
+grep_in "$out214" -q 'report_verdict-Anker nicht aus'
 assert_true "$?" "Fail-closed (#214): meldet nicht-extrahierbaren Verdict-Anker (kein stilles Grün)"
 
 printf '# run-pipeline.sh ohne count_section_items-Aufrufe (Format geändert)\n' > "$TMP214/pipeline-empty.sh"
 out214=$(drift_guard "$REVIEW_MD214" "$SECURITY_MD214" "$RV_LIB214" "$TMP214/pipeline-empty.sh"); rc214=$?
 assert_exit 1 "$rc214" "Fail-closed (#214): Sektionen nicht extrahierbar → Guard rot"
-printf '%s' "$out214" | grep -q 'count_section_items-Sektionen nicht'
+grep_in "$out214" -q 'count_section_items-Sektionen nicht'
 assert_true "$?" "Fail-closed (#214): meldet nicht-extrahierbare Sektionen (kein stilles Grün)"
 
 rm -rf "$TMP214"
@@ -3096,7 +3096,7 @@ section_contains() {
   s="$(first_match_line "$start_hdr" "$file")"
   e="$(first_match_line "$end_hdr" "$file")"
   [ "$s" -gt 0 ] && [ "$e" -gt "$s" ] || return 1
-  sed -n "${s},${e}p" "$file" | grep -qF -- "$needle"
+  grep_in "$(sed -n "${s},${e}p" "$file")" -qF -- "$needle"
 }
 
 # 0 (wahr), wenn der erste Fixed-String-Treffer von $a in $file VOR dem ersten Treffer von
@@ -3348,7 +3348,7 @@ if [ "$HAS_YQ" = 1 ]; then
     FACTORY_LINT_COMMAND="touch '$MARKER_G101'; false" \
     env -u PR_SHEPHERD -u FACTORY_STAGE \
     bash "$TMP_G101/scripts/run-pipeline.sh" 101 2>&1 || true)
-  printf '%s' "$g101_out" | grep -q 'Gate fehlgeschlagen: Lint'
+  grep_in "$g101_out" -q 'Gate fehlgeschlagen: Lint'
   assert_true "$?" "#101: non-dry-run stoppt fail-closed am Lint-Gate (rotes Lint → Pipeline-Abbruch)"
   assert_true "$([ -f "$MARKER_G101" ]; echo $?)" \
     "#101: Lint-Gate führt den ECHTEN Befehl aus (Marker geschrieben, kein echo-Platzhalter)"
@@ -3647,21 +3647,21 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$RVW" add .
   git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m small
   rv_out=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$rv_out" | grep -q '/review 3 (model: claude-sonnet-5-5, max 30 turns)'
+  grep_in "$rv_out" -q '/review 3 (model: claude-sonnet-5-5, max 30 turns)'
   assert_true "$?" "#197 AK1/AK3 (E2E): kleiner Diff → /review auf light (Basis origin/main)"
-  printf '%s' "$rv_out" | grep -q '/security-review 3 (model: claude-opus-5-5, max 30 turns)'
+  grep_in "$rv_out" -q '/security-review 3 (model: claude-opus-5-5, max 30 turns)'
   assert_true "$?" "#197 AK6 (E2E): /security-review immer heavy (kein tier_by_size)"
-  printf '%s' "$rv_out" | grep -q '/test 3 (model: claude-sonnet-5-5, max 20 turns)'
+  grep_in "$rv_out" -q '/test 3 (model: claude-sonnet-5-5, max 20 turns)'
   assert_true "$?" "#197 AK7 (E2E): übriger Skill /test bleibt light"
   rv_ovr=$(CLAUDE_MODEL=my-forced-model bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$rv_ovr" | grep -q '/review 3 (model: my-forced-model'
+  grep_in "$rv_ovr" -q '/review 3 (model: my-forced-model'
   assert_true "$?" "#197 AK10 (E2E): CLAUDE_MODEL-Override sticht die größenabhängige Wahl"
   # AK2 (E2E, Symmetrie zum proxy-Signal): großer Diff (>= 150) → /review auf heavy.
   seq 1 200 >> "$RVW/tasks/task-3-review-tier.md"
   git -C "$RVW" add .
   git -C "$RVW" -c user.email=t@t -c user.name=t commit -q -m big
   rv_big=$(bash "$RVW/scripts/run-pipeline.sh" 3 --dry-run 2>&1 || true)
-  printf '%s' "$rv_big" | grep -q '/review 3 (model: claude-opus-5-5, max 30 turns)'
+  grep_in "$rv_big" -q '/review 3 (model: claude-opus-5-5, max 30 turns)'
   assert_true "$?" "#197 AK2 (E2E): großer Diff (>= 150) → /review auf heavy"
   rm -rf "$RVO" "$RVW"
 
@@ -3671,7 +3671,7 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n## Weiter\n- [ ] x\n' > "$IMS/docs/specs/spec-4-small.md"
   git -C "$IMS" init -q; git -C "$IMS" add .; git -C "$IMS" -c user.email=t@t -c user.name=t commit -q -m init
   ims_out=$(bash "$IMS/scripts/run-pipeline.sh" 4 --dry-run 2>&1 || true)
-  printf '%s' "$ims_out" | grep -q '/implement 4 (model: claude-sonnet-5-5, max 20 turns)'
+  grep_in "$ims_out" -q '/implement 4 (model: claude-sonnet-5-5, max 20 turns)'
   assert_true "$?" "#197 AK4 (E2E): kleiner Proxy (3 AK < 6) → /implement auf light"
   rm -rf "$IMS"
 
@@ -3680,7 +3680,7 @@ if [ "$HAS_YQ" = 1 ]; then
   printf '# Spec\n## Akzeptanzkriterien\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D\n- [ ] E\n- [ ] F\n- [ ] G\n- [ ] H\n' > "$IML/docs/specs/spec-5-large.md"
   git -C "$IML" init -q; git -C "$IML" add .; git -C "$IML" -c user.email=t@t -c user.name=t commit -q -m init
   iml_out=$(bash "$IML/scripts/run-pipeline.sh" 5 --dry-run 2>&1 || true)
-  printf '%s' "$iml_out" | grep -q '/implement 5 (model: claude-opus-5-5, max 40 turns)'
+  grep_in "$iml_out" -q '/implement 5 (model: claude-opus-5-5, max 40 turns)'
   assert_true "$?" "#197 AK5 (E2E): großer Proxy (8 AK >= 6) → /implement auf heavy und mittlere Turn-Stufe (40)"
   rm -rf "$IML"
 
@@ -3706,7 +3706,7 @@ if [ "$HAS_YQ" = 1 ]; then
     R49="$(mktemp -d)"; mk_repo_49 "$R49" "$ak_49"
     run_dry_49 "$R49"
     assert_contains_286 "$OUT_49" "Starte: /implement 49 (model: " "#49 ${rest_49#*:}: /implement startet bei ${ak_49} AK"
-    printf '%s' "$OUT_49" | grep -qE "Starte: /implement 49 \(model: [^,]+, max ${want_49} turns\)"
+    grep_in "$OUT_49" -qE "Starte: /implement 49 \(model: [^,]+, max ${want_49} turns\)"
     assert_true "$?" "#49 ${rest_49#*:}: Spec mit ${ak_49} AK → /implement mit max ${want_49} turns"
     rm -rf "$R49"
   done
@@ -3733,7 +3733,7 @@ if [ "$HAS_YQ" = 1 ]; then
   git -C "$R49" add .; git -C "$R49" -c user.email=t@t -c user.name=t commit -q -m review
   run_dry_49 "$R49"
   for case_49 in "review:30" "security-review:30" "test:20" "refactor:20" "codify:8"; do
-    printf '%s' "$OUT_49" | grep -qE "Starte: /${case_49%%:*} 49 \(model: [^,]+, max ${case_49#*:} turns\)"
+    grep_in "$OUT_49" -qE "Starte: /${case_49%%:*} 49 \(model: [^,]+, max ${case_49#*:} turns\)"
     assert_true "$?" "#49 AK17: /${case_49%%:*} behält max ${case_49#*:} turns bei einer 18-AK-Spec"
   done
   # pr-shepherd läuft im Dry-Run nur mit PR_SHEPHERD=true – sein Budget prüft der Config-Wert direkt.
@@ -3919,23 +3919,23 @@ efs_msg() { evaluate_final_state "$@" 2>/dev/null; }        # nur Reason (stdout
 efs clean 0 false "" "" "";  assert_exit 0 "$?" "#212 AK2: sauber+gepusht (PR_SHEPHERD=false) → verifiziert (exit 0)"
 # AK1: ungepushte Commits → nicht verifiziert + gemeldeter Zustand
 efs clean 3 false "" "" "";  assert_exit 1 "$?" "#212 AK1: ungepushte Commits → nicht verifiziert (exit 1)"
-printf '%s' "$(efs_msg clean 3 false '' '' '')" | grep -q 'Ungepushte Commits'
+grep_in "$(efs_msg clean 3 false '' '' '')" -q 'Ungepushte Commits'
 assert_true "$?" "#212 AK1: meldet 'Ungepushte Commits' als realen Zustand"
 # F3: uncommittete Änderungen (dirty) → nicht verifiziert
 efs dirty 0 false "" "" "";  assert_exit 1 "$?" "#212 F3: uncommittete Änderungen → nicht verifiziert (exit 1)"
-printf '%s' "$(efs_msg dirty 0 false '' '' '')" | grep -q 'Working Tree nicht sauber'
+grep_in "$(efs_msg dirty 0 false '' '' '')" -q 'Working Tree nicht sauber'
 assert_true "$?" "#212 F3: meldet 'Working Tree nicht sauber'"
 # F2: kein Upstream (nicht-numerischer unpushed) → fail-closed
 efs clean NO_UPSTREAM false "" "" ""; assert_exit 1 "$?" "#212 F2: kein Upstream → fail-closed nicht verifiziert"
-printf '%s' "$(efs_msg clean NO_UPSTREAM false '' '' '')" | grep -q 'Push-Zustand nicht verifizierbar'
+grep_in "$(efs_msg clean NO_UPSTREAM false '' '' '')" -q 'Push-Zustand nicht verifizierbar'
 assert_true "$?" "#212 F2: meldet 'Push-Zustand nicht verifizierbar'"
 # AK3: PR_SHEPHERD, PR noch Draft → blockiert
 efs clean 0 true OPEN true none; assert_exit 1 "$?" "#212 AK3: Draft-PR (PR_SHEPHERD) → nicht verifiziert"
-printf '%s' "$(efs_msg clean 0 true OPEN true none)" | grep -q 'PR noch Draft'
+grep_in "$(efs_msg clean 0 true OPEN true none)" -q 'PR noch Draft'
 assert_true "$?" "#212 AK3: meldet 'PR noch Draft'"
 # AK4: PR_SHEPHERD, nicht Draft, aber weder gemergt noch Auto-Merge scharf → blockiert
 efs clean 0 true OPEN false none; assert_exit 1 "$?" "#212 AK4: weder gemergt noch Auto-Merge scharf → nicht verifiziert"
-printf '%s' "$(efs_msg clean 0 true OPEN false none)" | grep -q 'weder gemergt noch Auto-Merge'
+grep_in "$(efs_msg clean 0 true OPEN false none)" -q 'weder gemergt noch Auto-Merge'
 assert_true "$?" "#212 AK4: meldet 'weder gemergt noch Auto-Merge scharfgeschaltet'"
 # AK4-Edge: geschlossener, NICHT gemergter PR (pr_state=CLOSED) → blockiert (kein Sonderfall)
 efs clean 0 true CLOSED false none; assert_exit 1 "$?" "#212 AK4-Edge: geschlossener (nicht gemergter) PR → nicht verifiziert"
@@ -3945,7 +3945,7 @@ efs clean 0 true OPEN false set;  assert_exit 0 "$?" "#212 AK5: Auto-Merge schar
 efs clean 0 true MERGED false none; assert_exit 0 "$?" "#212 AK6: PR MERGED → verifiziert (exit 0)"
 # F1: PR_SHEPHERD, gh nicht verwertbar (leerer pr_state) → fail-closed
 efs clean 0 true "" "" "";    assert_exit 1 "$?" "#212 F1: gh ohne verwertbaren PR-Zustand → fail-closed"
-printf '%s' "$(efs_msg clean 0 true '' '' '')" | grep -q 'PR-Zustand nicht verifizierbar'
+grep_in "$(efs_msg clean 0 true '' '' '')" -q 'PR-Zustand nicht verifizierbar'
 assert_true "$?" "#212 F1: meldet 'PR-Zustand nicht verifizierbar'"
 
 # nothra/tch-gastro-services#298: MERGED zählt unabhängig vom Unpushed-Status sofort als Erfolg (Branch-Auto-Delete
@@ -3955,21 +3955,21 @@ efs clean NO_UPSTREAM true MERGED false none; assert_exit 0 "$?" "#298 AK: MERGE
 efs clean 3 true MERGED false none; assert_exit 0 "$?" "#298 AK: MERGED + unpushed=3 → ebenfalls verifiziert (exit 0)"
 # Regressions-Guard: Tree-Check bleibt VOR dem MERGED-Kurzschluss
 efs dirty 0 true MERGED false none; assert_exit 1 "$?" "#298 Regressions-Guard: dirty + MERGED → weiterhin 'Working Tree nicht sauber'"
-printf '%s' "$(efs_msg dirty 0 true MERGED false none)" | grep -q 'Working Tree nicht sauber'
+grep_in "$(efs_msg dirty 0 true MERGED false none)" -q 'Working Tree nicht sauber'
 assert_true "$?" "#298 Regressions-Guard: meldet 'Working Tree nicht sauber' trotz MERGED"
 # Regressions-Guard: nicht-MERGED + nicht-numerisch unpushed bleibt fail-closed
 efs clean NO_UPSTREAM true OPEN false none; assert_exit 1 "$?" "#298 Regressions-Guard: OPEN + unpushed nicht-numerisch → weiterhin fail-closed"
-printf '%s' "$(efs_msg clean NO_UPSTREAM true OPEN false none)" | grep -q 'Push-Zustand nicht verifizierbar'
+grep_in "$(efs_msg clean NO_UPSTREAM true OPEN false none)" -q 'Push-Zustand nicht verifizierbar'
 assert_true "$?" "#298 Regressions-Guard: meldet 'Push-Zustand nicht verifizierbar'"
 # spec-298 Fehlerszenario 2: geschlossener, NICHT gemergter PR + kein Upstream (Branch dennoch
 # server-seitig gelöscht) → bleibt fail-closed, kein stiller Erfolg für abgelehnte PRs.
 efs clean NO_UPSTREAM true CLOSED false none; assert_exit 1 "$?" "#298 Fehlerszenario 2: CLOSED + unpushed=NO_UPSTREAM → weiterhin fail-closed"
-printf '%s' "$(efs_msg clean NO_UPSTREAM true CLOSED false none)" | grep -q 'Push-Zustand nicht verifizierbar'
+grep_in "$(efs_msg clean NO_UPSTREAM true CLOSED false none)" -q 'Push-Zustand nicht verifizierbar'
 assert_true "$?" "#298 Fehlerszenario 2: meldet 'Push-Zustand nicht verifizierbar'"
 # spec-298 Fehlerszenario 1: pr_state leer (gh-Fehler, F1) UND unpushed gleichzeitig
 # nicht-numerisch → Unpushed-Check greift zuerst (pr_state ist nicht MERGED), Meldung bleibt F2.
 efs clean NO_UPSTREAM true "" "" ""; assert_exit 1 "$?" "#298 Fehlerszenario 1: leerer pr_state + unpushed nicht-numerisch → weiterhin fail-closed"
-printf '%s' "$(efs_msg clean NO_UPSTREAM true '' '' '')" | grep -q 'Push-Zustand nicht verifizierbar'
+grep_in "$(efs_msg clean NO_UPSTREAM true '' '' '')" -q 'Push-Zustand nicht verifizierbar'
 assert_true "$?" "#298 Fehlerszenario 1: meldet 'Push-Zustand nicht verifizierbar' (nicht 'PR-Zustand')"
 
 echo ""
@@ -4097,7 +4097,7 @@ CLEOF
     env -u PR_SHEPHERD -u FACTORY_STAGE \
     bash "$TMP_INT/scripts/run-pipeline.sh" 77 2>&1); int_rc=$?
   assert_true "$([[ "$int_rc" -ne 0 ]]; echo $?)" "#212 AK8: Interrupt-Sentinel → Non-Zero-Exit"
-  printf '%s' "$int_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  grep_in "$int_out" -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$([ $? -ne 0 ]; echo $?)" "#212 AK8: Erfolgs-Ausgabe wird bei Interrupt NICHT erreicht"
   grep -q 'PUSH_GATE_BLOCKED' "$TMP_INT/tasks/interrupt-log.jsonl" 2>/dev/null
   assert_true "$?" "#212 AK8: Stopp-Grund (PUSH_GATE_BLOCKED) ist im interrupt-log protokolliert"
@@ -4161,9 +4161,9 @@ CLAUDE_E2E
     env -u PR_SHEPHERD -u FACTORY_STAGE \
     bash "$TMP_E2E/scripts/run-pipeline.sh" 78 2>&1); e2e_rc=$?
   assert_true "$([[ "$e2e_rc" -ne 0 ]]; echo $?)" "#212 W3: unverifizierter Endzustand → Non-Zero-Exit (E2E)"
-  printf '%s' "$e2e_out" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  grep_in "$e2e_out" -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$([ $? -ne 0 ]; echo $?)" "#212 W3: kein Erfolgs-Banner bei unverifiziertem Endzustand (E2E)"
-  printf '%s' "$e2e_out" | grep -q 'Endzustand nicht verifiziert'
+  grep_in "$e2e_out" -q 'Endzustand nicht verifiziert'
   assert_true "$?" "#212 W3: meldet den realen Zustand (Endzustand nicht verifiziert)"
   grep -q '"type":"INCOMPLETE_OUTCOME"' "$TMP_E2E/tasks/interrupt-log.jsonl" 2>/dev/null
   assert_true "$?" "#212 W3: INCOMPLETE_OUTCOME wird ins interrupt-log geschrieben (ADR-006)"
@@ -4175,7 +4175,7 @@ CLAUDE_E2E
     env -u PR_SHEPHERD -u FACTORY_STAGE \
     bash "$TMP_E2E/scripts/run-pipeline.sh" 78 2>&1); e2e_ok_rc=$?
   assert_exit 0 "$e2e_ok_rc" "#212 W3: sauber+gepushter Endzustand → Erfolg (exit 0, Gegenprobe)"
-  printf '%s' "$e2e_ok" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  grep_in "$e2e_ok" -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$?" "#212 W3: Erfolgs-Banner erscheint bei verifiziertem Endzustand"
 
   # ─── nothra/tch-gastro-services#264: Env-Isolation der realen run-pipeline.sh-Testaufrufe ────────────
@@ -4198,14 +4198,14 @@ CLAUDE_E2E
     env -u PR_SHEPHERD -u FACTORY_STAGE \
     bash "$TMP_E2E/scripts/run-pipeline.sh" 78 2>&1); e2e_dirty_env_rc=$?
   assert_exit 0 "$e2e_dirty_env_rc" "#264: exportiertes PR_SHEPHERD/FACTORY_STAGE ändert das Ergebnis nicht (exit 0)"
-  printf '%s' "$e2e_dirty_env" | grep -q 'Pipeline erfolgreich abgeschlossen'
+  grep_in "$e2e_dirty_env" -q 'Pipeline erfolgreich abgeschlossen'
   assert_true "$?" "#264: Erfolgs-Banner erscheint trotz exportiertem PR_SHEPHERD/FACTORY_STAGE"
   # Pfadspezifisches Negativ-Signal: 'Phase 7' erscheint ausschließlich im PR_SHEPHERD-Zweig.
-  printf '%s' "$e2e_dirty_env" | grep -q 'Phase 7'
+  grep_in "$e2e_dirty_env" -q 'Phase 7'
   assert_true "$([ $? -ne 0 ]; echo $?)" "#264: Phase 7 (pr-shepherd) wird nicht ungewollt ausgelöst"
   # Zusätzlicher Positiv-Beleg (kein zweiter unabhängiger Beweis): die Verifikation meldet den
   # git-Modus-Text; bei pr_shepherd=true lautete er '(sauber, gepusht, PR merge-ready/gemergt)'.
-  printf '%s' "$e2e_dirty_env" | grep -q 'Endzustand verifiziert (sauber, gepusht)'
+  grep_in "$e2e_dirty_env" -q 'Endzustand verifiziert (sauber, gepusht)'
   assert_true "$?" "#264: Endzustands-Verifikation läuft im git-Modus (ohne PR-Invarianten)"
 
   rm -rf "$TMP_E2E" "$TMP_E2E_ORIGIN"
@@ -4474,7 +4474,7 @@ assert_true "$([ $? -ne 0 ]; echo $?)" "#262: commit-msg-check lehnt ab – --he
 
 printf '%s' "--help" > "$TMP_CM/msg"
 cm_out=$(bash "$CMCHECK" "$TMP_CM/msg" 2>&1)
-printf '%s' "$cm_out" | grep -qF 'sieht aus wie ein CLI-Flag'
+grep_in "$cm_out" -qF 'sieht aus wie ein CLI-Flag'
 assert_true "$?" "#262: Ablehnung nennt den Grund (Message sieht aus wie ein Flag)"
 
 # Exit-Kontrakt aus dem Skript-Header: 1 = fachliche Ablehnung, 2 = Infrastruktur-Fehler. Ohne
@@ -4523,7 +4523,7 @@ WT=$(ih_repo install)
 printf '#!/usr/bin/env bash\necho veraltet\n' > "$WT/.git/hooks/pre-push"
 ih_out=$(bash "$WT/scripts/install-hooks.sh" 2>&1); ih_rc=$?
 assert_exit 0 "$ih_rc" "#262 AK7: install-hooks.sh läuft im git-Repo durch (exit 0)"
-printf '%s' "$ih_out" | grep -qF 'vorhandener pre-push Hook wird durch den Factory-Stand ersetzt'
+grep_in "$ih_out" -qF 'vorhandener pre-push Hook wird durch den Factory-Stand ersetzt'
 assert_true "$?" "#262: Ersetzen eines abweichenden vorhandenen Hooks wird gemeldet (kein stiller Verlust)"
 for hook in pre-commit pre-push commit-msg; do
   [ -x "$WT/.git/hooks/$hook" ]
@@ -4543,7 +4543,7 @@ assert_true "$?" "#262 AK7: commit-msg-Hook ruft commit-msg-check.sh mit dem Mes
 hooks_before=$(cat "$WT/.git/hooks/pre-commit" "$WT/.git/hooks/pre-push" "$WT/.git/hooks/commit-msg")
 ih_out=$(bash "$WT/scripts/install-hooks.sh" 2>&1); ih_rc=$?
 assert_exit 0 "$ih_rc" "#262 AK7: wiederholter Aufruf → exit 0 (idempotent)"
-printf '%s' "$ih_out" | grep -qF 'wird durch den Factory-Stand ersetzt'
+grep_in "$ih_out" -qF 'wird durch den Factory-Stand ersetzt'
 assert_true "$([ $? -ne 0 ]; echo $?)" "#262: identischer Hook-Stand meldet keine Ersetzung (Warnung diskriminiert)"
 hooks_after=$(cat "$WT/.git/hooks/pre-commit" "$WT/.git/hooks/pre-push" "$WT/.git/hooks/commit-msg")
 [ "$hooks_before" = "$hooks_after" ]
@@ -4560,7 +4560,7 @@ WT=$(ih_repo hookspath)
 git -C "$WT" config core.hooksPath ".husky"
 ih_out=$(bash "$WT/scripts/install-hooks.sh" 2>&1); ih_rc=$?
 assert_true "$([ $ih_rc -ne 0 ]; echo $?)" "#262: gesetztes core.hooksPath → exit ≠ 0 (fail-closed, keine wirkungslose Installation)"
-printf '%s' "$ih_out" | grep -qF 'core.hooksPath'
+grep_in "$ih_out" -qF 'core.hooksPath'
 assert_true "$?" "#262: Abbruch nennt core.hooksPath als Ursache (pfadspezifisches Signal)"
 [ -e "$WT/.git/hooks/commit-msg" ]
 assert_true "$([ $? -ne 0 ]; echo $?)" "#262: bei gesetztem core.hooksPath wird kein Hook geschrieben"
@@ -4624,7 +4624,7 @@ for flag_case in "--help" "-h"; do
   [ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
   assert_true "$?" "#262 AK2: bei '$flag_case' entsteht kein Commit"
   # Pfadspezifisches Signal: die Ablehnung stammt aus dem Flag-Guard, nicht von git selbst.
-  printf '%s' "$cm_out" | grep -qF 'sieht aus wie ein CLI-Flag'
+  grep_in "$cm_out" -qF 'sieht aus wie ein CLI-Flag'
   assert_true "$?" "#262 AK2: Ablehnung von '$flag_case' stammt aus dem commit-msg-Guard"
 done
 
@@ -4640,7 +4640,7 @@ cm_out=$(GIT_EDITOR="$WT/editor.sh" git -C "$WT" commit 2>&1); cm_rc=$?
 assert_true "$([ $cm_rc -ne 0 ]; echo $?)" "#262 AK2: 'git commit' über den Editor mit --help → exit ≠ 0"
 [ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
 assert_true "$?" "#262 AK2: über den Editor-Pfad entsteht kein '--help'-Commit"
-printf '%s' "$cm_out" | grep -qF 'sieht aus wie ein CLI-Flag'
+grep_in "$cm_out" -qF 'sieht aus wie ein CLI-Flag'
 assert_true "$?" "#262 AK2: Ablehnung auf dem Editor-Pfad stammt aus dem commit-msg-Guard"
 # Gegenprobe: eine reguläre Message läuft über denselben Editor-Pfad durch.
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "fix: ueber den editor" | cat - "$1" > "$1.neu"\nmv "$1.neu" "$1"\n' > "$WT/editor.sh"
@@ -4661,7 +4661,7 @@ cm_out=$(GIT_EDITOR="$WT/editor.sh" git -C "$WT" commit -v 2>&1); cm_rc=$?
 assert_true "$([ $cm_rc -ne 0 ]; echo $?)" "#262: 'git commit -v' mit --help oberhalb des verbose-Diffs → exit ≠ 0"
 [ "$(git -C "$WT" rev-parse HEAD)" = "$HEAD_BEFORE" ]
 assert_true "$?" "#262: über den verbose-Pfad entsteht kein '--help'-Commit"
-printf '%s' "$cm_out" | grep -qF 'sieht aus wie ein CLI-Flag'
+grep_in "$cm_out" -qF 'sieht aus wie ein CLI-Flag'
 assert_true "$?" "#262: Ablehnung auf dem verbose-Pfad stammt aus dem commit-msg-Guard"
 
 # --cleanup=scissors (ohne -v): die Scissors-Zeile ist selbst kommentar-präfigiert und damit
@@ -4692,7 +4692,7 @@ echo "x" > "$WT/x.txt"; git -C "$WT" add -A
 # deutschen Locale hieße sie „Datei oder Verzeichnis nicht gefunden" und der Grep ginge ins Leere.
 cm_out=$(LC_ALL=C git -C "$WT" commit -q -m "fix: branch ohne pruefskript" 2>&1); cm_rc=$?
 assert_exit 0 "$cm_rc" "#262: fehlendes commit-msg-check.sh blockiert den Commit nicht (Fail-open-Ausnahme)"
-printf '%s' "$cm_out" | grep -qF 'No such file or directory'
+grep_in "$cm_out" -qF 'No such file or directory'
 assert_true "$([ $? -ne 0 ]; echo $?)" "#262: kein kryptischer 'No such file'-Fehler auf Branches ohne Prüfskript"
 [ "$(git -C "$WT" log --format=%s -1)" = "fix: branch ohne pruefskript" ]
 assert_true "$?" "#262: Commit auf einem Branch ohne Prüfskript entsteht regulär"
@@ -4752,19 +4752,19 @@ run_init_factory() {
 
 IF_ROOT=$(if_fixture initfail 2)
 if_out=$(run_init_factory "$IF_ROOT"); if_rc=$?
-printf '%s' "$if_out" | grep -qF 'STUB-INSTALLER LIEF'
+grep_in "$if_out" -qF 'STUB-INSTALLER LIEF'
 assert_true "$?" "#262 AK8: init-factory.sh führt scripts/install-hooks.sh wirklich aus (Stub lief)"
 assert_true "$([ $if_rc -ne 0 ]; echo $?)" "#262: fail-closed Abbruch des Installers → init-factory.sh endet mit exit ≠ 0"
-printf '%s' "$if_out" | grep -qF 'Bootstrap unvollständig'
+grep_in "$if_out" -qF 'Bootstrap unvollständig'
 assert_true "$?" "#262: Abschluss nennt den fehlgeschlagenen Hook-Schritt (pfadspezifisches Signal)"
-printf '%s' "$if_out" | grep -qF 'erfolgreich initialisiert'
+grep_in "$if_out" -qF 'erfolgreich initialisiert'
 assert_true "$([ $? -ne 0 ]; echo $?)" "#262: kein Erfolgs-Banner, wenn keine Hooks installiert wurden"
 
 # Gegenprobe: mit erfolgreichem Installer läuft derselbe Bootstrap wie bisher durch.
 IF_ROOT=$(if_fixture initok 0)
 if_out=$(run_init_factory "$IF_ROOT"); if_rc=$?
 assert_exit 0 "$if_rc" "#262: erfolgreicher Installer → init-factory.sh endet mit exit 0 (Gegenprobe)"
-printf '%s' "$if_out" | grep -qF 'erfolgreich initialisiert'
+grep_in "$if_out" -qF 'erfolgreich initialisiert'
 assert_true "$?" "#262: Erfolgs-Banner erscheint bei erfolgreicher Hook-Installation"
 
 rm -rf "$IF_TMP"
@@ -4821,9 +4821,9 @@ install_all_hooks "$WT"
 rm -f "$WT/.git/hooks/commit-msg"
 out=$(rc_hooks "$WT"); rc=$?
 assert_exit 1 "$rc" "#265 AK2: fehlender commit-msg-Hook → exit 1 (Push blockiert)"
-printf '%s' "$out" | grep -qF 'commit-msg'
+grep_in "$out" -qF 'commit-msg'
 assert_true "$?" "#265 AK2: Fehlermeldung nennt den fehlenden Hook (commit-msg)"
-printf '%s' "$out" | grep -qF 'bash scripts/install-hooks.sh'
+grep_in "$out" -qF 'bash scripts/install-hooks.sh'
 assert_true "$?" "#265 AK2: Fehlermeldung nennt den Remediation-Befehl"
 
 # 3. Hook existiert als Datei, ist aber nicht ausführbar → wie fehlend behandelt.
@@ -4832,7 +4832,7 @@ install_all_hooks "$WT"
 chmod -x "$WT/.git/hooks/pre-push"
 out=$(rc_hooks "$WT"); rc=$?
 assert_exit 1 "$rc" "#265 AK3: nicht ausführbarer pre-push-Hook → exit 1 (reine Existenz reicht nicht)"
-printf '%s' "$out" | grep -qF 'pre-push'
+grep_in "$out" -qF 'pre-push'
 assert_true "$?" "#265 AK3: Fehlermeldung nennt den nicht ausführbaren Hook (pre-push)"
 
 # 3b. Boundary: Hook-Name existiert als VERZEICHNIS statt Datei (keine reguläre Datei).
@@ -4844,7 +4844,7 @@ rm -f "$WT/.git/hooks/pre-commit"
 mkdir -p "$WT/.git/hooks/pre-commit"
 out=$(rc_hooks "$WT"); rc=$?
 assert_exit 1 "$rc" "#265 Boundary: Hook-Name als Verzeichnis (statt Datei) → exit 1 (keine reguläre Datei)"
-printf '%s' "$out" | grep -qF 'pre-commit'
+grep_in "$out" -qF 'pre-commit'
 assert_true "$?" "#265 Boundary: Fehlermeldung nennt pre-commit, obwohl das Verzeichnis 'ausführbar' ist"
 
 # 4. Läuft aus einem Worktree heraus – Hooks liegen im GEMEINSAMEN .git (nicht worktree-lokal).
@@ -4862,11 +4862,11 @@ install_all_hooks "$WT"
 rm -f "$WT/.git/hooks/pre-commit" "$WT/.git/hooks/commit-msg"
 out=$(rc_hooks "$WT"); rc=$?
 assert_exit 1 "$rc" "#265 AK5: mehrere fehlende Hooks → exit 1"
-printf '%s' "$out" | grep -qF 'pre-commit'
+grep_in "$out" -qF 'pre-commit'
 assert_true "$?" "#265 AK5: Fehlermeldung nennt pre-commit"
-printf '%s' "$out" | grep -qF 'commit-msg'
+grep_in "$out" -qF 'commit-msg'
 assert_true "$?" "#265 AK5: Fehlermeldung nennt commit-msg"
-printf '%s' "$out" | grep -qF 'pre-push'
+grep_in "$out" -qF 'pre-push'
 assert_true "$([ $? -ne 0 ]; echo $?)" "#265 AK5: pre-push (vorhanden) wird NICHT als fehlend genannt (diskriminierend)"
 
 # 6. .git/hooks-Verzeichnis existiert noch gar nicht (Retrofit nie durchgeführt).
@@ -4875,7 +4875,7 @@ rm -rf "$WT/.git/hooks"
 out=$(rc_hooks "$WT"); rc=$?
 assert_exit 1 "$rc" "#265: fehlendes .git/hooks-Verzeichnis → exit 1, alle drei Hooks gelten als fehlend"
 for h in pre-commit pre-push commit-msg; do
-  printf '%s' "$out" | grep -qF "$h"
+  grep_in "$out" -qF "$h"
   assert_true "$?" "#265: fehlendes .git/hooks-Verzeichnis → Meldung nennt $h"
 done
 
@@ -4903,7 +4903,7 @@ install_all_hooks "$WT"
 git -C "$WT" config core.hooksPath ".husky"
 out=$(rc_hooks "$WT"); rc=$?
 assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK2: core.hooksPath gesetzt + ausführbare Reste im Standardpfad → exit ≠ 0 (statt fälschlich exit 0)"
-printf '%s' "$out" | grep -qF 'core.hooksPath'
+grep_in "$out" -qF 'core.hooksPath'
 assert_true "$?" "#268 AK2: Fehlermeldung nennt core.hooksPath als Ursache"
 
 # 2. core.hooksPath gesetzt, Hooks fehlen im Standardpfad vollständig → ebenfalls fail-closed
@@ -4915,9 +4915,9 @@ WT=$(hi_repo hookspath-no-residue)
 git -C "$WT" config core.hooksPath ".husky"
 out=$(rc_hooks "$WT"); rc=$?
 assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK3: core.hooksPath gesetzt + Hooks fehlen im Standardpfad → exit ≠ 0"
-printf '%s' "$out" | grep -qF 'core.hooksPath'
+grep_in "$out" -qF 'core.hooksPath'
 assert_true "$?" "#268 AK3: Fehlermeldung nennt core.hooksPath (pfadspezifisches Signal statt Zufallstreffer der Präsenzprüfung)"
-printf '%s' "$out" | grep -qF 'Fehlende oder nicht ausführbare Git-Hooks'
+grep_in "$out" -qF 'Fehlende oder nicht ausführbare Git-Hooks'
 assert_true "$([ $? -ne 0 ]; echo $?)" "#268 AK3: die alte Präsenz-Fehlermeldung erscheint NICHT (Guard hat Vorrang, wird vorher erreicht)"
 
 # 3. Fehlermeldung nennt Pfad, Scope/Herkunft und Remediation-Hinweis.
@@ -4925,11 +4925,11 @@ WT=$(hi_repo hookspath-message)
 install_all_hooks "$WT"
 git -C "$WT" config core.hooksPath ".husky"
 out=$(rc_hooks "$WT")
-printf '%s' "$out" | grep -qF '.husky'
+grep_in "$out" -qF '.husky'
 assert_true "$?" "#268 AK4: Fehlermeldung nennt den konfigurierten Pfad (.husky)"
-printf '%s' "$out" | grep -qF 'file:'
+grep_in "$out" -qF 'file:'
 assert_true "$?" "#268 AK4: Fehlermeldung nennt die Herkunft/Scope (git config --show-origin)"
-printf '%s' "$out" | grep -qF 'git config --unset core.hooksPath'
+grep_in "$out" -qF 'git config --unset core.hooksPath'
 assert_true "$?" "#268 AK4: Fehlermeldung nennt den konkreten Remediation-Befehl (nicht nur tautologisch 'core.hooksPath')"
 
 # 4. Läuft aus einem Worktree heraus – core.hooksPath liegt im gemeinsamen Git-Verzeichnis,
@@ -4947,7 +4947,7 @@ assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268 AK5: core.hooksPath aus einem Wo
 # existiert der Ziel-Worktree nicht und schon `cd "$ROOT"` scheitert im Skript – exit ≠ 0,
 # ohne dass core.hooksPath je gelesen wurde. Erst der '.husky'-Treffer belegt, dass der
 # Guard tatsächlich lief (Review-Finding nothra/tch-gastro-services#268 Runde 1).
-printf '%s' "$out" | grep -qF '.husky'
+grep_in "$out" -qF '.husky'
 assert_true "$?" "#268 AK5: Fehlermeldung nennt den aus dem gemeinsamen Git-Verzeichnis gelesenen Pfad (.husky) statt nur zufällig grün zu sein"
 
 # 5. Leerer core.hooksPath-Wert verhält sich NICHT wie „nicht gesetzt" (empirisch mit
@@ -4960,7 +4960,7 @@ install_all_hooks "$WT"
 git -C "$WT" config core.hooksPath ""
 out=$(rc_hooks "$WT"); rc=$?
 assert_true "$([ "$rc" -ne 0 ]; echo $?)" "#268: leerer core.hooksPath-Wert ist NICHT gleichbedeutend mit 'nicht gesetzt' → exit ≠ 0 (fail-closed)"
-printf '%s' "$out" | grep -qF 'core.hooksPath'
+grep_in "$out" -qF 'core.hooksPath'
 assert_true "$?" "#268: Fehlermeldung nennt core.hooksPath auch im Leerstring-Fall"
 
 # 6. Gegenprobe: core.hooksPath NICHT gesetzt, Hooks vorhanden+ausführbar → unverändertes
@@ -4985,7 +4985,7 @@ echo "#265 CI-Absicherung: factory-self-test-Job installiert Hooks vor der Self-
 ci_selftest_block="$(ci_job_block factory-self-test "$CI_FILE")"
 assert_true "$([[ -n "$ci_selftest_block" ]]; echo $?)" "#265: factory-self-test-Job-Block ist extrahierbar"
 
-printf '%s' "$ci_selftest_block" | grep -qF 'bash scripts/install-hooks.sh'
+grep_in "$ci_selftest_block" -qF 'bash scripts/install-hooks.sh'
 assert_true "$?" "#265: factory-self-test-Job installiert die Git-Hooks (bash scripts/install-hooks.sh)"
 
 # Anker auf den echten COMMAND ('run:'-Zeile), nicht auf jede Erwähnung von 'run-tests.sh' –
@@ -5056,7 +5056,7 @@ assert_true "$?" "#258 AK7: install-yq.sh pinnt den erwarteten SHA-256 im Repo (
 # (Lessons nothra/tch-gastro-services#212/#214: Kopplungs-Guard am echten Aufruf, nicht nur Existenz-Grep).
 # Anker ist die Aufruf-Zeile am Spaltenanfang, nicht eine Prosa-Erwähnung (Lesson nothra/tch-gastro-services#114).
 yq_prod_verify_call="$(grep -n '^verify_sha256 "' "$INSTALL_YQ" | head -1 | cut -d: -f2-)"
-printf '%s' "$yq_prod_verify_call" | grep -qE '"\$YQ_SHA256"$'
+grep_in "$yq_prod_verify_call" -qE '"\$YQ_SHA256"$'
 assert_true "$?" "#258 AK7: der Produktionsaufruf von verify_sha256 übergibt \$YQ_SHA256 als letztes Argument (Pin ist verdrahtet, nicht nur vorhanden)"
 
 # Die Download-URL muss aus $YQ_VERSION gebildet werden – sonst behauptet die Konstante eine
@@ -5081,10 +5081,10 @@ for yq_job_spec in "config-validation|$CI_FILE" "factory-self-test|$CI_FILE" "fa
   yq_job_block="$(ci_job_block "$yq_job" "$yq_job_file")"
   assert_true "$([[ -n "$yq_job_block" ]]; echo $?)" "#258 AK4: Job-Block '$yq_job' ist extrahierbar"
 
-  printf '%s' "$yq_job_block" | grep -qF 'bash scripts/install-yq.sh'
+  grep_in "$yq_job_block" -qF 'bash scripts/install-yq.sh'
   assert_true "$?" "#258 AK4: Job '$yq_job' ruft 'bash scripts/install-yq.sh' auf"
 
-  ! printf '%s' "$yq_job_block" | grep -qE 'wget|curl'
+  ! grep_in "$yq_job_block" -qE 'wget|curl'
   assert_true "$?" "#258 AK4: Job '$yq_job' hat keinen eigenen wget/curl-Download-Block mehr"
 done
 
@@ -5202,9 +5202,9 @@ done
 yq_fixture "$YQTMP/ok"
 yq_ok_out="$(run_verify "$YQTMP/ok")"; yq_rc=$?
 assert_exit 0 "$yq_rc" "#258 AK5: --verify gegen Fixture mit korrektem Hash → exit 0 (ohne Netzwerkzugriff)"
-printf '%s' "$yq_ok_out" | grep -qF 'verifiziert'
+grep_in "$yq_ok_out" -qF 'verifiziert'
 assert_true "$?" "#258 AK5: Erfolgsfall meldet die Verifikation explizit"
-! printf '%s' "$yq_ok_out" | grep -qF 'NETZWERK-STUB'
+! grep_in "$yq_ok_out" -qF 'NETZWERK-STUB'
 assert_true "$?" "#258 AK5: --verify ruft weder wget noch curl auf (Netzwerkfreiheit belegt, nicht behauptet)"
 [ ! -x "$YQTMP/ok/yq_linux_amd64" ]
 assert_true "$?" "#258 AK3: --verify setzt selbst im Erfolgsfall kein Ausführbar-Bit (Installation ist ein eigener Schritt)"
@@ -5215,7 +5215,7 @@ assert_true "$?" "#258 AK3: --verify setzt selbst im Erfolgsfall kein Ausführba
 yq_fixture "$YQTMP/algo-first" 1
 yq_first_out="$(run_verify "$YQTMP/algo-first")"; yq_rc=$?
 assert_exit 0 "$yq_rc" "#258 AK2: SHA-256 auf Order-Zeile 1 (= Feld 2) wird korrekt hergeleitet"
-printf '%s' "$yq_first_out" | grep -qF 'verifiziert'
+grep_in "$yq_first_out" -qF 'verifiziert'
 assert_true "$?" "#258 AK2: rotierte Spaltenordnung meldet Erfolg (keine feste Spaltennummer im Seam)"
 
 # AK6 (Negativ, eigener Testfall): genau EIN Defekt – die Binary ist korrupt/manipuliert,
@@ -5225,7 +5225,7 @@ yq_fixture "$YQTMP/mismatch"
 printf 'manipulierte binary' > "$YQTMP/mismatch/yq_linux_amd64"
 yq_bad_out="$(run_verify "$YQTMP/mismatch")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258 AK6: --verify gegen manipulierte Binary → exit ≠ 0 (fail-closed)"
-printf '%s' "$yq_bad_out" | grep -qF 'Checksum-Mismatch'
+grep_in "$yq_bad_out" -qF 'Checksum-Mismatch'
 assert_true "$?" "#258 AK6: Mismatch-Meldung benennt den Checksum-Mismatch"
 [ ! -x "$YQTMP/mismatch/yq_linux_amd64" ]
 assert_true "$?" "#258 AK3: Mismatch lässt die Binary nicht-ausführbar (kein chmod im Fehlerfall)"
@@ -5237,7 +5237,7 @@ assert_true "$?" "#258 AK3: Mismatch lässt die Binary nicht-ausführbar (kein c
 yq_fixture "$YQTMP/pin-drift"
 yq_pin_out="$(run_verify "$YQTMP/pin-drift" "$(hex64 e)")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258 AK7: veröffentlichter Hash ≠ Repo-Pin → exit ≠ 0 (fail-closed)"
-printf '%s' "$yq_pin_out" | grep -qF 'Pin-Abweichung'
+grep_in "$yq_pin_out" -qF 'Pin-Abweichung'
 assert_true "$?" "#258 AK7: Meldung benennt die Abweichung vom gepinnten Hash (nicht als Checksum-Mismatch getarnt)"
 
 # Fehlerszenario: kein checksums-Eintrag für yq_linux_amd64 (Format-Drift eines Releases).
@@ -5246,7 +5246,7 @@ grep -v '^yq_linux_amd64 ' "$YQTMP/no-entry/checksums" > "$YQTMP/no-entry/checks
 mv "$YQTMP/no-entry/checksums.new" "$YQTMP/no-entry/checksums"
 yq_noentry_out="$(run_verify "$YQTMP/no-entry")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlender checksums-Eintrag → exit ≠ 0 (kein leiser Erfolg)"
-printf '%s' "$yq_noentry_out" | grep -qF 'keinen Eintrag'
+grep_in "$yq_noentry_out" -qF 'keinen Eintrag'
 assert_true "$?" "#258: Meldung benennt den fehlenden checksums-Eintrag"
 
 # Fehlerszenario: keine SHA-256-Zeile in checksums_hashes_order (rotierende Spaltenordnung).
@@ -5258,7 +5258,7 @@ yq_fixture "$YQTMP/no-algo"
 printf 'BLAKE2B-512\nSHA-384\nSHA-512\n' > "$YQTMP/no-algo/checksums_hashes_order"
 yq_noalgo_out="$(run_verify "$YQTMP/no-algo")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlende SHA-256-Zeile in checksums_hashes_order → exit ≠ 0"
-printf '%s' "$yq_noalgo_out" | grep -qF "keine 'SHA-256'-Zeile"
+grep_in "$yq_noalgo_out" -qF "keine 'SHA-256'-Zeile"
 assert_true "$?" "#258: Meldung benennt genau die fehlende SHA-256-Zeile (pfadspezifischer Anker)"
 
 # Fehlerszenario: Zielzeile vorhanden, aber die SHA-256-Spalte fehlt (verkürzte Zeile) –
@@ -5269,7 +5269,7 @@ printf 'yq_linux_amd64 %s\n' "$(hex64 a)" >> "$YQTMP/short-row/checksums.new"
 mv "$YQTMP/short-row/checksums.new" "$YQTMP/short-row/checksums"
 yq_short_out="$(run_verify "$YQTMP/short-row")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: fehlende SHA-256-Spalte in der Zielzeile → exit ≠ 0"
-printf '%s' "$yq_short_out" | grep -qF 'Format-Drift'
+grep_in "$yq_short_out" -qF 'Format-Drift'
 assert_true "$?" "#258: Meldung benennt die Format-Drift statt leise zu verifizieren"
 
 # Fehlerszenario: nicht lesbare Eingabedatei (abgebrochener Download).
@@ -5277,7 +5277,7 @@ yq_fixture "$YQTMP/unreadable"
 rm -f "$YQTMP/unreadable/checksums"
 yq_unreadable_out="$(run_verify "$YQTMP/unreadable")"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: nicht lesbare checksums-Datei → exit ≠ 0 (fail-closed)"
-printf '%s' "$yq_unreadable_out" | grep -qF 'nicht lesbar'
+grep_in "$yq_unreadable_out" -qF 'nicht lesbar'
 assert_true "$?" "#258: Meldung benennt die nicht lesbare Datei"
 
 # ── Argument-Dispatch: fail-closed statt fail-open in den Installationspfad ──
@@ -5292,23 +5292,23 @@ yq_dispatch() {
 
 yq_help_out="$(yq_dispatch --help)"; yq_rc=$?
 assert_exit 0 "$yq_rc" "#258: --help → exit 0 (Usage statt Installation)"
-printf '%s' "$yq_help_out" | grep -qF 'Verwendung:'
+grep_in "$yq_help_out" -qF 'Verwendung:'
 assert_true "$?" "#258: --help gibt die Usage aus"
-! printf '%s' "$yq_help_out" | grep -qF 'NETZWERK-STUB'
+! grep_in "$yq_help_out" -qF 'NETZWERK-STUB'
 assert_true "$?" "#258: --help lädt nichts herunter (kein fail-open in den Installationspfad)"
 
 yq_typo_out="$(yq_dispatch --verfiy "$YQTMP/ok/yq_linux_amd64")"; yq_rc=$?
 assert_exit 2 "$yq_rc" "#258: unbekanntes Argument (Tippfehler --verfiy) → exit 2 statt Installation"
-printf '%s' "$yq_typo_out" | grep -qF 'Unbekanntes Argument'
+grep_in "$yq_typo_out" -qF 'Unbekanntes Argument'
 assert_true "$?" "#258: unbekanntes Argument wird als solches benannt (pfadspezifisch)"
-! printf '%s' "$yq_typo_out" | grep -qF 'NETZWERK-STUB'
+! grep_in "$yq_typo_out" -qF 'NETZWERK-STUB'
 assert_true "$?" "#258: unbekanntes Argument löst keinen Download aus (fail-closed)"
 
 # Aufruf-Fehler: --verify ohne die vollständigen vier Argumente darf nicht als Erfolg durchgehen –
 # und benennt wie jeder andere Fehlerpfad, was fehlt (nicht nur nackte Usage).
 yq_argc_out="$(yq_dispatch --verify "$YQTMP/ok/yq_linux_amd64")"; yq_rc=$?
 assert_exit 2 "$yq_rc" "#258: --verify mit unvollständigen Argumenten → exit 2 (Aufruf-Fehler)"
-printf '%s' "$yq_argc_out" | grep -qF 'braucht vier Argumente'
+grep_in "$yq_argc_out" -qF 'braucht vier Argumente'
 assert_true "$?" "#258: unvollständige --verify-Argumente werden pfadspezifisch benannt"
 
 # ── Plattform-Guard: der gepinnte Hash gilt für genau EIN Artefakt (yq_linux_amd64) ──
@@ -5328,17 +5328,17 @@ yq_uname_stub() {
 yq_uname_stub "$YQTMP/darwin" Darwin arm64
 yq_os_out="$(PATH="$YQTMP/darwin:$PATH" bash "$INSTALL_YQ" 2>&1)"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: Nicht-Linux-System → Installation bricht ab (exit ≠ 0)"
-printf '%s' "$yq_os_out" | grep -qF 'Darwin'
+grep_in "$yq_os_out" -qF 'Darwin'
 assert_true "$?" "#258: Abbruch nennt das gemeldete Betriebssystem (OS-Guard greift, nicht der Netzwerk-Stub)"
-! printf '%s' "$yq_os_out" | grep -qF 'NETZWERK-STUB'
+! grep_in "$yq_os_out" -qF 'NETZWERK-STUB'
 assert_true "$?" "#258: OS-Guard greift VOR dem Download (nichts wurde geladen, nichts überschrieben)"
 
 yq_uname_stub "$YQTMP/arm" Linux aarch64
 yq_arch_out="$(PATH="$YQTMP/arm:$PATH" bash "$INSTALL_YQ" 2>&1)"; yq_rc=$?
 assert_true "$([[ $yq_rc -ne 0 ]]; echo $?)" "#258: Linux auf falscher Architektur → Installation bricht ab (exit ≠ 0)"
-printf '%s' "$yq_arch_out" | grep -qF 'aarch64'
+grep_in "$yq_arch_out" -qF 'aarch64'
 assert_true "$?" "#258: Abbruch nennt die gemeldete Architektur (eigener Fehlerpfad, nicht der OS-Pfad)"
-! printf '%s' "$yq_arch_out" | grep -qF 'NETZWERK-STUB'
+! grep_in "$yq_arch_out" -qF 'NETZWERK-STUB'
 assert_true "$?" "#258: Architektur-Guard greift VOR dem Download (nichts wurde geladen)"
 
 rm -rf "$YQTMP"
@@ -5431,7 +5431,7 @@ assert_contains_286 "$gitwf_flat_286" 'im Zweifel Issue' \
   "#286: git-workflow.md dokumentiert die Zweifelsregel 'im Zweifel Issue'"
 assert_contains_286 "$gitwf_flat_286" 'Ist der Auslöser' \
   "#286: git-workflow.md nennt die Herstellbarkeits-Entscheidungshilfe"
-assert_true "$(! printf '%s' "$gitwf_flat_286" | grep -qF 'ebenso legen die Skills'; echo $?)" \
+assert_true "$(! grep_in "$gitwf_flat_286" -qF 'ebenso legen die Skills'; echo $?)" \
   "#286: git-workflow.md beschreibt die Skill-Anlage nicht mehr als unbedingt ('ebenso legen die Skills')"
 
 # Je Skill-Doku: Präsenz (verweist auf Sammeldatei + Schwellen-Tabelle) UND Abwesenheit (die
@@ -6214,7 +6214,7 @@ assert_true "$(! grep -qF -- '[ -n "$(report_file "$skill" "$task_id")" ]' "$PIP
 # zwei report_verdict-Aufrufe pro Versuch insgesamt (nothra/tch-gastro-services#312 Review-Runde-3-Finding W1).
 run_skill_body_312() { awk '/^run_skill\(\) \{/ { inside = 1 } inside { print } inside && /^\}/ { exit }' "$1"; }
 runskill_body_312="$(run_skill_body_312 "$PIPELINE")"
-assert_true "$(printf '%s\n' "$runskill_body_312" | grep -qF 'for attempt in 1 2 3; do'; echo $?)" \
+assert_true "$(grep_in "$runskill_body_312" -qF 'for attempt in 1 2 3; do'; echo $?)" \
   "#312: die Rumpf-Extraktion trifft wirklich run_skill() (Retry-Schleife enthalten)"
 assert_true "$([ "$(printf '%s\n' "$runskill_body_312" | grep -c 'report_verdict')" -eq 1 ]; echo $?)" \
   "#312: run_skill() materialisiert den Verdict im eigenen Rumpf genau einmal (keine zweite Command Substitution im Meldungstext; report_is_fresh_and_valid() liest ihn separat)"
@@ -7642,7 +7642,7 @@ assert_absent "$tele_persist_code" 'factory-commit.sh' \
 # tatsächlich im Code stünde? Ohne sie belegt das grüne Ergebnis oben nur, dass irgendetwas
 # gefiltert wurde – nicht, dass der Guard den Rückfall bemerken würde.
 tele_persist_mutant="$(printf '%s\n  bash "$FACTORY_DIR/scripts/factory-commit.sh" "x"\n' "$tele_persist_code")"
-printf '%s' "$tele_persist_mutant" | grep -qF 'factory-commit.sh'
+grep_in "$tele_persist_mutant" -qF 'factory-commit.sh'
 assert_true "$?" "#334 (Kontrolle): derselbe Guard schlägt an, wenn factory-commit.sh im Code steht"
 
 
@@ -7726,7 +7726,7 @@ STUB_334
     assert_true "$([ -z "$(git -C "$TMP_334A" status --porcelain -- "$tele_csv_e2e")" ]; echo $?)" \
       "#334 AK7 (E2E): die CSV ist committet – sie hinterlässt keinen dirty Working Tree"
     tele_br_334="$(git -C "$TMP_334A" rev-parse --abbrev-ref HEAD)"
-    git -C "$TMP_334A" log --oneline "origin/$tele_br_334" -- "$tele_csv_e2e" 2>/dev/null | grep -q .
+    grep_in "$(git -C "$TMP_334A" log --oneline "origin/$tele_br_334" -- "$tele_csv_e2e" 2>/dev/null)" -q .
     assert_true "$?" "#334 AK7 (E2E): der Commit ist auch auf origin – der Lauf pusht ihn selbst"
   fi
   assert_true "$([ -z "$(find "$TMP_334A/tasks" -name 'telemetry-raw-*.tmp.txt')" ]; echo $?)" \
@@ -8945,7 +8945,7 @@ if [ "$HAS_YQ" = 1 ]; then
     d_431="$(yq ".commands.$k_431 // \"\"" "$FACTORY_ROOT/factory.defaults.yml")"
     assert_true "$([ -z "$d_431" ]; echo $?)" "#431 AK-H2: factory.defaults.yml hat keinen Default für commands.$k_431 (Ist: '$d_431')"
   done
-  assert_true "$(! yq '.commands' "$FACTORY_ROOT/factory.defaults.yml" | grep -q pnpm; echo $?)" "#431 AK-H2: kein pnpm im commands-Block der Defaults"
+  assert_true "$(! grep_in "$(yq '.commands' "$FACTORY_ROOT/factory.defaults.yml")" -q pnpm; echo $?)" "#431 AK-H2: kein pnpm im commands-Block der Defaults"
 
   # AK-H3: die Gates lesen aus der Konfiguration; Env hat Vorrang.
   TMP_H3="$(mktemp -d)"
@@ -9543,6 +9543,75 @@ li_copy_44 ud; li_out_44="$(lessons_index_guard_44 "$TMP_LI_44/ud/FACTORY.md" "$
 assert_exit 1 "$li_rc_44" "#44 AK6: Lesson-Verzeichnis fehlt → Guard rot"
 assert_contains_286 "$li_out_44" "UNLESBAR:$TMP_LI_44/ud/gibt-es-nicht" "#44 AK6: Lesson-Verzeichnis fehlt → Signal UNLESBAR"
 rm -rf "$TMP_LI_44"
+
+# ─── Factory-Issue #61: SIGPIPE-Race `printf … | grep -q` unter pipefail (schließt Factory-Issue #15 ein) ─────────────
+# `grep -q` endet beim ersten Treffer; der Produzent schreibt weiter, bekommt SIGPIPE, und pipefail macht den Treffer zum
+# Falsch-Rot (assert_contains_286) bzw. Falsch-Grün (assert_absent). Die Helfer übergeben den Haystack deshalb ohne Pipe;
+# der Guard pipe_grep_q_lines hält das Muster aus den Test-Suiten heraus.
+echo "Factory-Issue #61: Prüf-Helfer ohne SIGPIPE-Race, Guard gegen Pipe in grep -q:"
+TMP_61="$(mktemp -d)"
+# Haystack ≥ 1 MB, Nadel in Zeile 1 – der Fall, in dem `grep -q` die Pipe am frühesten schließt.
+big_61="NADEL-61 erste Zeile
+$(head -c 1100000 /dev/zero | tr '\0' 'x' | fold -w 100)"
+assert_true "$([ "${#big_61}" -ge 1048576 ]; echo $?)" "#61 Vorbedingung: Haystack ist mindestens 1 MB groß"
+
+# helper_runs_61 <anzahl> <helfer> <haystack> <phrase> → "<grün> <rot>"; stderr der Läufe nach $TMP_61/stderr.
+# Läuft in einer Subshell, damit die Zähler der Suite unberührt bleiben.
+helper_runs_61() {
+  ( set -o pipefail; PASS=0; FAIL=0; local i
+    for ((i = 0; i < $1; i++)); do "$2" "$3" "$4" "probe" >/dev/null; done
+    echo "$PASS $FAIL" ) 2> "$TMP_61/stderr"
+}
+assert_true "$([ "$(helper_runs_61 200 assert_contains_286 "$big_61" 'NADEL-61')" = "200 0" ]; echo $?)" \
+  "#61 AK1: assert_contains_286 findet die Nadel im 1-MB-Haystack 200× (immer grün)"
+assert_true "$([ ! -s "$TMP_61/stderr" ]; echo $?)" "#61 AK1: kein 'Broken pipe' (stderr leer)"
+assert_true "$([ "$(helper_runs_61 200 assert_absent "$big_61" 'NADEL-61')" = "0 200" ]; echo $?)" \
+  "#61 AK2: assert_absent erkennt die vorhandene Nadel 200× (immer rot, kein Falsch-Grün)"
+assert_true "$([ ! -s "$TMP_61/stderr" ]; echo $?)" "#61 AK2: kein 'Broken pipe' (stderr leer)"
+assert_true "$([ "$(helper_runs_61 1 assert_absent "$big_61" 'FEHLT-61')" = "1 0" ]; echo $?)" \
+  "#61 AK2: assert_absent ist grün, wenn die Phrase im großen Haystack fehlt"
+
+# AK3: Semantik wie bisher – fester Text, `-`-Phrase keine Option, leerer Haystack rot
+assert_true "$([ "$(helper_runs_61 1 assert_contains_286 'run --no-telemetry now' '--no-telemetry')" = "1 0" ]; echo $?)" \
+  "#61 AK3: '-'-Phrase wird als Text gefunden (assert_contains_286)"
+assert_true "$([ ! -s "$TMP_61/stderr" ]; echo $?)" "#61 AK3: '-'-Phrase erzeugt keinen Options-Fehler"
+assert_true "$([ "$(helper_runs_61 1 assert_absent 'run --no-telemetry now' '--no-telemetry')" = "0 1" ]; echo $?)" \
+  "#61 AK3: '-'-Phrase wird als Text erkannt (assert_absent rot)"
+assert_true "$([ "$(helper_runs_61 1 assert_contains_286 'a.*b[x' 'a.*b[')" = "1 0" ]; echo $?)" \
+  "#61 AK3: Regex-Sonderzeichen gelten als fester Text (Treffer)"
+assert_true "$([ "$(helper_runs_61 1 assert_contains_286 'aXXb' 'a.*b')" = "0 1" ]; echo $?)" \
+  "#61 AK3: Regex-Sonderzeichen gelten als fester Text (kein Regex-Treffer)"
+assert_true "$([ "$(helper_runs_61 1 assert_contains_286 '' 'x')" = "0 1" ]; echo $?)" \
+  "#61 AK3: leerer Haystack → assert_contains_286 rot"
+assert_true "$([ "$(helper_runs_61 1 assert_absent '' 'x')" = "1 0" ]; echo $?)" \
+  "#61 AK3: leerer Haystack → assert_absent grün"
+
+# AK4/AK5: Guard gegen eine Pipe in ein vorzeitig endendes grep. Die Fixture-Zeilen entstehen über $PIPE_61, damit diese Datei
+# selbst das Muster nicht enthält.
+PIPE_61='|'
+guard_case_61() { # <erwarteter-exit> <fixture-zeile> <beschreibung>
+  printf '%s\n' '#!/usr/bin/env bash' "$2" > "$TMP_61/case.sh"
+  guard_out_61="$(pipe_grep_q_lines "$TMP_61/case.sh")"
+  assert_exit "$1" "$?" "$3"
+}
+guard_case_61 1 "printf '%s' \"\$out\" $PIPE_61 grep -q 'x'" "#61 AK4: printf-Pipe in grep -q → Guard rot"
+assert_contains_286 "$guard_out_61" "$TMP_61/case.sh:2:" "#61 AK4: Guard nennt Datei und Zeile"
+guard_case_61 1 "echo \"\$out\" $PIPE_61 grep -qF -- 'x'" "#61 AK4: echo-Pipe in grep -qF → Guard rot"
+guard_case_61 1 "  ! printf '%s\\n' \"\$out\" $PIPE_61 grep -Fqx 'x' && y=1" "#61 AK4: kombinierte Flags (-Fqx), negiert, eingerückt → Guard rot"
+guard_case_61 1 "printf '%s' \"\$out\" $PIPE_61 grep -E -q 'x'" "#61 AK4: -q als zweite Option → Guard rot"
+guard_case_61 1 "printf '%s' \"\$out\" $PIPE_61 grep --quiet 'x'" "#61 AK4: --quiet → Guard rot"
+guard_case_61 1 "tail -n1 \"\$LOG\" $PIPE_61 grep -q -- 'x'" "#61 AK4: anderer Produzent (tail) → Guard rot"
+guard_case_61 0 "grep -qF -- 'x' <<< \"\$out\"" "#61 AK5: Here-String → Guard grün"
+guard_case_61 0 "grep -qF -- 'x' \"\$file\"" "#61 AK5: grep auf Datei → Guard grün"
+guard_case_61 0 "  # printf '%s' \"\$out\" $PIPE_61 grep -q 'x' – nur beschrieben" "#61 AK5: Kommentarzeile → Guard grün"
+guard_case_61 0 "printf '%s' \"\$out\" $PIPE_61 grep -c 'x'" "#61 AK5: Pipe in grep ohne -q (liest bis EOF) → Guard grün"
+guard_case_61 0 "true $PIPE_61$PIPE_61 grep -q 'x' \"\$file\"" "#61 AK5: || vor grep -q ist keine Pipe → Guard grün"
+guard_case_61 0 "printf '%s' \"\$out\" $PIPE_61 grep -o 'quiet' $PIPE_61 wc -l" "#61 AK5: 'q' nur im Muster, nicht in den Optionen → Guard grün"
+
+# AK6: Bestand der ausgelieferten Test-Suite ist sauber (die Projekt-Suite prüft ihr eigenes Verzeichnis)
+guard_out_61="$(pipe_grep_q_lines "$CHECKS_DIR"/tests/*.sh "$CHECKS_DIR"/tests/lib/*.sh)"
+assert_exit 0 "$?" "#61 AK6: keine Pipe in grep -q in scripts/checks/tests/ ${guard_out_61:+– Funde: $guard_out_61}"
+rm -rf "$TMP_61"
 
 # ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
 # Die Testgruppen (TEST_GROUP_FILES_52, factory-lock-*-tests.sh) laufen seit dem Start als Teilprozesse; hier ihre Ausgabe und Zähler
