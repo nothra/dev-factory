@@ -18,7 +18,8 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   (Metadaten-Dienst) und den Azure-WireServer `168.63.129.16` außer DNS. Das Internet bleibt erreichbar. Der Smoke-Job
   `fetch-container-smoke` prüft die Sperre im echten Container. **Breaking für selbst gehostete Runner ohne passwortloses `sudo`
   oder `iptables`:** Dort endet der Job `fetch` rot, ohne Rückfall auf ein Netz ohne Sperre. Mehrere Runner-Instanzen an einem
-  Docker-Host führen `fetch` nacheinander aus (Lock `/tmp/factory-fetch.lock`, `flock`). GitHub-gehostete Runner: nichts zu tun.
+  Docker-Host führen `fetch` nacheinander aus (Lock `/tmp/factory-fetch.lock`, `flock`), sofern sie dasselbe `/tmp` sehen
+  (sonst Factory-ADR-063 Restrisiko 6, `OPERATING.md` §0.6). GitHub-gehostete Runner: nichts zu tun.
 
 ## v0.8.0 – 2026-11-15
 

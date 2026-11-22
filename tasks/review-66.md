@@ -11,23 +11,24 @@ _(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
 
-- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:967–968, :1048–1049] **Die Annahme von E41
+- [x] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:967–968, :1048–1049] **Die Annahme von E41
   durch den Menschen steht weiter aus.** E41 ist jetzt korrekt als „Proposed“ gekennzeichnet (Finding aus Runde 2
   behoben). Die Annahme selbst kann aber kein Pipeline-Schritt ersetzen. **Eskalation an den Menschen (Circuit
   Breaker):** E41 annehmen, also Status „Accepted“ samt Datum in Kopfzeile und E41 setzen und die Checkbox in der
   Task-Datei unter „Offene Fragen“ abhaken. Oder E41 ablehnen; dann wäre das Nebenläufigkeits-Finding aus Runde 1 neu zu
   entscheiden. Bis dahin kein Merge.
+  → Erledigt: E41 vom Menschen angenommen (Accepted, 2026-11-21; ac18515).
 
 ## Nitpicks (optional)
 
-- [ ] [CHANGELOG.md:20–21] „Mehrere Runner-Instanzen an einem Docker-Host führen `fetch` nacheinander aus“ stimmt
+- [x] [CHANGELOG.md:20–21] „Mehrere Runner-Instanzen an einem Docker-Host führen `fetch` nacheinander aus“ stimmt
   pauschal nicht: Bei Instanzen in eigenen Containern mit gemeinsamem Daemon greift der Lock nicht (Restrisiko 6). Wer
   selbst gehostete Runner betreibt, liest zuerst die Release-Notes. Vorschlag: anhängen „sofern sie dasselbe `/tmp` sehen
-  (sonst Factory-ADR-063 Restrisiko 6, `OPERATING.md` §0.6)“.
-- [ ] [docs/factory/OPERATING.md:208] Die Zeile ist beim Einfügen von Restrisiko 6 nicht umbrochen (~170 Zeichen gegen
-  sonst ~125). Rein kosmetisch.
-- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:1049] Nach dem Einschub des Status endet die Zeile
-  „… ausstehend).** Netz,“ kurz, der Absatz ist nicht neu umbrochen. Kosmetisch.
+  (sonst Factory-ADR-063 Restrisiko 6, `OPERATING.md` §0.6)“. → Umgesetzt wie vorgeschlagen.
+- [x] [docs/factory/OPERATING.md:208] Die Zeile ist beim Einfügen von Restrisiko 6 nicht umbrochen (~170 Zeichen gegen
+  sonst ~125). Rein kosmetisch. → Neu umbrochen.
+- [x] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:1049] Nach dem Einschub des Status endet die Zeile
+  „… ausstehend).** Netz,“ kurz, der Absatz ist nicht neu umbrochen. Kosmetisch. → Neu umbrochen.
 
 ## Positives
 
@@ -47,7 +48,7 @@ _(keine)_
   qualifiziert.
 
 ## Empfehlung
-NEEDS_REWORK
+NEEDS_REWORK → nach Annahme von E41 durch den Menschen **bestanden** (ohne weitere Runde, siehe unten).
 
 Am Code ist nichts mehr nachzuarbeiten. Offen ist allein die **Annahme von E41 durch den Menschen**; die drei Nitpicks
 sind optional. Der Circuit Breaker ist erreicht (3. Review): kein weiterer `/implement`↔`/review`-Durchlauf, sondern

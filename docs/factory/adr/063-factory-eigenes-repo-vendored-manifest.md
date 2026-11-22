@@ -1046,8 +1046,8 @@ und HTTPS ins öffentliche Internet.
   (Azure) tun IMDS und WireServer das; dort wäre eine fehlende Regel rot. Eine Prüfung des stderr-Textes („Connection
   refused") ist verworfen: neuere `curl`-Versionen melden dort teils nur „Couldn't connect to server" (`/review` Runde 2).
 - **E41 · Ein fetch-Lauf je Docker-Host (ergänzt E38, E39; aus `/review` Runde 1, in `/implement` entschieden; Status
-  Accepted, 2026-11-21, Entscheidung Mensch).** Netz,
-  Bridge und Regeln tragen feste Namen; `iptables -C`/`-D` kann nicht unterscheiden, wessen Regel es ist. Zwei Läufe an
+  Accepted, 2026-11-21, Entscheidung Mensch).** Netz, Bridge und Regeln tragen feste Namen; `iptables -C`/`-D` kann
+  nicht unterscheiden, wessen Regel es ist. Zwei Läufe an
   einem Docker-Daemon (selbst gehostete Runner mit mehreren Instanzen; die `concurrency`-Gruppe greift nur je Repo)
   entfernten sich sonst gegenseitig die Sperre – stilles Fail-open. Deshalb hält `fetch-isolated` bzw. `fetch-smoke`
   vor dem Abräumen der Reste einen host-weiten Lock (`flock -w 900` auf `/tmp/factory-fetch.lock`, gehalten bis zum

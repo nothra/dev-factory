@@ -2,7 +2,7 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
+- [x] Review bestanden
 - [ ] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
@@ -110,6 +110,9 @@ Runde 3 (`/review`, 2026-11-21): **NEEDS_REWORK – Circuit Breaker erreicht (3.
 Am Code ist nichts mehr nachzuarbeiten (Suite 2732 grün, Projekt-Suite 249 grün). Offen ist allein ein wichtiges Finding:
 die **Annahme von E41 durch den Menschen**. Nach der Annahme (Status in ADR und „Offene Fragen“) gilt der Review ohne
 weitere Runde als bestanden. Dazu 3 optionale Nitpicks: CHANGELOG ohne Grenze aus Restrisiko 6, zwei Umbrüche.
+
+Nach Runde 3 (`/implement`, 2026-11-22): E41 angenommen (ac18515) → Review bestanden. Die drei optionalen Nitpicks
+sind umgesetzt (CHANGELOG mit der Grenze aus Restrisiko 6, Umbrüche in `OPERATING.md` und ADR-063).
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

@@ -205,8 +205,8 @@ gleichzeitig (Lock `/tmp/factory-fetch.lock` per `flock`, bis 900 s Wartezeit, s
 mehreren Instanzen müssen alle dasselbe `/tmp` sehen und die Datei schreiben dürfen (laufen sie unter verschiedenen Benutzern,
 die Datei einmal mit passenden Rechten anlegen, sonst endet jede andere Instanz rot). Teilen sich Instanzen in eigenen Containern
 nur den Docker-Daemon, greift der Lock **nicht** und nichts erkennt es (getrenntes `/tmp`): dann die Lock-Datei aus einem
-gemeinsamen Verzeichnis einbinden oder `fetch` je Daemon auf einer Instanz laufen lassen. Hängt nach einem Abbruch noch ein Container an `factory-fetch`, bleibt jeder
-weitere Lauf rot, bis er entfernt ist (`docker ps --filter network=factory-fetch`, dann `docker rm -f`). Auf selbst gehosteten
+gemeinsamen Verzeichnis einbinden oder `fetch` je Daemon auf einer Instanz laufen lassen. Hängt nach einem Abbruch noch
+ein Container an `factory-fetch`, bleibt jeder weitere Lauf rot, bis er entfernt ist (`docker ps --filter network=factory-fetch`, dann `docker rm -f`). Auf selbst gehosteten
 Runnern sperrt die Regel auch einen DNS-Resolver auf dem Host selbst. **Restrisiko im Netz:** Der Container erreicht weiter das Internet (Datenabfluss
 von Inhalten des Checkouts), DNS am WireServer und private Netze (RFC1918) außerhalb des Hosts; auf selbst gehosteten Runnern
 kann dort mehr liegen. Details: Factory-ADR-063, Nachtrag 2026-11-21 (E35–E41, Restrisiken 1–6).
