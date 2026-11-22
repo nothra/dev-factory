@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Der Fetch-Container aus #41 (`factory-update.sh fetch-isolated`/`fetch-smoke`) soll das Bridge-Gateway des Hosts,
@@ -18,22 +18,22 @@ ADR-Trigger: kehrt Factory-ADR-063 E31 Q3 um → `/architecture` vor `/implement
 
 ## Akzeptanzkriterien
 <!-- Volltext in der Spec -->
-- [ ] AK1.1 Bridge-Gateway des Hosts aus dem Container unerreichbar
-- [ ] AK1.2 `169.254.0.0/16` (inkl. `169.254.169.254`) unerreichbar
-- [ ] AK1.3 `168.63.129.16` unerreichbar
-- [ ] AK1.4 `fe80::/10` unerreichbar (oder kein IPv6 im Container)
+- [x] AK1.1 Bridge-Gateway des Hosts aus dem Container unerreichbar
+- [x] AK1.2 `169.254.0.0/16` (inkl. `169.254.169.254`) unerreichbar
+- [x] AK1.3 `168.63.129.16` unerreichbar
+- [x] AK1.4 `fe80::/10` unerreichbar (oder kein IPv6 im Container)
 - [x] AK1.5 Sperre aus dem Container heraus nicht aufhebbar
-- [ ] AK2.1 DNS + HTTPS zu GitHub funktionieren, Bundle unverändert
+- [x] AK2.1 DNS + HTTPS zu GitHub funktionieren, Bundle unverändert
 - [x] AK2.2 Tests #23/#24/#37/#41 grün, Anker mindestens gleich streng
 - [x] AK3.1 `fetch-isolated` fail-closed, wenn Sperre nicht einrichtbar
 - [x] AK3.2 `fetch-smoke` ebenso rot
 - [x] AK4.1 Offline-Guard-Tests (ohne Docker) für Zielmenge, Reihenfolge, beide Modi, Fehlerfall
 - [x] AK4.2 Mutationsbelege je tragender Eigenschaft
-- [ ] AK4.3 Smoke-Probe in `fetch-container-smoke`: gesperrte Ziele scheitern, `github.com` erreichbar
+- [x] AK4.3 Smoke-Probe in `fetch-container-smoke`: gesperrte Ziele scheitern, `github.com` erreichbar
 - [x] AK5.1 ADR-063-Nachtrag (#66), Verweise aus E31 Q3 und Restrisiko 2
 - [x] AK5.2 `OPERATING.md` §0.6 ergänzt
 - [x] AK5.3 `tasks/security-41.md` Hinweis „Netz" verweist auf #66
-- [ ] F1, F3, F4 Fehlerszenarien abgedeckt (F2 entfällt, E39; siehe Spec)
+- [x] F1, F3, F4 Fehlerszenarien abgedeckt (F2 entfällt, E39; siehe Spec)
 
 **Stand `/implement` (2026-11-21, Runde 3):** Offline vollständig belegt (`factory-lock-66-tests.sh`, 84 grün; ganze Suite
 2732 grün, Projekt-Suite 249 grün).
@@ -135,6 +135,9 @@ bei Docker); 4 Fälle und 3 Mutanten (ohne Entfernen, alte Reihenfolge, Abbau oh
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
 Report: [`codify-66.md`](codify-66.md). Zwei Lessons: „Schutz nie vor dem Geschützten abbauen“ (`factory-workflow.md`) und „Fake-Werkzeuge nur mit Builtins“ (`testing.md`), beide mit Index-Zeile.
+
+PR-Shepherd 2026-11-22: PR #68, Branch aktuell auf `main`, keine Review-Kommentare, alle CI-Checks grün – erstmals auch
+`fetch-container-smoke` im echten Container (belegt AK1.1–AK1.4, AK2.1, AK4.3, F3). Kein Approval erforderlich. Merge freigegeben – alle Gates grün.
 
 ---
 Branch: `fix/66-fetch-container-netz-abschotten`
