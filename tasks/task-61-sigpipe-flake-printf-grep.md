@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -81,6 +81,12 @@ PR-Body: `Closes #61`, `Closes #15`.
 - Iteration 2 (2026-11-22): **APPROVED**, Details in [`review-61.md`](review-61.md). Keine kritischen Findings. Wichtig
   bleibt nur das Issue für `pre-commit.sh`: Die Sandbox hat die Anlage erneut abgelehnt, ein Mensch muss es vor dem Merge
   anlegen. Dazu 2 Nitpicks: weitere Guard-Grenzen im Kommentar nennen, Semantik bei leerer Phrase.
+
+## Refactoring-Notizen
+- /refactor (2026-11-22): Diff geprüft (Naming, Funktionslänge, Duplikation): `grep_in` und `pipe_grep_q_lines` sind kurz
+  und benannt, die Umstellung in den Suiten ist mechanisch. Einzige Änderung: Kommentar von `pipe_grep_q_lines` nennt die
+  zwei weiteren Guard-Grenzen (Review-Nitpick 1). Kein neues Verhalten; Haupt-Suite 2775 grün, Projekt-Suite 250 grün.
+  Review-Nitpick 2 (leere Phrase) braucht laut Review keinen Handlungsbedarf.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

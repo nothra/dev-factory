@@ -124,7 +124,8 @@ grep_in() {
 # Jeder Produzent zählt, nicht nur printf/echo – SIGPIPE trifft jeden, der nach dem Treffer noch schreibt. Erkannt werden
 # auch `|&`, Env-Präfixe (`LC_ALL=C grep`), `command grep` und beliebige Wörter vor dem `-q` (`-m1`, `-e x`); das Pipe-Ziel
 # endet an `|`, `;`, `&` oder `)`. Kommentarzeilen (erstes Nicht-Leerzeichen `#`) zählen nicht, `||` ist keine Pipe.
-# Nicht erkannt: Zeilenfortsetzung (`\` vor dem grep) und Aufrufe über Variablen/Funktionen statt `grep`.
+# Nicht erkannt: Zeilenfortsetzung (`\` vor dem grep), Aufrufe über Variablen/Funktionen statt `grep`, ein Muster-Wort
+# mit `|` vor dem `-q` (`grep -E 'a|b' -q`) und ein Befehlswort vor `grep` (`xargs grep -q`, `sudo grep -q`).
 # Fail-closed: fehlt eine Eingabe oder ist keine angegeben, ist das ein Fund (Exit 1), nicht still grün.
 # Abhilfe: grep_in, Here-String oder grep auf die Datei.
 pipe_grep_q_lines() {
