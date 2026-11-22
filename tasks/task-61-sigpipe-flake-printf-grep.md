@@ -6,7 +6,7 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
+- [x] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
 ## Beschreibung
@@ -95,7 +95,7 @@ PR-Body: `Closes #61`, `Closes #15`.
   (`bug` + `security`) ein drittes Mal abgelehnt. **Ein Mensch muss das Issue vor dem Merge anlegen.**
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- /codify (2026-11-22): Details in [`codify-61.md`](codify-61.md). Zwei Index-Zeilen in `lessons/INDEX.md` (Prosa-Regel reicht nicht → Helfer + Guard; Guard fail-closed mit Mutationsbelegen; verklebte Massen-Ersetzung). Offen für Mensch: Issue für `pre-commit.sh`.
 
 ---
 Branch: `fix/61-sigpipe-flake-printf-grep`
