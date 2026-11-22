@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -118,6 +118,13 @@ sind umgesetzt (CHANGELOG mit der Grenze aus Restrisiko 6, Umbrüche in `OPERATI
 Checkliste durchgegangen: Namen, Funktionsgrößen (alle ≤ ~20 Zeilen), Konstanten und Kommentare (WHY) sind bereits sauber.
 Einzige Änderung: die überlange `docker run`-Zeile in `run_in_fetch_container` umgebrochen (kein neues Verhalten).
 Gruppen #66 (84 grün) und #41 (93 grün) nach der Änderung grün.
+
+## Security-Review (2026-11-22)
+**PASSED**, Details in [`security-66.md`](security-66.md). Kein Blocker. Ein wichtiges Finding **W1**: Das Abräumen (Trap
+und Reste vor dem nächsten Lauf) entfernt die iptables-Regeln, bevor sichergestellt ist, dass kein verwaister Container mehr an
+`factory-fetch` hängt. Ein solcher Container läuft dann ohne Sperre weiter. Empfohlen: in diesem PR beheben; sonst Issue
+(`bug` + `security`) vor dem Merge anlegen – die autonome Anlage brauchte eine Freigabe, die in der Sitzung nicht erteilt werden konnte.
+Kleinfund (sudo/iptables root-äquivalent) in `docs/factory/kleinfunde.md`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

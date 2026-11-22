@@ -313,3 +313,10 @@
 - **Was:** Ein feindliches Release kann `/out/update.bundle` sehr groß (auch sparse) schreiben oder stdout fluten. Folge ist nur ein DoS des eigenen Laufs (Platte, Artefakt-Kontingent mit `retention-days: 1`), kein Weg zum Token.
 - **Fix:** In `require_single_bundle` eine Obergrenze (z. B. `[ "$(stat -c %s …)" -le <MiB> ]`) und `docker run --stop-timeout`/Job-`timeout-minutes` prüfen; dazu ein Test mit zu großer Datei. Etwa fünf Zeilen.
 - **Herkunft:** `/security-review` zu Task 41 (Hinweis, Out-of-Scope, kein Sicherheitsrisiko).
+
+### Passwortloses `sudo` nur für `iptables` ist keine Sicherheitsgrenze
+
+- **Wo:** `docs/factory/OPERATING.md:201` („passwortloses `sudo` und `iptables`“), verifiziert am 2026-11-22.
+- **Was:** Wer auf einem selbst gehosteten Runner `sudo` per sudoers auf `iptables` beschränkt, gewinnt keine Grenze: `iptables --modprobe=<programm>` führt ein beliebiges Programm als root aus. Am Risiko ändert das nichts, denn die Runner-UID ist mit Docker-Zugriff ohnehin root-äquivalent. Die Lücke liegt nur in der Doku, die falsche Sicherheit nahelegen kann.
+- **Fix:** In §0.6 einen Satz ergänzen: Die sudoers-Einschränkung auf `iptables` ist root-äquivalent und keine Sicherheitsgrenze. Etwa eine Zeile.
+- **Herkunft:** `/security-review` zu Task 66 (Hinweis, Out-of-Scope, kein zusätzliches Risiko).
