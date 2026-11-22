@@ -820,3 +820,11 @@ Die erste Negativkontrolle des E2E-Tests (alter Weg: Trigger nur in `PROJECT-CON
 **Regel:** (a) Eine Negativkontrolle baut ihre Welt aus derselben Quelle wie der echte Ablauf (hier das Manifest aus `--list factory`) und scheitert an der Assertion, nicht am Setup – ein Setup-Abbruch ist kein Beleg. (b) Prüft ein Guard Link-Ziele, muss das Ziel die zur Gruppe gehörende Datei sein, nicht irgendeine existierende; dazu ein Negativtest „Ziel existiert, ist aber fremd“. (c) Eine leere Eingabemenge (leeres Lesson-Verzeichnis, unaufgelöster Glob) ist ein eigener Fehlerfall, kein Grün.
 
 → `/implement`, `/test`, `/review` – bei E2E-/Sync-Negativkontrollen und Guards über Link- oder Pfadlisten
+
+## Fake-Werkzeuge nur mit Builtins; `${var}` vor typografischen Zeichen in Testnamen (aus Factory-Task #66, `/implement`)
+
+Ein Fake-`iptables` mit Hilfsprozessen je Aufruf ließ die Gruppe lokal 302 s statt 86 s laufen; Builtins (`read`, `case`, Dateiumleitung) genügten. Zweiter Fund: `"$name“` in einem Testnamen las bash das typografische Anführungszeichen als Teil des Variablennamens (`unbound variable`).
+
+**Regel:** Fakes für externe CLIs (`docker`, `sudo`, `iptables`) ohne `fork`/`exec` je Aufruf bauen und die Gruppenlaufzeit vor/nach messen. In Testnamen und Meldungen `${var}` schreiben, sobald Nicht-ASCII-Zeichen folgen.
+
+→ `/implement`, `/test`, `/review` – bei Fake-Werkzeugen im `PATH` und Testnamen mit Variablen

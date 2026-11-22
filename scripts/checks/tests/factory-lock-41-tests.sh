@@ -34,10 +34,10 @@ CI_WF_41="$FACTORY_ROOT/.github/workflows/factory-ci.yml"
 
 # Fakes für docker, sudo und iptables (lib/factory-lock-fixtures.sh); FAKE_HOST_66 nur für fetch-smoke (Lauscher der Netz-Probe, #66)
 fetch_fakes_41
-# docker_calls_41 <calls.log> – das Protokoll ohne genau die bekannten Zeilen der Netz-Sperre (#66: Lock, Netz, Regeln; die prüft
+# docker_calls_41 <calls.log> – das Protokoll ohne genau die bekannten Zeilen der Netz-Sperre (#66: Lock, Netz, Regeln, Container am Netz – ps/rm; die prüft
 # factory-lock-66-tests.sh); jeder andere Aufruf (exec, cp, pull …) bleibt im exakten Vergleich stehen
 docker_calls_41() {
-  grep -vxE 'flock|network-(inspect|create|rm)|sudo -n iptables|iptables -[ICD] (INPUT|DOCKER-USER)' "$1" | tr '\n' ' '
+  grep -vxE 'flock|ps|rm|network-(inspect|create|rm)|sudo -n iptables|iptables -[ICD] (INPUT|DOCKER-USER)' "$1" | tr '\n' ' '
 }
 
 # fd_41 <name> <out-mode> – frischer Zustand des Fakes; setzt FD_41 (Zustand), RT_41 (RUNNER_TEMP), OUT_41, ROOT_41 (Checkout)

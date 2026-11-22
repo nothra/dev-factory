@@ -248,10 +248,13 @@ case "$1" in
                case " $* " in *" -f "*) cat "$d/gateway" 2>/dev/null || echo "$FAKE_GATEWAY_66" ;; esac ;;
       create) printf '%s\0' "$@" > "$d/net-create.argv"; [ ! -e "$d/fail-net-create" ] && [ ! -e "$d/net" ] || exit 1; : > "$d/net" ;;
       rm) lock_open > "$d/lock-at-net-rm"
-          [ ! -e "$d/fail-net-rm" ] && [ -e "$d/net" ] || exit 1; rm -f "$d/net" ;;
+          [ ! -e "$d/fail-net-rm" ] && [ -e "$d/net" ] && [ ! -e "$d/orphan" ] || exit 1; rm -f "$d/net" ;;   # wie Docker: mit angehängtem Container nicht entfernbar
       *) exit 9 ;;
     esac ;;
+  ps) [ ! -e "$d/fail-ps" ] || exit 1; [ ! -e "$d/orphan" ] || echo cafe66 ;;   # Container am Netz (#66 W1): Datei orphan = einer hängt dran
+  rm) [ ! -e "$d/fail-rm" ] || exit 1; rm -f "$d/orphan" ;;
   run)
+    [ ! -e "$d/orphan-after-run" ] || : > "$d/orphan"   # der Container überlebt den Lauf (Signal, --rm greift erst an seinem Ende)
     printf '%s\0' "$@" > "$d/run.argv"; lock_open > "$d/lock-at-run"
     rm -rf "$d/chains-at-run"; mkdir -p "$d/chains"; cp -R "$d/chains" "$d/chains-at-run"
     [ ! -e "$d/net" ] || : > "$d/net-at-run"

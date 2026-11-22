@@ -297,6 +297,17 @@ remove_fetch_rules() {
   return "$rc"
 }
 
+# W1: Container am Netz entfernen, BEVOR die Regeln fallen – sonst läuft ein verwaister Container ungesperrt weiter. Unter dem Lock
+# gehören sie einem toten oder dem eigenen Lauf. Exit 1, wenn einer bleibt (dann bleiben die Regeln stehen, fail-safe).
+remove_fetch_containers() {
+  local ids
+  docker network inspect "$FETCH_NETWORK" >/dev/null 2>&1 || return 0
+  ids="$(docker ps -aq --filter "network=$FETCH_NETWORK")" || return 1
+  [ -z "$ids" ] && return 0
+  read -ra ids <<< "$ids"
+  docker rm -f "${ids[@]}" >/dev/null
+}
+
 remove_fetch_network() {
   docker network inspect "$FETCH_NETWORK" >/dev/null 2>&1 || return 0
   docker network rm "$FETCH_NETWORK" >/dev/null
@@ -309,6 +320,7 @@ setup_fetch_network() {
   local i rule
   acquire_fetch_lock
   FETCH_NET_ACTIVE=1
+  remove_fetch_containers || die "Container am Netz $FETCH_NETWORK nicht entfernbar – Regeln bleiben stehen (fail-closed). $FETCH_NET_HINT"
   remove_fetch_rules; remove_fetch_network
   docker network create --driver bridge -o "com.docker.network.bridge.name=$FETCH_BRIDGE" "$FETCH_NETWORK" >/dev/null \
     || die "Docker-Netz $FETCH_NETWORK nicht anlegbar. $FETCH_NET_HINT"
@@ -322,6 +334,7 @@ setup_fetch_network() {
 
 # Nach dem Container (E38): Fehler sind nur eine Warnung – der Container ist dann schon beendet (--rm).
 teardown_fetch_network() {
+  remove_fetch_containers || { warn "Container am Netz $FETCH_NETWORK nicht entfernbar – Regeln und Netz bleiben stehen (fail-safe)"; return 0; }
   remove_fetch_rules || warn "Netz-Sperre nicht abgeräumt (iptables -D gescheitert) – Regeln an $FETCH_BRIDGE bleiben stehen"
   remove_fetch_network || warn "Docker-Netz $FETCH_NETWORK nicht abgeräumt"
 }

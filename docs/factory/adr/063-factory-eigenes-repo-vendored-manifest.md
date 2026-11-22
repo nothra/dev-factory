@@ -1092,9 +1092,13 @@ und HTTPS ins öffentliche Internet.
    wird zuerst dieser Job rot. Auf selbst gehosteten Runnern sperrt die `INPUT`-Regel auch einen DNS-Upstream auf einer
    Host-Adresse (z. B. lokaler Resolver) – `fetch` scheitert dann an der Namensauflösung (fail-closed).
 5. *Abbruch und verwaiste Container:* Wird das Skript per Signal beendet, räumt der EXIT-Trap Regeln und Netz ab, während
-   der Container noch laufen kann (`--rm` greift erst an seinem Ende). Hängt ein verwaister Container noch an
-   `factory-fetch`, scheitert jeder weitere Lauf (Netz nicht entfernbar, fail-closed), bis er von Hand entfernt ist.
-   Auf Wegwerf-Runnern folgenlos.
+   der Container noch laufen kann (`--rm` greift erst an seinem Ende); stirbt es ohne Trap (SIGKILL), bleibt er ebenso
+   verwaist, und die Regeln bleiben zunächst stehen. Beides räumt das Skript selbst ab (Security-Review #66, W1): Beim
+   Abbau und beim Abräumen der Reste entfernt es **zuerst alle Container am Netz** (`docker ps -aq --filter
+   network=factory-fetch`, `docker rm -f`) und erst danach Regeln und Netz – sonst liefe der Container ungesperrt weiter.
+   Gelingt das Entfernen nicht, bleiben die Regeln stehen (fail-safe) und der Lauf endet rot bzw. warnt. Die Sperre
+   gilt für einen noch laufenden Container nur bis zum nächsten `fetch`-Lauf auf diesem Host, der ihn beendet; ohne
+   Folgelauf (Job ohne `timeout-minutes`, Abbruch nach 360 min) wirkt sie bis dahin weiter.
 6. *Gemeinsamer Docker-Daemon, getrenntes `/tmp`:* Der Lock (E41) serialisiert je Dateisystem von `/tmp`, nicht je
    Docker-Daemon. Laufen Runner-Instanzen in eigenen Containern mit gemountetem Docker-Socket (je eigenes `/tmp`), greift
    er nicht: Zwei Läufe können sich dann gegenseitig die Sperre entfernen (stilles Fail-open wie vor E41). Das Skript

@@ -190,6 +190,37 @@ done
 st_66; : > "$D66/fail-info"; run_66 iso
 assert_true "$([ "$rc_66" -eq 1 ] && [ "$(cat "$D66/calls.log")" = info ]; echo $?)" "#66 E39: ohne Docker weder Netz noch Regeln"
 
+# ── W1 (Security-Review): verwaister Container am Netz – erst er, dann die Regeln ─────────────────────────────────────
+# Entfernte der Lauf die Regeln, obwohl ein Container am Netz hing, lief der ungesperrt weiter (und `network rm` scheiterte).
+# rm_before_D_66 <ab-zeile> – ab dieser Zeile im Protokoll steht `docker rm` vor dem ersten `iptables -D`
+rm_before_D_66() {
+  awk -v from="$1" '$0 == from { on = 1 } on && /^rm$/ && !r { r = NR } on && /^iptables -D / && !d { d = NR } END { exit !(r && d && r < d) }' "$D66/calls.log"
+}
+# orphan_setup_66 [<skript>] – Rest eines abgestürzten Laufs: Container am Netz, Regeln noch da; der neue Lauf räumt erst ihn ab
+orphan_setup_66() {
+  stale_66; : > "$D66/orphan"; run_66 iso "$@"
+  [ "$rc_66" -eq 0 ] && rm_before_D_66 info && [ ! -e "$D66/orphan" ] && rules_at_run_66 "$FOREIGN_RULE_66" && cleaned_66 "$FOREIGN_RULE_66"
+}
+orphan_setup_66; assert_exit 0 "$?" "#66 W1: Container am Netz aus einem früheren Lauf → zuerst entfernt, dann Regeln und Netz; Lauf grün, Sperre beim Start gesetzt"
+mutant_37 66-ohne-container-abraeumen 's#^  remove_fetch_containers || die .*$#  :#'
+orphan_setup_66 "$MUT37"; assert_exit 1 "$?" "#66 AK4.2 (Mutation): ohne Entfernen der Container beim Abräumen der Reste ist derselbe Prüfer rot"
+mutant_37 66-regeln-vor-container 's#^  remove_fetch_containers || die .*$#  :#; s#^  remove_fetch_rules; remove_fetch_network$#  remove_fetch_rules; remove_fetch_containers; remove_fetch_network#'
+orphan_setup_66 "$MUT37"; assert_exit 1 "$?" "#66 AK4.2 (Mutation): Regeln vor den Containern entfernt (alte Reihenfolge) → derselbe Prüfer ist rot"
+# Container nicht entfernbar → rot, Regeln bleiben stehen (fail-closed), kein Container
+st_66; : > "$D66/net"; : > "$D66/orphan"; : > "$D66/fail-rm"; printf '%s\n' "$EXP_INPUT_66" > "$D66/chains/INPUT"; run_66 iso
+assert_true "$([ "$rc_66" -eq 1 ] && grep -qF 'Container' <<< "$out_66" && ! grep -qx run "$D66/calls.log" && [ "$(cat "$D66/chains/INPUT")" = "$EXP_INPUT_66" ]; echo $?)" "#66 W1: Container am Netz nicht entfernbar → rot, Regeln bleiben stehen, kein Container"
+# Der Container überlebt den Lauf (Signal): der Abbau entfernt ihn vor den Regeln
+orphan_teardown_66() { # [<skript>]
+  st_66; : > "$D66/orphan-after-run"; run_66 iso "$@"
+  [ "$rc_66" -eq 0 ] && rm_before_D_66 run && [ ! -e "$D66/orphan" ] && cleaned_66
+}
+orphan_teardown_66; assert_exit 0 "$?" "#66 W1: Container überlebt den Lauf → beim Abbau zuerst entfernt, dann Regeln und Netz"
+mutant_37 66-abbau-ohne-container 's#^  remove_fetch_containers || { warn .*$#  :#'
+orphan_teardown_66 "$MUT37"; assert_exit 1 "$?" "#66 AK4.2 (Mutation): Abbau ohne Entfernen der Container → derselbe Prüfer ist rot"
+# Entfernen scheitert beim Abbau: Regeln bleiben stehen (fail-safe), Warnung
+st_66; : > "$D66/orphan-after-run"; : > "$D66/fail-rm"; run_66 iso
+assert_true "$([ "$rc_66" -eq 0 ] && grep -qF 'Container' <<< "$out_66" && [ "$(cat "$D66/chains/INPUT")" = "$EXP_INPUT_66" ]; echo $?)" "#66 W1: Container beim Abbau nicht entfernbar → Warnung, Regeln bleiben stehen (fail-safe)"
+
 # ── E41: ein fetch-Lauf je Docker-Host (host-weiter Lock) ───────────────────────────────────────────────────────────
 # lock_first_66 – der Lock kommt direkt nach require_docker, vor jedem Netz- oder iptables-Aufruf; Wartezeit begrenzt, fd 9
 lock_first_66() {

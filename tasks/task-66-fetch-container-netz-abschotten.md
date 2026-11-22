@@ -126,6 +126,12 @@ und Reste vor dem nächsten Lauf) entfernt die iptables-Regeln, bevor sichergest
 (`bug` + `security`) vor dem Merge anlegen – die autonome Anlage brauchte eine Freigabe, die in der Sitzung nicht erteilt werden konnte.
 Kleinfund (sudo/iptables root-äquivalent) in `docs/factory/kleinfunde.md`.
 
+**W1 behoben (`/implement`, 2026-11-22, auf Wunsch des Menschen, kein Issue nötig):** `remove_fetch_containers` entfernt beim
+Abräumen der Reste und im Abbau zuerst alle Container am Netz, danach Regeln und Netz. Scheitert das, bleiben die Regeln stehen
+(Setup: rot, Abbau: Warnung). Tests: Fake-`docker` kennt `ps`/`rm` und einen angehängten Container (`network rm` scheitert dann wie
+bei Docker); 4 Fälle und 3 Mutanten (ohne Entfernen, alte Reihenfolge, Abbau ohne Entfernen). Restrisiko 5 in ADR-063 und
+`OPERATING.md` §0.6 korrigiert. Nicht umgesetzt (optional im Report): fester `--name` und `timeout-minutes` am Job `fetch`.
+
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
 
