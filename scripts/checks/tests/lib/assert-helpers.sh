@@ -121,12 +121,23 @@ grep_in() {
 
 # pipe_grep_q_lines <datei>… – Guard (Factory-Issue #61): gibt je Zeile, die eine Pipe in ein vorzeitig endendes grep
 # (`-q` allein oder kombiniert, `--quiet`, `--silent`) enthält, `<datei>:<zeile>:<text>` aus; Exit 1 bei Fund.
-# Jeder Produzent zählt, nicht nur printf/echo – SIGPIPE trifft jeden, der nach dem Treffer noch schreibt. Kommentarzeilen
-# (erstes Nicht-Leerzeichen `#`) zählen nicht. `||` ist keine Pipe. Abhilfe: grep_in, Here-String oder grep auf die Datei.
+# Jeder Produzent zählt, nicht nur printf/echo – SIGPIPE trifft jeden, der nach dem Treffer noch schreibt. Erkannt werden
+# auch `|&`, Env-Präfixe (`LC_ALL=C grep`), `command grep` und beliebige Wörter vor dem `-q` (`-m1`, `-e x`); das Pipe-Ziel
+# endet an `|`, `;`, `&` oder `)`. Kommentarzeilen (erstes Nicht-Leerzeichen `#`) zählen nicht, `||` ist keine Pipe.
+# Nicht erkannt: Zeilenfortsetzung (`\` vor dem grep) und Aufrufe über Variablen/Funktionen statt `grep`.
+# Fail-closed: fehlt eine Eingabe oder ist keine angegeben, ist das ein Fund (Exit 1), nicht still grün.
+# Abhilfe: grep_in, Here-String oder grep auf die Datei.
 pipe_grep_q_lines() {
-  local quiet_opt='(-[A-Za-z]*q[A-Za-z]*|--quiet|--silent)'
-  local pipe_into_grep_q="(^|[^|])[|][[:space:]]*grep([[:space:]]+-[A-Za-z-]+)*[[:space:]]+${quiet_opt}([[:space:]]|\$)"
-  ! grep -nHE -- "$pipe_into_grep_q" "$@" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#'
+  [ "$#" -gt 0 ] || { echo "pipe_grep_q_lines: keine Eingabedatei"; return 1; }
+  local quiet_opt='(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)'
+  local env_prefix='([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(command[[:space:]]+)?'
+  local pipe_into_grep_q="(^|[^|])[|]&?[[:space:]]*${env_prefix}grep([[:space:]]+[^|;&)[:space:]]+)*[[:space:]]+${quiet_opt}([[:space:]]|\$)"
+  local hits rc
+  hits="$(grep -nHE -- "$pipe_into_grep_q" "$@")"
+  rc=$?
+  [ "$rc" -le 1 ] || { echo "pipe_grep_q_lines: Eingabe nicht lesbar (grep-Exit $rc): $*"; return 1; }
+  [ -n "$hits" ] || return 0
+  ! grep_in "$hits" -vE '^[^:]+:[0-9]+:[[:space:]]*#'
 }
 
 # mk_feature_repo <verzeichnis> <branch> – leeres git-Repo auf einem Feature-Branch, bereit für

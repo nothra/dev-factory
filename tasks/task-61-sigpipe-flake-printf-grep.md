@@ -36,10 +36,18 @@ PR-Body: `Closes #61`, `Closes #15`.
 - **Helfer:** neuer `grep_in <haystack> <grep-args…>` in `lib/assert-helpers.sh` (Here-String statt Pipe);
   `assert_contains_286`/`assert_absent` nutzen ihn. Umstellung mechanisch als Präfix-Ersetzung
   `printf '%s' "$X" | grep ARGS` → `grep_in "$X" ARGS` (Grep-Argumente unverändert), andere Produzenten als
-  `grep_in "$(produzent)" ARGS`. Nur `grep -q…`-Zeilen umgestellt; Pipes in `grep -c/-n/-v` bleiben (lesen bis EOF).
+  `grep_in "$(produzent)" ARGS`. Umgestellt wurden `grep -q…`-Zeilen; Pipes in `grep -c/-n/-v` bleiben (lesen bis EOF).
+  Ausnahme: die Seam-Zeile `n_labels=$(grep_in "$(tail -n1 "$LOG")" -oE …)` (ein `grep -o`) wurde mit umgestellt.
+  Das ist harmlos und semantisch gleich, deshalb bleibt sie so.
 - **Guard-Breite (Spec-Fehlerszenario „zu eng“):** `pipe_grep_q_lines` erfasst **jeden** Produzenten vor `grep -q`,
   nicht nur `printf`/`echo` – SIGPIPE trifft jeden, und jede Fundstelle lässt sich ohne Verlust auf `grep_in` umstellen,
   das Fehlalarmrisiko ist also gering. Ausgenommen: Kommentarzeilen, `||`, `grep` ohne `-q`/`--quiet`/`--silent`.
+- **Guard nach Review-Iteration 1:** erkennt zusätzlich `|&`, Env-Präfixe (`LC_ALL=C grep`), `command grep` und
+  beliebige Wörter vor dem `-q` (`-m1`, `-e x -q`); das Pipe-Ziel endet an `|`, `;`, `&`, `)`. Er ist jetzt fail-closed:
+  eine nicht lesbare oder fehlende Eingabe ergibt rot mit Meldung. Die Rest-Fundstelle `run-tests.sh` (#319 S3,
+  `LC_ALL=C grep -q`) ist auf `LC_ALL=C grep_in` umgestellt. Bewusst nicht erkannt (im Helfer-Kommentar benannt):
+  Zeilenfortsetzung und grep-Aufrufe über Variablen oder Funktionen.
+  Assertions jetzt: Haupt-Suite 2775 grün (+9 Guard-Mutationsfälle, RED vorher: 8 rot), Projekt-Suite 250 grün.
 - **Guard-Ort:** die ausgelieferte Suite prüft `scripts/checks/tests/` (plus Mutationsbelege), die Projekt-Suite
   `scripts/project/tests/` – so bleibt die ausgelieferte Suite konsumenten-neutral (Factory-ADR-064 D6).
 - **Assertions vor/nach (AK6):** Haupt-Suite 2739 → 2766 grün (+27 neue #61-Assertions, keine entfernt), Projekt-Suite
@@ -64,6 +72,12 @@ PR-Body: `Closes #61`, `Closes #15`.
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Iteration 1 (2026-11-22): **NEEDS_REWORK**, Details in [`review-61.md`](review-61.md). 1 kritisch (Rest-Fundstelle
+  `run-tests.sh:7403` mit `LC_ALL=C grep -q`, Guard übersieht Env-Präfix), 3 wichtig (Guard fail-open bei fehlender Datei,
+  Guard-Lücken `-m1`/`-e x -q`/`|&`, Issue für `pre-commit.sh` noch nicht angelegt), 3 Nitpicks.
+- Rework zu Iteration 1 (2026-11-22, /implement): kritisch + 2 wichtige behoben, 3 Nitpicks erledigt (Notiz zu
+  `n_labels` angepasst, Grenzen im Guard-Kommentar, Lesson-Satz geteilt). **Offen:** Das Issue für `pre-commit.sh`
+  (Labels `bug` + `security`) muss ein Mensch anlegen oder freigeben.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

@@ -304,8 +304,9 @@ nur, ob die Phrase im Inhalt vorkommt" keinen Bezug zu „Markdown-Zeilenumbruch
 Lesson wird eher bei *Umformulierungen* erinnert, nicht beim *Hinzufügen eines schlichten neuen
 Inhalts-Checks*. **Fix, diesmal an der Testinfrastruktur statt an der Prosa:** Ein
 `flat_286() { tr '\n' ' ' < "$1"; }`-Helper macht alle Mehrwort-Content-Checks im Block
-zeilenumbruch-tolerant (Datei einmal flach einlesen, dann `grep -qF -- "$phrase" <<< "$flat"` – ursprünglich
-per `printf | grep -qF`, das ist ein SIGPIPE-Race, siehe Factory-Issue #61 weiter unten), statt bei jedem Fund die Zieldatei umzuformulieren. Diese Umkehrung – die
+zeilenumbruch-tolerant (Datei einmal flach einlesen, dann `grep -qF -- "$phrase" <<< "$flat"`), statt bei jedem Fund
+die Zieldatei umzuformulieren. Ursprünglich lief die Suche per `printf | grep -qF`. Das ist ein SIGPIPE-Race, siehe
+Factory-Issue #61 weiter unten. Diese Umkehrung – die
 **Testinfrastruktur** robust gegen Umbrüche machen, statt jede betroffene Prosa-Zeile
 anzupassen – ist bei **mehreren** Content-Checks gegen dieselbe Doku-Familie oft die
 wartungsärmere Lösung.
