@@ -4,7 +4,7 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
@@ -87,6 +87,12 @@ PR-Body: `Closes #61`, `Closes #15`.
   und benannt, die Umstellung in den Suiten ist mechanisch. Einzige Änderung: Kommentar von `pipe_grep_q_lines` nennt die
   zwei weiteren Guard-Grenzen (Review-Nitpick 1). Kein neues Verhalten; Haupt-Suite 2775 grün, Projekt-Suite 250 grün.
   Review-Nitpick 2 (leere Phrase) braucht laut Review keinen Handlungsbedarf.
+
+## Security-Review
+- /security-review (2026-11-22): **PASSED**, Details in [`security-61.md`](security-61.md). Kein Blocker. `grep_in` ist frei
+  von Injection (`"$@"`, kein `eval`, Haystack gequotet), und das `--` bleibt erhalten. Wichtig, aber außerhalb des Scopes:
+  `pre-commit.sh` lässt bei SIGPIPE auch die Secret-Prüfung durch (fail-open). Die Sandbox hat die Issue-Anlage
+  (`bug` + `security`) ein drittes Mal abgelehnt. **Ein Mensch muss das Issue vor dem Merge anlegen.**
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
