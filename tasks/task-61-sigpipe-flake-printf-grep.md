@@ -2,8 +2,8 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
-- [ ] Tests vollständig
+- [x] Review bestanden
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -78,6 +78,9 @@ PR-Body: `Closes #61`, `Closes #15`.
 - Rework zu Iteration 1 (2026-11-22, /implement): kritisch + 2 wichtige behoben, 3 Nitpicks erledigt (Notiz zu
   `n_labels` angepasst, Grenzen im Guard-Kommentar, Lesson-Satz geteilt). **Offen:** Das Issue für `pre-commit.sh`
   (Labels `bug` + `security`) muss ein Mensch anlegen oder freigeben.
+- Iteration 2 (2026-11-22): **APPROVED**, Details in [`review-61.md`](review-61.md). Keine kritischen Findings. Wichtig
+  bleibt nur das Issue für `pre-commit.sh`: Die Sandbox hat die Anlage erneut abgelehnt, ein Mensch muss es vor dem Merge
+  anlegen. Dazu 2 Nitpicks: weitere Guard-Grenzen im Kommentar nennen, Semantik bei leerer Phrase.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
