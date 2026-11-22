@@ -24,8 +24,8 @@ PR-Body: `Closes #61`, `Closes #15`.
 - [x] AK4 – Guard: Pipe aus `printf`/`echo` in `grep -q…` unter `scripts/checks/tests/`, `scripts/project/tests/` → rot mit Datei:Zeile
 - [x] AK5 – Guard-Mutationsbeleg: Muster rot; Here-String / `grep … <datei>` grün; Kommentarzeilen lösen nicht aus
 - [x] AK6 – Bestand sauber: Guard findet nichts; Haupt- und Projekt-Suite grün; Assertion-Zahl vor/nach im PR genannt
-- [ ] AK7 – CI-Beleg #61: `factory-self-test` 10× grün, kein `Broken pipe`, Lauf-Links im PR-Body
-- [ ] AK8 – #15 abgedeckt: Test „#334 (Review-Finding 1): der add-ok/commit-fehlgeschlagen-Zweig …“ in allen Läufen grün
+- [x] AK7 – CI-Beleg #61: `factory-self-test` 10× grün, kein `Broken pipe`, Lauf-Links im PR-Body
+- [x] AK8 – #15 abgedeckt: Test „#334 (Review-Finding 1): der add-ok/commit-fehlgeschlagen-Zweig …“ in allen Läufen grün
 - [x] AK9 – Lesson `lessons/testing.md` verweist auf den Guard, kein Widerspruch zum neuen Helfer-Verhalten
 - [ ] Produktiv-Fundstellen (nicht im Scope) als `kleinfunde.md`-Eintrag bzw. Issue nach Schwelle Factory-ADR-043
   (Kleinfund-Eintrag erledigt; Issue für `pre-commit.sh` steht aus, siehe Technische Notizen)
