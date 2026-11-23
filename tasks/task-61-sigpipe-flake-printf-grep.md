@@ -100,3 +100,5 @@ PR-Body: `Closes #61`, `Closes #15`.
 ---
 Branch: `fix/61-sigpipe-flake-printf-grep`
 Erstellt: 2026-11-22 13:51
+
+PR-Shepherd 2026-11-23: Merge freigegeben – alle Gates grün (keine Review-Kommentare, Branch aktuell auf main, kein Approval angefordert; CI läuft, Auto-Merge wartet server-seitig).
