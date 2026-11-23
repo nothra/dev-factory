@@ -6,7 +6,7 @@
 # die Helfer gehören der Factory und kommen ab T2 mit Factory-Updates.
 #
 # Stellt bereit: die Zähler PASS/FAIL, die Farben, assert_exit/assert_true/assert_contains_286/
-# assert_absent, flat_286, label_drift_431, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426,
+# assert_absent, grep_in, pipe_grep_q_lines, flat_286, label_drift_431, mk_feature_repo, ls_mode_matches, HAS_YQ/skip_yq, ci_job_block, cp_pipeline_libs, bare_factory_adr_426,
 # lessons_index_guard_44 und print_summary (Ergebnis-Fußzeile samt Exit-Code).
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -92,8 +92,9 @@ label_drift_431() {
 # bash-gotchas.md § 20 („Config-/nutzerkontrollierte Werte als Daten behandeln") verlangt das `--`
 # ohnehin. Die Kontroll-Assertion dazu steht im nothra/tch-gastro-services#334-Block.
 # Verdichtet das wiederkehrende "enthält der geflachte Inhalt die Phrase?" auf einen Aufruf.
+# Der Haystack geht per Here-String an grep, nie per Pipe (Factory-Issue #61): siehe grep_in.
 assert_contains_286() {
-  printf '%s' "$1" | grep -qF -- "$2"
+  grep_in "$1" -qF -- "$2"
   assert_true "$?" "$3"
 }
 
@@ -101,10 +102,43 @@ assert_contains_286() {
 # Spiegel zu assert_contains_286: die Phrase darf NICHT vorkommen. Kapselt die Subtilität, dass
 # `$?` beim Expandieren der Command Substitution aus dem Elternkontext geerbt wird – ausgeschrieben
 # (`assert_true "$([ $? -ne 0 ]; echo $?)"`) ist das korrekt, aber an jeder Aufrufstelle neu zu
-# entziffern.
+# entziffern. Über die Pipe war hier die Race-Folge Falsch-GRÜN (Factory-Issue #61).
 assert_absent() {
-  printf '%s' "$1" | grep -qF -- "$2"
+  grep_in "$1" -qF -- "$2"
   assert_true "$([ $? -ne 0 ]; echo $?)" "$3"
+}
+
+# grep_in <haystack> <grep-argumente…> – grep über den Inhalt einer Variable, ohne Pipe.
+# `printf '%s' "$x" | grep -q …` ist unter `set -o pipefail` ein Race (Factory-Issue #61, #15): `grep -q` endet beim
+# ersten Treffer, printf schreibt weiter, bekommt SIGPIPE, und die Pipeline meldet ≠ 0 trotz Treffer – je nach Timing
+# und Haystack-Größe (ab wenigen KB). Der Here-String hat keinen Produzenten-Prozess, der sterben könnte. Er hängt ein
+# `\n` an; für grep ist das dieselbe letzte Zeile, ein leerer Haystack bleibt ohne Treffer für jede nicht-leere Phrase.
+grep_in() {
+  local haystack="$1"
+  shift
+  grep "$@" <<< "$haystack"
+}
+
+# pipe_grep_q_lines <datei>… – Guard (Factory-Issue #61): gibt je Zeile, die eine Pipe in ein vorzeitig endendes grep
+# (`-q` allein oder kombiniert, `--quiet`, `--silent`) enthält, `<datei>:<zeile>:<text>` aus; Exit 1 bei Fund.
+# Jeder Produzent zählt, nicht nur printf/echo – SIGPIPE trifft jeden, der nach dem Treffer noch schreibt. Erkannt werden
+# auch `|&`, Env-Präfixe (`LC_ALL=C grep`), `command grep` und beliebige Wörter vor dem `-q` (`-m1`, `-e x`); das Pipe-Ziel
+# endet an `|`, `;`, `&` oder `)`. Kommentarzeilen (erstes Nicht-Leerzeichen `#`) zählen nicht, `||` ist keine Pipe.
+# Nicht erkannt: Zeilenfortsetzung (`\` vor dem grep), Aufrufe über Variablen/Funktionen statt `grep`, ein Muster-Wort
+# mit `|` vor dem `-q` (`grep -E 'a|b' -q`) und ein Befehlswort vor `grep` (`xargs grep -q`, `sudo grep -q`).
+# Fail-closed: fehlt eine Eingabe oder ist keine angegeben, ist das ein Fund (Exit 1), nicht still grün.
+# Abhilfe: grep_in, Here-String oder grep auf die Datei.
+pipe_grep_q_lines() {
+  [ "$#" -gt 0 ] || { echo "pipe_grep_q_lines: keine Eingabedatei"; return 1; }
+  local quiet_opt='(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)'
+  local env_prefix='([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(command[[:space:]]+)?'
+  local pipe_into_grep_q="(^|[^|])[|]&?[[:space:]]*${env_prefix}grep([[:space:]]+[^|;&)[:space:]]+)*[[:space:]]+${quiet_opt}([[:space:]]|\$)"
+  local hits rc
+  hits="$(grep -nHE -- "$pipe_into_grep_q" "$@")"
+  rc=$?
+  [ "$rc" -le 1 ] || { echo "pipe_grep_q_lines: Eingabe nicht lesbar (grep-Exit $rc): $*"; return 1; }
+  [ -n "$hits" ] || return 0
+  ! grep_in "$hits" -vE '^[^:]+:[0-9]+:[[:space:]]*#'
 }
 
 # mk_feature_repo <verzeichnis> <branch> – leeres git-Repo auf einem Feature-Branch, bereit für
@@ -199,7 +233,7 @@ lessons_index_guard_44() {
     [ -f "$lesson" ] || continue   # ohne nullglob bleibt das Glob-Literal stehen
     name="$(basename "$lesson")"; [ "$name" = INDEX.md ] && continue
     found=1
-    grep -F -- "](lessons/$name)" "$fmd" | grep -qF -- '**Laden bei:**' || { echo "fehlt-uebersicht:$name"; bad=1; }
+    grep_in "$(grep -F -- "](lessons/$name)" "$fmd")" -qF -- '**Laden bei:**' || { echo "fehlt-uebersicht:$name"; bad=1; }
     hdr="$(grep -F -- "**[\`lessons/$name\`](" "$idx" | head -1)"
     if [ -z "$hdr" ]; then
       echo "fehlt-gruppe:$name"; bad=1

@@ -232,7 +232,7 @@ richtige Bedingung", nicht auf „gibt es im File schon eine Funktion mit exakt 
 **Regel (Ergänzung):** Der Smell/die Regel oben („gegen bereits vorhandene Struktur mit
 identischem Prüfausdruck abgleichen, bevor eine neue angelegt wird") gilt unabhängig von der
 Sprachkonstrukt-Ebene – Schleife, Capability-Check **oder einzelne Assert-Zeile**. Vor einem
-`printf … | grep -qF …; assert_true …`-Konstrukt in `run-tests.sh` den Helfer-Block am
+`grep -qF …; assert_true …`-Konstrukt in `run-tests.sh` den Helfer-Block am
 Dateianfang (`assert_contains_286`, `assert_absent`, `flat_286`, `ls_mode_matches` u. Ä.)
 gegenprüfen, ob der exakte Rumpf schon als Funktion existiert.
 
@@ -304,8 +304,9 @@ nur, ob die Phrase im Inhalt vorkommt" keinen Bezug zu „Markdown-Zeilenumbruch
 Lesson wird eher bei *Umformulierungen* erinnert, nicht beim *Hinzufügen eines schlichten neuen
 Inhalts-Checks*. **Fix, diesmal an der Testinfrastruktur statt an der Prosa:** Ein
 `flat_286() { tr '\n' ' ' < "$1"; }`-Helper macht alle Mehrwort-Content-Checks im Block
-zeilenumbruch-tolerant (Datei einmal flach einlesen, dann `printf '%s' "$flat" | grep -qF
-"$phrase"`), statt bei jedem Fund die Zieldatei umzuformulieren. Diese Umkehrung – die
+zeilenumbruch-tolerant (Datei einmal flach einlesen, dann `grep -qF -- "$phrase" <<< "$flat"`), statt bei jedem Fund
+die Zieldatei umzuformulieren. Ursprünglich lief die Suche per `printf | grep -qF`. Das ist ein SIGPIPE-Race, siehe
+Factory-Issue #61 weiter unten. Diese Umkehrung – die
 **Testinfrastruktur** robust gegen Umbrüche machen, statt jede betroffene Prosa-Zeile
 anzupassen – ist bei **mehreren** Content-Checks gegen dieselbe Doku-Familie oft die
 wartungsärmere Lösung.
@@ -694,8 +695,17 @@ und eine 38-KB-`--list project`-Ausgabe schlugen auf dem CI-Runner fehl, der Ent
 behauptet; erst der zweite CI-Lauf zeigte die Rezidiv-Stelle in `own_side_426`.
 
 **Regel:** Gegen eine **Datei** immer direkt `grep -qF -- … <datei>`; gegen eine **Variable** per Here-String
-(`grep -q … <<< "$var"`), nie `printf | grep -q`. Den Helfer nur für kurze Literale (Zeilen/Absätze) nutzen. Nach
-einem Test-Refactor die CI-Läufe abwarten, bevor „identisch grün" behauptet wird.
+(`grep -q … <<< "$var"` bzw. der Helfer `grep_in "$var" -q …`), nie `printf | grep -q` – das gilt für jeden
+Produzenten vor einem `grep -q`, nicht nur für `printf`. Nach einem Test-Refactor die CI-Läufe abwarten, bevor
+„identisch grün" behauptet wird.
+
+**Nachtrag Factory-Issue #61 (schließt #15 ein):** Die Regel hatte das Wiederauftreten nicht verhindert – der Helfer
+selbst verletzte sie, und rund 180 Testzeilen ebenso; bei `assert_absent` war die Folge sogar Falsch-**Grün**.
+`assert_contains_286` und `assert_absent` übergeben den Haystack seither per Here-String (über `grep_in`) und sind für
+Haystacks jeder Größe geeignet, die frühere Einschränkung „nur kurze Literale" entfällt. Der Guard
+`pipe_grep_q_lines` (`scripts/checks/tests/lib/assert-helpers.sh`) macht die Suite rot, sobald eine Nicht-Kommentarzeile
+unter `scripts/checks/tests/` oder `scripts/project/tests/` eine Pipe in ein `grep` mit `-q`/`--quiet`/`--silent`
+enthält, und nennt Datei:Zeile.
 
 ### Rezidiv nothra/tch-gastro-services#348: Gate-Kommando „aus der Config" an einem dritten Konsumenten nur per Grep belegt – Review fand die Lücke (aus nothra/tch-gastro-services#431, Review-Iteration 1)
 

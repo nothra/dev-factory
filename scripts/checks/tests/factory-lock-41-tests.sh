@@ -91,7 +91,7 @@ run_forbidden_free_41() {
 dockerfile_ok_41() {
   printf '%s\0' build -t "$IMAGE_41" - | cmp -s - "$FD_41/build.argv" || return 1
   [ "$(wc -l < "$FD_41/Dockerfile" | tr -d ' ')" = 2 ] || return 1
-  sed -n 1p "$FD_41/Dockerfile" | grep -qxE 'FROM debian:[a-z]+-slim@sha256:[0-9a-f]{64}' || return 1
+  grep_in "$(sed -n 1p "$FD_41/Dockerfile")" -qxE 'FROM debian:[a-z]+-slim@sha256:[0-9a-f]{64}' || return 1
   [ "$(sed -n 2p "$FD_41/Dockerfile")" = 'RUN apt-get update && apt-get install -y --no-install-recommends git jq curl ca-certificates && rm -rf /var/lib/apt/lists/*' ]
 }
 # args_ok_41 [<skript>] – fetch-isolated mit Fake (Ausgabe: reguläre Datei): grün, Reihenfolge info → build → run, Aufruf genau E31
@@ -268,7 +268,7 @@ wf_fetch_ok_41() {
   [ "$(yq '.jobs.fetch.steps[3].with.path' "$f")" = '${{ runner.temp }}/fetch-out/update.bundle' ] || return 1
   [ "$(yq '.jobs.fetch.steps[3].with.if-no-files-found' "$f")" = error ] || return 1
   # kein run-Schritt irgendeines Jobs ruft den Modus fetch direkt auf
-  ! yq '.jobs[].steps[].run // ""' "$f" | grep -qE 'factory-update\.sh fetch( |$)'
+  ! grep_in "$(yq '.jobs[].steps[].run // ""' "$f")" -qE 'factory-update\.sh fetch( |$)'
 }
 wf_fetch_ok_41 "$WF_24"; assert_exit 0 "$?" "#41 AK1.1/AK2.1/AK4.1: Job fetch = Checkout, yq, fetch-isolated, Upload von fetch-out/update.bundle – kein weiterer Schritt"
 mut_wf_41() { # <name> <yq-ausdruck>

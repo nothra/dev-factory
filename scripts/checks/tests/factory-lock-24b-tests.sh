@@ -239,7 +239,7 @@ assert_contains_286 "$cred_24" 'username=x-access-token' "#24 E12: der Helper li
 # ── Verdrahtung: Skript und Workflow ─────────────────────────────────────────────────────────────────────────────────
 upd_src_24="$(cat "$UPD_24")"
 assert_true "$([ "$(grep -cE '(git|git_with_token) .*push ' <<< "$upd_src_24")" = 1 ]; echo $?)" "#24 F1: das Skript hat genau eine Push-Zeile"
-assert_true "$(grep -E '(git|git_with_token) .*push ' <<< "$upd_src_24" | grep -qF '"$sha:refs/heads/$UPDATE_BRANCH"'; echo $?)" "#24 F1: einziges Push-Ziel ist refs/heads/\$UPDATE_BRANCH"
+assert_true "$(grep_in "$(grep -E '(git|git_with_token) .*push ' <<< "$upd_src_24")" -qF '"$sha:refs/heads/$UPDATE_BRANCH"'; echo $?)" "#24 F1: einziges Push-Ziel ist refs/heads/\$UPDATE_BRANCH"
 assert_true "$(grep -qxF 'UPDATE_BRANCH="chore/factory-update"' <<< "$upd_src_24"; echo $?)" "#24 F1: UPDATE_BRANCH ist fest chore/factory-update"
 assert_absent "$upd_src_24" 'pr merge' "#24 AK2.4: das Skript ruft nie gh pr merge"
 assert_absent "$upd_src_24" '--auto' "#24 AK2.4: das Skript aktiviert kein Auto-Merge"

@@ -118,7 +118,7 @@ via_sudo_66() {
   [ "$n_ipt" -gt 0 ] && [ "$n_ipt" = "$n_sudo" ] && ! grep -qx sudo-ohne-n "$D66/calls.log"
 }
 fresh_66 iso
-assert_true "$(grep -qx 'iptables -I INPUT' "$D66/calls.log" && via_sudo_66 && ! tr '\0' '\n' < "$D66/run.argv" | grep -qE '^(--cap-add|--privileged)'; echo $?)" \
+assert_true "$(grep -qx 'iptables -I INPUT' "$D66/calls.log" && via_sudo_66 && ! grep_in "$(tr '\0' '\n' < "$D66/run.argv")" -qE '^(--cap-add|--privileged)'; echo $?)" \
   "#66 AK1.5: Regeln per sudo -n iptables auf dem Host, der Container bekommt keine Netz-Rechte"
 mutant_37 66-ohne-sudo 's#^host_iptables\(\) \{ sudo -n iptables "\$@"; \}#host_iptables() { iptables "$@"; }#'
 fresh_66 iso "$MUT37"; assert_true "$(! via_sudo_66; echo $?)" "#66 AK4.2 (Mutation): iptables ohne sudo → derselbe Prüfer ist rot"
@@ -265,7 +265,7 @@ fresh_66 smoke "$MUT37"; assert_true "$([ "$(cat "$D66/lock-at-listener")" = 1 ]
 # Der Host startet den Lauscher auf dem Gateway, reicht Gateway und Port in den Container und räumt den Lauscher ab
 fresh_66 smoke
 listener_gone_66() { local pid n; pid="$(cat "$D66/listener.pid" 2>/dev/null)" || return 1; for n in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$pid" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
-assert_true "$([ "$rc_66" -eq 0 ] && tr '\0' ' ' < "$D66/listener.argv" | grep -qF -- "-m http.server --bind $GATEWAY_66 " \
+assert_true "$([ "$rc_66" -eq 0 ] && grep_in "$(tr '\0' ' ' < "$D66/listener.argv")" -qF -- "-m http.server --bind $GATEWAY_66 " \
   && [ "$(tr '\0' ' ' < "$D66/run-pos.argv")" = "_ $GATEWAY_66 $PORT_66 " ] && listener_gone_66; echo $?)" \
   "#66 E40 c: Lauscher auf dem Gateway von factory-fetch, Gateway und Port als Positionsargumente in den Container, Lauscher danach beendet"
 st_66; : > "$D66/fail-listener"; run_66 smoke
@@ -285,7 +285,7 @@ probe_66() { # [<ziel, das erreichbar ist>] [<skript>] – Exit von fetch-smoke
   st_66; [ -z "${1:-}" ] || printf '%s\n' "$1" >> "$D66/reachable"; run_66 smoke "${2:-}" probe; return "$rc_66"
 }
 probe_66; assert_exit 0 "$?" "#66 AK4.3: Probe grün, wenn Gateway, 169.254.169.254 und 168.63.129.16 unerreichbar sind und github.com erreichbar ist"
-assert_true "$(grep -E 'https://github\.com$' "$D66/ctr-curl.log" | grep -qF -- '--retry'; echo $?)" "#66 Q5: HTTPS zu github.com mit curl --retry"
+assert_true "$(grep_in "$(grep -E 'https://github\.com$' "$D66/ctr-curl.log")" -qF -- '--retry'; echo $?)" "#66 Q5: HTTPS zu github.com mit curl --retry"
 probe_66 "http://$GATEWAY_66:$PORT_66/"; assert_exit 1 "$?" "#66 AK4.3: Gateway des Hosts erreichbar → Smoke-Job rot"
 probe_66 http://169.254.169.254/; assert_exit 1 "$?" "#66 AK4.3: IMDS 169.254.169.254 erreichbar → Smoke-Job rot"
 probe_66 http://168.63.129.16/; assert_exit 1 "$?" "#66 AK4.3: WireServer 168.63.129.16 erreichbar → Smoke-Job rot"

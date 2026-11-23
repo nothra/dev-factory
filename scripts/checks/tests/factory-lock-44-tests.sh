@@ -59,7 +59,7 @@ world_44 l44 1
 assert_exit 0 "$rc_44" "#44 AK7: Abholung von v4.0.0 mit neuer Lesson → grün"
 assert_true "$(cmp -s "$U23/docs/factory/lessons/neu-44.md" "$C1_23/docs/factory/lessons/neu-44.md"; echo $?)" "#44 AK7: die neue Lesson liegt beim Konsumenten (byte-gleich)"
 assert_true "$(cmp -s "$U23/docs/factory/lessons/INDEX.md" "$C1_23/docs/factory/lessons/INDEX.md"; echo $?)" "#44 AK7: lessons/INDEX.md liegt beim Konsumenten (byte-gleich)"
-assert_true "$(grep -F -- '](lessons/neu-44.md)' "$C1_23/docs/factory/FACTORY.md" | grep -qF -- '**Laden bei:**'; echo $?)" \
+assert_true "$(grep_in "$(grep -F -- '](lessons/neu-44.md)' "$C1_23/docs/factory/FACTORY.md")" -qF -- '**Laden bei:**'; echo $?)" \
   "#44 AK7: FACTORY.md beim Konsumenten trägt die Übersichtszeile mit „Laden bei“ zur neuen Lesson"
 guard_out_44="$(guard_c1_44)"; guard_rc_44=$?
 assert_exit 0 "$guard_rc_44" "#44 AK7: der Guard ist gegen den Konsumenten grün (Ausgabe: ${guard_out_44:-leer})"
