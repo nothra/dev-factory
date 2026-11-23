@@ -7,7 +7,7 @@
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
 - [x] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 SIGPIPE-Race `printf … | grep -q` unter `pipefail` in den Self-Test-Suiten beseitigen: Helfer `assert_contains_286` /
@@ -27,8 +27,8 @@ PR-Body: `Closes #61`, `Closes #15`.
 - [x] AK7 – CI-Beleg #61: `factory-self-test` 10× grün, kein `Broken pipe`, Lauf-Links im PR-Body
 - [x] AK8 – #15 abgedeckt: Test „#334 (Review-Finding 1): der add-ok/commit-fehlgeschlagen-Zweig …“ in allen Läufen grün
 - [x] AK9 – Lesson `lessons/testing.md` verweist auf den Guard, kein Widerspruch zum neuen Helfer-Verhalten
-- [ ] Produktiv-Fundstellen (nicht im Scope) als `kleinfunde.md`-Eintrag bzw. Issue nach Schwelle Factory-ADR-043
-  (Kleinfund-Eintrag erledigt; Issue für `pre-commit.sh` steht aus, siehe Technische Notizen)
+- [x] Produktiv-Fundstellen (nicht im Scope) als `kleinfunde.md`-Eintrag bzw. Issue nach Schwelle Factory-ADR-043
+  (Kleinfund-Eintrag erledigt; Issue für `pre-commit.sh`: #70, siehe Technische Notizen)
 
 ## Technische Notizen
 <!-- Von /architecture befüllt oder eigene Notizen -->
@@ -63,7 +63,7 @@ PR-Body: `Closes #61`, `Closes #15`.
   `git diff` an SIGPIPE, die `if`-Bedingung wird falsch, und die Konfliktmarker-/Debug-/Secret-Prüfung lässt den Commit
   **durch** (fail-open). Ähnlich, aber unkritischer: `scripts/factory-update.sh:77` (`env | grep -qE`),
   `scripts/start-work.sh:310` (`git worktree list | grep -qxF`). Nicht in diesem PR (Produktiv-Skripte außerhalb des
-  Scopes); Issue-Anlage steht aus.
+  Scopes); Issue angelegt: #70.
 
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->
