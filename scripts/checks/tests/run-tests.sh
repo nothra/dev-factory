@@ -9689,7 +9689,8 @@ assert_absent "$out_70" "Keine Merge-Konflikte" "#70 AK7: Check 1 meldet bei Les
 assert_absent "$out_70" "Keine Debug-Statements" "#70 AK7: Check 2 meldet bei Lesefehler kein ✓"
 assert_absent "$out_70" "Keine offensichtlichen Credentials" "#70 AK7: Check 4 meldet bei Lesefehler kein ✓"
 
-# Fehlerszenarien: leerer Staged-Diff (set -u) und Binärdatei – kein Abbruch, kein Treffer
+# Fehlerszenarien: leerer Staged-Diff (set -u) und Binärdatei – kein Abbruch, kein Treffer.
+# Zeilen mit `-` am Anfang (Spec-Fehlerszenario) deckt jede Neu-Datei mittelbar ab: ihre Kopfzeile `--- /dev/null` darf nicht treffen.
 git -C "$TMP_70/repo" rm -q --cached big.txt
 out_70="$(cd "$TMP_70/repo" && FACTORY_LINT_COMMAND=true bash scripts/checks/pre-commit.sh 2>&1)"
 assert_exit 0 "$?" "#70: leerer Staged-Diff → Exit 0 (keine leere Variable unter set -u)"
@@ -9698,6 +9699,7 @@ printf 'a\0b\n' > "$TMP_70/repo/bin.dat"
 git -C "$TMP_70/repo" add bin.dat
 out_70="$(cd "$TMP_70/repo" && FACTORY_LINT_COMMAND=true bash scripts/checks/pre-commit.sh 2>&1)"
 assert_exit 0 "$?" "#70: Binärdatei im Staged-Diff → Exit 0, kein Treffer"
+assert_contains_286 "$out_70" "Keine Merge-Konflikte" "#70: Binärdatei im Staged-Diff → Check 1 meldet ✓"
 
 # AK8: Guard aus #61 auch über pre-commit.sh; eine eingeschleuste Pipe in grep -q macht ihn rot
 guard_out_70="$(pipe_grep_q_lines "$PRE_COMMIT")"
