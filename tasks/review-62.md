@@ -1,8 +1,10 @@
 # Review: Task 62
 
-> Docs-only-Diff (`CHANGELOG.md`, `docs/factory/OPERATING.md` §0.7 + §5.5a, Factory-ADR-029 Nachtrag) gegen
-> `docs/specs/spec-62-adr-029-nachtrag-factory-integrity.md`. Drei Runden (Logik, Qualität, Architektur), Review-Datum
-> 2026-11-24. `pre-commit.sh` grün (Runde 2).
+> Runde 2 (2026-11-24, Re-Review nach Rework `4c2f230`). Docs-only-Diff (`CHANGELOG.md`, `docs/factory/OPERATING.md` §0.7 +
+> §5.5a, Factory-ADR-029 Nachtrag, Factory-ADR-063 Rückverweise, Spec) gegen
+> `docs/specs/spec-62-adr-029-nachtrag-factory-integrity.md`. Drei Runden (Logik, Qualität, Architektur). `pre-commit.sh` grün.
+> Runde 1: NEEDS_REWORK (0 kritisch, 2 wichtig, 5 Nitpicks); beide wichtigen Findings und vier Nitpicks sind behoben, der
+> fünfte bleibt bewusst offen (Stil der Nachbareinträge).
 
 ## Kritische Findings (müssen behoben werden)
 
@@ -10,69 +12,43 @@ _(keine)_
 
 ## Wichtige Findings (sollten behoben werden)
 
-- [ ] [docs/factory/OPERATING.md:253-254, docs/factory/adr/029-branch-protection-main-ruleset.md:233-235, CHANGELOG.md:25-26]
-  Die Aussage „vorher eingetragen hängt jeder PR – auch der Einbindungs-PR" ist sachlich falsch. `factory-ci.yml:18-20` triggert
-  auf `pull_request` ohne Pfadfilter, `factory-integrity` (`:81`) hat kein `if:`, und bei `pull_request` nimmt GitHub die
-  Workflow-Datei aus dem PR-Stand. Der Einbindungs-PR bringt den Job mit und meldet den Check `factory-integrity` (Job-ID, kein
-  `name:`) also selbst. Auf „Expected – Waiting for status" hängt jeder PR, **dessen Branch den Job noch nicht enthält**
-  (vor der Einbindung abgezweigt). Auch „muss auf `main` mindestens einmal gelaufen sein" ist keine technische Voraussetzung:
-  Im Ruleset kann man den Namen frei eintippen, die UI schlägt nur kürzlich gelaufene Checks vor. Die Reihenfolge „erst mergen"
-  bleibt richtig, die Begründung muss aber präzise sein. Fix: an allen drei Stellen „jeder PR, dessen Branch
-  `factory-integrity` noch nicht enthält" statt „jeder PR – auch der Einbindungs-PR"; Abhilfe „Branch gegen `main` rebasen"
-  ergänzen (Behebung „Check austragen" bleibt als Alternative). **Spec mitziehen:** Fehlerszenario 1
-  (`spec-62…md:71-72`, „auch der Einbindungs-PR") und AK3 (`:48-49`) tragen dieselbe Aussage; die Spec-Änderung sollte der
-  Mensch bestätigen (Phase 1).
-- [ ] [docs/factory/OPERATING.md:244-251] Es fehlt der Hinweis auf PRs, die beim Eintragen schon offen sind. Auch bei richtiger
-  Reihenfolge hängen PRs, die vor dem Einbindungs-Merge abgezweigt sind; das Ruleset erzwingt mit `strict: false` kein Update.
-  Abhilfe: gegen `origin/main` rebasen (bei Factory-PRs über `/pr-shepherd`). Gehört zu Fehlerszenario 1 der Spec, ein Satz in
-  Schritt 2 oder im Absatz „Zu früh eingetragen" genügt.
+_(keine)_
 
 ## Nitpicks (optional)
 
-- [ ] [docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:266, :541] ADR-063 sagt noch „(ADR-029 nachtragen)"
-  bzw. „trägt ihn T2a-4 ins Ruleset ein". Ein Rückverweis „(nachgetragen in Factory-ADR-029, 2026-11-24, #62)" schließt den
-  Kreis (Nachtrags-Muster von ADR-063). Gleiche Datei-Familie, zwei Zeilen; kann in diesem PR mit.
-- [ ] [docs/factory/OPERATING.md:256 vs. docs/factory/adr/029-branch-protection-main-ruleset.md:236] Begriff vereinheitlichen:
-  „Manifest" vs. „Release-Manifest" (§5.5a und ADR nutzen „Release-Manifest").
-- [ ] [docs/factory/OPERATING.md:244-258 / docs/factory/adr/029-branch-protection-main-ruleset.md:232-240] Reihenfolge,
-  „zu früh eingetragen" und Notfall stehen inhaltlich doppelt, das kann auseinanderlaufen. Vorschlag: der ADR ist kanonisch
-  für Entscheidung und Notfall-Regel, §0.7 behält die Bedienschritte und verweist für Notfall und Begründung auf den ADR (wie
-  schon beim `gh api`-Befehl).
-- [ ] [docs/factory/adr/029-branch-protection-main-ruleset.md:44-45] Die Decision nennt den Nachtrag ADR-041 inline in der
-  Check-Liste, diesen nicht. Optional ein Halbsatz „im Konsumenten zusätzlich `factory-integrity` (s. Bezug zu anderen ADRs)".
-  ADR-064 hat das auch nicht getan, das Muster ist also schon uneinheitlich.
-- [ ] [docs/factory/adr/029-branch-protection-main-ruleset.md:223] Die Spec AK1 nennt „Factory-ADR-063 / …", der Eintrag
-  heißt „ADR-063 / …". Folgt dem Stil der Nachbareinträge, nur ein formaler Unterschied, keine Änderung nötig.
+- [ ] [docs/factory/adr/029-branch-protection-main-ruleset.md:233-240] Den eigentlichen Grund für „erst mergen" ausdrücklich
+  nennen: Vor dem Einbindungs-Merge hilft den hängenden PRs ein Rebase nicht, weil `main` den Job noch nicht enthält. Erst nach
+  dem Merge reicht das Rebasen als Abhilfe. Der Text ergibt das nur indirekt aus „Den Check meldet nur ein PR, dessen Branch
+  den Job enthält". Ein Halbsatz genügt. Auf ihn verweist §0.7 („Abhilfe bei zu frühem Eintragen").
+- [ ] [docs/factory/adr/029-branch-protection-main-ruleset.md:236-237] „Das gilt auch bei richtiger Reihenfolge für PRs, die
+  beim Eintragen schon offen sind" ist etwas zu breit. Betroffen sind nur offene PRs, die **vor** der Einbindung abgezweigt
+  sind. Später abgezweigte PRs enthalten den Job. §0.7 Schritt 4 formuliert das schon präzise.
+- [ ] [docs/factory/OPERATING.md:253, docs/factory/adr/029-branch-protection-main-ruleset.md:238] „bei Factory-PRs über
+  `/pr-shepherd`" ist im Konsumenten-Kontext mehrdeutig (PRs der Pipeline oder Update-PRs der Factory?). Präziser wäre
+  „bei Pipeline-PRs".
 
 ## Außerhalb des Scopes
 
-- **[docs/factory/OPERATING.md:657-676] Anhang „Branch-Protection richtig einordnen"** (älter als dieser PR, Schwelle:
-  Zweifelsfall, deshalb Issue). Er nennt Branch-Protection „optionale `main`-Hygiene", „Priorität: niedrig", „Komfort
-  obendrauf". Das widerspricht ADR-029 und jetzt auch direkt §0.7: Das Integritäts-Gate schützt nur mit Ruleset. Der Anhang
-  ist zudem projektspezifisch (`production`-Branch, E2E-Deploy-Gate) in einer ausgelieferten Datei. Der Fix braucht mehr als
-  zehn Zeilen und eine Entscheidung, was generisch bleibt. **Issue nicht angelegt:** Die Anlage über
-  `scripts/lib/create-issue.sh` wurde in dieser Session nicht freigegeben. Vermerkt hier statt still verworfen
-  (`kleinfunde.md`-Kopf). Vorbereiteter Aufruf (Labels `documentation` + `tech-debt`) liegt im Session-Scratchpad und muss
-  nachgeholt werden.
+- **[docs/factory/OPERATING.md, Anhang „Branch-Protection richtig einordnen"]** (aus Runde 1, unverändert offen): Der Anhang
+  nennt Branch-Protection optional bzw. mit niedriger Priorität. Das widerspricht ADR-029 und §0.7. Schwelle: Zweifelsfall,
+  also Issue. **Issue weiterhin nicht angelegt**, weil die Anlage über `scripts/lib/create-issue.sh` nicht freigegeben ist.
+  Sie muss vor dem PR nachgeholt werden (Labels `documentation` + `tech-debt`).
 
 ## Positives
 
-- Alle Akzeptanzkriterien sind formal abgedeckt. Factory-Repo und Konsument sind sauber getrennt, die Check-Liste des
-  Factory-Repos ist identisch mit dem ADR-064-Eintrag.
-- Das JSON bleibt unverändert und wird ausdrücklich als Stand des Ursprungs-Rulesets benannt. Status `Accepted` und
-  ADR-Index-Zeile 029 stimmen.
-- „Nachtrag statt neuer ADR" passt zur Gegenmaßnahme in ADR-029:144: Der neue ADR ist ADR-063 E8, dasselbe Muster wie bei
-  ADR-041 und ADR-064.
-- Der Text ist konsumenten-neutral: Platzhalter `<owner>/<repo>`/`<ruleset-id>` samt Befehl, der die ID liefert, und
-  „zusätzlich zu den bestehenden Checks" statt einer Zählung. Herkunftsverweise sind nur qualifiziert.
-- Der jq-Ausdruck des Soll-Ist-Abgleichs passt zur Form der Rulesets-API. Die Erwartung prüft ausdrücklich, dass
-  `enforcement`, `bypass`, `strict` und `merge` unverändert bleiben.
-- Die Exit-Codes und das No-op in §5.5a stimmen mit `factory-integrity-check.sh` überein. Die Anker `#07-…` und
-  `#konfiguration-reproduzierbar` lösen auf.
-- Das Notfallverfahren nennt die Dokumentationspflicht (Ursache, Zeitraum, gemergte PRs) und entschärft das Gate nicht
-  dauerhaft.
-- Keine neue Zeile in `OWNERSHIP.md` nötig (Spec/Task fallen unter `docs/specs/**` bzw. `tasks/**`). `FACTORY.md` bleibt
-  unverändert, der Import-Deckel ist also nicht betroffen.
+- Die Aussage aus Runde 1 ist korrigiert: Es hängt jeder PR, dessen Branch den Job nicht enthält. Die Begründung
+  (`pull_request` nimmt die Workflow-Datei aus dem PR-Stand) steht dabei. ADR, §0.7, CHANGELOG und Spec AK3/FS1 sagen jetzt
+  dasselbe.
+- Offene Alt-PRs stehen als eigener Schritt 4 mit Abhilfe in §0.7. Die Wirkung von `strict: false` ist im ADR erklärt.
+- Die Aufteilung ist sauber: §0.7 enthält nur die Bedienschritte, Begründung, Abhilfe und Notfall stehen kanonisch im ADR.
+  Das senkt das Drift-Risiko.
+- „Release-Manifest" heißt jetzt überall gleich. ADR-063 hat an beiden Stellen einen Rückverweis. Die Decision-Liste in
+  ADR-029 nennt `factory-integrity` mit Verweis auf den Nachtrag.
+- Der UI-Hinweis „Name lässt sich eintippen" räumt das Missverständnis „muss vorher gelaufen sein" aus.
+- Anker geprüft: `#07-required-check-factory-integrity-eintragen-je-konsumenten-repo-nach-dem-ersten-merge`,
+  `#konfiguration-reproduzierbar` und der Rückbezug „Fail-closed statt Vertrauen" (ADR-029:112) lösen auf.
+- Alle AKs bleiben erfüllt. Text konsumenten-neutral, Herkunftsverweise qualifiziert, keine neue getrackte Datei,
+  `FACTORY.md` unverändert.
 
 ## Empfehlung
-NEEDS_REWORK
+APPROVED

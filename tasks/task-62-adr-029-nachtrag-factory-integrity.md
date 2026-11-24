@@ -2,8 +2,8 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
-- [ ] Tests vollständig
+- [x] Review bestanden
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -51,6 +51,9 @@ Nachtrag in Factory-ADR-029 zu `factory-integrity` als Required Check für Konsu
   „Release-Manifest" ist einheitlich, ADR-063 hat Rückverweise, die Decision-Liste in ADR-029 nennt `factory-integrity`.
   Der Nitpick zu „ADR-063 / …" bleibt bewusst unverändert (Stil der Nachbareinträge). **Spec AK3 und Fehlerszenario 1
   korrigiert, Bestätigung durch den Menschen steht aus.**
+- Runde 2 (2026-11-24): APPROVED, 0 kritisch, 0 wichtig, 3 Nitpicks (Grund für „erst mergen" ausdrücklich nennen, „offene
+  PRs" auf vor der Einbindung abgezweigte eingrenzen, „Factory-PRs" präzisieren). Das Issue zum OPERATING-Anhang
+  Branch-Protection ist weiterhin nicht angelegt.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
