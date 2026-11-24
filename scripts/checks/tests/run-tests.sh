@@ -9624,6 +9624,90 @@ guard_out_61="$(pipe_grep_q_lines "$CHECKS_DIR"/tests/*.sh "$CHECKS_DIR"/tests/l
 assert_exit 0 "$?" "#61 AK6: keine Pipe in grep -q in scripts/checks/tests/ ${guard_out_61:+– Funde: $guard_out_61}"
 rm -rf "$TMP_61"
 
+# ─── Factory-Issue #70: pre-commit.sh prüft den Staged-Diff fail-closed statt per Pipe in grep -q ────────────────────
+# `git diff --cached | grep -qE …` als if-Bedingung: bei großem Diff und frühem Treffer stirbt git an SIGPIPE, pipefail
+# macht die Bedingung falsch, der Check meldet „✓" und der Commit geht durch (fail-open, dieselbe Klasse wie #61).
+echo ""
+echo "Factory-Issue #70: pre-commit.sh – großer Staged-Diff ohne SIGPIPE-Fail-open, fail-closed beim Lesefehler:"
+TMP_70="$(mktemp -d)"
+# Wegwerf-Factory: pre-commit.sh + gate-config.sh, ohne Integritäts-Check (dann nur Warnung) und ohne pre-commit.d.
+mkdir -p "$TMP_70/repo/scripts/checks" "$TMP_70/repo/scripts/lib" "$TMP_70/bin"
+cp "$PRE_COMMIT" "$TMP_70/repo/scripts/checks/pre-commit.sh"
+cp "$SCRIPTS_DIR/lib/gate-config.sh" "$TMP_70/repo/scripts/lib/"
+git -C "$TMP_70/repo" init -q
+# Trigger zur Laufzeit zusammengesetzt: wörtlich in dieser Datei blockierten sie ihren eigenen Commit (Spec #70).
+conflict_70='<<<<<<<'; conflict_70+=' HEAD'
+debug_70='console'; debug_70+='.log("x");'
+cred_70='password'; cred_70+=" = 'geheim12345'"
+filler_70="$(head -c 1100000 /dev/zero | tr '\0' 'x' | fold -w 100)"
+
+# precommit_70 <erste-zeile> <letzte-zeile> [<PATH-präfix>] – stagt big.txt (erste Zeile, ≥ 1 MiB Füllung, letzte Zeile;
+# leere Zeile = weggelassen) und führt pre-commit.sh aus; Ergebnis in out_70/rc_70, Diff-Größe in size_70.
+precommit_70() {
+  { [ -z "$1" ] || printf '%s\n' "$1"; printf '%s\n' "$filler_70"; [ -z "$2" ] || printf '%s\n' "$2"; } > "$TMP_70/repo/big.txt"
+  git -C "$TMP_70/repo" add big.txt
+  size_70="$(git -C "$TMP_70/repo" diff --cached | wc -c | tr -d ' ')"
+  out_70="$(cd "$TMP_70/repo" && PATH="${3:+$3:}$PATH" FACTORY_LINT_COMMAND=true bash scripts/checks/pre-commit.sh 2>&1)"
+  rc_70=$?
+}
+
+precommit_70 "$conflict_70" ""
+assert_true "$([ "$size_70" -ge 1048576 ]; echo $?)" "#70 Vorbedingung: gestagter Diff ist mindestens 1 MiB groß ($size_70 Byte)"
+assert_exit 1 "$rc_70" "#70 AK1: Konfliktmarker in erster Zeile eines großen Diffs → Exit 1"
+assert_contains_286 "$out_70" "Ungelöste Merge-Konflikte gefunden" "#70 AK1: Meldung „Ungelöste Merge-Konflikte gefunden"
+precommit_70 "$debug_70" ""
+assert_exit 1 "$rc_70" "#70 AK2: Debug-Statement in erster Zeile eines großen Diffs → Exit 1"
+assert_contains_286 "$out_70" "Debug-Statements gefunden" "#70 AK2: Meldung „Debug-Statements gefunden"
+precommit_70 "$cred_70" ""
+assert_exit 1 "$rc_70" "#70 AK3: Credential in erster Zeile eines großen Diffs → Exit 1"
+assert_contains_286 "$out_70" "Mögliche hardkodierte Credentials gefunden" "#70 AK3: Meldung „Mögliche hardkodierte Credentials gefunden"
+
+precommit_70 "" ""
+assert_exit 0 "$rc_70" "#70 AK5: großer Diff ohne Treffer → Exit 0"
+assert_contains_286 "$out_70" "Keine Merge-Konflikte" "#70 AK5: Check 1 meldet ✓"
+assert_contains_286 "$out_70" "Keine Debug-Statements" "#70 AK5: Check 2 meldet ✓"
+assert_contains_286 "$out_70" "Keine offensichtlichen Credentials" "#70 AK5: Check 4 meldet ✓"
+
+precommit_70 "" "$conflict_70"
+assert_exit 1 "$rc_70" "#70 AK6: Konfliktmarker nur in letzter Zeile → Exit 1"
+assert_contains_286 "$out_70" "Ungelöste Merge-Konflikte gefunden" "#70 AK6: Konfliktmarker in letzter Zeile gemeldet"
+precommit_70 "" "$debug_70"
+assert_exit 1 "$rc_70" "#70 AK6: Debug-Statement nur in letzter Zeile → Exit 1"
+assert_contains_286 "$out_70" "Debug-Statements gefunden" "#70 AK6: Debug-Statement in letzter Zeile gemeldet"
+precommit_70 "" "$cred_70"
+assert_exit 1 "$rc_70" "#70 AK6: Credential nur in letzter Zeile → Exit 1"
+assert_contains_286 "$out_70" "Mögliche hardkodierte Credentials gefunden" "#70 AK6: Credential in letzter Zeile gemeldet"
+
+# AK7: git-Stub, der nur `diff --cached` scheitern lässt und alles andere an das echte git weiterreicht
+printf '%s\n' '#!/usr/bin/env bash' \
+  'case "$*" in *"diff --cached"*) echo "git-Stub #70: diff --cached schlägt fehl" >&2; exit 128 ;; esac' \
+  "exec '$(command -v git)' \"\$@\"" > "$TMP_70/bin/git"
+chmod +x "$TMP_70/bin/git"
+precommit_70 "" "" "$TMP_70/bin"
+assert_true "$([ "$rc_70" -ne 0 ]; echo $?)" "#70 AK7: git diff --cached schlägt fehl → Exit ≠ 0 (fail-closed)"
+assert_absent "$out_70" "Keine Merge-Konflikte" "#70 AK7: Check 1 meldet bei Lesefehler kein ✓"
+assert_absent "$out_70" "Keine Debug-Statements" "#70 AK7: Check 2 meldet bei Lesefehler kein ✓"
+assert_absent "$out_70" "Keine offensichtlichen Credentials" "#70 AK7: Check 4 meldet bei Lesefehler kein ✓"
+
+# Fehlerszenarien: leerer Staged-Diff (set -u) und Binärdatei – kein Abbruch, kein Treffer
+git -C "$TMP_70/repo" rm -q --cached big.txt
+out_70="$(cd "$TMP_70/repo" && FACTORY_LINT_COMMAND=true bash scripts/checks/pre-commit.sh 2>&1)"
+assert_exit 0 "$?" "#70: leerer Staged-Diff → Exit 0 (keine leere Variable unter set -u)"
+assert_contains_286 "$out_70" "Keine Merge-Konflikte" "#70: leerer Staged-Diff → Check 1 meldet ✓"
+printf 'a\0b\n' > "$TMP_70/repo/bin.dat"
+git -C "$TMP_70/repo" add bin.dat
+out_70="$(cd "$TMP_70/repo" && FACTORY_LINT_COMMAND=true bash scripts/checks/pre-commit.sh 2>&1)"
+assert_exit 0 "$?" "#70: Binärdatei im Staged-Diff → Exit 0, kein Treffer"
+
+# AK8: Guard aus #61 auch über pre-commit.sh; eine eingeschleuste Pipe in grep -q macht ihn rot
+guard_out_70="$(pipe_grep_q_lines "$PRE_COMMIT")"
+assert_exit 0 "$?" "#70 AK8: keine Pipe in grep -q in scripts/checks/pre-commit.sh ${guard_out_70:+– Funde: $guard_out_70}"
+PIPE_70='|'
+{ cat "$PRE_COMMIT"; printf '%s\n' "git diff --cached $PIPE_70 grep -qE 'x' && FAILED=1"; } > "$TMP_70/pre-commit-mutant.sh"
+guard_out_70="$(pipe_grep_q_lines "$TMP_70/pre-commit-mutant.sh")"
+assert_exit 1 "$?" "#70 AK8: Mutation (Pipe in grep -q in einer Kopie von pre-commit.sh) → Guard rot"
+rm -rf "$TMP_70"
+
 # ─── Factory-Issue #23: Abholen, factory.lock, Integritäts-Gate ───────────────────────────────────
 # Die Testgruppen (TEST_GROUP_FILES_52, factory-lock-*-tests.sh) laufen seit dem Start als Teilprozesse; hier ihre Ausgabe und Zähler
 test_groups_collect

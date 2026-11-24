@@ -23,8 +23,16 @@ echo -e "${YELLOW}Pre-Commit Checks...${NC}"
 
 FAILED=0
 
+# Staged-Diff einmal lesen und per Here-String prüfen, nie `git diff --cached | grep -q …`: grep -q endet beim ersten
+# Treffer, git stirbt bei großem Diff an SIGPIPE, pipefail macht die if-Bedingung falsch → Check grün trotz Treffer
+# (Factory-Issue #70, bash-gotchas §3). Fail-closed: ist der Diff nicht lesbar, prüft kein Check auf leerer Eingabe.
+if ! STAGED_DIFF="$(git diff --cached)"; then
+  echo -e "  ${RED}✗${NC} Staged-Diff nicht lesbar (git diff --cached) – commit blockiert"
+  exit 1
+fi
+
 # ─── Check 1: Keine ungelösten Merge-Konflikte ───────────────────────────────
-if git diff --cached | grep -qE "^[+](<<<<<<<|=======|>>>>>>>)"; then
+if grep -qE "^[+](<<<<<<<|=======|>>>>>>>)" <<< "$STAGED_DIFF"; then
   echo -e "  ${RED}✗${NC} Ungelöste Merge-Konflikte gefunden"
   FAILED=1
 else
@@ -32,7 +40,8 @@ else
 fi
 
 # ─── Check 2: Keine Debug-Statements ─────────────────────────────────────────
-if git diff --cached | grep -qE "^\+.*(console\.log|System\.out\.print|debugger;|binding\.pry|pdb\.set_trace)"; then
+# Semikolon als Zeichenklasse `[;]`: gleiche Regex, aber die Zeile trifft sich als geänderte Diff-Zeile nicht selbst.
+if grep -qE "^\+.*(console\.log|System\.out\.print|debugger[;]|binding\.pry|pdb\.set_trace)" <<< "$STAGED_DIFF"; then
   echo -e "  ${RED}✗${NC} Debug-Statements gefunden (console.log / System.out.print / debugger)"
   echo -e "     Bitte vor dem Commit entfernen"
   FAILED=1
@@ -41,14 +50,14 @@ else
 fi
 
 # ─── Check 3: Keine TODO ohne Ticket-Referenz ────────────────────────────────
-if git diff --cached | awk '/^\+.*TODO/ && !/#[0-9]/ {f=1} END{exit !f}'; then
+if awk '/^\+.*TODO/ && !/#[0-9]/ {f=1} END{exit !f}' <<< "$STAGED_DIFF"; then
   echo -e "  ${YELLOW}⚠${NC}  TODO ohne Ticket-Referenz gefunden"
   echo -e "     Format: // TODO #123 oder // TODO(username): mit Ticket"
   # Nur Warnung, kein Block
 fi
 
 # ─── Check 4: Keine Secrets/Keys hardkodiert ─────────────────────────────────
-if git diff --cached | grep -qiE "^\+.*(password|secret|api_key|apikey|private_key)[[:space:]]*=[[:space:]]*['\"][^'\"]{8,}['\"]"; then
+if grep -qiE "^\+.*(password|secret|api_key|apikey|private_key)[[:space:]]*=[[:space:]]*['\"][^'\"]{8,}['\"]" <<< "$STAGED_DIFF"; then
   echo -e "  ${RED}✗${NC} Mögliche hardkodierte Credentials gefunden"
   echo -e "     Bitte prüfen und ggf. durch Environment-Variablen ersetzen"
   FAILED=1
