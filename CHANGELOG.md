@@ -23,8 +23,9 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
 - **`factory-integrity` als Required Check im Konsumenten (Factory-ADR-029, Nachtrag 2026-11-24, #62):** In Repos mit
   `factory.lock` gehört der Job `factory-integrity` zu den Required Checks von `protect-main`, zusätzlich zu den bestehenden
   Checks; im Factory-Repo bleibt er No-op und nicht required. **Für Konsumenten zu tun (einmalig, `OPERATING.md` §0.7):** erst
-  die Erst-Einbindung nach `main` mergen, **danach** `factory-integrity` im Ruleset eintragen – vorher eingetragen hängt jeder
-  PR. Soll-Ist-Abgleich und Notfallverfahren (Factory-Repo/Tag/Manifest nicht erreichbar) stehen im Nachtrag.
+  die Erst-Einbindung nach `main` mergen, **danach** `factory-integrity` im Ruleset eintragen. Danach hängt jeder PR, dessen
+  Branch den Job noch nicht enthält, auf „Expected – Waiting for status" (Abhilfe: gegen `main` rebasen). Soll-Ist-Abgleich und
+  Notfallverfahren (Factory-Repo/Tag/Release-Manifest nicht erreichbar) stehen im Nachtrag.
 
 ## v0.8.0 – 2026-11-15
 

@@ -263,7 +263,7 @@ das Repo verlässt.
   `docs/factory/OWNERSHIP.md`, Fragment-Dateien, `scripts/project/`, `docs/project/lessons/`,
   `docs/factory/adr/`, `templates/` (nur dev-factory).
 - **Secret `FACTORY_SYNC_TOKEN`** in jedem Konsumenten-Repo, mit Ablaufdatum → Rotation ist Betriebsaufgabe.
-- **Required Checks** im Ursprungs-Repo: `factory-integrity` kommt hinzu (ADR-029 nachtragen).
+- **Required Checks** im Ursprungs-Repo: `factory-integrity` kommt hinzu (nachgetragen in Factory-ADR-029, 2026-11-24, #62).
 - **Factory-Änderungen aus dem Ursprungs-Repo heraus sind nicht mehr möglich** – auch kleine Fixes gehen über
   `dev-factory` + Release + Update-PR. Das ist gewollt (AK2.5), verlängert aber den Weg; Mitigation:
   PATCH-Releases sind billig.
@@ -538,7 +538,8 @@ Fragment-Hashes; sonst kein Widerspruch zu D1–D4 oder ADR-064.
   - *Verdrahtung:* fester Check in `pre-commit.sh` und `pre-push.sh` (Factory-Datei, nicht über
     `*.d/`); CI-Job `factory-integrity` in `factory-ci.yml` mit `--ci` (`yq` über
     `scripts/install-yq.sh`, weil `upstream.repo` aus der Config kommt). Im Factory-Repo läuft der Job
-    als No-op grün und ist kein Required Check; im Konsumenten trägt ihn T2a-4 ins Ruleset ein.
+    als No-op grün und ist kein Required Check; im Konsumenten trägt ihn T2a-4 ins Ruleset ein (Reihenfolge: Factory-ADR-029, Nachtrag
+    2026-11-24, #62).
 - **E9 · Tests (offline):** Fixture-Upstream = lokales Git-Repo mit zwei Tags, Manifeste als Dateien
   per `file://`; Stubs für `curl`, `git` und das Hash-Werkzeug im `PATH` brechen die Messung (Lesson aus
   nothra/tch-gastro-services#319). Die neue Bibliothek kommt in alle Test-Scaffoldings (Lesson aus

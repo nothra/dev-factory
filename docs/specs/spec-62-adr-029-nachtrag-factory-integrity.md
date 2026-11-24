@@ -44,9 +44,10 @@ Konsumenten) dient nur als Textvorlage, Projekt-Kontext (Ruleset-ID `19162920`, 
 - [ ] GIVEN der Nachtrag WHEN die Begründung gelesen wird THEN erklärt sie: ein nicht erzwingbares Gate schützt nichts
   (PR mit geänderter Factory-Datei bzw. manipuliertem Lock wäre mergebar); das Ruleset ist die einzige serverseitige, auch
   für Admins gültige Durchsetzung, lokale Hooks sind per `--no-verify` umgehbar.
-- [ ] GIVEN der Nachtrag WHEN die Reihenfolge für Konsumenten gelesen wird THEN steht: erst Merge der Erst-Einbindung (der
-  Check muss auf `main` existieren und mindestens einmal gelaufen sein), danach das Ruleset ändern; andernfalls hängt der
-  nicht existierende Pflichtcheck jeden PR auf.
+- [ ] GIVEN der Nachtrag WHEN die Reihenfolge für Konsumenten gelesen wird THEN steht: erst Merge der Erst-Einbindung, danach das
+  Ruleset ändern; jeder PR, dessen Branch den Job `factory-integrity` noch nicht enthält, hängt sonst auf dem nie gemeldeten
+  Pflichtcheck (Abhilfe: Branch gegen `main` rebasen). (Korrigiert nach Review-Runde 1, 2026-11-24: der Einbindungs-PR meldet
+  den Check selbst.)
 - [ ] GIVEN der Nachtrag WHEN die Fail-closed-Folge gelesen wird THEN steht: sind Factory-Repo, Tag oder Manifest nicht
   erreichbar, blockiert der Check alle PRs; Notfall: Check kurz aus dem Ruleset nehmen und den Vorfall dokumentieren.
 - [ ] GIVEN der Nachtrag WHEN der Soll-Ist-Abgleich gelesen wird THEN gibt es einen `gh api …/rulesets/<id>`-Befehl
@@ -68,8 +69,9 @@ Konsumenten) dient nur als Textvorlage, Projekt-Kontext (Ruleset-ID `19162920`, 
 
 ## Fehlerszenarien
 
-- [ ] Konsument trägt den Check **vor** dem Merge der Erst-Einbindung ein → Anleitung warnt ausdrücklich, dass jeder PR
-  (auch der Einbindungs-PR) hängt, und nennt die Behebung (Check wieder austragen).
+- [ ] Konsument trägt den Check **vor** dem Merge der Erst-Einbindung ein → Anleitung warnt ausdrücklich, dass jeder PR,
+  dessen Branch den Job noch nicht enthält, hängt – auch bei richtiger Reihenfolge die beim Eintragen schon offenen PRs –, und
+  nennt die Behebung (Branch rebasen bzw. Check wieder austragen).
 - [ ] Factory-Repo/Tag/Manifest nicht erreichbar → Anleitung nennt das Notfallverfahren samt Dokumentationspflicht, ohne
   das Gate dauerhaft zu entschärfen.
 - [ ] Verwechslung Factory-Repo vs. Konsument → Text trennt beide Fälle eindeutig (Check-Liste je Seite).

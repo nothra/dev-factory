@@ -42,7 +42,8 @@ Regeln:
   autonomen Auto-Merge (kein Self-Approve nötig).
 - **Merge-Methode ausschließlich `squash`** – nagelt die etablierte PR-Strategie fest.
 - **Required Status Checks:** `lint`, `test`, `issue-sync`, `factory-self-test`,
-  `pr-closes-issue`, `config-validation` (Nachtrag ADR-041, Task 255).
+  `pr-closes-issue`, `config-validation` (Nachtrag ADR-041, Task 255); im Konsumenten zusätzlich `factory-integrity`
+  (s. Bezug zu anderen ADRs, Nachtrag ADR-063).
 - **`strict_required_status_checks_policy: false`** (kein „up-to-date"-Zwang).
 - **Force-Push und Löschung blockiert** (`non_fast_forward`, `deletion`).
 
@@ -230,9 +231,12 @@ gh api repos/nothra/tch-gastro-services/rulesets/19162920 --jq \
     geänderter Factory-Datei oder manipuliertem `factory.lock` mergebar. Lokale Hooks sind per `--no-verify` umgehbar; das
     Ruleset ist die einzige serverseitige, auch für Admins gültige Durchsetzung (s. o., „Fail-closed statt Vertrauen").
   - **Reihenfolge im Konsumenten:** erst die Erst-Einbindung (`factory-ci.yml` mit dem Job `factory-integrity`) nach `main`
-    mergen, sodass der Check auf `main` existiert und mindestens einmal gelaufen ist; **danach** das Ruleset ändern. Wer ihn
-    vorher einträgt, lässt jeden PR – auch den Einbindungs-PR – auf „Expected – Waiting for status" hängen. Behebung: den
-    Check wieder austragen, die Einbindung mergen, dann neu eintragen.
+    mergen, **danach** das Ruleset ändern. Grund: Den Check meldet nur ein PR, dessen Branch den Job enthält (`pull_request`
+    nimmt die Workflow-Datei aus dem PR-Stand; der Einbindungs-PR meldet ihn also selbst). Jeder PR, dessen Branch
+    `factory-integrity` noch nicht enthält – vor der Einbindung abgezweigt –, hängt nach dem Eintragen auf „Expected – Waiting
+    for status". Das gilt auch bei richtiger Reihenfolge für PRs, die beim Eintragen schon offen sind (`strict: false`
+    erzwingt kein Update). Abhilfe: den Branch gegen `main` rebasen (bei Factory-PRs über `/pr-shepherd`); bei vielen
+    betroffenen PRs alternativ den Check austragen, die Einbindung mergen und ihn dann neu eintragen.
   - **Fail-closed-Folge:** Sind Factory-Repo, Tag oder Release-Manifest nicht erreichbar, endet `factory-integrity` rot und
     blockiert alle PRs – gewollt, kein stiller Durchlass. **Notfall:** den Check kurzzeitig aus dem Ruleset nehmen, den
     Vorfall dokumentieren (Issue mit Ursache, Zeitraum und in dieser Zeit gemergten PRs) und den Check sofort nach Behebung

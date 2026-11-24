@@ -42,6 +42,15 @@ Nachtrag in Factory-ADR-029 zu `factory-integrity` als Required Check für Konsu
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Runde 1 (2026-11-24): NEEDS_REWORK, 0 kritisch, 2 wichtig, 5 Nitpicks, Details in `tasks/review-62.md`. Kern: Die Aussage
+  „auch der Einbindungs-PR hängt" (ADR-029, §0.7, CHANGELOG, Spec FS1) ist ungenau, offene Alt-PRs fehlen. Außerhalb des
+  Scopes: OPERATING-Anhang Branch-Protection widerspricht ADR-029/§0.7, Issue noch anzulegen.
+- Rework Runde 1 (2026-11-24): beide wichtigen Findings und vier Nitpicks behoben. Hängen betrifft jeden PR, dessen Branch den
+  Job noch nicht enthält (`factory-ci.yml`: `pull_request` ohne Pfadfilter, Job ohne `if:`), Abhilfe Rebase. Offene Alt-PRs
+  stehen als Schritt 4 in §0.7. §0.7 enthält nur die Bedienschritte, Begründung und Notfall stehen kanonisch im ADR.
+  „Release-Manifest" ist einheitlich, ADR-063 hat Rückverweise, die Decision-Liste in ADR-029 nennt `factory-integrity`.
+  Der Nitpick zu „ADR-063 / …" bleibt bewusst unverändert (Stil der Nachbareinträge). **Spec AK3 und Fehlerszenario 1
+  korrigiert, Bestätigung durch den Menschen steht aus.**
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

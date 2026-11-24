@@ -243,19 +243,17 @@ Factory-Repo selbst entfällt der Schritt: dort ist der Job ein No-op und kein R
 
 **Reihenfolge (menschlicher Schritt, einmalig):**
 
-1. Erst die Erst-Einbindung (mit `factory-ci.yml` und dem Job `factory-integrity`) nach `main` mergen. Der Check muss auf
-   `main` existieren und mindestens einmal gelaufen sein.
+1. Erst die Erst-Einbindung (mit `factory-ci.yml` und dem Job `factory-integrity`) nach `main` mergen.
 2. **Danach** im Ruleset `protect-main` (*Settings* → *Rules* → *Rulesets*) unter *Require status checks to pass*
-   `factory-integrity` hinzufügen – zusätzlich zu den bestehenden Checks, sonst nichts ändern.
+   `factory-integrity` hinzufügen – zusätzlich zu den bestehenden Checks, sonst nichts ändern. Die UI schlägt nur kürzlich
+   gelaufene Checks vor; der Name lässt sich auch eintippen.
 3. Soll-Ist-Abgleich mit dem `gh api`-Befehl aus dem Nachtrag in Factory-ADR-029: `checks` = bisherige Liste plus
    `factory-integrity`, `enforcement`, `bypass`, `strict` und `merge` unverändert.
+4. Offene PRs, deren Branch `factory-integrity` noch nicht enthält (vor der Einbindung abgezweigt), hängen danach auf
+   „Expected – Waiting for status": gegen `origin/main` rebasen (bei Factory-PRs über `/pr-shepherd`).
 
-**Zu früh eingetragen:** Steht der Check im Ruleset, bevor er auf `main` gelaufen ist, hängt jeder PR – auch der
-Einbindungs-PR – auf „Expected – Waiting for status". Abhilfe: Check austragen, Einbindung mergen, Schritt 2 wiederholen.
-
-**Notfall (Factory-Repo, Tag oder Manifest nicht erreichbar):** Der Check endet fail-closed rot und blockiert alle PRs. Nur
-dann den Check kurzzeitig austragen, den Vorfall als Issue dokumentieren (Ursache, Zeitraum, in dieser Zeit gemergte PRs) und
-den Check nach Behebung sofort wieder eintragen.
+Begründung der Reihenfolge, Abhilfe bei zu frühem Eintragen und das **Notfallverfahren** (Factory-Repo, Tag oder
+Release-Manifest nicht erreichbar → Check blockiert fail-closed alle PRs) stehen kanonisch im Nachtrag in Factory-ADR-029.
 
 ---
 
