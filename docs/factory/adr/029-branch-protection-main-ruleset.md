@@ -42,7 +42,8 @@ Regeln:
   autonomen Auto-Merge (kein Self-Approve nötig).
 - **Merge-Methode ausschließlich `squash`** – nagelt die etablierte PR-Strategie fest.
 - **Required Status Checks:** `lint`, `test`, `issue-sync`, `factory-self-test`,
-  `pr-closes-issue`, `config-validation` (Nachtrag ADR-041, Task 255).
+  `pr-closes-issue`, `config-validation` (Nachtrag ADR-041, Task 255); im Konsumenten zusätzlich `factory-integrity`
+  (s. Bezug zu anderen ADRs, Nachtrag ADR-063).
 - **`strict_required_status_checks_policy: false`** (kein „up-to-date"-Zwang).
 - **Force-Push und Löschung blockiert** (`non_fast_forward`, `deletion`).
 
@@ -220,3 +221,36 @@ gh api repos/nothra/tch-gastro-services/rulesets/19162920 --jq \
 - **ADR-064** (Konsumenten-Vertrag, Factory-Repo): erweitert das Ruleset `protect-main` des Factory-Repos (`nothra/dev-factory`) um den
   Required Check `project-self-test` (Job in `ci.yml`, führt die Projekt-Suite aus). Das hier dokumentierte JSON und die Check-Liste oben beschreiben das
   Ruleset des Ursprungs-Projekts; im Factory-Repo gilt die Liste `lint`, `factory-self-test`, `pr-closes-issue`, `config-validation`, `project-self-test`.
+- **ADR-063 / `factory-integrity`** (Integritäts-Gate E8, Nachtrag 2026-11-24, #62; Auslöser nothra/tch-gastro-services#428):
+  - **Entscheidung:** In **Konsumenten-Repos** (mit `factory.lock`) ist der Job `factory-integrity` aus `factory-ci.yml`
+    Required Check von `protect-main`, zusätzlich zu den bestehenden Checks des Repos. Im **Factory-Repo** ist er ein No-op
+    (kein `factory.lock`) und **kein** Required Check; dort bleibt die Liste `lint`, `factory-self-test`, `pr-closes-issue`,
+    `config-validation`, `project-self-test` (ADR-064). Das JSON im Abschnitt [Konfiguration](#konfiguration-reproduzierbar)
+    bleibt unverändert, es ist der Stand des Ursprungs-Rulesets; dieser Nachtrag nennt nur das Delta.
+  - **Begründung:** Ein Gate, das den Merge nicht verhindert, schützt nichts: ohne Required Check wäre ein PR mit lokal
+    geänderter Factory-Datei oder manipuliertem `factory.lock` mergebar. Lokale Hooks sind per `--no-verify` umgehbar; das
+    Ruleset ist die einzige serverseitige, auch für Admins gültige Durchsetzung (s. o., „Fail-closed statt Vertrauen").
+  - **Reihenfolge im Konsumenten:** erst die Erst-Einbindung (`factory-ci.yml` mit dem Job `factory-integrity`) nach `main`
+    mergen, **danach** das Ruleset ändern. Grund: Den Check meldet nur ein PR, dessen Branch den Job enthält (`pull_request`
+    nimmt die Workflow-Datei aus dem PR-Stand; der Einbindungs-PR meldet ihn also selbst). Jeder PR, dessen Branch
+    `factory-integrity` noch nicht enthält – vor der Einbindung abgezweigt –, hängt nach dem Eintragen auf „Expected – Waiting
+    for status". Das gilt auch bei richtiger Reihenfolge für PRs, die beim Eintragen schon offen sind (`strict: false`
+    erzwingt kein Update). Abhilfe: den Branch gegen `main` rebasen (bei Factory-PRs über `/pr-shepherd`); bei vielen
+    betroffenen PRs alternativ den Check austragen, die Einbindung mergen und ihn dann neu eintragen.
+  - **Fail-closed-Folge:** Sind Factory-Repo, Tag oder Release-Manifest nicht erreichbar, endet `factory-integrity` rot und
+    blockiert alle PRs – gewollt, kein stiller Durchlass. **Notfall:** den Check kurzzeitig aus dem Ruleset nehmen, den
+    Vorfall dokumentieren (Issue mit Ursache, Zeitraum und in dieser Zeit gemergten PRs) und den Check sofort nach Behebung
+    wieder eintragen; das Gate wird nicht dauerhaft entschärft.
+  - **Soll-Ist-Abgleich** (`<owner>/<repo>` und `<ruleset-id>` des Konsumenten einsetzen; die ID liefert
+    `gh api repos/<owner>/<repo>/rulesets --jq '.[]|{id,name}'`):
+
+    ```bash
+    gh api repos/<owner>/<repo>/rulesets/<ruleset-id> --jq \
+      '{enforcement, bypass: (.bypass_actors|length),
+        checks: [.rules[]|select(.type=="required_status_checks").parameters.required_status_checks[].context],
+        strict: (.rules[]|select(.type=="required_status_checks").parameters.strict_required_status_checks_policy),
+        merge: (.rules[]|select(.type=="pull_request").parameters.allowed_merge_methods)}'
+    ```
+
+    Erwartung: `checks` = bisherige Check-Liste des Repos **plus** `factory-integrity`, sonst unverändert (`enforcement`,
+    `bypass`, `strict`, `merge` wie vor der Änderung). Einrichtungsschritt: `docs/factory/OPERATING.md` §0.7.
