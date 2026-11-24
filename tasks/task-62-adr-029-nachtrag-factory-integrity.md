@@ -6,8 +6,8 @@
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 Nachtrag in Factory-ADR-029 zu `factory-integrity` als Required Check für Konsumenten-Repos, Einrichtungsschritt in
@@ -60,7 +60,13 @@ Nachtrag in Factory-ADR-029 zu `factory-integrity` als Required Check für Konsu
   Begründung und Notfall stehen einmalig in ADR-029, CHANGELOG und §5.5a verweisen nur. Kein Änderungsbedarf, `pre-commit.sh` grün.
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- Codify (2026-11-24): eine neue Lesson „CI-Verhalten in ADR/Betriebshandbuch aus der Workflow-Datei ableiten" in
+  `lessons/factory-workflow.md` + Zeile in `lessons/INDEX.md`. Report: `tasks/codify-62.md`. Offen: Issue zum
+  OPERATING-Anhang Branch-Protection (noch nicht angelegt, vor dem PR nachholen).
+
+## PR-Shepherd-Notizen
+- PR-Shepherd 2026-11-24: PR #71, keine Review-Kommentare, Merge freigegeben – alle Gates grün. Offen (Folge-Issue): OPERATING-Anhang
+  Branch-Protection widerspricht ADR-029/§0.7, Issue noch nicht angelegt.
 
 ---
 Branch: `docs/62-adr-029-nachtrag-factory-integrity`

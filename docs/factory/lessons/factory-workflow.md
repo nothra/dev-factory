@@ -1858,3 +1858,11 @@ Die Netz-Sperre des Fetch-Containers (iptables-Regeln) wurde im EXIT-Trap und be
 **Regel:** Jede Schutzmaßnahme (Firewall-Regel, Lock, Berechtigung, Isolation) beim Abräumen erst entfernen, wenn das Geschützte nachweislich weg ist (Container entfernt); sonst Schutz stehen lassen und warnen (fail-safe). Der Abbaupfad gehört wie der Aufbaupfad in Spec, Test (Fake „Geschütztes lebt noch“ + Mutant mit alter Reihenfolge) und Review-Checkliste.
 
 → `/architecture`, `/implement`, `/security-review` – bei Trap-/Cleanup-Code, der Schutzmaßnahmen um einen Prozess oder Container abbaut
+
+## CI-Verhalten in ADR/Betriebshandbuch aus der Workflow-Datei ableiten (aus Factory-Task #62, `/review` Runde 1 W1/W2)
+
+Der ADR-Nachtrag behauptete, bei zu frühem Eintragen eines Required Checks hänge „auch der Einbindungs-PR". Tatsächlich hängt **jeder** PR, dessen Branch den Job noch nicht enthält (`pull_request` nimmt die Workflow-Datei aus dem PR-Stand, Job ohne `if:`, kein Pfadfilter); offene Alt-PRs fehlten in der Anleitung. Die Aussage stand wortgleich in ADR, Betriebshandbuch, CHANGELOG und Spec – vier Stellen, eine ungeprüfte Annahme, ein Rework-Zyklus.
+
+**Regel:** Jede Aussage „welche PRs/Läufe betrifft ein Check/Trigger" vor dem Schreiben gegen die Workflow-Datei (`on:`, Pfadfilter, `if:`) prüfen. Betroffenheit als Bedingung formulieren („jeder PR, dessen Branch X nicht enthält"), nicht als Einzelfall. Die Bedienschritte stehen einmal kanonisch (ADR), das Handbuch verweist.
+
+→ `/requirements`, `/architecture`, `/implement`, `/review` – bei Doku/ADR, die das Verhalten eines CI-Checks, Required Checks oder Triggers beschreibt
