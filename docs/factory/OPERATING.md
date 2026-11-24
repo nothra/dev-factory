@@ -235,6 +235,28 @@ Commits entfallen dann. Ein ohne Merge geschlossener PR sperrt seine Version –
 angeboten. Der Update-PR braucht kein Issue (Ausnahme im Gate `pr-closes-issue`, nur für diesen Branch im
 selben Repo).
 
+### 0.7 Required Check `factory-integrity` eintragen (je Konsumenten-Repo, nach dem ersten Merge)
+
+Das Integritäts-Gate (Job `factory-integrity`, §5.5a) schützt erst, wenn das Ruleset `protect-main` den Merge davon abhängig
+macht – lokale Hooks sind per `--no-verify` umgehbar (Factory-ADR-029, Nachtrag „ADR-063 / `factory-integrity`"). Im
+Factory-Repo selbst entfällt der Schritt: dort ist der Job ein No-op und kein Required Check.
+
+**Reihenfolge (menschlicher Schritt, einmalig):**
+
+1. Erst die Erst-Einbindung (mit `factory-ci.yml` und dem Job `factory-integrity`) nach `main` mergen. Der Check muss auf
+   `main` existieren und mindestens einmal gelaufen sein.
+2. **Danach** im Ruleset `protect-main` (*Settings* → *Rules* → *Rulesets*) unter *Require status checks to pass*
+   `factory-integrity` hinzufügen – zusätzlich zu den bestehenden Checks, sonst nichts ändern.
+3. Soll-Ist-Abgleich mit dem `gh api`-Befehl aus dem Nachtrag in Factory-ADR-029: `checks` = bisherige Liste plus
+   `factory-integrity`, `enforcement`, `bypass`, `strict` und `merge` unverändert.
+
+**Zu früh eingetragen:** Steht der Check im Ruleset, bevor er auf `main` gelaufen ist, hängt jeder PR – auch der
+Einbindungs-PR – auf „Expected – Waiting for status". Abhilfe: Check austragen, Einbindung mergen, Schritt 2 wiederholen.
+
+**Notfall (Factory-Repo, Tag oder Manifest nicht erreichbar):** Der Check endet fail-closed rot und blockiert alle PRs. Nur
+dann den Check kurzzeitig austragen, den Vorfall als Issue dokumentieren (Ursache, Zeitraum, in dieser Zeit gemergte PRs) und
+den Check nach Behebung sofort wieder eintragen.
+
 ---
 
 ## 1. Der automatisierte Weg (Default)
@@ -602,7 +624,8 @@ Verhalten im Fehlerfall: [0.6](#06-update-workflow-token-factory_sync_token-je-k
 `pre-push.sh`) prüft Hashes gegen `factory.lock` und `--compose --check`; `--ci` (Job `factory-integrity`) vergleicht zusätzlich
 den Lock mit dem Release-Manifest des Tags und schlägt fail-closed fehl, wenn dieses nicht erreichbar ist. Exit 0 = ok bzw.
 No-op (kein `factory.lock`, z. B. im Factory-Repo), 1 = Abweichung (Datei + Hinweis „Änderung gehört nach `nothra/dev-factory`“),
-2 = Umgebungs-/Netzfehler oder ungültiger Lock.
+2 = Umgebungs-/Netzfehler oder ungültiger Lock. Im Konsumenten ist `factory-integrity` Required Check von `protect-main`;
+Einrichtung und Reihenfolge: [0.7](#07-required-check-factory-integrity-eintragen-je-konsumenten-repo-nach-dem-ersten-merge).
 
 ### 5.6 Gate-Kommandos und Projekt-Erweiterungspunkte
 
