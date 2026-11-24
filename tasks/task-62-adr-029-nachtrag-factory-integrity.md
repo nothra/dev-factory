@@ -5,7 +5,7 @@
 - [x] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -54,6 +54,10 @@ Nachtrag in Factory-ADR-029 zu `factory-integrity` als Required Check für Konsu
 - Runde 2 (2026-11-24): APPROVED, 0 kritisch, 0 wichtig, 3 Nitpicks (Grund für „erst mergen" ausdrücklich nennen, „offene
   PRs" auf vor der Einbindung abgezweigte eingrenzen, „Factory-PRs" präzisieren). Das Issue zum OPERATING-Anhang
   Branch-Protection ist weiterhin nicht angelegt.
+
+## Refactoring-Notizen
+- Refactor-Pass (2026-11-24): reine Doku-Änderung, kein Code. Geprüft auf Duplikate und Kanonizität: §0.7 enthält nur Bedienschritte,
+  Begründung und Notfall stehen einmalig in ADR-029, CHANGELOG und §5.5a verweisen nur. Kein Änderungsbedarf, `pre-commit.sh` grün.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
