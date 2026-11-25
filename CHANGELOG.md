@@ -27,6 +27,15 @@ Voraussetzung für das Release (Factory-ADR-063 D6).
   Branch den Job noch nicht enthält, auf „Expected – Waiting for status" (Abhilfe: gegen `main` rebasen). Soll-Ist-Abgleich und
   Notfallverfahren (Factory-Repo/Tag/Release-Manifest nicht erreichbar) stehen im Nachtrag.
 
+### Behoben
+
+- **`pre-commit.sh` prüft einen großen Staged-Diff fail-closed (#70):** Konfliktmarker, Debug-Statements und Credentials
+  wurden per `git diff --cached | grep -q` gesucht; bei einem Diff über der Pipe-Puffergröße und frühem Treffer brach `git diff`
+  an SIGPIPE ab, die Prüfung meldete „✓" und der Commit ging durch. Der Diff wird jetzt einmal gelesen und per Here-String
+  geprüft; ein Lesefehler blockiert den Commit mit der Meldung „Staged-Diff nicht lesbar". Scheitert `grep` selbst
+  (Exit > 1 oder keine Temp-Datei für den Here-String), blockiert der Check mit „Prüfung nicht ausführbar" statt „✓"
+  zu melden. Für Konsumenten nichts zu tun.
+
 ## v0.8.0 – 2026-11-15
 
 Bündelt alles seit v0.7.0 (#37, #44, #45, #47, #49, #51, #52). Mit dieser Version entfällt die Einschränkung zu

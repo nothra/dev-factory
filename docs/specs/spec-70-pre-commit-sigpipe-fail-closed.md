@@ -89,6 +89,10 @@ mit dem Patch-Release v0.8.1 hinaus.
 - [ ] **AK9 – bestehendes Verhalten unverändert:** GIVEN die bestehenden pre-commit-Tests der Suite (u. a. #431
   AK-H3/H4, #262), WHEN die Suite läuft, THEN sind sie unverändert grün; die Meldungstexte der Checks 1–4 bleiben
   wortgleich.
+- [ ] **AK10 – fail-closed, wenn `grep` scheitert** (Nachzug aus dem Security-Review): GIVEN `grep` endet mit Exit > 1
+  oder mit Exit 1 ohne Ausgabe (so verhält sich eine gescheiterte Here-String-Umleitung, wenn bash keine Temp-Datei
+  anlegen kann; im Test je ein `grep`-Stub im `PATH`), WHEN `pre-commit.sh` läuft, THEN endet es mit Exit ≠ 0, meldet
+  **keinen** der Checks 1, 2, 4 als „✓" und nennt je Check „Prüfung nicht ausführbar".
 
 ## Fehlerszenarien
 

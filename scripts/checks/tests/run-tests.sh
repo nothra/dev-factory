@@ -9689,6 +9689,21 @@ assert_absent "$out_70" "Keine Merge-Konflikte" "#70 AK7: Check 1 meldet bei Les
 assert_absent "$out_70" "Keine Debug-Statements" "#70 AK7: Check 2 meldet bei Lesefehler kein ✓"
 assert_absent "$out_70" "Keine offensichtlichen Credentials" "#70 AK7: Check 4 meldet bei Lesefehler kein ✓"
 
+# AK10: grep selbst scheitert – (a) Exit 2 wie bei einem grep-Fehler, (b) Exit 1 ohne Ausgabe wie bei einer
+# gescheiterten Here-String-Umleitung (bash kann die Temp-Datei nicht anlegen). Beides darf kein „✓" ergeben.
+mkdir -p "$TMP_70/grep-exit2" "$TMP_70/grep-exit1"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "grep-Stub #70: Fehler" >&2' 'exit 2' > "$TMP_70/grep-exit2/grep"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "$TMP_70/grep-exit1/grep"
+chmod +x "$TMP_70/grep-exit2/grep" "$TMP_70/grep-exit1/grep"
+for stub_70 in grep-exit2 grep-exit1; do
+  precommit_70 "" "" "$TMP_70/$stub_70"
+  assert_true "$([ "$rc_70" -ne 0 ]; echo $?)" "#70 AK10 ($stub_70): grep scheitert → Exit ≠ 0 (fail-closed)"
+  assert_absent "$out_70" "Keine Merge-Konflikte" "#70 AK10 ($stub_70): Check 1 meldet kein ✓"
+  assert_absent "$out_70" "Keine Debug-Statements" "#70 AK10 ($stub_70): Check 2 meldet kein ✓"
+  assert_absent "$out_70" "Keine offensichtlichen Credentials" "#70 AK10 ($stub_70): Check 4 meldet kein ✓"
+  assert_contains_286 "$out_70" "Prüfung nicht ausführbar" "#70 AK10 ($stub_70): eigene Fehlermeldung je Check"
+done
+
 # Fehlerszenarien: leerer Staged-Diff (set -u) und Binärdatei – kein Abbruch, kein Treffer.
 # Zeilen mit `-` am Anfang (Spec-Fehlerszenario) deckt jede Neu-Datei mittelbar ab: ihre Kopfzeile `--- /dev/null` darf nicht treffen.
 git -C "$TMP_70/repo" rm -q --cached big.txt

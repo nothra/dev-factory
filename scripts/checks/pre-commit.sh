@@ -31,22 +31,46 @@ if ! STAGED_DIFF="$(git diff --cached)"; then
   exit 1
 fi
 
+# diff_check <grep-option> <muster> – Treffer im Staged-Diff? Status 0 = Treffer, 1 = kein Treffer, 2 = Prüfung
+# gescheitert. `grep -c` statt `-q`: nur ein sauberes „0" mit Exit 1 ist „kein Treffer". Ein grep-Fehler (Exit > 1) oder
+# eine gescheiterte Here-String-Umleitung (bash kann die Temp-Datei nicht anlegen, Status 1 ohne Ausgabe) ist kein
+# „✓", sondern blockiert (fail-closed, Factory-Issue #70 AK10).
+diff_check() {
+  local count rc=0
+  count="$(grep -c "$1" "$2" <<< "$STAGED_DIFF")" || rc=$?
+  if [ "$rc" -eq 0 ]; then return 0; fi
+  if [ "$rc" -eq 1 ] && [ "$count" = "0" ]; then return 1; fi
+  return 2
+}
+
+# check_not_runnable <check> – eigene Meldung, wenn diff_check Status 2 liefert; blockiert den Commit.
+check_not_runnable() {
+  echo -e "  ${RED}✗${NC} $1: Prüfung nicht ausführbar (grep fehlgeschlagen) – commit blockiert"
+  FAILED=1
+}
+
 # ─── Check 1: Keine ungelösten Merge-Konflikte ───────────────────────────────
-if grep -qE "^[+](<<<<<<<|=======|>>>>>>>)" <<< "$STAGED_DIFF"; then
+check_rc=0; diff_check -E "^[+](<<<<<<<|=======|>>>>>>>)" || check_rc=$?
+if [ "$check_rc" -eq 0 ]; then
   echo -e "  ${RED}✗${NC} Ungelöste Merge-Konflikte gefunden"
   FAILED=1
-else
+elif [ "$check_rc" -eq 1 ]; then
   echo -e "  ${GREEN}✓${NC} Keine Merge-Konflikte"
+else
+  check_not_runnable "Merge-Konflikte"
 fi
 
 # ─── Check 2: Keine Debug-Statements ─────────────────────────────────────────
 # Semikolon als Zeichenklasse `[;]`: gleiche Regex, aber die Zeile trifft sich als geänderte Diff-Zeile nicht selbst.
-if grep -qE "^\+.*(console\.log|System\.out\.print|debugger[;]|binding\.pry|pdb\.set_trace)" <<< "$STAGED_DIFF"; then
+check_rc=0; diff_check -E "^\+.*(console\.log|System\.out\.print|debugger[;]|binding\.pry|pdb\.set_trace)" || check_rc=$?
+if [ "$check_rc" -eq 0 ]; then
   echo -e "  ${RED}✗${NC} Debug-Statements gefunden (console.log / System.out.print / debugger)"
   echo -e "     Bitte vor dem Commit entfernen"
   FAILED=1
-else
+elif [ "$check_rc" -eq 1 ]; then
   echo -e "  ${GREEN}✓${NC} Keine Debug-Statements"
+else
+  check_not_runnable "Debug-Statements"
 fi
 
 # ─── Check 3: Keine TODO ohne Ticket-Referenz ────────────────────────────────
@@ -57,12 +81,15 @@ if awk '/^\+.*TODO/ && !/#[0-9]/ {f=1} END{exit !f}' <<< "$STAGED_DIFF"; then
 fi
 
 # ─── Check 4: Keine Secrets/Keys hardkodiert ─────────────────────────────────
-if grep -qiE "^\+.*(password|secret|api_key|apikey|private_key)[[:space:]]*=[[:space:]]*['\"][^'\"]{8,}['\"]" <<< "$STAGED_DIFF"; then
+check_rc=0; diff_check -iE "^\+.*(password|secret|api_key|apikey|private_key)[[:space:]]*=[[:space:]]*['\"][^'\"]{8,}['\"]" || check_rc=$?
+if [ "$check_rc" -eq 0 ]; then
   echo -e "  ${RED}✗${NC} Mögliche hardkodierte Credentials gefunden"
   echo -e "     Bitte prüfen und ggf. durch Environment-Variablen ersetzen"
   FAILED=1
-else
+elif [ "$check_rc" -eq 1 ]; then
   echo -e "  ${GREEN}✓${NC} Keine offensichtlichen Credentials"
+else
+  check_not_runnable "Credentials"
 fi
 
 # ─── Check 5: Linting ────────────────────────────────────────────────────────
