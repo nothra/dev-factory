@@ -2,8 +2,8 @@
 
 ## Status
 - [x] In Bearbeitung
-- [ ] Review bestanden
-- [ ] Tests vollständig
+- [x] Review bestanden
+- [x] Tests vollständig
 - [ ] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
@@ -52,6 +52,8 @@ Lock-Modus Exit 0 mit zerteilten Pfaden). Jedes AK2–AK6 hat damit mindestens e
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
+- Review Iteration 1 (2026-11-25): **APPROVED** – 0 kritisch, 1 wichtig (AK8-Byte-Vergleich gegen `main` nachholen),
+  4 Nitpicks. Details: `tasks/review-63.md`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->

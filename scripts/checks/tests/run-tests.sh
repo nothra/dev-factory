@@ -8463,6 +8463,25 @@ for mode_63 in Tabellen Lock-; do
 done
 rm -rf "$dir_63"
 
+# Grenzfälle zu AK2/AK3: Leerzeichen, Glob- und Shell-Zeichen im Pfad sind wörtliche Pfadbytes, keine Muster
+SPECIAL_PATHS_63=('docs/mit leer.md' 'docs/st*rn.md' 'docs/kl[a]mmer.md' 'docs/dollar$x.md' "docs/apo'str.md" 'docs/-bindestrich.md')
+dir_63="$(own_repo_63 "${SPECIAL_PATHS_63[@]}")"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 0 $? "#63 /test: Leerzeichen-, Glob- und Shell-Zeichen im Pfad → Exit 0"
+assert_contains_286 "$out_63" 'eindeutig: 6 Dateien (factory: 6,' "#63 /test: alle sechs Sonderzeichen-Pfade werden gezählt"
+out_63="$(own_git_63 "$dir_63" --list factory 2>/dev/null | LC_ALL=C sort)"
+assert_true "$([ "$out_63" = "$(sorted_lines_63 "${SPECIAL_PATHS_63[@]}")" ]; echo $?)" \
+  "#63 /test: --list factory nennt alle sechs Pfade byte-genau"
+rm -rf "$dir_63"
+
+# Ein getrackter Pfad außerhalb jedes Musters bleibt auch dann ein Fund, wenn ein Nachbarpfad ein `|` trägt (kein Seiteneffekt des Fixes)
+dir_63="$(own_repo_63 'docs/a|b.md' 'lose.md')"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 1 $? "#63 /test: |-Pfad zugeordnet, Nachbar ohne Zuordnung → Exit 1"
+assert_contains_286 "$out_63" '✗ lose.md: keiner Seite zugeordnet' "#63 /test: nur der unzugeordnete Pfad wird gemeldet"
+assert_absent "$out_63" 'a|b.md: keiner Seite' "#63 /test: der zugeordnete |-Pfad wird nicht fälschlich gemeldet"
+rm -rf "$dir_63"
+
 # ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
