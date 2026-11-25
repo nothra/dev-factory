@@ -65,6 +65,8 @@ Keine.
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
 
+PR-Shepherd 2026-11-25: Merge freigegeben – Branch aktuell auf main, keine Review-Kommentare, pre-push-Suite grün (2812/0), CI läuft; Auto-Merge wartet auf die Checks (PR #73, ohne menschliches Approval, `protect-main` verlangt 0 Approvals).
+
 
 ---
 Branch: `fix/70-pre-commit-sigpipe-fail-closed`
