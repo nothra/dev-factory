@@ -272,6 +272,13 @@
 - **Fix:** im `jq`-Gate von `lock_require_inputs` `(.path | test("[\\n\\r]") | not)` ergänzen, dazu ein Test mit Zeilenumbruch-Pfad (Exit 2). Etwa vier Zeilen.
 - **Herkunft:** `/review` (Iteration 1, Runde 1) und `/security-review` zu Task 22, PR #25.
 
+### Erfolgszeile des Tabellenmodus lässt eine Null-Zählung leer
+
+- **Wo:** `scripts/checks/ownership-check.sh:236` (`… " Dateien (factory: " nf ", project: " np ")"` im awk-`END`), verifiziert am 2026-11-25.
+- **Was:** `nf`/`np` sind nur gesetzt, wenn mindestens eine Datei auf die Seite fällt. Sonst druckt awk den leeren String: `2 Dateien (factory: 2, project: )`. Der Lock-Modus gibt `0` aus. Das betrifft nur die Ausgabe, Exit-Code und `--list` bleiben richtig.
+- **Fix:** im awk `nf + 0` und `np + 0` ausgeben, dazu ein Test mit einer leeren Seite. Etwa drei Zeilen.
+- **Herkunft:** `/implement` zu Task 63 (Spec AK8: Ausgabe sonst unverändert, daher nicht im Fix).
+
 ### ADR-063 D9 nennt `commands.test` = `run-tests.sh`, Stand überholt
 
 - **Wo:** `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:181` (`commands.test` = `run-tests.sh`), verifiziert am 2026-11-10.

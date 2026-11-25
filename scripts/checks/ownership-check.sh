@@ -16,7 +16,7 @@
 # Umgebung (nur für Tests): FACTORY_DIR, OWNERSHIP_FILE, OWNERSHIP_FILE_LIST (Dateiliste statt
 # `git ls-files`), FACTORY_LOCK_FILE, CUSTOMIZATION_POINTS_FILE.
 #
-# Fail-closed: nicht lesbare Tabelle, leere Tabelle oder nicht ermittelbare Dateiliste → Exit 2.
+# Fail-closed: nicht lesbare Tabelle, leere Tabelle, nicht ermittelbare Dateiliste oder getrackter Pfad mit Zeilenumbruch → Exit 2.
 # Fehlende oder doppelte Zuordnung → Exit 1, jede Datei namentlich.
 # Lock-Modus: unlesbarer/ungültiger Lock, fehlendes `jq`, fehlende oder leere Anpassungsstellen-Liste → Exit 2
 # (nie Rückfall in den Tabellenmodus); fehlender, doppelter oder als Anpassungsstelle geführter Lock-Pfad → Exit 1.
@@ -44,6 +44,24 @@ case "${1:-}" in
   *) echo "ownership-check: unbekannter Parameter: $1" >&2; exit 2 ;;
 esac
 
+# Liest die getrackten Pfade NUL-getrennt (`ls-files -z`): so kommt jeder Pfad byte-genau an – `core.quotepath=false` allein
+# schaltet nur das Quoten von Bytes > 0x7F ab, `"`, `\` und Steuerzeichen quotet git sonst weiterhin (Factory-Issue #63).
+# Ein Zeilenumbruch im Pfad ist im zeilenbasierten Format (Prüfung, `--list`) nicht darstellbar → Exit 2 statt zerteilter Ausgabe.
+# Geprüft wird per `tr` und nicht per Command Substitution: die schnitte die NUL-Bytes und abschließende Zeilenumbrüche ab.
+load_git_tracked_files() {
+  local raw; raw="$(mktemp)"
+  if ! git -C "$FACTORY_DIR" ls-files -z > "$raw"; then
+    rm -f "$raw"; echo "ownership-check: git ls-files fehlgeschlagen in $FACTORY_DIR" >&2; exit 2
+  fi
+  if [ -n "$(LC_ALL=C tr -cd '\n' < "$raw" | LC_ALL=C tr '\n' x)" ]; then
+    rm -f "$raw"
+    echo "ownership-check: getrackter Pfad mit Zeilenumbruch – im zeilenbasierten Format nicht darstellbar (fail-closed)" >&2
+    exit 2
+  fi
+  TRACKED_FILES="$(LC_ALL=C tr '\0' '\n' < "$raw")"
+  rm -f "$raw"
+}
+
 load_tracked_files() {
   if [ -n "${OWNERSHIP_FILE_LIST:-}" ]; then
     if [ ! -r "$OWNERSHIP_FILE_LIST" ]; then
@@ -52,10 +70,7 @@ load_tracked_files() {
     fi
     TRACKED_FILES="$(cat "$OWNERSHIP_FILE_LIST")"
   else
-    TRACKED_FILES="$(git -C "$FACTORY_DIR" -c core.quotepath=false ls-files)" || {
-      echo "ownership-check: git ls-files fehlgeschlagen in $FACTORY_DIR" >&2
-      exit 2
-    }
+    load_git_tracked_files
   fi
 
   if [ -z "$TRACKED_FILES" ]; then
@@ -173,7 +188,8 @@ load_tracked_files
 
 # Pass 1 liest die Tabelle (Zeilen `| factory | muster | begründung |`), Pass 2 die Dateiliste.
 # Glob → ERE: `**` = beliebig tief, `*` = innerhalb eines Pfadsegments, alles andere wörtlich.
-printf '%s\n' "$TRACKED_FILES" | awk -F'|' -v list_side="$LIST_SIDE" -v table="$OWNERSHIP_FILE" '
+# Jede Zeile der Dateiliste ist genau ein Pfad: kein Feldtrenner, sonst fiele ein Pfad mit `|` still heraus (Factory-Issue #63).
+printf '%s\n' "$TRACKED_FILES" | awk -v list_side="$LIST_SIDE" -v table="$OWNERSHIP_FILE" '
   function glob_to_ere(glob,    out, i, c, nxt) {
     out = "^"
     for (i = 1; i <= length(glob); i++) {
@@ -188,7 +204,6 @@ printf '%s\n' "$TRACKED_FILES" | awk -F'|' -v list_side="$LIST_SIDE" -v table="$
   }
   function trim(s) { gsub(/^[ \t`]+|[ \t`]+$/, "", s); return s }
   BEGIN {
-    FS = "|"
     while ((getline line < table) > 0) {
       if (line !~ /^\| *(factory|project) *\|/) continue
       n = split(line, cell, "|")
@@ -200,7 +215,7 @@ printf '%s\n' "$TRACKED_FILES" | awk -F'|' -v list_side="$LIST_SIDE" -v table="$
     close(table)
     if (rows == 0) { print "ownership-check: Zuordnungstabelle enthält keine Zeilen (fail-closed)" > "/dev/stderr"; exit 2 }
   }
-  NF == 1 && $0 != "" {
+  $0 != "" {
     file = $0; total++
     delete hit
     for (r = 1; r <= rows; r++)

@@ -8365,6 +8365,104 @@ for f_22 in "$CHECKS_DIR"/tests/lib/* "$CHECKS_DIR"/tests/fixtures/*; do
   assert_exit 0 $? "#22 F-22.5: ${f_22#"$FACTORY_ROOT"/} wird mit der Suite ausgeliefert (Seite factory)"
 done
 
+# ── Factory-Issue #63 · ownership-check.sh liest jeden getrackten Pfad byte-genau (AK1–AK6) ─────────────────────────────
+# `core.quotepath=false` schaltet nur das Quoten von Bytes > 0x7F ab; `"`, `\` und Steuerzeichen quotet git weiterhin, und der
+# Tabellenmodus übersprang Pfade mit `|` still (fail-open). Deshalb gegen ECHTES git (nicht OWNERSHIP_FILE_LIST), mit
+# `core.quotepath true` explizit gesetzt – sonst hinge der Test an einer globalen Git-Konfiguration.
+OWN_CHECK_63="$CHECKS_DIR/ownership-check.sh"
+# own_repo_63 <Pfad…> → Wegwerf-Repo, in dem genau diese (leeren) Dateien getrackt sind. Tabelle, Lock und Anpassungsstellen
+# legen die Tests erst danach daneben – ungetrackt, damit die getrackte Menge genau die übergebenen Pfade bleibt.
+own_repo_63() {
+  local dir p; dir="$(mktemp -d)" || return 1
+  git -C "$dir" init -q; git -C "$dir" config user.email t@t.t; git -C "$dir" config user.name t
+  git -C "$dir" config core.quotepath true; git -C "$dir" config commit.gpgsign false
+  for p in "$@"; do mkdir -p "$dir/$(dirname "$p")"; : > "$dir/$p"; done
+  git -C "$dir" add -A; git -C "$dir" commit -q -m init
+  printf 'CLAUDE.md\n' > "$dir/points.txt"
+  printf '%s' "$dir"
+}
+# own_table_63 <Repo> <Tabellenzeilen (%b)> – Zuordnungstabelle neben die getrackten Dateien legen
+own_table_63() { printf '| Seite | Muster | Begründung |\n|---|---|---|\n%b' "$2" > "$1/OWNERSHIP.md"; }
+# own_lock_63 <Repo> <Lock-Pfad…> – factory.lock (Schema des Release-Manifests) mit genau diesen Pfaden
+own_lock_63() {
+  local dir="$1"; shift
+  printf '%s\0' "$@" | jq -R -s -c 'split("\u0000") | map(select(. != "")) | {schema: 1, files: map({path: ., sha256: "0"})}' \
+    > "$dir/factory.lock"
+}
+# own_git_63 <Repo> [Argumente…] – ownership-check.sh gegen das Repo (Modus: Lock, wenn own_lock_63 lief, sonst Tabelle).
+# Ohne Umleitung: die Aufrufer entscheiden, ob sie stdout allein oder stdout+stderr prüfen.
+own_git_63() {
+  local dir="$1"; shift
+  FACTORY_DIR="$dir" OWNERSHIP_FILE="$dir/OWNERSHIP.md" FACTORY_LOCK_FILE="$dir/factory.lock" \
+    CUSTOMIZATION_POINTS_FILE="$dir/points.txt" bash "$OWN_CHECK_63" "$@"
+}
+# sorted_lines_63 <Zeile…> – die erwartete Liste, bytewise sortiert (Vergleich unabhängig von der Ausgabereihenfolge)
+sorted_lines_63() { printf '%s\n' "$@" | LC_ALL=C sort; }
+TAB_PATH_63="$(printf 'docs/tab\tx.md')"
+NL_PATH_63="$(printf 'docs/nl\nx.md')"
+
+# AK1: Nicht-ASCII im Tabellenmodus (Regression zum Fix aus Factory-Issue #22, dort nur für den Lock-Modus abgesichert)
+dir_63="$(own_repo_63 'docs/für.md' 'docs/c.md')"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 0 $? "#63 AK1: Tabellenmodus, Umlaut-Pfad gegen echtes git → Exit 0"
+out_63="$(own_git_63 "$dir_63" --list factory 2>/dev/null | LC_ALL=C sort)"
+assert_true "$([ "$out_63" = "$(sorted_lines_63 'docs/c.md' 'docs/für.md')" ]; echo $?)" \
+  "#63 AK1: --list factory nennt den Umlaut-Pfad wörtlich (unquotet)"
+rm -rf "$dir_63"
+
+# AK2: `"`, `\` und Tab quotet git auch mit core.quotepath=false – sie müssen byte-genau ankommen
+dir_63="$(own_repo_63 'docs/a"b.md' 'docs/a\b.md' "$TAB_PATH_63")"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 0 $? "#63 AK2: Tabellenmodus, Pfade mit \", \\ und Tab → Exit 0 (kein Falsch-Rot durch Quoting)"
+assert_absent "$out_63" 'keiner Seite zugeordnet' "#63 AK2: kein gequoteter Pfad als „keiner Seite zugeordnet“ gemeldet"
+out_63="$(own_git_63 "$dir_63" --list factory 2>/dev/null | LC_ALL=C sort)"
+assert_true "$([ "$out_63" = "$(sorted_lines_63 'docs/a"b.md' 'docs/a\b.md' "$TAB_PATH_63")" ]; echo $?)" \
+  "#63 AK2: --list factory nennt alle drei Pfade byte-genau (ohne Anführungszeichen und Escapes)"
+rm -rf "$dir_63"
+
+# AK3: ein `|` im Pfad ist kein Feldtrenner – die Datei wird gezählt und gelistet, nicht still übersprungen
+dir_63="$(own_repo_63 'docs/a|b.md' 'docs/c.md')"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 0 $? "#63 AK3: Tabellenmodus, Pfad mit | unter docs/** → Exit 0"
+assert_contains_286 "$out_63" 'eindeutig: 2 Dateien (factory: 2,' \
+  "#63 AK3: die Erfolgszeile zählt den |-Pfad mit (Gesamtzahl = getrackte Dateien)"
+out_63="$(own_git_63 "$dir_63" --list factory 2>/dev/null | LC_ALL=C sort)"
+assert_true "$([ "$out_63" = "$(sorted_lines_63 'docs/a|b.md' 'docs/c.md')" ]; echo $?)" "#63 AK3: --list factory nennt docs/a|b.md"
+rm -rf "$dir_63"
+
+# AK4: ein `|`-Pfad ohne Zuordnung ist ein Fund (Exit 1), nicht still Exit 0
+dir_63="$(own_repo_63 'x|y.md' 'docs/c.md')"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 1 $? "#63 AK4: Tabellenmodus, |-Pfad ohne Zuordnung → Exit 1"
+assert_contains_286 "$out_63" '✗ x|y.md: keiner Seite zugeordnet' "#63 AK4: der |-Pfad wird namentlich gemeldet"
+rm -rf "$dir_63"
+
+# AK5: Lock-Modus – jq liefert die Lock-Pfade dekodiert, die getrackte Menge muss es ebenso sein
+dir_63="$(own_repo_63 'docs/a"b.md' 'docs/a\b.md' 'rest"x.md')"; own_lock_63 "$dir_63" 'docs/a"b.md' 'docs/a\b.md'
+out_63="$(own_git_63 "$dir_63" 2>&1)"
+assert_exit 0 $? "#63 AK5: Lock-Modus, Lock-Pfade mit \" und \\ → Exit 0 (kein „nicht getrackt“)"
+assert_absent "$out_63" 'nicht getrackt' "#63 AK5: kein Lock-Pfad als „nicht getrackt“ gemeldet"
+out_63="$(own_git_63 "$dir_63" --list factory 2>/dev/null | LC_ALL=C sort)"
+assert_true "$([ "$out_63" = "$(sorted_lines_63 'docs/a"b.md' 'docs/a\b.md')" ]; echo $?)" "#63 AK5: --list factory nennt die Lock-Pfade byte-genau"
+out_63="$(own_git_63 "$dir_63" --list project 2>/dev/null)"
+assert_true "$([ "$out_63" = 'rest"x.md' ]; echo $?)" "#63 AK5: --list project nennt den Rest byte-genau"
+rm -rf "$dir_63"
+
+# AK6: ein Zeilenumbruch im Pfad ist im zeilenbasierten Format nicht darstellbar → Exit 2 in beiden Modi, nie zwei Listeneinträge
+dir_63="$(own_repo_63 "$NL_PATH_63" 'docs/c.md')"; own_table_63 "$dir_63" '| factory | `docs/**` | alles |\n'
+for mode_63 in Tabellen Lock-; do
+  [ "$mode_63" = Lock- ] && own_lock_63 "$dir_63" 'docs/c.md'
+  for args_63 in '' '--list factory' '--list project'; do
+    # shellcheck disable=SC2086 # $args_63 trägt bewusst null bis zwei Argumente
+    out_63="$(own_git_63 "$dir_63" $args_63 2>/dev/null)"; rc_63=$?
+    err_63="$(own_git_63 "$dir_63" $args_63 2>&1 >/dev/null)"
+    assert_exit 2 "$rc_63" "#63 AK6: ${mode_63}Modus${args_63:+ $args_63}, Pfad mit Zeilenumbruch → Exit 2"
+    assert_contains_286 "$err_63" 'Zeilenumbruch' "#63 AK6: ${mode_63}Modus${args_63:+ $args_63}: stderr benennt den Zeilenumbruch"
+    assert_true "$([ -z "$out_63" ]; echo $?)" "#63 AK6: ${mode_63}Modus${args_63:+ $args_63}: keine Zeile auf stdout"
+  done
+done
+rm -rf "$dir_63"
+
 # ── nothra/tch-gastro-services#426 T1a-1 · ADRs trennen (AK-B1…B6, F-2) ────────────────────────────────────────────────
 ADR_LINKS_426="$CHECKS_DIR/adr-links-check.sh"
 # Der Verzeichnisname steht nur hier und wird zur Laufzeit eingesetzt: ein Fixture-Literal wie
