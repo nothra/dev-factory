@@ -92,6 +92,5 @@ Heute latent: Das Repo enthält keinen solchen Pfad. Der Check ist aber ein Gate
 
 - [x] **Ist das Issue durch #22 schon erledigt?** Für Umlaute ja, für `"`, `\`, Steuerzeichen und `|` nein (siehe
   Kontext). Die Task deckt den Rest ab; der Issue-Titel bleibt.
-- [ ] **Zeilenumbruch-Pfade: Exit 2 oder Fund (Exit 1)?** Annahme in AK6: Exit 2 – der Pfad ist im zeilenbasierten
-  Ausgabeformat nicht darstellbar, das ist ein Eingabeproblem, kein Zuordnungsfehler. Bei Widerspruch vor `/implement`
-  AK6 anpassen.
+- [x] **Zeilenumbruch-Pfade: Exit 2 oder Fund (Exit 1)?** Entschieden (Ralf, 2026-11-25): Exit 2 wie in AK6 – der
+  Pfad ist im zeilenbasierten Ausgabeformat nicht darstellbar, das ist ein Eingabeproblem, kein Zuordnungsfehler.

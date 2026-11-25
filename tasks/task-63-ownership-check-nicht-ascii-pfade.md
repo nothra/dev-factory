@@ -34,7 +34,7 @@ Spec: `docs/specs/spec-63-ownership-check-nicht-ascii-pfade.md`.
 
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->
-- [ ] Zeilenumbruch-Pfad: Exit 2 (Annahme AK6) statt Exit 1?
+- [x] Zeilenumbruch-Pfad: Exit 2 wie AK6 – bestätigt von Ralf (2026-11-25)
 
 ## Review-Findings
 <!-- Wird durch /review befüllt -->
