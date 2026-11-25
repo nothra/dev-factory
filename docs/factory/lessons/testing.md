@@ -838,3 +838,11 @@ Ein Fake-`iptables` mit Hilfsprozessen je Aufruf ließ die Gruppe lokal 302 s st
 **Regel:** Fakes für externe CLIs (`docker`, `sudo`, `iptables`) ohne `fork`/`exec` je Aufruf bauen und die Gruppenlaufzeit vor/nach messen. In Testnamen und Meldungen `${var}` schreiben, sobald Nicht-ASCII-Zeichen folgen.
 
 → `/implement`, `/test`, `/review` – bei Fake-Werkzeugen im `PATH` und Testnamen mit Variablen
+
+## Gate-Skript mit `Producer | grep -q` im `if` ist fail-open; Guard und Test auf Produktivskripte ausweiten (aus Factory-Task #70, `/implement`, `/review`)
+
+`scripts/checks/pre-commit.sh` prüfte Konfliktmarker, Debug-Statements und Credentials per `git diff --cached | grep -qE …` unter `pipefail`. Bei großem Staged-Diff und frühem Treffer starb `git diff` an SIGPIPE, die `if`-Bedingung wurde falsch, der Commit ging durch – Falschgrün genau im Fund-Fall. Die Regel aus Lesson #61 (bash-gotchas §3) stand seit Wochen, der Guard `pipe_grep_q_lines` lief aber nur über die Test-Suiten, nicht über die Produktivskripte. Zwei weitere Fundstellen stehen als Kleinfund (`factory-update.sh`, `start-work.sh`).
+
+**Regel:** (a) Gate-Skripte lesen den Producer-Output einmal mit explizitem Fehlerzweig (`if ! VAR="$(cmd)"; then … exit 1; fi`, eigene Meldung statt stillem `set -e`-Abbruch) und prüfen per Here-String – ein nicht lesbarer Input darf nie „kein Treffer" bedeuten. (b) Wird ein Fehlerklassen-Guard eingeführt oder erweitert, den Geltungsbereich gegen alle Skripte prüfen (`git ls-files '*.sh'`), nicht nur gegen die Tests. (c) Der Regressionstest braucht einen Diff über der Pipe-Puffergröße (≥ 1 MiB) mit Treffer in der **ersten** Zeile, je Check einen Treffer in der letzten Zeile als Gegenprobe, eine eigene Assertion für die Größen-Vorbedingung und einen Fehlerfall, der die **Messung** bricht (git-Stub). (d) Trigger-Strings im Gate-Quelltext so schreiben, dass die Zeile sich als Diff-Zeile nicht selbst trifft (`debugger[;]`), und in Fixtures zur Laufzeit zusammensetzen.
+
+→ `/implement`, `/test`, `/review` – bei Gate-/Hook-Skripten, die Diff- oder Listen-Output per `grep -q`/`awk` prüfen

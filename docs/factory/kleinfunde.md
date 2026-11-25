@@ -324,6 +324,13 @@
 ### Produktiv-Skripte prüfen kurze Werte per `printf | grep -q`
 
 - **Wo:** `scripts/factory-sync.sh:374`, `scripts/install-yq.sh:97`, `scripts/lib/factory-lock.sh:111`, `scripts/factory-release-check.sh:28`, `scripts/factory-update.sh:150`, `:497`, `:498`, `scripts/checks/check.sh:53`, `:58`, `scripts/checks/branch-name-check.sh:27`, `scripts/checks/git-context-check.sh:36`, `scripts/metrics.sh:59`, verifiziert am 2026-11-22.
-- **Was:** Dasselbe Muster wie in Factory-Issue #61 (SIGPIPE-Race unter `pipefail`), aber jeweils gegen einen kurzen Wert (Tag, SHA, Slug, Tool-Input-Zeile, Task-ID-Liste), den `printf`/`echo` in einem Schreibvorgang übergibt – das Race ist dort praktisch nicht auslösbar. Der Guard `pipe_grep_q_lines` gilt nur für die Test-Suiten.
+- **Was:** Dasselbe Muster wie in Factory-Issue #61 (SIGPIPE-Race unter `pipefail`), aber jeweils gegen einen kurzen Wert (Tag, SHA, Slug, Tool-Input-Zeile, Task-ID-Liste), den `printf`/`echo` in einem Schreibvorgang übergibt – das Race ist dort praktisch nicht auslösbar. Der Guard `pipe_grep_q_lines` gilt nur für die Test-Suiten und seit Factory-Issue #70 zusätzlich für `scripts/checks/pre-commit.sh`.
 - **Fix:** Beim nächsten Anfassen der Datei die Zeile auf Here-String umstellen (`grep -qE … <<< "$wert"`). Je Stelle eine Zeile.
 - **Herkunft:** `/implement` zu Task 61 (Spec „Nicht inbegriffen“).
+
+### Produktiv-Skripte prüfen Kommando-Ausgaben per Pipe in `grep -q`
+
+- **Wo:** `scripts/factory-update.sh:77` (`env | grep -qE`) und `scripts/start-work.sh:310` (`git worktree list --porcelain | grep -qxF`), verifiziert am 2026-11-24.
+- **Was:** Dieselbe SIGPIPE-Klasse wie in `pre-commit.sh` (Factory-Issue #70): endet `grep -q` vor dem Produzenten, meldet die Pipeline unter `pipefail` ≠ 0 trotz Treffer. Die Produzenten liefern hier nur wenige Zeilen, und keine der Stellen ist ein Sicherheits-Gate – praktisch nicht auslösbar.
+- **Fix:** Ausgabe in eine Variable lesen und per Here-String prüfen (`grep -qE … <<< "$(env)"` bzw. `<<< "$worktrees"`). Je Stelle eine bis zwei Zeilen.
+- **Herkunft:** `/implement` zu Task 70 (Spec „Nicht inbegriffen“).

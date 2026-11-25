@@ -1866,3 +1866,11 @@ Der ADR-Nachtrag behauptete, bei zu frühem Eintragen eines Required Checks hän
 **Regel:** Jede Aussage „welche PRs/Läufe betrifft ein Check/Trigger" vor dem Schreiben gegen die Workflow-Datei (`on:`, Pfadfilter, `if:`) prüfen. Betroffenheit als Bedingung formulieren („jeder PR, dessen Branch X nicht enthält"), nicht als Einzelfall. Die Bedienschritte stehen einmal kanonisch (ADR), das Handbuch verweist.
 
 → `/requirements`, `/architecture`, `/implement`, `/review` – bei Doku/ADR, die das Verhalten eines CI-Checks, Required Checks oder Triggers beschreibt
+
+## CHANGELOG-Eintrag gehört zur Änderung an ausgelieferten Dateien, nicht erst zum Release (aus Factory-Task #70, `/review` W1)
+
+Der Fix an `pre-commit.sh` (Seite `factory`, wird ausgeliefert) änderte das Verhalten für Konsumenten: ein großer Diff mit Treffer blockiert jetzt den Commit, neue Meldung bei Lesefehler. `/implement` legte keinen Eintrag unter `## Unreleased` an; erst `/review` fand die Lücke. Die Spec nannte den Patch-Release, die Anlage-Pflicht stand nirgends in der Task-Checkliste.
+
+**Regel:** Ändert ein PR eine Datei der Seite `factory` so, dass Konsumenten es merken (Gate-Verhalten, Meldung, Schnittstelle), kommt im selben PR ein Eintrag unter `## Unreleased` in `CHANGELOG.md` (Fehlerbild, Auswirkung, „für Konsumenten nichts zu tun“, falls zutreffend). Das Release setzt den Abschnitt voraus (Factory-ADR-063 D6). In `/implement` vor dem Abhaken der letzten Checkbox prüfen, im `/review` gegen `ownership-check.sh --list factory` abgleichen.
+
+→ `/implement`, `/review` – bei Änderungen an ausgelieferten Skripten, Skills oder Gates mit sichtbarer Verhaltensänderung
