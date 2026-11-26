@@ -58,6 +58,8 @@
 - Fake-Werkzeuge (`docker`/`sudo`/`iptables`) nur mit Builtins bauen (302 s statt 86 s); `${var}` vor typografischen Zeichen in Testnamen (aus Factory-Task #66, `/implement`)
 - Negativkontrolle aus derselben Quelle wie der echte Ablauf bauen (Setup-Abbruch ist kein Beleg); Link-Guard prüft die eigene Zieldatei, leere Eingabemenge = Fehler (aus Factory-Task #44, `/review` Iteration 1)
 - Gate-Skript mit `Producer | grep -q` im `if` ist fail-open (SIGPIPE + `pipefail` → Falschgrün im Fund-Fall): Output einmal mit `if ! VAR="$(cmd)"` einfangen, per Here-String prüfen; Fehlerklassen-Guard über alle Skripte, nicht nur Tests; Test ≥ 1 MiB mit Treffer in erster Zeile + git-Stub für die Messung (aus Factory-Task #70, `/implement`, `/review`)
+- Pfadlisten aus git nur per `-z` lesen (`core.quotepath=false` deckt nur Bytes > 0x7F; `"`, `\`, Tab quotet git weiter, `-F'|'`/`NF == 1` über Pfaden ist fail-open); Zeilenumbruch fail-closed, Tests mit Sonderzeichen-Pfaden gegen echtes git + Mutationsbeleg, Steuerzeichen in Meldezeilen maskieren, Nachbar-Skripte (`ls-tree`) prüfen (aus Factory-Task #63, `/implement`, `/review`, `/security-review`)
+- AK „Verhalten unverändert“ per Byte-Vergleich alt gegen neu (`git show origin/main:<datei>` + `cmp`, alle Aufrufarten) in `/test` belegen, nicht nur argumentieren; nicht ausführbar = offener Punkt (aus Factory-Task #63, `/review` Iteration 1)
 
 **[`lessons/build-tooling.md`](build-tooling.md)** – Wegwerf-/Debug-Artefakte und `.gitignore` · **Laden bei:** `/implement`, `/review` bei Wegwerf-Dateien und Ignore-Mustern
 

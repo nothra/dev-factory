@@ -272,6 +272,27 @@
 - **Fix:** im `jq`-Gate von `lock_require_inputs` `(.path | test("[\\n\\r]") | not)` ergänzen, dazu ein Test mit Zeilenumbruch-Pfad (Exit 2). Etwa vier Zeilen.
 - **Herkunft:** `/review` (Iteration 1, Runde 1) und `/security-review` zu Task 22, PR #25.
 
+### Erfolgszeile des Tabellenmodus lässt eine Null-Zählung leer
+
+- **Wo:** `scripts/checks/ownership-check.sh:236` (`… " Dateien (factory: " nf ", project: " np ")"` im awk-`END`), verifiziert am 2026-11-25.
+- **Was:** `nf`/`np` sind nur gesetzt, wenn mindestens eine Datei auf die Seite fällt. Sonst druckt awk den leeren String: `2 Dateien (factory: 2, project: )`. Der Lock-Modus gibt `0` aus. Das betrifft nur die Ausgabe, Exit-Code und `--list` bleiben richtig.
+- **Fix:** im awk `nf + 0` und `np + 0` ausgeben, dazu ein Test mit einer leeren Seite. Etwa drei Zeilen.
+- **Herkunft:** `/implement` zu Task 63 (Spec AK8: Ausgabe sonst unverändert, daher nicht im Fix).
+
+### Steuerzeichen aus Pfaden erreichen ungefiltert die `✗`-Meldungen
+
+- **Wo:** `scripts/checks/ownership-check.sh:224`, `:226` (Tabellenmodus) und `:121` (Lock-Modus), verifiziert am 2026-11-26.
+- **Was:** Seit `ls-files -z` (Task 63) quotet git Steuerzeichen nicht mehr. CR und ANSI-Escapes aus einem Dateinamen landen roh in Terminal, pre-push-Ausgabe und CI-Log. Ein präparierter Pfad kann damit seine eigene `✗`-Zeile optisch mit einer falschen Erfolgszeile überschreiben. Exit-Code und CI-Status bleiben richtig, die Wirkung ist kosmetisch.
+- **Fix:** nur in den Meldezeilen (nicht in `--list`) Steuerzeichen maskieren, z. B. in awk `shown = file; gsub(/[[:cntrl:]]/, "?", shown)`, analog in `lock_report_class`. Dazu ein Test mit ESC-Pfad. Etwa acht Zeilen.
+- **Herkunft:** `/security-review` zu Task 63 (statisch, nicht praktisch verifiziert).
+
+### Release-Manifest liest Pfade ohne `-z`
+
+- **Wo:** `scripts/factory-release-manifest.sh:37` (`git ls-tree -r --name-only` ohne `-z`), verifiziert am 2026-11-26.
+- **Was:** Pfade mit `"`, `\` oder Steuerzeichen kommen gequotet in `OWNERSHIP_FILE_LIST` an. `ownership-check.sh --list` meldet sie als nicht zugeordnet, und der Release bricht ab. Das ist fail-closed, aber ein solcher Pfad ist so nicht auslieferbar.
+- **Fix:** `ls-tree -r -z --name-only` mit derselben Zeilenumbruch-Prüfung wie `load_git_tracked_files`, dann NUL → `\n`. Dazu ein Test mit `"`-Pfad. Etwa sechs Zeilen.
+- **Herkunft:** `/security-review` zu Task 63 (Spec 63: `OWNERSHIP_FILE_LIST` nicht inbegriffen).
+
 ### ADR-063 D9 nennt `commands.test` = `run-tests.sh`, Stand überholt
 
 - **Wo:** `docs/factory/adr/063-factory-eigenes-repo-vendored-manifest.md:181` (`commands.test` = `run-tests.sh`), verifiziert am 2026-11-10.
