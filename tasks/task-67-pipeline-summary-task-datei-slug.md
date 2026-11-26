@@ -4,10 +4,10 @@
 - [ ] In Bearbeitung
 - [ ] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 `pipeline_summary()` in `scripts/run-pipeline.sh` sucht die Task-Datei unter `tasks/task-<id>.md` (ohne Slug) und
@@ -44,7 +44,10 @@ Keine offen (siehe Spec).
 <!-- Wird durch /review befüllt -->
 
 ## Codify-Notizen
-<!-- Wird durch /codify befüllt – Learnings dieser Task -->
+Lesson „Abgeleiteten Pfad einmal auflösen" (`factory-workflow.md`); Kleinfund Task-ID-Ziffernprüfung. Report: `tasks/codify-67.md`.
+
+## PR-Shepherd
+PR-Shepherd 2026-11-26: Merge freigegeben – keine Review-Kommentare, Branch auf aktuellem main, Gates ohne Fehler (CI-Checks beim Freigeben teils noch laufend, Auto-Merge wartet server-seitig). Kein menschliches GitHub-Approval erforderlich/vorhanden (reviewDecision leer).
 
 ---
 Branch: `feature/67-pipeline-summary-task-datei-slug`
