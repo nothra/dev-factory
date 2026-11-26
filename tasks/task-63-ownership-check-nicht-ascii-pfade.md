@@ -4,10 +4,10 @@
 - [x] In Bearbeitung
 - [x] Review bestanden
 - [x] Tests vollständig
-- [ ] Security-Review bestanden
+- [x] Security-Review bestanden
 - [ ] Refactoring abgeschlossen
-- [ ] Codify ausgeführt
-- [ ] Fertig / PR erstellt
+- [x] Codify ausgeführt
+- [x] Fertig / PR erstellt
 
 ## Beschreibung
 `scripts/checks/ownership-check.sh` soll jeden getrackten Pfad byte-genau lesen und keinen überspringen. Umlaute sind seit #22
@@ -54,9 +54,17 @@ Lock-Modus Exit 0 mit zerteilten Pfaden). Jedes AK2–AK6 hat damit mindestens e
 <!-- Wird durch /review befüllt -->
 - Review Iteration 1 (2026-11-25): **APPROVED** – 0 kritisch, 1 wichtig (AK8-Byte-Vergleich gegen `main` nachholen),
   4 Nitpicks. Details: `tasks/review-63.md`.
+- Security-Review (2026-11-26): **PASSED** – 0 kritisch, 0 wichtig, 3 Hinweise (Steuerzeichen in `✗`-Meldungen und
+  Release-Manifest ohne `-z` → `docs/factory/kleinfunde.md`; `mktemp` ohne Trap = Review-Nitpick). Nur statisch geprüft,
+  das Wegwerf-Skript war in der Session nicht ausführbar. Details: `tasks/security-63.md`.
 
 ## Codify-Notizen
 <!-- Wird durch /codify befüllt – Learnings dieser Task -->
+- 2 Lessons in `docs/factory/lessons/testing.md` (git-Pfade per `-z` lesen; AK „unverändert“ per Vergleichslauf belegen), dazu
+  3 Kleinfunde in `docs/factory/kleinfunde.md`. Report: `tasks/codify-63.md`.
+
+## PR-Shepherd
+- PR-Shepherd 2026-11-26: Merge freigegeben, sobald CI grün. Hinweis: `/refactor` lief in diesem Lauf nicht (Checkbox bewusst offen, kein eigener Refactor-Befund im Review).
 
 ---
 Branch: `feature/63-ownership-check-nicht-ascii-pfade`

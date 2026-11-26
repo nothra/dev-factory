@@ -846,3 +846,19 @@ Ein Fake-`iptables` mit Hilfsprozessen je Aufruf ließ die Gruppe lokal 302 s st
 **Regel:** (a) Gate-Skripte lesen den Producer-Output einmal mit explizitem Fehlerzweig (`if ! VAR="$(cmd)"; then … exit 1; fi`, eigene Meldung statt stillem `set -e`-Abbruch) und prüfen per Here-String – ein nicht lesbarer Input darf nie „kein Treffer" bedeuten. (b) Wird ein Fehlerklassen-Guard eingeführt oder erweitert, den Geltungsbereich gegen alle Skripte prüfen (`git ls-files '*.sh'`), nicht nur gegen die Tests. (c) Der Regressionstest braucht einen Diff über der Pipe-Puffergröße (≥ 1 MiB) mit Treffer in der **ersten** Zeile, je Check einen Treffer in der letzten Zeile als Gegenprobe, eine eigene Assertion für die Größen-Vorbedingung und einen Fehlerfall, der die **Messung** bricht (git-Stub). (d) Trigger-Strings im Gate-Quelltext so schreiben, dass die Zeile sich als Diff-Zeile nicht selbst trifft (`debugger[;]`), und in Fixtures zur Laufzeit zusammensetzen.
 
 → `/implement`, `/test`, `/review` – bei Gate-/Hook-Skripten, die Diff- oder Listen-Output per `grep -q`/`awk` prüfen
+
+## Pfadlisten aus git nur NUL-getrennt lesen; Sonderzeichen-Pfade gegen echtes git testen (aus Factory-Task #63, `/implement`, `/review`, `/security-review`)
+
+`ownership-check.sh` las getrackte Pfade per `git -c core.quotepath=false ls-files`. Das behob Umlaute (Task #22), deckt aber nur Bytes > 0x7F ab: Pfade mit `"`, `\` oder Tab quotet git weiter (Falsch-Rot), und der Tabellenmodus zerlegte jede Zeile mit `awk -F'|'` und übersprang Zeilen mit `NF == 1` – ein Pfad mit `|` fiel so still aus der Zählung (fail-open). Ursache war nicht ein weiterer Sonderfall, sondern der Lese-Weg: text- statt byte-genau.
+
+**Regel:** (a) Pfade aus git per `ls-files -z` / `ls-tree -z` lesen, nie das Quoting nachparsen; Zeilenumbruch im Pfad vor dem Umwandeln NUL → `\n` fail-closed melden (Prüfung per `tr` auf einer Temp-Datei, nicht über eine Shell-Variable: die schnitte NUL und abschließende Zeilenumbrüche ab). (b) Eine Zeile ist ein Pfad – kein `-F'|'`/`NF`-Filter über Pfaden; Trenner nur dort setzen, wo eine Tabellenzeile wirklich zerlegt wird. (c) Tests legen die Sonderzeichen-Pfade (`"`, `\`, Tab, `|`, Nicht-ASCII, Zeilenumbruch) in einem Wegwerf-Repo **gegen echtes git** mit explizit gesetztem `core.quotepath true` an und halten die getrackte Menge exakt; Mutationsbeleg gegen die Fassung vor dem Fix, je AK eine rote Assertion. (d) Wer Pfade nicht mehr quotet, prüft die Meldezeilen: Steuerzeichen (ESC, CR) erreichen sonst Terminal und CI-Log – `--list` bleibt roh, `✗`-Zeilen maskieren. (e) Dasselbe Lese-Muster in Nachbar-Skripten suchen (`git ls-tree` im Release-Manifest war gleich betroffen).
+
+→ `/implement`, `/test`, `/review`, `/security-review` – bei Skripten/Gates, die Dateinamen aus `git ls-files`/`ls-tree`/`diff --name-only` lesen und verarbeiten
+
+## Akzeptanzkriterium „Verhalten unverändert“ braucht den Vergleichslauf in `/test`, nicht nur das Argument (aus Factory-Task #63, `/review` Iteration 1)
+
+AK8 (Ausgabe im Repo selbst identisch zu vorher) stand mit schlüssiger Begründung, aber ohne Vergleich im Task – das Review stufte es als „wichtig“ ein. Der Beleg ist ein Kommando (alte Fassung per `git show origin/main:<datei>` in eine Temp-Datei, beide Fassungen in allen Aufrufarten, `cmp`) und war in der Review-Session nicht freigegeben.
+
+**Regel:** Ein AK „keine Verhaltensänderung“ wird per Byte-Vergleich alt gegen neu belegt und das Ergebnis unter dem AK eingetragen; läuft er nicht (Freigabe fehlt), steht das als offener Punkt in der Task-Datei, nicht als abgehakter Beleg.
+
+→ `/test`, `/review` – bei AK „Ausgabe/Verhalten unverändert“ nach einem Fix an einem Skript
