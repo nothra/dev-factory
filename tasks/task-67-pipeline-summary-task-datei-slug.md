@@ -5,7 +5,7 @@
 - [ ] Review bestanden
 - [x] Tests vollständig
 - [ ] Security-Review bestanden
-- [ ] Refactoring abgeschlossen
+- [x] Refactoring abgeschlossen
 - [ ] Codify ausgeführt
 - [ ] Fertig / PR erstellt
 
@@ -33,6 +33,8 @@ Kein ADR-Trigger (Fehlerkorrektur). Testanker: Dry-Run-Scaffold des Tests zu not
 ## Implementierungs-Notizen
 - Fix: `pipeline_summary()` nutzt das beim Pipeline-Start aufgelöste `$TASK_FILE` statt eines neu gebauten `task-<id>.md`-Pfads.
 - AK5 erledigt: vollständiger Lauf `bash scripts/checks/tests/run-tests.sh` (Exit 0): 2855 grün, 0 rot, alle 5 #67-Prüfungen ✓.
+
+- Refactoring-Pass: Diff geprüft (Fix = 1 Zeile + WHY-Kommentar, Test folgt dem #261-Scaffold). Nichts zu verbessern – bewusst keine Änderung, kein neues Verhalten.
 
 ## Offene Fragen
 <!-- Fragen, die noch geklärt werden müssen -->
