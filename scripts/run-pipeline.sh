@@ -602,7 +602,8 @@ count_section_items() {
 pipeline_summary() {
   local task_id="$1"
   local review_iter="$2"
-  local task_file="$FACTORY_DIR/tasks/task-${task_id}.md"
+  # Dieselbe Datei wie beim Pipeline-Start (tasks/task-<id>-<slug>.md, ADR-013) – nicht neu aufgelöst.
+  local task_file="$TASK_FILE"
   local codify_file="$FACTORY_DIR/tasks/codify-${task_id}.md"
   # Report-Pfade über den geteilten Helper (nothra/tch-gastro-services#310 AK9): die Skill→Datei-Zuordnung steht
   # ausschließlich in scripts/lib/report-verdict.sh, damit Guard, Frische-Prüfung und
