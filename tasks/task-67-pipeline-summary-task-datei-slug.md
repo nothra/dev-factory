@@ -1,8 +1,8 @@
 # Task 67: pipeline-summary-task-datei-slug
 
 ## Status
-- [ ] In Bearbeitung
-- [ ] Review bestanden
+- [x] In Bearbeitung
+- [x] Review bestanden
 - [x] Tests vollständig
 - [x] Security-Review bestanden
 - [x] Refactoring abgeschlossen
@@ -47,7 +47,7 @@ Keine offen (siehe Spec).
 Lesson „Abgeleiteten Pfad einmal auflösen" (`factory-workflow.md`); Kleinfund Task-ID-Ziffernprüfung. Report: `tasks/codify-67.md`.
 
 ## PR-Shepherd
-PR-Shepherd 2026-11-26: Merge freigegeben – keine Review-Kommentare, Branch auf aktuellem main, Gates ohne Fehler (CI-Checks beim Freigeben teils noch laufend, Auto-Merge wartet server-seitig). Kein menschliches GitHub-Approval erforderlich/vorhanden (reviewDecision leer).
+PR-Shepherd 2026-11-26: keine Review-Kommentare, Branch auf aktuellem main, Gates ohne Fehler. Der Lauf endete mit `INCOMPLETE_OUTCOME` (ein Commit ungepusht, PR noch Draft, Auto-Merge nicht eingeschaltet) – kein Merge freigegeben. Kein menschliches GitHub-Approval vorhanden (reviewDecision leer). Die Status-Haken „In Bearbeitung“ und „Review bestanden“ wurden nachträglich von Hand gesetzt, weil `/implement` und `/review` sie nicht setzen (Folge-Issue).
 
 ---
 Branch: `feature/67-pipeline-summary-task-datei-slug`
