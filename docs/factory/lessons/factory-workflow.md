@@ -1874,3 +1874,11 @@ Der Fix an `pre-commit.sh` (Seite `factory`, wird ausgeliefert) änderte das Ver
 **Regel:** Ändert ein PR eine Datei der Seite `factory` so, dass Konsumenten es merken (Gate-Verhalten, Meldung, Schnittstelle), kommt im selben PR ein Eintrag unter `## Unreleased` in `CHANGELOG.md` (Fehlerbild, Auswirkung, „für Konsumenten nichts zu tun“, falls zutreffend). Das Release setzt den Abschnitt voraus (Factory-ADR-063 D6). In `/implement` vor dem Abhaken der letzten Checkbox prüfen, im `/review` gegen `ownership-check.sh --list factory` abgleichen.
 
 → `/implement`, `/review` – bei Änderungen an ausgelieferten Skripten, Skills oder Gates mit sichtbarer Verhaltensänderung
+
+## Abgeleiteten Pfad einmal auflösen und weiterreichen, nicht an zweiter Stelle neu bauen (aus Factory-Task #67, `/implement`)
+
+`pipeline_summary()` baute `tasks/task-<id>.md` selbst, obwohl der Pipeline-Start die Task-Datei längst als `tasks/task-<id>-<slug>.md` aufgelöst hatte (Factory-ADR-013). Seit der Umstellung auf Slug-Namen meldete jeder Lauf „Task-Datei nicht gefunden“; niemand sah es, weil das Summary fail-open ist und nur eine Zeile ausgibt. Ein Neuaufbau per Glob hätte zusätzlich bei Präfix-Kollision (`task-6-…` neben `task-67-…`) die falsche Datei treffen können.
+
+**Regel:** Ein Pfad, den das Skript beim Start aufgelöst hat (`$TASK_FILE`), wird weitergereicht, nicht in einer zweiten Funktion aus ID und Muster neu gebaut. Ändert eine Namenskonvention, vorher per `grep` alle Stellen suchen, die den Pfad zusammensetzen (`grep -n 'tasks/task-' scripts/`). Fail-open-Ausgaben (Summary, Metriken) brauchen einen Test auf die Meldung „nicht gefunden“, sonst bleibt der Defekt unsichtbar.
+
+→ `/implement`, `/review`, `/refactor` – bei Änderung einer Datei-Namenskonvention oder wenn eine Funktion einen Pfad aus ID und Muster baut, den das Skript schon aufgelöst hat

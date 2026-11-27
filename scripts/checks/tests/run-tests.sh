@@ -1322,6 +1322,48 @@ else
   skip_yq "#261 AC2/AC3: End-to-end Codify-Regelzeilen-Ausgabe (1-3 / >3 Treffer)"
 fi
 
+# #67 AK1-AK3: Summary zeigt den Titel der Task-Datei tasks/task-<id>-<slug>.md (nicht tasks/task-<id>.md).
+# Echter pipeline_summary()-Pfad über --dry-run, Scaffold wie beim #261-Test oben.
+if [ "$HAS_YQ" = 1 ]; then
+  TMP_67="$(mktemp -d)"
+  mkdir -p "$TMP_67/scripts/checks" "$TMP_67/scripts/lib" "$TMP_67/tasks" "$TMP_67/docs/factory"
+  cp "$PIPELINE" "$TMP_67/scripts/"
+  cp "$CHECKS_DIR/config-validation-check.sh" "$TMP_67/scripts/checks/"
+  cp "$FACTORY_ROOT/factory.defaults.yml" "$TMP_67/"
+  cp_pipeline_libs "$TMP_67"
+  echo "# ctx" > "$TMP_67/docs/factory/PROJECT-CONTEXT.md"
+  for id in 6 67; do
+    mk_spec_fixture "$TMP_67" "$id"
+    printf '## Empfehlung\nAPPROVED\n' > "$TMP_67/tasks/review-${id}.md"
+  done
+  echo "# Task 6: kurze-id" > "$TMP_67/tasks/task-6-kurze-id.md"
+  echo "# Task 67: lange-id" > "$TMP_67/tasks/task-67-lange-id.md"
+  git -C "$TMP_67" init -q
+  git -C "$TMP_67" add .
+  git -C "$TMP_67" -c user.email="t@t.com" -c user.name="t" commit -q -m init
+
+  ak1_out=$(bash "$TMP_67/scripts/run-pipeline.sh" 67 --dry-run 2>&1 || true)
+  grep_in "$ak1_out" -qF '→ Task 67: lange-id'
+  assert_true "$?" "#67 AK1: Summary zeigt den Titel der Task-Datei task-<id>-<slug>.md"
+  grep_in "$ak1_out" -qF 'Task-Datei nicht gefunden'
+  assert_true "$([[ $? -ne 0 ]]; echo $?)" "#67 AK1: kein 'Task-Datei nicht gefunden' im Summary"
+
+  ak2_out=$(bash "$TMP_67/scripts/run-pipeline.sh" 6 --dry-run 2>&1 || true)
+  grep_in "$ak2_out" -qF '→ Task 6: kurze-id'
+  assert_true "$?" "#67 AK2: ID-Präfix-Kollision – Summary zeigt den Titel der Datei der eigenen ID"
+  grep_in "$ak2_out" -qF 'lange-id'
+  assert_true "$([[ $? -ne 0 ]]; echo $?)" "#67 AK2: Titel der Datei mit Präfix-ID (67) erscheint nicht"
+
+  printf 'ohne Titelzeile\n' > "$TMP_67/tasks/task-67-lange-id.md"
+  git -C "$TMP_67" add .; git -C "$TMP_67" -c user.email="t@t.com" -c user.name="t" commit -q -m ak3
+  ak3_out=$(bash "$TMP_67/scripts/run-pipeline.sh" 67 --dry-run 2>&1 || true)
+  grep_in "$ak3_out" -qF '→ (kein Titel)'
+  assert_true "$?" "#67 AK3: fehlende Titelzeile – Fallback '(kein Titel)'"
+  rm -rf "$TMP_67"
+else
+  skip_yq "#67 AK1-AK3: Summary-Titel aus task-<id>-<slug>.md"
+fi
+
 # ─── Stufe-2.5: Factory-Config Phase 1b – run-pipeline liest die Config (nothra/tch-gastro-services#25) ─
 echo ""
 echo "Factory-Config Phase 1b (#25, ADR-009):"

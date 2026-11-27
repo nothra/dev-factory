@@ -355,3 +355,10 @@
 - **Was:** Dieselbe SIGPIPE-Klasse wie in `pre-commit.sh` (Factory-Issue #70): endet `grep -q` vor dem Produzenten, meldet die Pipeline unter `pipefail` ≠ 0 trotz Treffer. Die Produzenten liefern hier nur wenige Zeilen, und keine der Stellen ist ein Sicherheits-Gate – praktisch nicht auslösbar.
 - **Fix:** Ausgabe in eine Variable lesen und per Here-String prüfen (`grep -qE … <<< "$(env)"` bzw. `<<< "$worktrees"`). Je Stelle eine bis zwei Zeilen.
 - **Herkunft:** `/implement` zu Task 70 (Spec „Nicht inbegriffen“).
+
+### `run-pipeline.sh` prüft die Task-ID nicht auf Ziffern
+
+- **Wo:** `scripts/run-pipeline.sh:74` (`*) TASK_ID="$arg"`) und `:84` (`find … -name "task-${TASK_ID}-*.md" | head -1`), verifiziert am 2026-11-26.
+- **Was:** Die Task-ID geht ungeprüft als Glob in `find -name`. Eine ID wie `*` oder `6*` trifft eine beliebige bzw. fremde Task-Datei, und seit Task 67 zeigt auch das Summary deren Titel. Keine Sicherheitsgrenze (der Aufrufer hat ohnehin eine Shell, `factory-poll.sh` übergibt Issue-Nummern), nur eine Robustheitslücke: falsche Task statt klarer Fehlermeldung.
+- **Fix:** Nach der Leer-Prüfung `[[ "$TASK_ID" =~ ^[0-9]+$ ]] || { echo "Fehler: Task-ID muss numerisch sein"; exit 1; }` (Task-ID = Issue-Nummer, Factory-ADR-013) plus ein Test. Etwa fünf Zeilen.
+- **Herkunft:** `/security-review` zu Task 67.
